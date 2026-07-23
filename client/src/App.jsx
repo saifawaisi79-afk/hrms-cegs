@@ -453,12 +453,31 @@ function App() {
    LOGIN / WORKSPACE PAGE
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 function LoginPage({ login, db }) {
+  const checkNetworkWhitelist = async () => {
+    const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5001' : '';
+    try {
+      const res = await fetch(`${API_BASE}/auth/check-ip`);
+      if (res.status === 403) {
+        const data = await res.json();
+        alert(data.error || 'Access denied. Please connect to the office network to log in.');
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn('Connection to backend whitelist check failed:', err);
+      // In local offline mode or connection issues, default to proceed
+      return true;
+    }
+  };
+
   const [mode, setMode] = useState('portal'); // portal | creds
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [loading, setLoading] = useState(false);
 
   const quickLogin = async role => {
+    const isWhitelisted = await checkNetworkWhitelist();
+    if (!isWhitelisted) return;
     const map = {employee:'madiha@cegs.com',admin:'nusrath@cegs.com',super_admin:'superadmin@cegs.com'};
     setLoading(role);
     await new Promise(r=>setTimeout(r,400));
@@ -467,7 +486,10 @@ function LoginPage({ login, db }) {
   };
 
   const handleCreds = async e => {
-    e.preventDefault(); setLoading('creds');
+    e.preventDefault(); 
+    const isWhitelisted = await checkNetworkWhitelist();
+    if (!isWhitelisted) return;
+    setLoading('creds');
     await new Promise(r=>setTimeout(r,400));
     login(email,pass); setLoading(false);
   };

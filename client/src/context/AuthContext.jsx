@@ -6,12 +6,12 @@ const API_BASE = typeof window !== 'undefined' && window.location.hostname === '
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (token) {
-      localStorage.setItem('token', token);
+      // No token persistence
       // Fetch session from backend API
       fetch(`${API_BASE}/auth/session`, {
         headers: { 'Authorization': `Bearer ${token}` }

@@ -6,6 +6,11 @@ const { dbQuery } = require('../db');
 const { JWT_SECRET, authenticateToken } = require('../middleware/auth');
 const { ipWhitelist } = require('../middleware/ipWhitelist');
 
+// GET /auth/check-ip - Endpoint to verify if client IP is whitelisted
+router.get('/check-ip', ipWhitelist, (req, res) => {
+  res.json({ allowed: true });
+});
+
 // POST /auth/login
 router.post('/login', ipWhitelist, async (req, res) => {
   const { email, password } = req.body;
