@@ -3,6 +3,8 @@ import { useAuth } from './AuthContext';
 
 const AppContext = createContext(null);
 
+const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5001' : '';
+
 export const AppProvider = ({ children }) => {
   const { token, isAuthenticated } = useAuth();
   const [notifications, setNotifications] = useState([]);
@@ -14,7 +16,7 @@ export const AppProvider = ({ children }) => {
     if (!isAuthenticated || !token) return;
 
     // Fetch Notifications
-    fetch('http://localhost:5001/api/notifications', {
+    fetch(`${API_BASE}/api/notifications`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -22,7 +24,7 @@ export const AppProvider = ({ children }) => {
       .catch(console.error);
 
     // Fetch Settings
-    fetch('http://localhost:5001/api/settings', {
+    fetch(`${API_BASE}/api/settings`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -30,7 +32,7 @@ export const AppProvider = ({ children }) => {
       .catch(console.error);
 
     // Fetch Departments
-    fetch('http://localhost:5001/api/departments', {
+    fetch(`${API_BASE}/api/departments`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -38,7 +40,7 @@ export const AppProvider = ({ children }) => {
       .catch(console.error);
 
     // Fetch Employees
-    fetch('http://localhost:5001/api/employees', {
+    fetch(`${API_BASE}/api/employees`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())

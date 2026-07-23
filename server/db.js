@@ -2,13 +2,15 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-const dbPath = path.join(__dirname, 'database.sqlite');
+// Load env variables
+require('dotenv').config();
+
+const dbPath = process.env.VERCEL || process.env.NOW_REGION
+  ? '/tmp/database.sqlite'
+  : path.join(__dirname, 'database.sqlite');
 let db = null;
 let mongoClient = null;
 let mongoDb = null;
-
-// Load env variables
-require('dotenv').config();
 
 // Function to handle MongoDB connection and SQLite file syncing
 async function connectDatabase() {
