@@ -234,6 +234,7 @@ function App() {
   const [view, setView] = useState('login');
   const [search, setSearch] = useState('');
   const [activeDropdown, setActiveDropdown] = useState(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const toggleDropdown = (name) => setActiveDropdown(prev => prev === name ? null : name);
 
   const save = useCallback((key, val) => {
@@ -343,7 +344,7 @@ function App() {
     <div className="app-shell" onClick={() => setActiveDropdown(null)}>
       <header className="cegs-header" onClick={(e) => e.stopPropagation()}>
         <div className="header-left">
-          <div className="cegs-logo-capsule" onClick={() => setView('dashboard')} style={{ cursor: 'pointer' }}>
+          <div className="cegs-logo-capsule" onClick={() => setShowLogoutModal(true)} style={{ cursor: 'pointer' }} title="Click logo to log out">
             CEGS<span>OS</span>
           </div>
         </div>
@@ -487,6 +488,28 @@ function App() {
           {pages[view] || pages.dashboard}
         </main>
       </div>
+
+      {showLogoutModal && (
+        <div className="modal-backdrop anim-fadein" onClick={() => setShowLogoutModal(false)}>
+          <div className="modal-box anim-scalein" style={{ maxWidth: 420, textAlign: 'center', padding: '32px 28px', borderRadius: 24 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>🚪</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: '#111827', fontFamily: "'Outfit', sans-serif", marginBottom: 8 }}>
+              Log Out of Workspace?
+            </div>
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 24, lineHeight: 1.5 }}>
+              Are you sure you want to exit your current HRMS portal session?
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button className="btn btn-ghost" style={{ flex: 1, height: 44, borderRadius: 12, fontWeight: 700 }} onClick={() => setShowLogoutModal(false)}>
+                Stay Logged In
+              </button>
+              <button className="btn btn-red" style={{ flex: 1, height: 44, borderRadius: 12, fontWeight: 800 }} onClick={() => { setShowLogoutModal(false); logout(); }}>
+                Yes, Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -523,10 +546,9 @@ function LoginPage({ login, db }) {
     const isWhitelisted = await checkNetworkWhitelist();
     if (!isWhitelisted) return;
     const map = {employee:'madiha@cegs.com',admin:'nusrath@cegs.com',super_admin:'superadmin@cegs.com'};
-    setLoading(role);
-    await new Promise(r=>setTimeout(r,400));
-    login(map[role],'Password123');
-    setLoading(false);
+    setEmail(map[role] || '');
+    setPass('Password123');
+    setMode('creds');
   };
 
   const handleCreds = async e => {
@@ -1624,7 +1646,24 @@ function AttendancePage({ db, save, user }) {
 
   const fmt = s=>`${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
-  const clockIn = () => {
+  const verifyOfficeLan = async () => {
+    const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
+    try {
+      const res = await fetch(`${API_BASE}/auth/check-ip`, { signal: AbortSignal.timeout(2500) });
+      if (res.status === 403) {
+        const data = await res.json();
+        alert(data.error || '⛔ Access Denied: Attendance can ONLY be marked when connected to the Office LAN network.');
+        return false;
+      }
+      return true;
+    } catch (err) {
+      return true;
+    }
+  };
+
+  const clockIn = async () => {
+    const isLanVerified = await verifyOfficeLan();
+    if (!isLanVerified) return;
     if(todayRec){ alert('Already checked in today!'); return; }
     const now=new Date();
     const status=(now.getHours()>10 || (now.getHours()===10 && now.getMinutes()>15)) ? 'late' : 'present';
@@ -1632,7 +1671,9 @@ function AttendancePage({ db, save, user }) {
     setRunning(true);
   };
 
-  const clockOut = () => {
+  const clockOut = async () => {
+    const isLanVerified = await verifyOfficeLan();
+    if (!isLanVerified) return;
     if(!todayRec||todayRec.out){ alert(!todayRec?'Clock in first!':'Already clocked out.'); return; }
     const hrs=parseFloat((secs/3600).toFixed(2))||8.0;
     save('attendance',db.attendance.map(a=>a.uid===user.id&&a.date===today?{...a,out:new Date().toTimeString().substr(0,5),hrs}:a));
