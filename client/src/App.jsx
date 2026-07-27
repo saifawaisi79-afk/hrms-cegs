@@ -14,6 +14,12 @@ const SEED_DATA = {
     {id:5,eid:'EMP-005',name:'Madhavi',email:'madhavi@cegs.com',role:'employee',deptId:2,title:'Recruiter',joined:'2024-11-20',phone:'+1 212 555 0005',emergencyPhone:'+1 212 555 9905',status:'active',salary:15000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=madhavi',reportsTo:2,bankName:'Wells Fargo',bankAccount:'5566778899',bankIfsc:'WFCUS33',taxId:'TX-778899-REC2'},
     {id:6,eid:'EMP-006',name:'Mohammed Raheel',email:'raheel@cegs.com',role:'employee',deptId:3,title:'Billing',joined:'2025-01-08',phone:'+1 212 555 0006',emergencyPhone:'+1 212 555 9906',status:'active',salary:25000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=raheel',reportsTo:4,bankName:'CitiBank',bankAccount:'6677889900',bankIfsc:'CITIUS33',taxId:'TX-889900-BIL1'},
     {id:7,eid:'EMP-007',name:'Haseeb',email:'haseeb@cegs.com',role:'employee',deptId:3,title:'Billing',joined:'2025-02-15',phone:'+1 212 555 0007',emergencyPhone:'+1 212 555 9907',status:'active',salary:15000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=haseeb',reportsTo:4,bankName:'Chase Bank',bankAccount:'7788990011',bankIfsc:'CHASUS33',taxId:'TX-990011-BIL2'},
+    {id:8,eid:'EMP-008',name:'Gowtham',email:'gowtham@cegs.com',role:'employee',deptId:2,title:'Recruiter',joined:'2025-03-01',phone:'+1 212 555 0008',emergencyPhone:'+1 212 555 9908',status:'active',salary:15000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=gowtham',reportsTo:2,bankName:'Chase Bank',bankAccount:'8800112233',bankIfsc:'CHASUS33',taxId:'TX-880011-REC3'},
+    {id:9,eid:'EMP-009',name:'Bijay Debnath',email:'bijay@cegs.com',role:'employee',deptId:2,title:'Recruiter',joined:'2025-03-01',phone:'+1 212 555 0009',emergencyPhone:'+1 212 555 9909',status:'active',salary:15000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=bijay',reportsTo:2,bankName:'Chase Bank',bankAccount:'8800112244',bankIfsc:'CHASUS33',taxId:'TX-880011-REC4'},
+    {id:10,eid:'EMP-010',name:'Nithya Shree',email:'nithyashree@cegs.com',role:'employee',deptId:2,title:'Recruiter',joined:'2025-03-01',phone:'+1 212 555 0010',emergencyPhone:'+1 212 555 9910',status:'active',salary:12000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=nithyashree',reportsTo:2,bankName:'Chase Bank',bankAccount:'8800112255',bankIfsc:'CHASUS33',taxId:'TX-880011-REC5'},
+    {id:11,eid:'EMP-011',name:'Zoya Khan',email:'zoyakhan@cegs.com',role:'employee',deptId:2,title:'Recruiter',joined:'2025-03-01',phone:'+1 212 555 0011',emergencyPhone:'+1 212 555 9911',status:'active',salary:18000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=zoyakhan',reportsTo:2,bankName:'Chase Bank',bankAccount:'8800112266',bankIfsc:'CHASUS33',taxId:'TX-880011-REC6'},
+    {id:12,eid:'EMP-012',name:'Pallavi',email:'pallavi@cegs.com',role:'employee',deptId:2,title:'Recruiter',joined:'2025-03-01',phone:'+1 212 555 0012',emergencyPhone:'+1 212 555 9912',status:'active',salary:15000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=pallavi',reportsTo:2,bankName:'Chase Bank',bankAccount:'8800112277',bankIfsc:'CHASUS33',taxId:'TX-880011-REC7'},
+    {id:13,eid:'EMP-013',name:'Nithin',email:'nithin@cegs.com',role:'employee',deptId:2,title:'Recruiter',joined:'2025-03-01',phone:'+1 212 555 0013',emergencyPhone:'+1 212 555 9913',status:'active',salary:15000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=nithin',reportsTo:2,bankName:'Chase Bank',bankAccount:'8800112288',bankIfsc:'CHASUS33',taxId:'TX-880011-REC8'},
   ],
   permissions: {
     super_admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true },
@@ -661,67 +667,7 @@ function LoginPage({ login, db }) {
         </div>
       </div>
 
-      {/* Employee Details & Account Credentials Table */}
-      <div className="card anim-fadeup" style={{ marginTop: 32, width: '100%', maxWidth: 960, padding: 24, borderRadius: 24, background: '#ffffff', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>HRMS: Employee's Details & Account Credentials</div>
-            <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>Role-based access matrix. Password for all accounts is <code style={{ background: '#F3E8FF', color: '#7C5CFC', padding: '2px 6px', borderRadius: 6 }}>Password123</code></div>
-          </div>
-          <span style={{ background: '#E6F4EA', color: '#137333', border: '1px solid #CEEAD6', borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 800 }}>
-            7 Accounts Ready
-          </span>
-        </div>
-
-        <div style={{ overflowX: 'auto', borderRadius: 16, border: '1px solid #F3F4F6' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, textAlign: 'left' }}>
-            <thead>
-              <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>S.no</th>
-                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Name</th>
-                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Salary</th>
-                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Position</th>
-                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>User ID (Email)</th>
-                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Portal Access</th>
-                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280', textAlign: 'right' }}>Direct Login</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { sno: 1, name: 'Nusrath Hussain', salary: '30,000', pos: 'Manager', email: 'nusrath@cegs.com', portal: 'HR Portal', badge: 'b-amber', roleKey: 'admin' },
-                { sno: 2, name: 'Madiha Mehak', salary: '20,000', pos: 'Recruiter', email: 'madiha@cegs.com', portal: 'Employee Portal', badge: 'b-blue', roleKey: 'employee' },
-                { sno: 3, name: 'Heena Beagum', salary: '25,000', pos: 'Billing Manager', email: 'heena@cegs.com', portal: 'Employee Portal', badge: 'b-blue', roleKey: 'employee' },
-                { sno: 4, name: 'Madhavi', salary: '15,000', pos: 'Recruiter', email: 'madhavi@cegs.com', portal: 'Employee Portal', badge: 'b-blue', roleKey: 'employee' },
-                { sno: 5, name: 'Mohammed Raheel', salary: '25,000', pos: 'Billing', email: 'raheel@cegs.com', portal: 'Employee Portal', badge: 'b-blue', roleKey: 'employee' },
-                { sno: 6, name: 'Haseeb', salary: '15,000', pos: 'Billing', email: 'haseeb@cegs.com', portal: 'Employee Portal', badge: 'b-blue', roleKey: 'employee' },
-                { sno: 7, name: 'CEO SuperAdmin', salary: '95,000', pos: 'Chief Executive Officer', email: 'superadmin@cegs.com', portal: 'Super Admin', badge: 'b-purple', roleKey: 'super_admin' },
-              ].map(emp => (
-                <tr key={emp.sno} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#9CA3AF' }}>{emp.sno}</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#111827' }}>{emp.name}</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#059669' }}>₹{emp.salary}</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#4B5563' }}>{emp.pos}</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#7C5CFC', fontFamily: 'monospace' }}>{emp.email}</td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <span className={`badge ${emp.badge}`} style={{ fontWeight: 800, fontSize: 10.5 }}>{emp.portal}</span>
-                  </td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                    <button 
-                      className="btn btn-xs btn-dark" 
-                      style={{ borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 800 }}
-                      onClick={() => login(emp.email, 'Password123')}
-                    >
-                      Login As ➔
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <span className="ws-footer-link" style={{ marginTop: 20 }} onClick={()=>setMode('creds')}>Sign in with custom credentials instead</span>
+      <span className="ws-footer-link" style={{ marginTop: 24 }} onClick={()=>setMode('creds')}>Sign in with custom credentials instead</span>
     </div>
   );
 }
@@ -2663,6 +2609,59 @@ function UsersPage({ db, save, user }) {
                   <td><input type="checkbox" className="perm-check" checked readOnly/></td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Employee Details & Account Credentials Table */}
+      <div className="card anim-fadeup" style={{ marginBottom: 24, padding: 24, borderRadius: 24, background: '#ffffff', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>HRMS: Employee's Details & Account Credentials</div>
+            <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 2 }}>Role-based access matrix. Default password for all accounts is <code style={{ background: '#F3E8FF', color: '#7C5CFC', padding: '2px 6px', borderRadius: 6, fontWeight: 800 }}>Password123</code></div>
+          </div>
+          <span style={{ background: '#E6F4EA', color: '#137333', border: '1px solid #CEEAD6', borderRadius: 99, padding: '4px 14px', fontSize: 11, fontWeight: 800 }}>
+            {db.users.length} Accounts Active
+          </span>
+        </div>
+
+        <div style={{ overflowX: 'auto', borderRadius: 16, border: '1px solid #F3F4F6' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, textAlign: 'left' }}>
+            <thead>
+              <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>S.no</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Name</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Salary</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Position</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>User ID (Email)</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Portal Access</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280', textAlign: 'right' }}>Password</th>
+              </tr>
+            </thead>
+            <tbody>
+              {db.users.map((u, idx) => {
+                let portalName = 'EMPLOYEE PORTAL';
+                let badgeClass = 'b-blue';
+                if (u.role === 'super_admin') { portalName = 'SUPER ADMIN'; badgeClass = 'b-purple'; }
+                else if (u.role === 'admin') { portalName = 'HR PORTAL'; badgeClass = 'b-amber'; }
+                
+                return (
+                  <tr key={u.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                    <td style={{ padding: '10px 14px', fontWeight: 800, color: '#9CA3AF' }}>{idx + 1}</td>
+                    <td style={{ padding: '10px 14px', fontWeight: 800, color: '#111827' }}>{u.name}</td>
+                    <td style={{ padding: '10px 14px', fontWeight: 700, color: '#059669' }}>₹{(u.salary || 15000).toLocaleString('en-IN')}</td>
+                    <td style={{ padding: '10px 14px', fontWeight: 700, color: '#4B5563' }}>{u.title || (u.role === 'super_admin' ? 'Chief Executive Officer' : u.role === 'admin' ? 'HR Manager' : 'Recruiter')}</td>
+                    <td style={{ padding: '10px 14px', fontWeight: 700, color: '#7C5CFC', fontFamily: 'monospace' }}>{u.email}</td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <span className={`badge ${badgeClass}`} style={{ fontWeight: 800, fontSize: 10.5 }}>{portalName}</span>
+                    </td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: '#6B7280', fontFamily: 'monospace' }}>
+                      Password123
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
