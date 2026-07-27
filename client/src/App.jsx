@@ -496,9 +496,12 @@ function App() {
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 function LoginPage({ login, db }) {
   const checkNetworkWhitelist = async () => {
-    const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5001' : '';
+    // Only run the whitelist check when backend is reachable; skip in offline/local mode
+    const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      ? 'http://localhost:5000'
+      : '';
     try {
-      const res = await fetch(`${API_BASE}/auth/check-ip`);
+      const res = await fetch(`${API_BASE}/auth/check-ip`, { signal: AbortSignal.timeout(2000) });
       if (res.status === 403) {
         const data = await res.json();
         alert(data.error || 'Access denied. Please connect to the office network to log in.');
@@ -506,8 +509,7 @@ function LoginPage({ login, db }) {
       }
       return true;
     } catch (err) {
-      console.warn('Connection to backend whitelist check failed:', err);
-      // In local offline mode or connection issues, default to proceed
+      // Backend unreachable (offline / local dev) — allow login to proceed
       return true;
     }
   };
@@ -4566,6 +4568,7 @@ function RecruitmentPage({ db, save, user }) {
   const itvPct = Math.round((itvCount / totalForPct) * 100);
   const scrPct = Math.round((scrCount / totalForPct) * 100);
   const rejPct = Math.round((rejCount / totalForPct) * 100);
+  const pndPct = Math.round((pndCount / totalForPct) * 100);
 
   const doughnutGradient = `conic-gradient(#10B981 0% ${selPct}%, #8B5CF6 ${selPct}% ${selPct + itvPct}%, #F59E0B ${selPct + itvPct}% ${selPct + itvPct + scrPct}%, #EF4444 ${selPct + itvPct + scrPct}% ${selPct + itvPct + scrPct + rejPct}%, #94A3B8 ${selPct + itvPct + scrPct + rejPct}% 100%)`;
 
