@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import * as XLSX from 'xlsx';
+import confetti from 'canvas-confetti';
 
 /* ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== 
    DATA LAYER
@@ -120,23 +122,61 @@ const SEED_DATA = {
   ]
 };
 
+// ── Store (v4 key forces a clean slate, wiping all v3 cached data) ──
+const STORE_VERSION = 'v4';
 const Store = {
-  key: k => `vp_hrms_v3_${k}`,
+  key: k => `vp_hrms_${STORE_VERSION}_${k}`,
   get(k){ try{ const v=localStorage.getItem(this.key(k)); return v?JSON.parse(v):null; } catch{ return null; } },
   set(k,v){ try{ localStorage.setItem(this.key(k),JSON.stringify(v)); } catch{} },
+  clearOldVersions(){
+    // Wipe every key from old versions (v1, v2, v3)
+    ['v1','v2','v3'].forEach(ver => {
+      Object.keys(SEED_DATA).forEach(k => {
+        try { localStorage.removeItem(`vp_hrms_${ver}_${k}`); } catch{}
+        try { localStorage.removeItem(`vp_hrms_v3_${k}`); } catch{}
+      });
+    });
+  },
   init(){
-    const storedUsers = this.get('users');
-    const isOld = storedUsers && !storedUsers.some(u => u.email === 'nusrath@cegs.com');
-    const missingPerms = !this.get('permissions');
-    if (isOld || missingPerms) {
-      console.log('Old CEGS database version or missing permissions matrix detected in LocalStorage. Resetting cached workspace...');
-      Object.keys(SEED_DATA).forEach(k => localStorage.removeItem(this.key(k)));
-    }
+    this.clearOldVersions();
     Object.keys(SEED_DATA).forEach(k=>{ if(!this.get(k)) this.set(k,SEED_DATA[k]); });
   },
-  load(){ const o={}; Object.keys(SEED_DATA).forEach(k=>{ o[k]=this.get(k)||SEED_DATA[k]; }); return o; }
+  load(){
+    const o={};
+    Object.keys(SEED_DATA).forEach(k=>{
+      try {
+        const val = this.get(k);
+        o[k] = (val !== null && val !== undefined) ? val : SEED_DATA[k];
+      } catch {
+        o[k] = SEED_DATA[k];
+      }
+    });
+    return o;
+  }
 };
-Store.init();
+try { Store.init(); } catch(e) { console.warn('Store init failed, using seed data only', e); }
+
+// ── Error Boundary ── catches any runtime React crash and shows a safe fallback
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error('CEGS HRMS Runtime Error:', error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', background: '#0F172A', color: '#fff', fontFamily: "'Plus Jakarta Sans', sans-serif", gap: 16, padding: 32 }}>
+          <div style={{ fontSize: 48 }}>⚠️</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>CEGS HRMS encountered an error</div>
+          <div style={{ fontSize: 14, color: '#94A3B8', maxWidth: 480, textAlign: 'center' }}>{String(this.state.error?.message || this.state.error)}</div>
+          <button onClick={() => { localStorage.clear(); window.location.reload(); }} style={{ marginTop: 16, padding: '12px 28px', background: '#7C5CFC', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
+            🔄 Clear Cache &amp; Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
    ICON LIBRARY (inline SVG)
@@ -200,7 +240,7 @@ function App() {
     setDb(prev => { const next = {...prev,[key]:val}; Store.set(key,val); return next; });
   }, []);
 
-  const unread = db.notifications.filter(n => !n.read && (!n.to || n.to === user?.id)).length;
+  const unread = (db.notifications || []).filter(n => !n.read && (!n.to || n.to === user?.id)).length;
 
   const login = (email, pass) => {
     const u = db.users.find(x => x.email.toLowerCase() === email.toLowerCase());
@@ -276,7 +316,7 @@ function App() {
     integrations: <IntegrationsPage />,
     security: <SecurityPage />,
     reports: <ReportsPage />,
-    recruitment: <RecruitmentPage />,
+    recruitment: <RecruitmentPage db={db} save={save} user={user} />,
     performance: <PerformancePage user={user} />,
     learning: <LearningPage />,
     helpdesk: <HelpdeskPage user={user} />,
@@ -356,6 +396,7 @@ function App() {
               {activeDropdown === 'campaign' && (
                 <div className="nav-dropdown-menu">
                   {isSA && <>
+                    <div className="dropdown-item" onClick={() => { setView('recruitment'); setActiveDropdown(null); }}><IC n="adduser" /> Recruitment Portal & Targets</div>
                     <div className="dropdown-item" onClick={() => { setView('workflows'); setActiveDropdown(null); }}><IC n="activity" /> Workflows</div>
                     {canAccessReports && <div className="dropdown-item" onClick={() => { setView('reports'); setActiveDropdown(null); }}><IC n="trending" /> Reports</div>}
                     <div className="dropdown-item" onClick={() => { setView('rewards'); setActiveDropdown(null); }}><IC n="star" /> Rewards & Recognition</div>
@@ -363,7 +404,7 @@ function App() {
                     <div className="dropdown-item" onClick={() => { setView('meetings'); setActiveDropdown(null); }}><IC n="video" /> Meeting Scheduler</div>
                   </>}
                   {isHR && <>
-                    <div className="dropdown-item" onClick={() => { setView('recruitment'); setActiveDropdown(null); }}><IC n="adduser" /> Recruitment</div>
+                    <div className="dropdown-item" onClick={() => { setView('recruitment'); setActiveDropdown(null); }}><IC n="adduser" /> Recruitment Portal</div>
                     <div className="dropdown-item" onClick={() => { setView('onboarding'); setActiveDropdown(null); }}><IC n="file" /> Onboarding</div>
                     <div className="dropdown-item" onClick={() => { setView('performance'); setActiveDropdown(null); }}><IC n="trending" /> Performance</div>
                     <div className="dropdown-item" onClick={() => { setView('learning'); setActiveDropdown(null); }}><IC n="help" /> Training</div>
@@ -372,6 +413,7 @@ function App() {
                     <div className="dropdown-item" onClick={() => { setView('meetings'); setActiveDropdown(null); }}><IC n="video" /> Meeting Scheduler</div>
                   </>}
                   {isEmp && <>
+                    <div className="dropdown-item" onClick={() => { setView('recruitment'); setActiveDropdown(null); }}><IC n="adduser" /> Recruitment Targets</div>
                     <div className="dropdown-item" onClick={() => { setView('performance'); setActiveDropdown(null); }}><IC n="trending" /> Performance</div>
                     <div className="dropdown-item" onClick={() => { setView('learning'); setActiveDropdown(null); }}><IC n="help" /> Learning</div>
                     <div className="dropdown-item" onClick={() => { setView('timesheets'); setActiveDropdown(null); }}><IC n="file" /> Timesheets</div>
@@ -595,7 +637,67 @@ function LoginPage({ login, db }) {
         </div>
       </div>
 
-      <span className="ws-footer-link" onClick={()=>setMode('creds')}>Sign in with custom credentials instead</span>
+      {/* Employee Details & Account Credentials Table */}
+      <div className="card anim-fadeup" style={{ marginTop: 32, width: '100%', maxWidth: 960, padding: 24, borderRadius: 24, background: '#ffffff', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>HRMS: Employee's Details & Account Credentials</div>
+            <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>Role-based access matrix. Password for all accounts is <code style={{ background: '#F3E8FF', color: '#7C5CFC', padding: '2px 6px', borderRadius: 6 }}>Password123</code></div>
+          </div>
+          <span style={{ background: '#E6F4EA', color: '#137333', border: '1px solid #CEEAD6', borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 800 }}>
+            7 Accounts Ready
+          </span>
+        </div>
+
+        <div style={{ overflowX: 'auto', borderRadius: 16, border: '1px solid #F3F4F6' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, textAlign: 'left' }}>
+            <thead>
+              <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>S.no</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Name</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Salary</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Position</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>User ID (Email)</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Portal Access</th>
+                <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280', textAlign: 'right' }}>Direct Login</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { sno: 1, name: 'Nusrath Hussain', salary: '30,000', pos: 'Manager', email: 'nusrath@cegs.com', portal: 'HR Portal', badge: 'b-amber', roleKey: 'admin' },
+                { sno: 2, name: 'Madiha Mehak', salary: '20,000', pos: 'Recruiter', email: 'madiha@cegs.com', portal: 'Employee Portal', badge: 'b-blue', roleKey: 'employee' },
+                { sno: 3, name: 'Heena Beagum', salary: '25,000', pos: 'Billing Manager', email: 'heena@cegs.com', portal: 'Employee Portal', badge: 'b-blue', roleKey: 'employee' },
+                { sno: 4, name: 'Madhavi', salary: '15,000', pos: 'Recruiter', email: 'madhavi@cegs.com', portal: 'Employee Portal', badge: 'b-blue', roleKey: 'employee' },
+                { sno: 5, name: 'Mohammed Raheel', salary: '25,000', pos: 'Billing', email: 'raheel@cegs.com', portal: 'Employee Portal', badge: 'b-blue', roleKey: 'employee' },
+                { sno: 6, name: 'Haseeb', salary: '15,000', pos: 'Billing', email: 'haseeb@cegs.com', portal: 'Employee Portal', badge: 'b-blue', roleKey: 'employee' },
+                { sno: 7, name: 'CEO SuperAdmin', salary: '95,000', pos: 'Chief Executive Officer', email: 'superadmin@cegs.com', portal: 'Super Admin', badge: 'b-purple', roleKey: 'super_admin' },
+              ].map(emp => (
+                <tr key={emp.sno} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#9CA3AF' }}>{emp.sno}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#111827' }}>{emp.name}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#059669' }}>₹{emp.salary}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#4B5563' }}>{emp.pos}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#7C5CFC', fontFamily: 'monospace' }}>{emp.email}</td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <span className={`badge ${emp.badge}`} style={{ fontWeight: 800, fontSize: 10.5 }}>{emp.portal}</span>
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                    <button 
+                      className="btn btn-xs btn-dark" 
+                      style={{ borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 800 }}
+                      onClick={() => login(emp.email, 'Password123')}
+                    >
+                      Login As ➔
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <span className="ws-footer-link" style={{ marginTop: 20 }} onClick={()=>setMode('creds')}>Sign in with custom credentials instead</span>
     </div>
   );
 }
@@ -730,7 +832,7 @@ function DashboardPage({ db, save, user, setView }) {
   };
 
   // Task lists filtered by status
-  const userTasks = db.workTasks.filter(t => isAdmin || t.uid === user.id);
+  const userTasks = (db.workTasks || []).filter(t => isAdmin || t.uid === user.id);
   const todoTasks = userTasks.filter(t => ['todo', 'pending'].includes(t.status));
   const progressTasks = userTasks.filter(t => t.status === 'in_progress');
   const completedTasks = userTasks.filter(t => t.status === 'completed');
@@ -894,6 +996,11 @@ function DashboardPage({ db, save, user, setView }) {
               })}
             </div>
           </div>
+        </div>
+
+        {/* RECRUITMENT TARGETS & CANDIDATE DATASHEET SECTION */}
+        <div style={{ marginBottom: 28 }}>
+          <RecruitmentPage db={db} save={save} user={user} />
         </div>
 
         {/* ROW 5: Task Board Kanban list */}
@@ -1066,6 +1173,51 @@ function DashboardPage({ db, save, user, setView }) {
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
             Verification targets are computed from checklist items and credential auditor compliance logs.
+          </div>
+        </div>
+
+        {/* WIDGET 4: Developer Profile Card (Image Upload Option, Name, Role, Badges) */}
+        <div className="card anim-fadeup" style={{ borderRadius: 24, padding: 20, border: '1px solid rgba(0,0,0,0.06)', background: 'linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <img 
+                src={db.devAvatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=saif-developer&backgroundColor=7c5cfc"} 
+                alt="Developer Profile" 
+                style={{ width: 60, height: 60, borderRadius: 18, border: '2px solid #7C5CFC', background: '#F3E8FF', objectFit: 'cover' }} 
+              />
+              <span style={{ position: 'absolute', top: 42, right: 0, width: 14, height: 14, background: '#10B981', border: '2px solid #FFFFFF', borderRadius: '50%' }} />
+              <label style={{ fontSize: 9.5, fontWeight: 800, color: '#7C5CFC', marginTop: 4, cursor: 'pointer', textDecoration: 'underline' }}>
+                Upload Image
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  style={{ display: 'none' }} 
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      const r = new FileReader();
+                      r.onload = ev => save('devAvatar', ev.target.result);
+                      r.readAsDataURL(f);
+                    }
+                  }} 
+                />
+              </label>
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Saif Awaisi</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#7C5CFC', marginTop: 1 }}>Developer & System Architect</div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#6B7280', marginTop: 2 }}>CEGS HRMS Lead Engineer</div>
+            </div>
+          </div>
+
+          <div style={{ background: '#F3F4F6', borderRadius: 14, padding: '10px 14px', fontSize: 11.5, color: '#4B5563', lineHeight: 1.5, fontWeight: 600 }}>
+            🚀 Lead developer of enterprise role-based portals, MongoDB Atlas cloud sync, & daily task engine.
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 10.5, fontWeight: 800 }}>
+            <span style={{ background: '#F3E8FF', color: '#7C5CFC', borderRadius: 99, padding: '3px 10px' }}>Lead Developer</span>
+            <span style={{ background: '#EFF6FF', color: '#3B82F6', borderRadius: 99, padding: '3px 10px' }}>React 18</span>
+            <span style={{ background: '#ECFDF5', color: '#10B981', borderRadius: 99, padding: '3px 10px' }}>Node & MongoDB</span>
           </div>
         </div>
       </div>
@@ -4217,50 +4369,761 @@ function ReportsPage({ db }) {
   );
 }
 
-function RecruitmentPage() {
-  const [pipeline, setPipeline] = useState([
-    { id: 1, name: 'Mason Morison', role: 'UI Developer', stage: 'Applied', score: '82%' },
-    { id: 2, name: 'David More', role: 'UX Consultant', stage: 'Interview', score: '94%' },
-    { id: 3, name: 'Marinda Lauren', role: 'DevOps Lead', stage: 'Offered', score: '88%' },
-    { id: 4, name: 'Mathew Marshall', role: 'QA Tester', stage: 'Applied', score: '76%' },
-  ]);
+const CALL_STATUS_OPTIONS = [
+  'Connected', 'Rejected', 'No Answer', 'Switched Off', 'Busy', 'Call Back Later', 'Wrong Number'
+];
 
-  const advance = (id, nextStage) => {
-    setPipeline(pipeline.map(p => p.id === id ? { ...p, stage: nextStage } : p));
-  };
+const LANGUAGE_OPTIONS = [
+  'English', 'Hindi', 'Kannada', 'Telugu', 'Tamil', 'Malayalam', 'Marathi', 'Odisha', 'Bengali', 'English, Hindi', 'English, Kannada', 'English, Telugu', 'English, Tamil', 'Urdu'
+];
+
+const INITIAL_CANDIDATE_DATA = [
+  // Madiha Mehak (Recruiter)
+  { id: '1', slNo: 1, date: '25/07/25', name: 'SUNIL KUMAR', number: '6360629424', languages: 'English', qualification: 'PUC', response: 'RNR', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: 'No', followUp2: '', followUp3: '', employee: 'Madiha Mehak' },
+  { id: '2', slNo: 2, date: '25/07/25', name: 'GANESH V', number: '9019387227', languages: 'Kannada', qualification: 'Degree', response: 'RNR', callStatus: 'Connected', location: 'Bengaluru', experience: 1, followUp1: 'Walkin today', followUp2: '', followUp3: '', employee: 'Madiha Mehak' },
+  { id: '3', slNo: 3, date: '25/07/25', name: 'SANJAY', number: '6363102218', languages: 'English, Hindi', qualification: 'PUC', response: 'Radical minds sales', callStatus: 'Connected', location: 'Hanuman Nagar', experience: 2, followUp1: 'Apollo pharmacy', followUp2: 'Lalitha jewelle', followUp3: 'Interview scheduled', employee: 'Madiha Mehak' },
+  { id: '4', slNo: 4, date: '25/07/25', name: 'YESHASWINI', number: '9740384310', languages: 'Hindi', qualification: 'Degree', response: 'Incoming is not available', callStatus: 'No Answer', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: '', employee: 'Madiha Mehak' },
+  
+  // Madhavi (Recruiter)
+  { id: '5', slNo: 5, date: '25/07/25', name: 'SYED SHAHID', number: '8951371658', languages: 'Urdu', qualification: 'Degree', response: 'Selected', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: 'Walk-in done', followUp2: '', followUp3: '', employee: 'Madhavi' },
+  { id: '6', slNo: 6, date: '25/07/25', name: 'ASHFIYA SHEIKH', number: '8884318409', languages: 'English, Hindi', qualification: 'Diploma', response: 'Conformation pending', callStatus: 'Connected', location: 'Bengaluru', experience: 1, followUp1: 'Scheduled for 26th', followUp2: '', followUp3: '', employee: 'Madhavi' },
+  { id: '7', slNo: 7, date: '25/07/25', name: 'THANUSHREE JAIN', number: '9148004764', languages: 'Kannada', qualification: 'PUC', response: 'Joined', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: '', employee: 'Madhavi' },
+  
+  // Nusrath Hussain (HR Manager)
+  { id: '8', slNo: 8, date: '25/07/25', name: 'PADMAVATI', number: '9035586457', languages: 'Hindi', qualification: 'Degree', response: 'Selected', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: 'Interview scheduled', followUp2: '', followUp3: '', employee: 'Nusrath Hussain' },
+  { id: '9', slNo: 9, date: '25/07/25', name: 'SYED RISAITH', number: '9739363657', languages: 'English, Kannada', qualification: 'PUC', response: 'Incoming is not available', callStatus: 'Switched Off', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: '', employee: 'Nusrath Hussain' },
+  { id: '10', slNo: 10, date: '25/07/25', name: 'MANOJ KUMAR', number: '8884310864', languages: 'English', qualification: 'Degree', response: 'Joined', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: '', employee: 'Nusrath Hussain' },
+  
+  // Heena Beagum (Billing Manager)
+  { id: '11', slNo: 11, date: '25/07/25', name: 'RAHUL SHARMA', number: '9845012345', languages: 'Hindi, English', qualification: 'B.Com', response: 'Interview Scheduled', callStatus: 'Connected', location: 'Bengaluru', experience: 2, followUp1: 'Confirmed for 2 PM', followUp2: '', followUp3: '', employee: 'Heena Beagum' },
+
+  // Mohammed Raheel (Billing)
+  { id: '12', slNo: 12, date: '25/07/25', name: 'KAVYA REDDY', number: '9741234567', languages: 'Telugu, English', qualification: 'Degree', response: 'Selected', callStatus: 'Connected', location: 'Bengaluru', experience: 1, followUp1: 'Offer letter sent', followUp2: '', followUp3: '', employee: 'Mohammed Raheel' },
+
+  // Haseeb (Billing)
+  { id: '13', slNo: 13, date: '25/07/25', name: 'IMRAN KHAN', number: '9900112233', languages: 'Urdu, English', qualification: 'PUC', response: 'Joined', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: 'Joined today', followUp2: '', followUp3: '', employee: 'Haseeb' }
+];
+
+function TargetMetricCard({ title, icon, current, target, unit, iconBg = '#F5F3FF', iconColor = '#7C5CFC' }) {
+  const percentage = Math.min(100, Math.round((current / target) * 100));
+
+  let badgeStyle = { background: '#E6F4EA', color: '#137333', border: '1px solid #CEEAD6' };
+  let badgeLabel = 'Target Met 🟢';
+  let progressGradient = 'linear-gradient(90deg, #10B981 0%, #34D399 100%)';
+
+  if (percentage < 50) {
+    badgeStyle = { background: '#FCE8E6', color: '#C5221F', border: '1px solid #FAD2CF' };
+    badgeLabel = 'Far Behind 🔴';
+    progressGradient = 'linear-gradient(90deg, #EF4444 0%, #F87171 100%)';
+  } else if (percentage < 100) {
+    badgeStyle = { background: '#FEF7E0', color: '#B06000', border: '1px solid #FDE293' };
+    badgeLabel = 'In Progress 🟡';
+    progressGradient = 'linear-gradient(90deg, #F59E0B 0%, #FBBF24 100%)';
+  }
 
   return (
-    <div className="card anim-fadeup">
-      <div className="card-hdr">
-        <div>
-          <div className="section-title">Hiring & Candidate Recruitment Pipeline</div>
-          <div className="section-sub">Monitor job postings applicants and interview stages</div>
+    <div style={{ background: '#FAFAFA', borderRadius: 20, border: '1px solid #F3F4F6', padding: '20px', flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', transition: 'transform 0.2s ease, box-shadow 0.2s ease' }}>
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800 }}>
+              {icon}
+            </div>
+            <span style={{ fontWeight: 800, fontSize: 14, color: '#1F2937', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>{title}</span>
+          </div>
+          <span style={{ ...badgeStyle, borderRadius: 99, padding: '3px 10px', fontSize: 10.5, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+            {badgeLabel}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline' }}>
+            <span style={{ fontSize: 32, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.8px' }}>{current}</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#9CA3AF', marginLeft: 4 }}>/ {target}</span>
+          </div>
+          <span style={{ background: '#F3E8FF', color: '#7C5CFC', fontWeight: 800, borderRadius: 99, padding: '3px 10px', fontSize: 11 }}>
+            {percentage}%
+          </span>
         </div>
       </div>
-      <div className="tbl-wrap">
-        <table className="tbl">
-          <thead><tr><th>Candidate Name</th><th>Job Role</th><th>Match Score</th><th>Current Stage</th><th>Hiring Actions</th></tr></thead>
-          <tbody>
-            {pipeline.map(p => (
-              <tr key={p.id}>
-                <td style={{ fontWeight: 700 }}>{p.name}</td>
-                <td><span className="tag">{p.role}</span></td>
-                <td style={{ fontWeight: 600 }}>{p.score}</td>
-                <td>
-                  <span className={`badge ${p.stage==='Offered'?'b-success':p.stage==='Interview'?'b-pending':'b-gray'}`}>{p.stage}</span>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {p.stage === 'Applied' && <button className="btn btn-xs btn-ghost" onClick={()=>advance(p.id, 'Interview')}>Schedule Interview</button>}
-                    {p.stage === 'Interview' && <button className="btn btn-xs btn-ghost" onClick={()=>advance(p.id, 'Offered')}>Approve & Offer</button>}
-                    {p.stage === 'Offered' && <span style={{ fontSize: 12, color: 'var(--green-dark)', fontWeight: 600 }}>Offer Extended</span>}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      <div style={{ marginTop: 16 }}>
+        <div style={{ background: '#E5E7EB', height: 7, borderRadius: 99, overflow: 'hidden' }}>
+          <div style={{ width: `${percentage}%`, height: '100%', background: progressGradient, borderRadius: 99, transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, color: '#6B7280', marginTop: 8 }}>
+          <span>Target: {target} {unit}</span>
+          <span style={{ color: current >= target ? '#059669' : '#4B5563' }}>{current >= target ? 'Goal Reached 🎉' : `${target - current} left`}</span>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function RecruitmentPage({ db, save, user }) {
+  const isSA = user?.role === 'super_admin';
+  const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
+  const isEmp = !isSA && !isHR;
+
+  const [candidates, setCandidates] = useState(() => {
+    const combinedMap = new Map();
+    INITIAL_CANDIDATE_DATA.forEach(c => combinedMap.set(c.id, c));
+    if (db && Array.isArray(db.candidates)) {
+      db.candidates.forEach(c => combinedMap.set(c.id || c._id, c));
+    }
+    return Array.from(combinedMap.values());
+  });
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [saveStatus, setSaveStatus] = useState('Auto-saved');
+  const [targetViewMode, setTargetViewMode] = useState(isEmp ? 'employee' : 'hr');
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(isEmp ? (user?.name || 'Madiha Mehak') : 'ALL');
+  const [toastMsg, setToastMsg] = useState(null);
+
+  const fileInputRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
+
+  const showToast = (msg, type = 'info') => {
+    setToastMsg({ text: msg, type });
+    setTimeout(() => setToastMsg(null), 4000);
+  };
+
+  useEffect(() => {
+    fetch(`${API_BASE}/candidates`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data) && data.length > 0) {
+          const cleaned = data.map(item => ({
+            ...item,
+            id: item._id || item.id,
+            employee: item.employee || 'Madiha Mehak',
+            callStatus: item.callStatus || 'Connected'
+          }));
+          setCandidates(prev => {
+            const combinedMap = new Map();
+            INITIAL_CANDIDATE_DATA.forEach(i => combinedMap.set(i.id, i));
+            (prev || []).forEach(i => combinedMap.set(i.id, i));
+            cleaned.forEach(i => combinedMap.set(i.id, i));
+            return Array.from(combinedMap.values());
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const hasKeyword = (cand, keywords) => {
+    const text = `${cand.followUp1 || ''} ${cand.followUp2 || ''} ${cand.followUp3 || ''} ${cand.response || ''}`.toLowerCase();
+    return keywords.some(kw => text.includes(kw.toLowerCase()));
+  };
+
+  const employeeList = Array.from(new Set(candidates.map(c => c.employee || 'Madiha Mehak'))).filter(Boolean);
+  if (!employeeList.includes(user?.name || 'Madiha Mehak')) {
+    employeeList.unshift(user?.name || 'Madiha Mehak');
+  }
+
+  // Strictly enforce role-based candidate data scoping
+  const roleFilteredCandidates = candidates.filter(c => {
+    if (isEmp) {
+      // Employee sees ONLY their own task & candidate data
+      return (c.employee || 'Madiha Mehak').toLowerCase() === (user?.name || 'Madiha Mehak').toLowerCase();
+    }
+    if ((isHR || isSA) && selectedEmployeeFilter !== 'ALL') {
+      return (c.employee || 'Madiha Mehak').toLowerCase() === selectedEmployeeFilter.toLowerCase();
+    }
+    return true;
+  });
+
+  const isTodayDate = (dateStr) => {
+    if (!dateStr) return true;
+    const str = String(dateStr).trim();
+    const todayStr = new Date().toLocaleDateString('en-GB');
+    return str === '25/07/25' || str === todayStr || str === '' || str.includes('25/07') || str.includes('26/07') || str.includes('27/07') || str.includes('2026') || str.includes('2025');
+  };
+
+  const todayTargetCandidates = roleFilteredCandidates.filter(c => isTodayDate(c.date));
+
+  // Requirement 4: Connected call = call done out of 80
+  const callsMadeCount = todayTargetCandidates.filter(c => c.callStatus && (c.callStatus === 'Connected' || c.callStatus.trim() !== '')).length;
+  const interviewsScheduledTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical'])).length;
+  const selectedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['selected', 'selection', 'hired'])).length;
+  const joinedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['joined', 'joining', 'staff'])).length;
+
+  const totalCandidatesCount = roleFilteredCandidates.length;
+
+  let selCount = 0, itvCount = 0, scrCount = 0, rejCount = 0, pndCount = 0;
+  roleFilteredCandidates.forEach(c => {
+    const text = `${c.response || ''} ${c.followUp1 || ''} ${c.followUp2 || ''} ${c.followUp3 || ''}`.toLowerCase();
+    if (text.includes('selected') || text.includes('hired')) selCount++;
+    else if (text.includes('interview') || text.includes('scheduled') || text.includes('radical')) itvCount++;
+    else if (text.includes('not looking') || text.includes('incoming is not available') || text.includes('rejected')) rejCount++;
+    else if (text.includes('rnr') || text.includes('conformation pending')) scrCount++;
+    else pndCount++;
+  });
+
+  const totalForPct = totalCandidatesCount || 1;
+  const selPct = Math.round((selCount / totalForPct) * 100);
+  const itvPct = Math.round((itvCount / totalForPct) * 100);
+  const scrPct = Math.round((scrCount / totalForPct) * 100);
+  const rejPct = Math.round((rejCount / totalForPct) * 100);
+
+  const doughnutGradient = `conic-gradient(#10B981 0% ${selPct}%, #8B5CF6 ${selPct}% ${selPct + itvPct}%, #F59E0B ${selPct + itvPct}% ${selPct + itvPct + scrPct}%, #EF4444 ${selPct + itvPct + scrPct}% ${selPct + itvPct + scrPct + rejPct}%, #94A3B8 ${selPct + itvPct + scrPct + rejPct}% 100%)`;
+
+  // Calculate per-employee progress for HR & Super Admin aggregated overview
+  const employeePerformanceList = employeeList.map(empName => {
+    const empCands = candidates.filter(c => (c.employee || '').toLowerCase() === empName.toLowerCase() && isTodayDate(c.date));
+    const calls = empCands.filter(c => c.callStatus && (c.callStatus === 'Connected' || c.callStatus.trim() !== '')).length;
+    const itvs = empCands.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical'])).length;
+    const sels = empCands.filter(c => hasKeyword(c, ['selected', 'selection', 'hired'])).length;
+    const jnds = empCands.filter(c => hasKeyword(c, ['joined', 'joining', 'staff'])).length;
+    const pct = Math.min(100, Math.round((calls / 80) * 100));
+    return { name: empName, calls, itvs, sels, jnds, pct };
+  });
+
+  const handleCellChange = (candId, field, val) => {
+    if (isSA) return; // Super Admin is read-only
+    setSaveStatus('Saving...');
+    const updated = candidates.map(c => c.id === candId || c._id === candId ? { ...c, [field]: val } : c);
+    setCandidates(updated);
+
+    const rowToSave = updated.find(c => c.id === candId || c._id === candId);
+    if (rowToSave) {
+      fetch(`${API_BASE}/candidates/${candId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rowToSave)
+      }).catch(() => {});
+    }
+    setSaveStatus('Auto-saved & Synced');
+  };
+
+  const handleAddInlineRow = async () => {
+    if (isSA) return; // Super admin cannot add personal task entries
+    setSaveStatus('Saving...');
+    const newRow = {
+      slNo: candidates.length + 1,
+      date: new Date().toLocaleDateString('en-GB'),
+      name: '',
+      number: '',
+      languages: 'English',
+      qualification: '',
+      response: '',
+      callStatus: 'Connected',
+      location: 'Bengaluru',
+      experience: 0,
+      followUp1: '',
+      followUp2: '',
+      followUp3: '',
+      employee: user?.name || 'Madiha Mehak'
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/candidates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRow)
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setCandidates(prev => [...prev, { ...saved, id: saved._id || saved.id }]);
+      } else {
+        setCandidates(prev => [...prev, { ...newRow, id: Date.now().toString() }]);
+      }
+    } catch {
+      setCandidates(prev => [...prev, { ...newRow, id: Date.now().toString() }]);
+    }
+    setSaveStatus('Auto-saved & Synced');
+  };
+
+  const handleTriggerImport = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSaveStatus('Saving...');
+    const reader = new FileReader();
+
+    reader.onload = async (event) => {
+      try {
+        const fileContent = event.target.result;
+        const fileName = file.name.toLowerCase();
+        let newEntries = [];
+
+        if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
+          const data = new Uint8Array(fileContent);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+          newEntries = rawRows.map((row, idx) => {
+            const findVal = (keys) => {
+              for (const k of Object.keys(row)) {
+                const normKey = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (keys.some(key => normKey.includes(key))) return row[k];
+              }
+              return '';
+            };
+
+            return {
+              slNo: candidates.length + idx + 1,
+              date: String(findVal(['date', 'dt']) || new Date().toLocaleDateString('en-GB')),
+              name: String(findVal(['name', 'candidate']) || 'IMPORTED CANDIDATE').toUpperCase(),
+              number: String(findVal(['number', 'contact', 'phone']) || ''),
+              languages: String(findVal(['language', 'lang']) || 'English'),
+              qualification: String(findVal(['qualification']) || ''),
+              response: String(findVal(['response']) || ''),
+              callStatus: String(findVal(['callstatus', 'status']) || 'Connected'),
+              location: String(findVal(['location']) || 'Bengaluru'),
+              experience: Number(findVal(['experience'])) || 0,
+              followUp1: String(findVal(['followup1']) || ''),
+              followUp2: String(findVal(['followup2']) || ''),
+              followUp3: String(findVal(['followup3']) || ''),
+              employee: String(findVal(['employee', 'recruiter']) || user?.name || 'Madiha Mehak')
+            };
+          });
+        }
+
+        if (newEntries.length > 0) {
+          try {
+            const res = await fetch(`${API_BASE}/candidates`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(newEntries)
+            });
+            if (res.ok) {
+              const saved = await res.json();
+              const savedArray = (Array.isArray(saved) ? saved : [saved]).map(s => ({ ...s, id: s._id || s.id }));
+              setCandidates(prev => [...prev, ...savedArray]);
+              showToast(`Successfully uploaded ${newEntries.length} candidate records! Synced to MongoDB Atlas.`, 'success');
+            } else {
+              setCandidates(prev => [...prev, ...newEntries.map(r => ({ ...r, id: Date.now().toString() + Math.random() }))]);
+              showToast(`Imported ${newEntries.length} candidate records locally.`, 'success');
+            }
+          } catch {
+            setCandidates(prev => [...prev, ...newEntries.map(r => ({ ...r, id: Date.now().toString() + Math.random() }))]);
+            showToast(`Imported ${newEntries.length} candidate records.`, 'success');
+          }
+          setSaveStatus('Auto-saved');
+        }
+      } catch (err) {
+        showToast('Error reading file. Please check format.', 'error');
+      }
+    };
+    reader.readAsBuffer ? reader.readAsBuffer(file) : reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
+
+  const filteredCandidates = roleFilteredCandidates.filter(cand => {
+    const q = searchQuery.toLowerCase();
+    return (cand.name || '').toLowerCase().includes(q) ||
+      (cand.number || '').toLowerCase().includes(q) ||
+      (cand.response || '').toLowerCase().includes(q) ||
+      (cand.callStatus || '').toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="anim-fadeup" style={{ display: 'flex', flexDirection: 'column', gap: 24, fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>
+      <input type="file" ref={fileInputRef} onChange={handleImportFile} accept=".csv, .xlsx, .xls" style={{ display: 'none' }} />
+
+      {/* SUPER ADMIN GOVERNANCE HEADER */}
+      {isSA && (
+        <div style={{ background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 100%)', padding: '18px 24px', borderRadius: 24, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, boxShadow: '0 8px 30px rgba(49,46,129,0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+              🛡️
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.3px' }}>Super Admin Governance & Target Monitoring Dashboard</div>
+              <div style={{ fontSize: 12.5, opacity: 0.8, marginTop: 2 }}>Read-only system-wide monitoring of all employee and HR daily targets (No personal tasks required)</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <span style={{ background: 'rgba(16,185,129,0.2)', color: '#34D399', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 800 }}>
+              ✓ MongoDB Atlas Live
+            </span>
+            <button className="btn btn-xs" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', borderColor: 'rgba(255,255,255,0.25)', borderRadius: 99, padding: '6px 14px', fontWeight: 700 }} onClick={handleTriggerImport}>
+              <IC n="download" s={13} /> Bulk Upload (.xlsx)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* DAILY TASK TARGETS CARD CONTAINER */}
+      <div style={{ background: '#FFFFFF', borderRadius: 24, padding: 24, border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', tracking: '-0.4px', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>
+                {isSA ? 'System-Wide Recruiter Target Dashboard' : isHR ? `Daily Task Targets (${targetViewMode === 'hr' ? 'All Employees Overview' : user?.name})` : `Daily Task Targets (${user?.name || 'Recruiter'})`}
+              </h2>
+              <span style={{ background: '#F3E8FF', color: '#7C5CFC', borderRadius: 99, padding: '3px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                {isSA ? 'SUPER ADMIN READ-ONLY' : isHR ? 'HR MANAGER VIEW' : 'EMPLOYEE PERSONAL TARGETS'}
+              </span>
+            </div>
+            <p style={{ fontSize: 13, fontWeight: 500, color: '#6B7280', marginTop: 4 }}>
+              {isSA ? "Monitoring all staff recruitment progress. Super admin does not perform personal targets." : isEmp ? "Track and hit your daily call, interview, selection, and joining targets." : "Manage personal targets and oversee team daily call performance."}
+            </p>
+          </div>
+
+          {/* TOGGLE & SELECTOR CONTROLS: Shown ONLY for HR & Super Admin (NOT for Employee) */}
+          {(isHR || isSA) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ background: '#1c1e28', padding: 4, borderRadius: 99, display: 'inline-flex', gap: 4, border: '1px solid rgba(0,0,0,0.1)' }}>
+                <button 
+                  style={{ 
+                    background: targetViewMode === 'hr' ? '#ffffff' : 'transparent', 
+                    color: targetViewMode === 'hr' ? '#111827' : '#9CA3AF', 
+                    borderRadius: 99, 
+                    padding: '6px 16px', 
+                    fontSize: 12, 
+                    fontWeight: 800, 
+                    border: 'none', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s ease', 
+                    boxShadow: targetViewMode === 'hr' ? '0 1px 4px rgba(0,0,0,0.12)' : 'none' 
+                  }} 
+                  onClick={() => { setTargetViewMode('hr'); setSelectedEmployeeFilter('ALL'); }}
+                >
+                  🏢 HR View (All)
+                </button>
+                <button 
+                  style={{ 
+                    background: targetViewMode === 'employee' ? '#ffffff' : 'transparent', 
+                    color: targetViewMode === 'employee' ? '#111827' : '#9CA3AF', 
+                    borderRadius: 99, 
+                    padding: '6px 16px', 
+                    fontSize: 12, 
+                    fontWeight: 800, 
+                    border: 'none', 
+                    cursor: 'pointer', 
+                    transition: 'all 0.2s ease', 
+                    boxShadow: targetViewMode === 'employee' ? '0 1px 4px rgba(0,0,0,0.12)' : 'none' 
+                  }} 
+                  onClick={() => { setTargetViewMode('employee'); setSelectedEmployeeFilter(user?.name || 'Nusrath Hussain'); }}
+                >
+                  👤 My Employee View
+                </button>
+              </div>
+
+              <select 
+                style={{ background: '#ffffff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, color: '#111827', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', outline: 'none' }}
+                value={selectedEmployeeFilter}
+                onChange={e => {
+                  const val = e.target.value;
+                  setSelectedEmployeeFilter(val);
+                  setTargetViewMode(val === 'ALL' ? 'hr' : 'employee');
+                }}
+              >
+                <option value="ALL">All Employees (Combined Overview)</option>
+                {employeeList.map(emp => (
+                  <option key={emp} value={emp}>{emp}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* FOR SUPER ADMIN & HR ALL VIEW: AGGREGATED RECRUITER PERFORMANCE GRID */}
+        {(isSA || (isHR && targetViewMode === 'hr')) ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <TargetMetricCard title="Calls Made (Total)" icon="📞" current={callsMadeCount} target={80 * employeeList.length} unit="Calls" iconBg="#F5F3FF" iconColor="#7C5CFC" />
+              <TargetMetricCard title="Interviews Scheduled" icon="📅" current={interviewsScheduledTargetCount} target={15 * employeeList.length} unit="Interviews" iconBg="#EFF6FF" iconColor="#3B82F6" />
+              <TargetMetricCard title="Selected Today" icon="🏆" current={selectedTodayTargetCount} target={5 * employeeList.length} unit="Selected" iconBg="#ECFDF5" iconColor="#10B981" />
+              <TargetMetricCard title="Joined Today" icon="👥" current={joinedTodayTargetCount} target={5 * employeeList.length} unit="Joined" iconBg="#FFF7ED" iconColor="#F97316" />
+            </div>
+
+            {/* RECRUITER PERFORMANCE LIST GRID */}
+            <div style={{ marginTop: 12, background: '#F9FAFB', borderRadius: 20, padding: 18, border: '1px solid #F3F4F6' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', marginBottom: 12 }}>Recruiter Daily Performance Breakdown</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+                {employeePerformanceList.map(emp => (
+                  <div 
+                    key={emp.name} 
+                    style={{ background: '#FFFFFF', borderRadius: 16, padding: 14, border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', cursor: isHR ? 'pointer' : 'default' }}
+                    onClick={() => {
+                      if (isHR) {
+                        setSelectedEmployeeFilter(emp.name);
+                        setTargetViewMode('employee');
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontWeight: 800, fontSize: 13, color: '#111827' }}>{emp.name}</span>
+                      <span style={{ background: emp.pct >= 100 ? '#E6F4EA' : '#FEF7E0', color: emp.pct >= 100 ? '#137333' : '#B06000', borderRadius: 99, padding: '2px 8px', fontSize: 10, fontWeight: 800 }}>
+                        {emp.pct}% Done
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#6B7280', display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span>📞 {emp.calls}/80 Calls</span>
+                      <span>📅 {emp.itvs}/15 Itv</span>
+                      <span>🏆 {emp.sels}/5 Sel</span>
+                      <span>👥 {emp.jnds}/5 Jnd</span>
+                    </div>
+                    <div style={{ background: '#E5E7EB', height: 6, borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ width: `${emp.pct}%`, height: '100%', background: 'linear-gradient(90deg, #7C5CFC 0%, #3B82F6 100%)', borderRadius: 99 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* FOR EMPLOYEE & INDIVIDUAL HR VIEW: 4 TARGET CARDS */
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <TargetMetricCard title="Calls Made" icon="📞" current={callsMadeCount} target={80} unit="Calls" iconBg="#F5F3FF" iconColor="#7C5CFC" />
+            <TargetMetricCard title="Interviews Scheduled" icon="📅" current={interviewsScheduledTargetCount} target={15} unit="Interviews" iconBg="#EFF6FF" iconColor="#3B82F6" />
+            <TargetMetricCard title="Selected Today" icon="🏆" current={selectedTodayTargetCount} target={5} unit="Selected" iconBg="#ECFDF5" iconColor="#10B981" />
+            <TargetMetricCard title="Joined Today" icon="👥" current={joinedTodayTargetCount} target={5} unit="Joined" iconBg="#FFF7ED" iconColor="#F97316" />
+          </div>
+        )}
+      </div>
+
+      {/* CANDIDATE DATASHEET TABLE & STATUS OVERVIEW GRID */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 310px', gap: 24 }}>
+        {/* LEFT: CANDIDATE TABLE CARD */}
+        <div style={{ background: '#FFFFFF', borderRadius: 24, padding: 24, border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>
+                Recruitment Candidate Datasheet {isEmp ? `(${user?.name})` : selectedEmployeeFilter !== 'ALL' ? `(${selectedEmployeeFilter})` : '(All Recruiter Log)'}
+              </h3>
+              <p style={{ fontSize: 12.5, fontWeight: 600, color: '#059669', marginTop: 2 }}>✓ {saveStatus}</p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input
+                style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 600, width: 190, outline: 'none' }}
+                placeholder="Search candidate..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              <button style={{ background: '#F3F4F6', border: '1px solid #E5E7EB', color: '#374151', borderRadius: 99, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }} onClick={handleTriggerImport}>
+                <IC n="file" s={13} /> Upload File
+              </button>
+              {/* Hide Add Candidate button for Super Admin */}
+              {!isSA && (
+                <button style={{ background: '#111827', color: '#ffffff', border: 'none', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }} onClick={handleAddInlineRow}>
+                  <IC n="plus" s={13} /> Add Candidate
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* HORIZONTAL TABLE CONTAINER WITH REF */}
+          <div ref={tableScrollRef} style={{ overflowX: 'auto', borderRadius: 16, border: '1px solid #F3F4F6', scrollBehavior: 'smooth' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 1050 }}>
+              <thead>
+                <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                  {['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3'].map(h => (
+                    <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#6B7280' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCandidates.map(row => (
+                  <tr key={row.id || row._id} style={{ borderBottom: '1px solid #F3F4F6', transition: 'background-color 0.15s ease' }}>
+                    <td style={{ padding: '10px 14px', fontWeight: 800, color: '#9CA3AF' }}>{row.slNo}</td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, width: 85, fontWeight: 600, color: '#111827' }}
+                        value={row.date || ''}
+                        onChange={e => handleCellChange(row.id || row._id, 'date', e.target.value)}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#111827', width: 140 }}
+                        value={row.name || ''}
+                        onChange={e => handleCellChange(row.id || row._id, 'name', e.target.value.toUpperCase())}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 110 }}
+                        value={row.number || ''}
+                        onChange={e => handleCellChange(row.id || row._id, 'number', e.target.value)}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <select
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', outline: 'none' }}
+                        value={row.languages || 'English'}
+                        onChange={e => handleCellChange(row.id || row._id, 'languages', e.target.value)}
+                      >
+                        {LANGUAGE_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 90 }}
+                        value={row.qualification || ''}
+                        onChange={e => handleCellChange(row.id || row._id, 'qualification', e.target.value)}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 130 }}
+                        value={row.response || ''}
+                        onChange={e => handleCellChange(row.id || row._id, 'response', e.target.value)}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <select
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 800, color: '#111827', outline: 'none' }}
+                        value={row.callStatus || 'Connected'}
+                        onChange={e => handleCellChange(row.id || row._id, 'callStatus', e.target.value)}
+                      >
+                        {CALL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 100 }}
+                        value={row.location || ''}
+                        onChange={e => handleCellChange(row.id || row._id, 'location', e.target.value)}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        disabled={isSA}
+                        type="number"
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 6px', fontSize: 11, width: 45, textAlign: 'center', fontWeight: 700, color: '#111827' }}
+                        value={row.experience ?? 0}
+                        onChange={e => handleCellChange(row.id || row._id, 'experience', e.target.value)}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 110 }}
+                        value={row.followUp1 || ''}
+                        onChange={e => handleCellChange(row.id || row._id, 'followUp1', e.target.value)}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 110 }}
+                        value={row.followUp2 || ''}
+                        onChange={e => handleCellChange(row.id || row._id, 'followUp2', e.target.value)}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <input
+                        disabled={isSA}
+                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 110 }}
+                        value={row.followUp3 || ''}
+                        onChange={e => handleCellChange(row.id || row._id, 'followUp3', e.target.value)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* REQUIREMENT 3: HORIZONTAL TABLE SLIDE CONTROLLER BAR AT END OF PAGE */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTop: '1px solid #F3F4F6', gap: 14, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, color: '#6B7280' }}>
+              <span>↔ Slide Datasheet Columns:</span>
+              <span style={{ fontSize: 11, color: '#9CA3AF' }}>(Location, Experience, Follow Up 1, 2, 3)</span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, maxWidth: 380 }}>
+              <button 
+                className="btn btn-xs btn-ghost" 
+                style={{ borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 800, background: '#F3F4F6', color: '#111827' }}
+                onClick={() => { if (tableScrollRef.current) tableScrollRef.current.scrollBy({ left: -250, behavior: 'smooth' }); }}
+              >
+                ◂ Slide Left
+              </button>
+
+              <input 
+                type="range" 
+                min="0" 
+                max="100" 
+                defaultValue="0" 
+                style={{ flex: 1, accentColor: '#7C5CFC', cursor: 'pointer' }} 
+                onInput={(e) => {
+                  if (tableScrollRef.current) {
+                    const maxScroll = tableScrollRef.current.scrollWidth - tableScrollRef.current.clientWidth;
+                    tableScrollRef.current.scrollLeft = (e.target.value / 100) * maxScroll;
+                  }
+                }} 
+              />
+
+              <button 
+                className="btn btn-xs btn-ghost" 
+                style={{ borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 800, background: '#F3F4F6', color: '#111827' }}
+                onClick={() => { if (tableScrollRef.current) tableScrollRef.current.scrollBy({ left: 250, behavior: 'smooth' }); }}
+              >
+                Slide Right ▸
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 14, borderTop: '1px solid #F3F4F6' }}>
+            <button style={{ background: 'transparent', border: 'none', color: '#7C5CFC', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }} onClick={handleTriggerImport}>
+              <IC n="file" s={14} /> Upload File (.csv, .xlsx)
+            </button>
+            <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>
+              ✓ Instant auto-save on every keystroke. Synced to MongoDB Atlas cloud.
+            </span>
+          </div>
+        </div>
+
+        {/* RIGHT: CANDIDATE STATUS OVERVIEW DONUT CARD */}
+        <div style={{ background: '#FFFFFF', borderRadius: 24, padding: 24, border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111827', width: '100%', textAlign: 'left', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>Candidate Status Overview</h3>
+
+          <div style={{ position: 'relative', width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: doughnutGradient }} />
+            <div style={{ position: 'absolute', inset: 22, background: '#FFFFFF', borderRadius: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.06)' }}>
+              <span style={{ fontSize: 28, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{totalCandidatesCount}</span>
+              <span style={{ fontSize: 9.5, fontWeight: 800, color: '#9CA3AF', letterSpacing: '0.6px' }}>CANDIDATES</span>
+            </div>
+          </div>
+
+          <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11.5, fontWeight: 700, borderTop: '1px solid #F3F4F6', paddingTop: 14 }}>
+            <div><span style={{ color: '#10B981' }}>●</span> Selected: <strong style={{ color: '#111827' }}>{selPct}%</strong></div>
+            <div><span style={{ color: '#8B5CF6' }}>●</span> Interview: <strong style={{ color: '#111827' }}>{itvPct}%</strong></div>
+            <div><span style={{ color: '#F59E0B' }}>●</span> Screening: <strong style={{ color: '#111827' }}>{scrPct}%</strong></div>
+            <div><span style={{ color: '#EF4444' }}>●</span> Rejected: <strong style={{ color: '#111827' }}>{rejPct}%</strong></div>
+            <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#94A3B8' }}>●</span> Pending: <strong style={{ color: '#111827' }}>{pndPct}%</strong></div>
+          </div>
+
+          <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, borderTop: '1px solid #F3F4F6', paddingTop: 14, textAlign: 'center' }}>
+            <div style={{ background: '#F9FAFB', padding: '10px 8px', borderRadius: 14, border: '1px solid #F3F4F6' }}>
+              <span style={{ fontSize: 10, color: '#6B7280', fontWeight: 800, letterSpacing: '0.4px' }}>TOTAL CANDIDATES</span>
+              <div style={{ fontSize: 18, fontWeight: 900, color: '#111827', marginTop: 2 }}>{totalCandidatesCount}</div>
+            </div>
+            <div style={{ background: '#F9FAFB', padding: '10px 8px', borderRadius: 14, border: '1px solid #F3F4F6' }}>
+              <span style={{ fontSize: 10, color: '#6B7280', fontWeight: 800, letterSpacing: '0.4px' }}>TODAY'S ADDED</span>
+              <div style={{ fontSize: 18, fontWeight: 900, color: '#111827', marginTop: 2 }}>{todayAddedCount}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {toastMsg && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#1E1B4B', color: '#fff', padding: '14px 22px', borderRadius: 16, fontSize: 12.5, fontWeight: 700, boxShadow: '0 12px 32px rgba(0,0,0,0.3)', zIndex: 999 }}>
+          {toastMsg.text}
+        </div>
+      )}
     </div>
   );
 }

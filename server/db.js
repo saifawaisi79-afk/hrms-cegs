@@ -360,11 +360,23 @@ async function initDatabase() {
     )
   `);
 
-  // 15. System Settings Table
+  // 16. Candidates Table
   await dbQuery.exec(`
-    CREATE TABLE IF NOT EXISTS system_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS candidates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT,
+      name TEXT,
+      number TEXT,
+      languages TEXT,
+      qualification TEXT,
+      response TEXT,
+      callStatus TEXT,
+      location TEXT,
+      experience INTEGER DEFAULT 0,
+      followUp1 TEXT,
+      followUp2 TEXT,
+      followUp3 TEXT,
+      employee TEXT
     )
   `);
 

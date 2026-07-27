@@ -1213,4 +1213,46 @@ router.get('/analytics/overview', authenticateToken, requireRole(['admin', 'supe
   }
 });
 
+// ==========================================
+// CANDIDATES (RECRUITMENT TARGETS) ENDPOINTS
+// ==========================================
+router.get('/candidates', async (req, res) => {
+  try {
+    const candidates = await dbQuery.all('SELECT * FROM candidates ORDER BY id ASC');
+    res.json(candidates);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+router.post('/candidates', async (req, res) => {
+  try {
+    const items = Array.isArray(req.body) ? req.body : [req.body];
+    const results = [];
+    for (const item of items) {
+      const resVal = await dbQuery.run(
+        `INSERT INTO candidates (date, name, number, languages, qualification, response, callStatus, location, experience, followUp1, followUp2, followUp3, employee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [item.date || '', item.name || '', item.number || '', item.languages || 'English', item.qualification || '', item.response || '', item.callStatus || 'Connected', item.location || 'Bengaluru', item.experience || 0, item.followUp1 || '', item.followUp2 || '', item.followUp3 || '', item.employee || 'Madiha Mehak']
+      );
+      results.push({ ...item, id: resVal.id });
+    }
+    res.json(Array.isArray(req.body) ? results : results[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to insert candidate' });
+  }
+});
+
+router.put('/candidates/:id', async (req, res) => {
+  try {
+    const item = req.body;
+    await dbQuery.run(
+      `UPDATE candidates SET date=?, name=?, number=?, languages=?, qualification=?, response=?, callStatus=?, location=?, experience=?, followUp1=?, followUp2=?, followUp3=?, employee=? WHERE id=?`,
+      [item.date || '', item.name || '', item.number || '', item.languages || 'English', item.qualification || '', item.response || '', item.callStatus || 'Connected', item.location || 'Bengaluru', item.experience || 0, item.followUp1 || '', item.followUp2 || '', item.followUp3 || '', item.employee || 'Madiha Mehak', req.params.id]
+    );
+    res.json({ message: 'Updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update candidate' });
+  }
+});
+
 module.exports = router;
