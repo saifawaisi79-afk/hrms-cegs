@@ -728,6 +728,14 @@ textarea.form-input { resize:vertical; min-height:88px; line-height:1.6; }
 .cal-day.absent { background:var(--red-light); color:var(--red-dark); }
 .cal-day.today { outline:2px solid var(--amber); outline-offset:2px; font-weight:800; }
 .cal-day.empty { background:transparent; cursor:default; opacity:.15; }
+.cal-day.sunday-holiday {
+  background: rgba(239, 68, 68, 0.08);
+  color: #EF4444;
+  opacity: 0.5;
+  filter: blur(0.4px);
+  cursor: not-allowed;
+  border: 1px dashed rgba(239, 68, 68, 0.25);
+}
 
 /* Org Chart */
 .org-canvas { overflow-x:auto; padding:28px; background:var(--bg-body); border-radius:var(--r-xl); border:1.5px dashed var(--border); }

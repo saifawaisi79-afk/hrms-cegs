@@ -1623,6 +1623,7 @@ function AttendancePage({ db, save, user }) {
   const [secs, setSecs] = useState(0);
   const [running, setRunning] = useState(false);
   const intRef = useRef(null);
+
   const getUserPermissionRole = (u) => {
     if (!u) return 'employee';
     if (u.role === 'super_admin') return 'super_admin';
@@ -1633,6 +1634,7 @@ function AttendancePage({ db, save, user }) {
     if (title.includes('billing') || title.includes('finance') || title.includes('accounts')) return 'finance';
     return 'employee';
   };
+
   const currentPermRole = getUserPermissionRole(user);
   const isAdmin = db.permissions?.[currentPermRole]?.attendance || ['admin','super_admin'].includes(user.role);
   const today = new Date().toISOString().split('T')[0];
@@ -1652,7 +1654,7 @@ function AttendancePage({ db, save, user }) {
       const res = await fetch(`${API_BASE}/auth/check-ip`, { signal: AbortSignal.timeout(2500) });
       if (res.status === 403) {
         const data = await res.json();
-        alert(data.error || '⛔ Access Denied: Attendance can ONLY be marked when connected to the Office LAN network.');
+        alert(data.error || '⛔ Access Denied: Attendance can ONLY be marked when connected to Office WiFi (NBP Business Centre) or Office LAN (192.168.32.x).');
         return false;
       }
       return true;
@@ -1666,7 +1668,9 @@ function AttendancePage({ db, save, user }) {
     if (!isLanVerified) return;
     if(todayRec){ alert('Already checked in today!'); return; }
     const now=new Date();
-    const status=(now.getHours()>10 || (now.getHours()===10 && now.getMinutes()>15)) ? 'late' : 'present';
+    // Office timings: 10:15 AM to 7:00 PM. Clock In after 10:15 AM is flagged as Late.
+    const isLate = now.getHours() > 10 || (now.getHours() === 10 && now.getMinutes() > 15);
+    const status = isLate ? 'late' : 'present';
     save('attendance',[{id:Date.now(),uid:user.id,date:today,in:now.toTimeString().substr(0,5),out:null,status,hrs:0},...db.attendance]);
     setRunning(true);
   };
@@ -1685,9 +1689,28 @@ function AttendancePage({ db, save, user }) {
   const lateDays = db.attendance.filter(a=>a.uid===user.id&&a.status==='late').length;
   const totalHrs = db.attendance.filter(a=>a.uid===user.id).reduce((s,a)=>s+a.hrs,0);
 
+  // Dynamic Live Calendar calculations
+  const nowObj = new Date();
+  const curYear = nowObj.getFullYear();
+  const curMonth = nowObj.getMonth();
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const curMonthName = monthNames[curMonth];
+  const firstDayIndex = new Date(curYear, curMonth, 1).getDay();
+  const totalDaysInMonth = new Date(curYear, curMonth + 1, 0).getDate();
+  const todayNum = nowObj.getDate();
+
   return (
     <div className="anim-fadeup">
-      <PageHdr title="Attendance" sub="Track your daily work hours and review history"/>
+      <PageHdr title="Attendance" sub="Track daily work hours (10:15 AM – 7:00 PM) · Restricted to Office LAN & WiFi"/>
+
+      {/* Network Security Badge */}
+      <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#065F46', fontWeight: 700 }}>
+          <span style={{ fontSize: 16 }}>🔒</span>
+          <span>Office LAN Protection Active — WiFi: <strong>NBP Business Centre</strong> (10.30.0.0/20) & LAN (192.168.32.0/22)</span>
+        </div>
+        <span style={{ background: '#10B981', color: '#fff', padding: '2px 8px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>SECURITY VERIFIED</span>
+      </div>
 
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:24}}>
         <div className="timer-card">
@@ -1721,42 +1744,80 @@ function AttendancePage({ db, save, user }) {
           <div className="card-hdr"><div className="section-title">Attendance Log</div></div>
           <div className="tbl-wrap">
             <table className="tbl">
-              Clock Out
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  {isAdmin && <th>Employee</th>}
+                  <th>Clock In</th>
+                  <th>Clock Out</th>
+                  <th>Total Hours</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
               <tbody>
-              <span className="empty-state-icon"><IC n="terminal" s={48} style={{color:'var(--text-muted)'}}/></span>
-                {myLogs.sort((a,b)=>b.date.localeCompare(a.date)).map(a=>{
-                  const emp=db.users.find(u=>u.id===a.uid);
-                  return <tr key={a.id}>
-                    <td style={{fontWeight:700,fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.date}</td>
-                    {isAdmin&&<td><div className="emp-cell"><img src={emp?.avatar} className="tbl-av" alt=""/>{emp?.name}</div></td>}
-                    <td style={{fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.in}</td>
-                    <td style={{fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.out||<span style={{color:'var(--amber)',fontWeight:700}}>Active</span>}</td>
-                    <td style={{fontWeight:700}}>{a.hrs||'-'}h</td>
-                    <td><span className={`badge ${a.status==='present'?'b-success':a.status==='late'?'b-pending':'b-error'}`}><span className="badge-dot"/>{a.status}</span></td>
-                  </tr>;
-                })}
+                {myLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={isAdmin ? 6 : 5} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
+                      No attendance records found
+                    </td>
+                  </tr>
+                ) : (
+                  myLogs.sort((a,b)=>b.date.localeCompare(a.date)).map(a=>{
+                    const emp=db.users.find(u=>u.id===a.uid);
+                    return <tr key={a.id}>
+                      <td style={{fontWeight:700,fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.date}</td>
+                      {isAdmin&&<td><div className="emp-cell"><img src={emp?.avatar} className="tbl-av" alt=""/>{emp?.name}</div></td>}
+                      <td style={{fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.in}</td>
+                      <td style={{fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.out||<span style={{color:'var(--amber)',fontWeight:700}}>Active</span>}</td>
+                      <td style={{fontWeight:700}}>{a.hrs||'-'}h</td>
+                      <td><span className={`badge ${a.status==='present'?'b-success':a.status==='late'?'b-pending':'b-error'}`}><span className="badge-dot"/>{a.status}</span></td>
+                    </tr>;
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
+        {/* Live Interactive Calendar with Blurred Sundays */}
         <div className="card">
-          <div className="card-hdr"><div className="section-title">July 2026</div></div>
+          <div className="card-hdr">
+            <div className="section-title">{curMonthName} {curYear}</div>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>Live Calendar</span>
+          </div>
           <div className="cal-grid">
-            {['S','M','T','W','T','F','S'].map((d,i)=><div key={i} className="cal-hdr">{d}</div>)}
-            {[0,1,2].map(i=><div key={'e'+i} className="cal-day empty"/>)}
-            {Array.from({length:31},(_,i)=>{
-              const day=i+1;
-              const ds=`2026-07-${String(day).padStart(2,'0')}`;
-              const rec=db.attendance.find(a=>a.uid===user.id&&a.date===ds);
-              const cls=rec?(rec.status==='present'?'present':'late'):'';
-              return <div key={day} className={`cal-day ${cls} ${day===13?'today':''}`} title={rec?`In:${rec.in} Out:${rec.out||'ongoing'}`:'No record'}>{day}</div>;
+            {['S','M','T','W','T','F','S'].map((d,i)=><div key={i} className="cal-hdr" style={{ color: i === 0 ? '#EF4444' : undefined }}>{d}</div>)}
+            {Array.from({length: firstDayIndex}, (_, i) => <div key={'e'+i} className="cal-day empty"/>)}
+            {Array.from({length: totalDaysInMonth}, (_, i) => {
+              const day = i + 1;
+              const dateObj = new Date(curYear, curMonth, day);
+              const isSunday = dateObj.getDay() === 0;
+              const monthStr = String(curMonth + 1).padStart(2, '0');
+              const dayStr = String(day).padStart(2, '0');
+              const ds = `${curYear}-${monthStr}-${dayStr}`;
+              const rec = db.attendance.find(a => a.uid === user.id && a.date === ds);
+              
+              let cls = '';
+              if (isSunday) cls = 'sunday-holiday';
+              else if (rec) cls = rec.status === 'present' ? 'present' : 'late';
+              
+              const isToday = day === todayNum;
+
+              return (
+                <div 
+                  key={day} 
+                  className={`cal-day ${cls} ${isToday ? 'today' : ''}`} 
+                  title={isSunday ? 'Sunday Holiday (Office Closed)' : rec ? `In:${rec.in} Out:${rec.out||'ongoing'}` : 'No record'}
+                >
+                  {day}
+                </div>
+              );
             })}
           </div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:10,marginTop:16,fontSize:12}}>
-            {[{c:'present',label:'Present'},{c:'late',label:'Late'},{c:'empty',label:'No Record'}].map(item=>(
-              <div key={item.c} style={{display:'flex',alignItems:'center',gap:6}}>
-                <div className={`cal-day ${item.c}`} style={{width:16,height:16,borderRadius:4,minWidth:16,fontSize:0}}/>
+          <div style={{display:'flex',flexWrap:'wrap',gap:10,marginTop:16,fontSize:11.5}}>
+            {[{c:'present',label:'Present'},{c:'late',label:'Late'},{c:'sunday-holiday',label:'Sunday (Holiday)'},{c:'empty',label:'No Record'}].map(item=>(
+              <div key={item.c} style={{display:'flex',alignItems:'center',gap:5}}>
+                <div className={`cal-day ${item.c}`} style={{width:14,height:14,borderRadius:4,minWidth:14,fontSize:0}}/>
                 <span style={{color:'var(--text-muted)'}}>{item.label}</span>
               </div>
             ))}
