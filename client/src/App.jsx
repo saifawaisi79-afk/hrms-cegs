@@ -4552,6 +4552,7 @@ function RecruitmentPage({ db, save, user }) {
   const joinedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['joined', 'joining', 'staff'])).length;
 
   const totalCandidatesCount = roleFilteredCandidates.length;
+  const todayAddedCount = todayTargetCandidates.length;
 
   let selCount = 0, itvCount = 0, scrCount = 0, rejCount = 0, pndCount = 0;
   roleFilteredCandidates.forEach(c => {
