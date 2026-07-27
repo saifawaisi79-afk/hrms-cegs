@@ -4508,7 +4508,7 @@ const INITIAL_CANDIDATE_DATA = [
   { id: '13', slNo: 13, date: '25/07/25', name: 'IMRAN KHAN', number: '9900112233', languages: 'Urdu, English', qualification: 'PUC', response: 'Joined', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: 'Joined today', followUp2: '', followUp3: '', employee: 'Haseeb' }
 ];
 
-function TargetMetricCard({ title, icon, current, target, unit, iconBg = '#F5F3FF', iconColor = '#7C5CFC' }) {
+function TargetMetricCard({ title, icon, current, target, unit, weight = '20%', iconBg = '#F5F3FF', iconColor = '#7C5CFC', onClick }) {
   const percentage = Math.min(100, Math.round((current / target) * 100));
 
   let badgeStyle = { background: '#E6F4EA', color: '#137333', border: '1px solid #CEEAD6' };
@@ -4526,36 +4526,47 @@ function TargetMetricCard({ title, icon, current, target, unit, iconBg = '#F5F3F
   }
 
   return (
-    <div style={{ background: '#FAFAFA', borderRadius: 20, border: '1px solid #F3F4F6', padding: '20px', flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', transition: 'transform 0.2s ease, box-shadow 0.2s ease' }}>
+    <div 
+      onClick={onClick}
+      style={{ 
+        background: '#FAFAFA', borderRadius: 20, border: '1px solid #F3F4F6', padding: '18px', 
+        flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', 
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)', transition: 'all 0.2s ease', cursor: onClick ? 'pointer' : 'default' 
+      }}
+      className={onClick ? 'card-hover-effect' : ''}
+    >
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 12, background: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 12, background: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800 }}>
               {icon}
             </div>
-            <span style={{ fontWeight: 800, fontSize: 14, color: '#1F2937', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>{title}</span>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 13.5, color: '#1F2937', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>{title}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#7C5CFC' }}>Weight: {weight}</div>
+            </div>
           </div>
-          <span style={{ ...badgeStyle, borderRadius: 99, padding: '3px 10px', fontSize: 10.5, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+          <span style={{ ...badgeStyle, borderRadius: 99, padding: '3px 8px', fontSize: 10, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
             {badgeLabel}
           </span>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 }}>
           <div style={{ display: 'flex', alignItems: 'baseline' }}>
-            <span style={{ fontSize: 32, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.8px' }}>{current}</span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#9CA3AF', marginLeft: 4 }}>/ {target}</span>
+            <span style={{ fontSize: 28, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.8px' }}>{current}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#9CA3AF', marginLeft: 4 }}>/ {target}</span>
           </div>
-          <span style={{ background: '#F3E8FF', color: '#7C5CFC', fontWeight: 800, borderRadius: 99, padding: '3px 10px', fontSize: 11 }}>
+          <span style={{ background: '#F3E8FF', color: '#7C5CFC', fontWeight: 800, borderRadius: 99, padding: '2px 8px', fontSize: 10.5 }}>
             {percentage}%
           </span>
         </div>
       </div>
 
-      <div style={{ marginTop: 16 }}>
-        <div style={{ background: '#E5E7EB', height: 7, borderRadius: 99, overflow: 'hidden' }}>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ background: '#E5E7EB', height: 6, borderRadius: 99, overflow: 'hidden' }}>
           <div style={{ width: `${percentage}%`, height: '100%', background: progressGradient, borderRadius: 99, transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }} />
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, color: '#6B7280', marginTop: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, fontWeight: 700, color: '#6B7280', marginTop: 6 }}>
           <span>Target: {target} {unit}</span>
           <span style={{ color: current >= target ? '#059669' : '#4B5563' }}>{current >= target ? 'Goal Reached 🎉' : `${target - current} left`}</span>
         </div>
@@ -4647,11 +4658,22 @@ function RecruitmentPage({ db, save, user }) {
 
   const todayTargetCandidates = roleFilteredCandidates.filter(c => isTodayDate(c.date));
 
-  // Requirement 4: Connected call = call done out of 80
+  // 5 Tasks (each task is 20% weight, 60% minimum performance required every day)
   const callsMadeCount = todayTargetCandidates.filter(c => c.callStatus && (c.callStatus === 'Connected' || c.callStatus.trim() !== '')).length;
   const interviewsScheduledTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical'])).length;
+  const walkinsTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit'])).length;
   const selectedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['selected', 'selection', 'hired'])).length;
   const joinedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['joined', 'joining', 'staff'])).length;
+
+  // Performance calculations (each of the 5 tasks contributes max 20%)
+  const callsScore  = Math.min(20, Math.round((callsMadeCount / 80) * 20));
+  const itvScore    = Math.min(20, Math.round((interviewsScheduledTargetCount / 15) * 20));
+  const walkinScore = Math.min(20, Math.round((walkinsTargetCount / 5) * 20));
+  const selScore    = Math.min(20, Math.round((selectedTodayTargetCount / 3) * 20));
+  const jndScore    = Math.min(20, Math.round((joinedTodayTargetCount / 1) * 20));
+
+  const totalDayPerformancePct = callsScore + itvScore + walkinScore + selScore + jndScore;
+  const isTargetAchieved = totalDayPerformancePct >= 60; // minimum 60% required every day
 
   const totalCandidatesCount = roleFilteredCandidates.length;
   const todayAddedCount = todayTargetCandidates.length;
@@ -4679,11 +4701,19 @@ function RecruitmentPage({ db, save, user }) {
   const employeePerformanceList = employeeList.map(empName => {
     const empCands = candidates.filter(c => (c.employee || '').toLowerCase() === empName.toLowerCase() && isTodayDate(c.date));
     const calls = empCands.filter(c => c.callStatus && (c.callStatus === 'Connected' || c.callStatus.trim() !== '')).length;
-    const itvs = empCands.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical'])).length;
-    const sels = empCands.filter(c => hasKeyword(c, ['selected', 'selection', 'hired'])).length;
-    const jnds = empCands.filter(c => hasKeyword(c, ['joined', 'joining', 'staff'])).length;
-    const pct = Math.min(100, Math.round((calls / 80) * 100));
-    return { name: empName, calls, itvs, sels, jnds, pct };
+    const itvs  = empCands.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical'])).length;
+    const walks = empCands.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit'])).length;
+    const sels  = empCands.filter(c => hasKeyword(c, ['selected', 'selection', 'hired'])).length;
+    const jnds  = empCands.filter(c => hasKeyword(c, ['joined', 'joining', 'staff'])).length;
+
+    const cS = Math.min(20, Math.round((calls / 80) * 20));
+    const iS = Math.min(20, Math.round((itvs / 15) * 20));
+    const wS = Math.min(20, Math.round((walks / 5) * 20));
+    const sS = Math.min(20, Math.round((sels / 3) * 20));
+    const jS = Math.min(20, Math.round((jnds / 1) * 20));
+    const pct = cS + iS + wS + sS + jS;
+
+    return { name: empName, calls, itvs, walks, sels, jnds, pct };
   });
 
   const handleCellChange = (candId, field, val) => {
@@ -4859,7 +4889,7 @@ function RecruitmentPage({ db, save, user }) {
 
       {/* DAILY TASK TARGETS CARD CONTAINER */}
       <div style={{ background: '#FFFFFF', borderRadius: 24, padding: 24, border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', tracking: '-0.4px', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>
@@ -4870,7 +4900,7 @@ function RecruitmentPage({ db, save, user }) {
               </span>
             </div>
             <p style={{ fontSize: 13, fontWeight: 500, color: '#6B7280', marginTop: 4 }}>
-              {isSA ? "Monitoring all staff recruitment progress. Super admin does not perform personal targets." : isEmp ? "Track and hit your daily call, interview, selection, and joining targets." : "Manage personal targets and oversee team daily call performance."}
+              {isSA ? "Monitoring all staff recruitment progress. Super admin does not perform personal tasks." : isEmp ? "Track and hit your daily call, interview, walk-in, selection, and joining targets (Min 60% required)." : "Manage personal targets and oversee team daily call performance."}
             </p>
           </div>
 
@@ -4932,19 +4962,40 @@ function RecruitmentPage({ db, save, user }) {
           )}
         </div>
 
+        {/* DAILY PERFORMANCE SCORE BANNER (Each Task 20% Weight - 60% Minimum Required) */}
+        {(!isSA && targetViewMode !== 'hr') && (
+          <div style={{ background: isTargetAchieved ? 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)' : 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: isTargetAchieved ? '1px solid #A7F3D0' : '1px solid #FDE68A', borderRadius: 16, padding: '12px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 24 }}>{isTargetAchieved ? '🎯' : '⚡'}</span>
+              <div>
+                <div style={{ fontWeight: 900, fontSize: 14, color: isTargetAchieved ? '#065F46' : '#92400E' }}>
+                  Day Performance Score: {totalDayPerformancePct}% / 100% (5 Tasks @ 20% Weight Each)
+                </div>
+                <div style={{ fontSize: 11.5, color: isTargetAchieved ? '#047857' : '#B45309', marginTop: 1 }}>
+                  Every employee must reach at least <strong>60% performance</strong> every day
+                </div>
+              </div>
+            </div>
+            <span style={{ background: isTargetAchieved ? '#10B981' : '#F59E0B', color: '#FFFFFF', padding: '4px 14px', borderRadius: 99, fontSize: 11, fontWeight: 900, letterSpacing: '0.3px' }}>
+              {isTargetAchieved ? '✓ TARGET ACHIEVED (60%+ MET)' : '⚠️ AT RISK (60% REQUIRED)'}
+            </span>
+          </div>
+        )}
+
         {/* FOR SUPER ADMIN & HR ALL VIEW: AGGREGATED RECRUITER PERFORMANCE GRID */}
         {(isSA || (isHR && targetViewMode === 'hr')) ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              <TargetMetricCard title="Calls Made (Total)" icon="📞" current={callsMadeCount} target={80 * employeeList.length} unit="Calls" iconBg="#F5F3FF" iconColor="#7C5CFC" />
-              <TargetMetricCard title="Interviews Scheduled" icon="📅" current={interviewsScheduledTargetCount} target={15 * employeeList.length} unit="Interviews" iconBg="#EFF6FF" iconColor="#3B82F6" />
-              <TargetMetricCard title="Selected Today" icon="🏆" current={selectedTodayTargetCount} target={5 * employeeList.length} unit="Selected" iconBg="#ECFDF5" iconColor="#10B981" />
-              <TargetMetricCard title="Joined Today" icon="👥" current={joinedTodayTargetCount} target={5 * employeeList.length} unit="Joined" iconBg="#FFF7ED" iconColor="#F97316" />
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <TargetMetricCard title="Calls Made (Total)" icon="📞" current={callsMadeCount} target={80 * employeeList.length} unit="Calls" weight="20%" iconBg="#F5F3FF" iconColor="#7C5CFC" />
+              <TargetMetricCard title="Interviews Scheduled" icon="📅" current={interviewsScheduledTargetCount} target={15 * employeeList.length} unit="Interviews" weight="20%" iconBg="#EFF6FF" iconColor="#3B82F6" />
+              <TargetMetricCard title="Walk-ins Today" icon="🚶" current={walkinsTargetCount} target={5 * employeeList.length} unit="Walkins" weight="20%" iconBg="#FEF3C7" iconColor="#D97706" />
+              <TargetMetricCard title="Selected Today" icon="🏆" current={selectedTodayTargetCount} target={3 * employeeList.length} unit="Selected" weight="20%" iconBg="#ECFDF5" iconColor="#10B981" />
+              <TargetMetricCard title="Joined Today" icon="👥" current={joinedTodayTargetCount} target={1 * employeeList.length} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" />
             </div>
 
             {/* RECRUITER PERFORMANCE LIST GRID */}
-            <div style={{ marginTop: 12, background: '#F9FAFB', borderRadius: 20, padding: 18, border: '1px solid #F3F4F6' }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', marginBottom: 12 }}>Recruiter Daily Performance Breakdown</div>
+            <div style={{ marginTop: 8, background: '#F9FAFB', borderRadius: 20, padding: 18, border: '1px solid #F3F4F6' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', marginBottom: 12 }}>Recruiter Daily Performance Breakdown (60% Min Target)</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
                 {employeePerformanceList.map(emp => (
                   <div 
@@ -4959,18 +5010,19 @@ function RecruitmentPage({ db, save, user }) {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <span style={{ fontWeight: 800, fontSize: 13, color: '#111827' }}>{emp.name}</span>
-                      <span style={{ background: emp.pct >= 100 ? '#E6F4EA' : '#FEF7E0', color: emp.pct >= 100 ? '#137333' : '#B06000', borderRadius: 99, padding: '2px 8px', fontSize: 10, fontWeight: 800 }}>
-                        {emp.pct}% Done
+                      <span style={{ background: emp.pct >= 60 ? '#E6F4EA' : '#FEF7E0', color: emp.pct >= 60 ? '#137333' : '#B06000', borderRadius: 99, padding: '2px 8px', fontSize: 10, fontWeight: 800 }}>
+                        {emp.pct}% Done {emp.pct >= 60 ? '✓' : '⚠️'}
                       </span>
                     </div>
-                    <div style={{ fontSize: 11.5, color: '#6B7280', display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span>📞 {emp.calls}/80 Calls</span>
-                      <span>📅 {emp.itvs}/15 Itv</span>
-                      <span>🏆 {emp.sels}/5 Sel</span>
-                      <span>👥 {emp.jnds}/5 Jnd</span>
+                    <div style={{ fontSize: 11, color: '#6B7280', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                      <span>📞 {emp.calls}/80</span>
+                      <span>📅 {emp.itvs}/15</span>
+                      <span>🚶 {emp.walks}/5</span>
+                      <span>🏆 {emp.sels}/3</span>
+                      <span>👥 {emp.jnds}/1</span>
                     </div>
                     <div style={{ background: '#E5E7EB', height: 6, borderRadius: 99, overflow: 'hidden' }}>
-                      <div style={{ width: `${emp.pct}%`, height: '100%', background: 'linear-gradient(90deg, #7C5CFC 0%, #3B82F6 100%)', borderRadius: 99 }} />
+                      <div style={{ width: `${emp.pct}%`, height: '100%', background: emp.pct >= 60 ? 'linear-gradient(90deg, #10B981 0%, #34D399 100%)' : 'linear-gradient(90deg, #F59E0B 0%, #EF4444 100%)', borderRadius: 99 }} />
                     </div>
                   </div>
                 ))}
@@ -4978,12 +5030,13 @@ function RecruitmentPage({ db, save, user }) {
             </div>
           </div>
         ) : (
-          /* FOR EMPLOYEE & INDIVIDUAL HR VIEW: 4 TARGET CARDS */
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <TargetMetricCard title="Calls Made" icon="📞" current={callsMadeCount} target={80} unit="Calls" iconBg="#F5F3FF" iconColor="#7C5CFC" />
-            <TargetMetricCard title="Interviews Scheduled" icon="📅" current={interviewsScheduledTargetCount} target={15} unit="Interviews" iconBg="#EFF6FF" iconColor="#3B82F6" />
-            <TargetMetricCard title="Selected Today" icon="🏆" current={selectedTodayTargetCount} target={5} unit="Selected" iconBg="#ECFDF5" iconColor="#10B981" />
-            <TargetMetricCard title="Joined Today" icon="👥" current={joinedTodayTargetCount} target={5} unit="Joined" iconBg="#FFF7ED" iconColor="#F97316" />
+          /* FOR EMPLOYEE & INDIVIDUAL HR VIEW: ALL 5 TARGET METRIC CARDS */
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <TargetMetricCard title="Calls Made" icon="📞" current={callsMadeCount} target={80} unit="Calls" weight="20%" iconBg="#F5F3FF" iconColor="#7C5CFC" onClick={() => setSearchQuery('Connected')} />
+            <TargetMetricCard title="Interviews Scheduled" icon="📅" current={interviewsScheduledTargetCount} target={15} unit="Interviews" weight="20%" iconBg="#EFF6FF" iconColor="#3B82F6" onClick={() => setSearchQuery('interview')} />
+            <TargetMetricCard title="Walk-ins Today" icon="🚶" current={walkinsTargetCount} target={5} unit="Walkins" weight="20%" iconBg="#FEF3C7" iconColor="#D97706" onClick={() => setSearchQuery('walkin')} />
+            <TargetMetricCard title="Selected Today" icon="🏆" current={selectedTodayTargetCount} target={3} unit="Selected" weight="20%" iconBg="#ECFDF5" iconColor="#10B981" onClick={() => setSearchQuery('selected')} />
+            <TargetMetricCard title="Joined Today" icon="👥" current={joinedTodayTargetCount} target={1} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" onClick={() => setSearchQuery('joined')} />
           </div>
         )}
       </div>
@@ -7027,6 +7080,20 @@ function RewardsPage({ db, save, user }) {
 function ProfilePage({ db, save, user }) {
   const [formData, setFormData] = useState({ ...user });
   const [tab, setTab] = useState('personal');
+  const avatarFileRef = useRef(null);
+
+  const handleAvatarFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const base64 = evt.target.result;
+      const updated = { ...formData, avatar: base64 };
+      setFormData(updated);
+      save('users', db.users.map(u => u.id === user.id ? { ...u, avatar: base64 } : u));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const update = e => {
     e.preventDefault();
@@ -7036,12 +7103,40 @@ function ProfilePage({ db, save, user }) {
 
   return (
     <div className="card anim-fadeup" style={{ maxWidth: 720 }}>
+      <input type="file" ref={avatarFileRef} onChange={handleAvatarFile} accept="image/*" style={{ display: 'none' }} />
+      
       <div className="card-hdr">
         <div>
           <div className="section-title">My Profile</div>
-          <div className="section-sub">Manage your personal details, contact entries, bank accounts and tax forms</div>
+          <div className="section-sub">Manage your personal details, avatar photo, contact entries, bank accounts and tax forms</div>
         </div>
       </div>
+
+      {/* AVATAR PHOTO & UPLOAD IMAGE SECTION */}
+      <div style={{ background: 'linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%)', borderRadius: 20, padding: 20, marginBottom: 20, border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative' }}>
+          <img 
+            src={formData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name}`} 
+            alt={formData.name} 
+            style={{ width: 84, height: 84, borderRadius: '50%', border: '3px solid #7C5CFC', objectFit: 'cover', boxShadow: '0 4px 14px rgba(124,92,252,0.25)' }} 
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: '#111827' }}>{formData.name}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', marginTop: 2 }}>{formData.title || 'Team Member'} · {formData.email}</div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+            <button 
+              type="button" 
+              className="btn btn-sm btn-dark" 
+              style={{ borderRadius: 99, padding: '6px 16px', fontWeight: 800 }} 
+              onClick={() => avatarFileRef.current && avatarFileRef.current.click()}
+            >
+              📸 Upload Profile Image
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 20 }}>
         {['personal', 'experience', 'financial'].map(t => (
           <button key={t} className={`btn btn-sm ${tab===t?'btn-dark':'btn-ghost'}`} onClick={()=>setTab(t)} style={{ textTransform: 'capitalize' }}>{t} Details</button>
@@ -7055,8 +7150,11 @@ function ProfilePage({ db, save, user }) {
               <input className="form-input" value={formData.name||''} onChange={e=>setFormData({...formData, name: e.target.value})} required />
             </div>
             <div className="form-group" style={{ marginTop: 12 }}>
-              <label className="form-label">Profile Image (Avatar URL)</label>
-              <input className="form-input" value={formData.avatar||''} onChange={e=>setFormData({...formData, avatar: e.target.value})} placeholder="https://api.dicebear.com/..." />
+              <label className="form-label">Profile Image (Avatar URL or Upload)</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input className="form-input" value={formData.avatar||''} onChange={e=>setFormData({...formData, avatar: e.target.value})} placeholder="https://api.dicebear.com/... or upload image above" style={{ flex: 1 }} />
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => avatarFileRef.current && avatarFileRef.current.click()}>Upload File</button>
+              </div>
             </div>
             <div className="form-group" style={{ marginTop: 12 }}>
               <label className="form-label">Contact Phone Number</label>
