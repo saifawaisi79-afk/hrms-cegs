@@ -15,11 +15,11 @@
   ],
   "routes": [
     {
-      "src": "/auth/(.*)",
+      "src": "/api/(.*)",
       "dest": "server/index.js"
     },
     {
-      "src": "/api/(.*)",
+      "src": "/auth/(.*)",
       "dest": "server/index.js"
     },
     {
@@ -29,10 +29,6 @@
     {
       "src": "/uploads/(.*)",
       "dest": "server/index.js"
-    },
-    {
-      "src": "/assets/(.*)",
-      "dest": "client/assets/$1"
     },
     {
       "src": "/(.*)",
