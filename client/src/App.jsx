@@ -157,6 +157,22 @@ const Store = {
         o[k] = SEED_DATA[k];
       }
     });
+
+    // Auto-sync any newly added seed users (e.g., Gowtham, Bijay, Nithya Shree, Zoya, Pallavi, Nithin)
+    if (Array.isArray(o.users)) {
+      const existingEmails = new Set(o.users.map(u => (u.email || '').toLowerCase()));
+      let updated = false;
+      SEED_DATA.users.forEach(seedUser => {
+        if (!existingEmails.has((seedUser.email || '').toLowerCase())) {
+          o.users.push(seedUser);
+          updated = true;
+        }
+      });
+      if (updated) {
+        this.set('users', o.users);
+      }
+    }
+
     return o;
   }
 };
