@@ -8,6 +8,36 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Auto-clear stale cache from old builds -->
+    <script>
+      (function() {
+        try {
+          // Remove all old version keys (v1, v2, v3)
+          var oldPrefixes = ['vp_hrms_v1_', 'vp_hrms_v2_', 'vp_hrms_v3_', 'vp_hrms_'];
+          var keys = Object.keys(localStorage);
+          keys.forEach(function(k) {
+            oldPrefixes.forEach(function(p) {
+              if (k.startsWith(p) && !k.startsWith('vp_hrms_v4_')) {
+                localStorage.removeItem(k);
+              }
+            });
+          });
+          // Mark app version
+          if (localStorage.getItem('cegs_app_version') !== 'v4') {
+            // Clear everything on first load of new version
+            var toKeep = {};
+            Object.keys(localStorage).forEach(function(k) {
+              if (k.startsWith('vp_hrms_v4_')) toKeep[k] = localStorage.getItem(k);
+            });
+            localStorage.clear();
+            Object.keys(toKeep).forEach(function(k) { localStorage.setItem(k, toKeep[k]); });
+            localStorage.setItem('cegs_app_version', 'v4');
+          }
+        } catch(e) {
+          try { localStorage.clear(); } catch(e2) {}
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
