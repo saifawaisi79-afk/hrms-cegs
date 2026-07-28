@@ -957,6 +957,9 @@ function DashboardPage({ db, save, user, setView }) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
+  // Developer Quick View Modal State
+  const [showDevQuickView, setShowDevQuickView] = useState(false);
+
   // Personal Info Form State
   const [isEditing, setIsEditing] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -1383,32 +1386,21 @@ function DashboardPage({ db, save, user, setView }) {
           </div>
         </div>
 
-        {/* WIDGET 4: Developer Profile Card (Image Upload Option, Name, Role, Badges) */}
-        <div className="card anim-fadeup" style={{ borderRadius: 24, padding: 20, border: '1px solid rgba(0,0,0,0.06)', background: 'linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* WIDGET 4: Developer Profile Card (Clickable Quick View) */}
+        <div 
+          className="card anim-fadeup card-hover-effect" 
+          style={{ borderRadius: 24, padding: 20, border: '1px solid rgba(0,0,0,0.06)', background: 'linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14, cursor: 'pointer' }}
+          onClick={() => setShowDevQuickView(true)}
+          title="Click to view Developer Profile Quick View"
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ position: 'relative', display: 'inline-block' }}>
               <img 
-                src={db.devAvatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=saif-developer&backgroundColor=7c5cfc"} 
-                alt="Developer Profile" 
-                style={{ width: 60, height: 60, borderRadius: 18, border: '2px solid #7C5CFC', background: '#F3E8FF', objectFit: 'cover' }} 
+                src="/dev_saif.jpg" 
+                alt="Saif Awaisi - Developer & System Architect" 
+                style={{ width: 64, height: 64, borderRadius: 18, border: '2px solid #7C5CFC', background: '#F3E8FF', objectFit: 'cover', boxShadow: '0 4px 12px rgba(124,92,252,0.2)' }} 
               />
-              <span style={{ position: 'absolute', top: 42, right: 0, width: 14, height: 14, background: '#10B981', border: '2px solid #FFFFFF', borderRadius: '50%' }} />
-              <label style={{ fontSize: 9.5, fontWeight: 800, color: '#7C5CFC', marginTop: 4, cursor: 'pointer', textDecoration: 'underline' }}>
-                Upload Image
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  style={{ display: 'none' }} 
-                  onChange={e => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      const r = new FileReader();
-                      r.onload = ev => save('devAvatar', ev.target.result);
-                      r.readAsDataURL(f);
-                    }
-                  }} 
-                />
-              </label>
+              <span style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, background: '#10B981', border: '2px solid #FFFFFF', borderRadius: '50%' }} />
             </div>
             <div>
               <div style={{ fontSize: 16, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Saif Awaisi</div>
@@ -1421,12 +1413,55 @@ function DashboardPage({ db, save, user, setView }) {
             🚀 Lead developer of enterprise role-based portals, MongoDB Atlas cloud sync, & daily task engine.
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 10.5, fontWeight: 800 }}>
-            <span style={{ background: '#F3E8FF', color: '#7C5CFC', borderRadius: 99, padding: '3px 10px' }}>Lead Developer</span>
-            <span style={{ background: '#EFF6FF', color: '#3B82F6', borderRadius: 99, padding: '3px 10px' }}>React 18</span>
-            <span style={{ background: '#ECFDF5', color: '#10B981', borderRadius: 99, padding: '3px 10px' }}>Node & MongoDB</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 10.5, fontWeight: 800 }}>
+              <span style={{ background: '#F3E8FF', color: '#7C5CFC', borderRadius: 99, padding: '3px 10px' }}>Lead Developer</span>
+              <span style={{ background: '#EFF6FF', color: '#3B82F6', borderRadius: 99, padding: '3px 10px' }}>React 18</span>
+              <span style={{ background: '#ECFDF5', color: '#10B981', borderRadius: 99, padding: '3px 10px' }}>Node & MongoDB</span>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#7C5CFC', textDecoration: 'underline' }}>Quick View 🔍</span>
           </div>
         </div>
+
+        {/* DEVELOPER QUICK VIEW MODAL */}
+        <Modal open={showDevQuickView} onClose={() => setShowDevQuickView(false)} title="Developer & System Architect Quick View">
+          <div style={{ padding: '8px 4px', textAlign: 'center' }}>
+            <div style={{ position: 'relative', width: 120, height: 120, margin: '0 auto 16px' }}>
+              <img 
+                src="/dev_saif.jpg" 
+                alt="Saif Awaisi" 
+                style={{ width: 120, height: 120, borderRadius: 28, border: '3px solid #7C5CFC', objectFit: 'cover', boxShadow: '0 8px 24px rgba(124,92,252,0.3)' }} 
+              />
+              <span style={{ position: 'absolute', bottom: 4, right: 4, width: 20, height: 20, background: '#10B981', border: '3px solid #FFFFFF', borderRadius: '50%' }} />
+            </div>
+
+            <h2 style={{ fontSize: 22, fontWeight: 900, color: '#111827', margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Saif Awaisi</h2>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#7C5CFC', marginTop: 4 }}>Developer & System Architect</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginTop: 2 }}>CEGS HRMS Lead Engineer</div>
+
+            <div style={{ background: 'linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%)', borderRadius: 16, padding: '16px', margin: '20px 0', border: '1px solid #E5E7EB', textAlign: 'left' }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#374151', marginBottom: 6 }}>System Architecture Overview</div>
+              <p style={{ fontSize: 12.5, color: '#4B5563', lineHeight: 1.6, margin: 0, fontWeight: 600 }}>
+                Lead architect & developer behind CEGS HRMS platform. Responsible for multi-role security portals, real-time LAN/WiFi network security, recruiter task performance matrix, Candidate Datasheet Excel engine, and live attendance tracking.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 20 }}>
+              <span style={{ background: '#F3E8FF', color: '#7C5CFC', borderRadius: 99, padding: '6px 14px', fontSize: 11.5, fontWeight: 800 }}>💻 Lead Fullstack Developer</span>
+              <span style={{ background: '#EFF6FF', color: '#3B82F6', borderRadius: 99, padding: '6px 14px', fontSize: 11.5, fontWeight: 800 }}>⚡ React 18 & Vite</span>
+              <span style={{ background: '#ECFDF5', color: '#10B981', borderRadius: 99, padding: '6px 14px', fontSize: 11.5, fontWeight: 800 }}>🍃 Node.js & MongoDB Atlas</span>
+              <span style={{ background: '#FEF3C7', color: '#D97706', borderRadius: 99, padding: '6px 14px', fontSize: 11.5, fontWeight: 800 }}>🔒 Office LAN/WiFi Security</span>
+            </div>
+
+            <button 
+              className="btn btn-dark" 
+              style={{ width: '100%', borderRadius: 12, padding: '12px', fontSize: 13, fontWeight: 800 }} 
+              onClick={() => setShowDevQuickView(false)}
+            >
+              Close Quick View
+            </button>
+          </div>
+        </Modal>
       </div>
     </div>
   );
