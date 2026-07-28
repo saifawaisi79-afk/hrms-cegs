@@ -551,9 +551,9 @@ function LoginPage({ login, db }) {
   const [geoStatusMsg, setGeoStatusMsg] = useState(null);
   const [geoLoading, setGeoLoading] = useState(false);
 
-  // Novel Office Koramangala Location Coordinates
-  const OFFICE_LAT = 12.9348;
-  const OFFICE_LNG = 77.6110;
+  // Office Location Coordinates (12°57'04.9"N 77°36'29.5"E - Koramangala Office)
+  const OFFICE_LAT = 12.951361;
+  const OFFICE_LNG = 77.608194;
 
   const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
     const R = 6371000; // Radius of earth in meters
