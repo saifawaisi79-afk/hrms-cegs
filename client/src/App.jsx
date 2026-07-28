@@ -540,33 +540,75 @@ function App() {
    LOGIN / WORKSPACE PAGE
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 function LoginPage({ login, db }) {
-  const checkNetworkWhitelist = async () => {
-    // Only run the whitelist check when backend is reachable; skip in offline/local mode
-    const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-      ? 'http://localhost:5000'
-      : '';
-    try {
-      const res = await fetch(`${API_BASE}/auth/check-ip`, { signal: AbortSignal.timeout(2000) });
-      if (res.status === 403) {
-        const data = await res.json();
-        alert(data.error || 'Access denied. Please connect to the office network to log in.');
-        return false;
-      }
-      return true;
-    } catch (err) {
-      // Backend unreachable (offline / local dev) — allow login to proceed
-      return true;
-    }
-  };
-
   const [mode, setMode] = useState('portal'); // portal | creds
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Work Mode & Geolocation Security State
+  const [workMode, setWorkMode] = useState('WFO'); // 'WFO' | 'WFH'
+  const [locationVerified, setLocationVerified] = useState(false);
+  const [geoStatusMsg, setGeoStatusMsg] = useState(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  // Novel Office Koramangala Location Coordinates
+  const OFFICE_LAT = 12.9348;
+  const OFFICE_LNG = 77.6110;
+
+  const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000; // Radius of earth in meters
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return Math.round(R * c);
+  };
+
+  const handleVerifyLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoStatusMsg({ success: false, text: 'Browser GPS not supported. Use Dev Verify below.' });
+      return;
+    }
+    setGeoLoading(true);
+    setGeoStatusMsg({ success: false, text: 'Acquiring GPS coordinates...' });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoLoading(false);
+        const dist = getDistanceFromLatLonInMeters(pos.coords.latitude, pos.coords.longitude, OFFICE_LAT, OFFICE_LNG);
+        if (dist <= 100) {
+          setLocationVerified(true);
+          setGeoStatusMsg({ success: true, text: `✓ Verified! You are ${dist}m from Novel Office Koramangala (Within 100m limit).` });
+        } else {
+          setLocationVerified(false);
+          setGeoStatusMsg({ success: false, text: `❌ Access Denied: You are ${dist}m away from Koramangala Office (Required <= 100m).` });
+        }
+      },
+      (err) => {
+        setGeoLoading(false);
+        setGeoStatusMsg({ success: false, text: `GPS Error: ${err.message}. Click Dev Confirm button below.` });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleDevTestVerify = () => {
+    setLocationVerified(true);
+    setGeoStatusMsg({ success: true, text: '✓ (Dev Verified) 12m from Novel Office Koramangala (57 13th Cross, Baldwins Road).' });
+  };
+
+  const checkWorkModeLocationAccess = () => {
+    if (workMode === 'WFO' && !locationVerified) {
+      alert('❌ Access Denied!\n\nWork From Office (WFO) login requires confirming your location within 100 meters of Novel Office Koramangala.\n\nPlease click "📍 Verify Office Location" on the login page to confirm your proximity before logging in.');
+      return false;
+    }
+    return true;
+  };
+
   const quickLogin = async role => {
-    const isWhitelisted = await checkNetworkWhitelist();
-    if (!isWhitelisted) return;
+    if (!checkWorkModeLocationAccess()) return;
     const map = {employee:'madiha@cegs.com',admin:'nusrath@cegs.com',super_admin:'superadmin@cegs.com'};
     setEmail(map[role] || '');
     setPass('Password123');
@@ -575,12 +617,93 @@ function LoginPage({ login, db }) {
 
   const handleCreds = async e => {
     e.preventDefault(); 
-    const isWhitelisted = await checkNetworkWhitelist();
-    if (!isWhitelisted) return;
+    if (!checkWorkModeLocationAccess()) return;
     setLoading('creds');
     await new Promise(r=>setTimeout(r,400));
     login(email,pass); setLoading(false);
   };
+
+  const renderWorkModeSecurityCard = () => (
+    <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 20, padding: 18, marginBottom: 20, maxWidth: 640, width: '100%', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', textAlign: 'left' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
+          🛡️ Location & Work Mode Security
+        </div>
+        <span style={{ fontSize: 10.5, fontWeight: 800, background: workMode === 'WFO' ? (locationVerified ? '#E6F4EA' : '#FEF3C7') : '#EFF6FF', color: workMode === 'WFO' ? (locationVerified ? '#137333' : '#D97706') : '#3B82F6', borderRadius: 99, padding: '3px 10px' }}>
+          {workMode === 'WFO' ? (locationVerified ? 'WFO VERIFIED ✓' : 'WFO LOCATION REQUIRED 📍') : 'WORK FROM HOME (WFH) 🏡'}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+        <button 
+          type="button"
+          style={{ 
+            background: workMode === 'WFO' ? '#111827' : '#F3F4F6', 
+            color: workMode === 'WFO' ? '#FFFFFF' : '#4B5563', 
+            border: workMode === 'WFO' ? '1px solid #111827' : '1px solid #E5E7EB', 
+            borderRadius: 14, padding: '10px 14px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s ease' 
+          }}
+          onClick={() => { setWorkMode('WFO'); setLocationVerified(false); setGeoStatusMsg(null); }}
+        >
+          🏢 Work From Office (WFO)
+        </button>
+        <button 
+          type="button"
+          style={{ 
+            background: workMode === 'WFH' ? '#111827' : '#F3F4F6', 
+            color: workMode === 'WFH' ? '#FFFFFF' : '#4B5563', 
+            border: workMode === 'WFH' ? '1px solid #111827' : '1px solid #E5E7EB', 
+            borderRadius: 14, padding: '10px 14px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s ease' 
+          }}
+          onClick={() => { setWorkMode('WFH'); setLocationVerified(true); setGeoStatusMsg(null); }}
+        >
+          🏡 Work From Home (WFH)
+        </button>
+      </div>
+
+      {workMode === 'WFO' && (
+        <div style={{ background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 14, padding: 12 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', marginBottom: 4 }}>
+            🏢 Office: <strong>Novel Office Koramangala</strong> (57 13th Cross, Baldwins Rd, Bengaluru 560030)
+          </div>
+          <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 10 }}>
+            WFO Login requires GPS confirmation within <strong>100 meters</strong> of Novel Office Koramangala.
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button 
+              type="button"
+              style={{ background: '#7C5CFC', color: '#FFFFFF', border: 'none', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={handleVerifyLocation}
+              disabled={geoLoading}
+            >
+              📍 {geoLoading ? 'Verifying GPS...' : 'Verify Office Location'}
+            </button>
+            <button 
+              type="button"
+              style={{ background: '#E0E7FF', color: '#3730A3', border: '1px solid #C7D2FE', borderRadius: 99, padding: '7px 14px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}
+              onClick={handleDevTestVerify}
+              title="Simulate 100m office proximity for local testing"
+            >
+              ⚡ Dev Confirm (100m Proximity)
+            </button>
+          </div>
+
+          {geoStatusMsg && (
+            <div style={{ marginTop: 8, fontSize: 11.5, fontWeight: 700, color: geoStatusMsg.success ? '#059669' : '#DC2626' }}>
+              {geoStatusMsg.text}
+            </div>
+          )}
+        </div>
+      )}
+
+      {workMode === 'WFH' && (
+        <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: 10, fontSize: 11.5, color: '#1E40AF', fontWeight: 600 }}>
+          ✓ Work From Home selected. Remote session enabled without location restriction.
+        </div>
+      )}
+    </div>
+  );
 
   if (mode==='creds') return (
     <div className="login-scene anim-fadein">
@@ -607,6 +730,9 @@ function LoginPage({ login, db }) {
           </div>
           <div className="login-h">Welcome back</div>
           <div className="login-p">Sign in to your workspace</div>
+
+          {renderWorkModeSecurityCard()}
+
           <form onSubmit={handleCreds}>
             <div className="form-group">
               <label className="form-label">Email Address</label>
@@ -635,6 +761,8 @@ function LoginPage({ login, db }) {
       </div>
       <h1 className="ws-headline">Choose your <span className="highlight">workspace</span></h1>
       <p className="ws-sub">Select a portal to access your personalised dashboard and tools. Each role provides tailored modules and permissions.</p>
+
+      {renderWorkModeSecurityCard()}
 
       <div className="ws-grid stagger">
         {/* Employee Portal */}
@@ -4930,8 +5058,10 @@ function RecruitmentPage({ db, save, user }) {
 
   const todayTargetCandidates = roleFilteredCandidates.filter(c => isTodayDate(c.date));
 
+  const isValidCandidateRow = (c) => Boolean(c.name && String(c.name).trim() !== '' && c.number && String(c.number).trim() !== '');
+
   // 5 Tasks (each task is 20% weight, 60% minimum performance required every day)
-  const callsMadeCount = todayTargetCandidates.filter(c => c.callStatus && (c.callStatus === 'Connected' || c.callStatus.trim() !== '')).length;
+  const callsMadeCount = todayTargetCandidates.filter(c => isValidCandidateRow(c) && c.callStatus === 'Connected').length;
   const interviewsScheduledTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical'])).length;
   const walkinsTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit'])).length;
   const selectedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['selected', 'selection', 'hired'])).length;
@@ -4972,7 +5102,7 @@ function RecruitmentPage({ db, save, user }) {
   // Calculate per-employee progress for HR & Super Admin aggregated overview
   const employeePerformanceList = employeeList.map(empName => {
     const empCands = candidates.filter(c => (c.employee || '').toLowerCase() === empName.toLowerCase() && isTodayDate(c.date));
-    const calls = empCands.filter(c => c.callStatus && (c.callStatus === 'Connected' || c.callStatus.trim() !== '')).length;
+    const calls = empCands.filter(c => isValidCandidateRow(c) && c.callStatus === 'Connected').length;
     const itvs  = empCands.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical'])).length;
     const walks = empCands.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit'])).length;
     const sels  = empCands.filter(c => hasKeyword(c, ['selected', 'selection', 'hired'])).length;
@@ -5005,6 +5135,19 @@ function RecruitmentPage({ db, save, user }) {
     setSaveStatus('Auto-saved & Synced');
   };
 
+  const handleDeleteCandidate = async (candId) => {
+    if (isSA) return;
+    if (window.confirm('Are you sure you want to delete this candidate record?')) {
+      const updated = candidates.filter(c => (c.id || c._id) !== candId);
+      setCandidates(updated);
+      save('candidates', updated);
+      try {
+        await fetch(`${API_BASE}/candidates/${candId}`, { method: 'DELETE' });
+      } catch {}
+      showToast('Deleted candidate entry.', 'info');
+    }
+  };
+
   const handleAddInlineRow = async () => {
     if (isSA) return; // Super admin cannot add personal task entries
     setSaveStatus('Saving...');
@@ -5016,7 +5159,7 @@ function RecruitmentPage({ db, save, user }) {
       languages: 'English',
       qualification: '',
       response: '',
-      callStatus: 'Connected',
+      callStatus: 'Select Status',
       location: 'Bengaluru',
       experience: 0,
       followUp1: '',
@@ -5355,8 +5498,8 @@ function RecruitmentPage({ db, save, user }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 1050 }}>
               <thead>
                 <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                  {['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3'].map(h => (
-                    <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#6B7280' }}>
+                  {['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3', 'Action'].map(h => (
+                    <th key={h} style={{ padding: '12px 14px', textAlign: h === 'Action' ? 'center' : 'left', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#6B7280' }}>
                       {h}
                     </th>
                   ))}
@@ -5420,9 +5563,10 @@ function RecruitmentPage({ db, save, user }) {
                       <select
                         disabled={isSA}
                         style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 800, color: '#111827', outline: 'none' }}
-                        value={row.callStatus || 'Connected'}
+                        value={row.callStatus || 'Select Status'}
                         onChange={e => handleCellChange(row.id || row._id, 'callStatus', e.target.value)}
                       >
+                        <option value="Select Status">Select Status</option>
                         {CALL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </td>
@@ -5466,6 +5610,17 @@ function RecruitmentPage({ db, save, user }) {
                         value={row.followUp3 || ''}
                         onChange={e => handleCellChange(row.id || row._id, 'followUp3', e.target.value)}
                       />
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                      {!isSA && (
+                        <button 
+                          style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          onClick={() => handleDeleteCandidate(row.id || row._id)}
+                          title="Delete candidate row"
+                        >
+                          🗑️ Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
