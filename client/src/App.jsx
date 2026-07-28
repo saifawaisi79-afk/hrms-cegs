@@ -4496,32 +4496,7 @@ const LANGUAGE_OPTIONS = [
   'English', 'Hindi', 'Kannada', 'Telugu', 'Tamil', 'Malayalam', 'Marathi', 'Odisha', 'Bengali', 'English, Hindi', 'English, Kannada', 'English, Telugu', 'English, Tamil', 'Urdu'
 ];
 
-const INITIAL_CANDIDATE_DATA = [
-  // Madiha Mehak (Recruiter)
-  { id: '1', slNo: 1, date: '25/07/25', name: 'SUNIL KUMAR', number: '6360629424', languages: 'English', qualification: 'PUC', response: 'RNR', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: 'No', followUp2: '', followUp3: '', employee: 'Madiha Mehak' },
-  { id: '2', slNo: 2, date: '25/07/25', name: 'GANESH V', number: '9019387227', languages: 'Kannada', qualification: 'Degree', response: 'RNR', callStatus: 'Connected', location: 'Bengaluru', experience: 1, followUp1: 'Walkin today', followUp2: '', followUp3: '', employee: 'Madiha Mehak' },
-  { id: '3', slNo: 3, date: '25/07/25', name: 'SANJAY', number: '6363102218', languages: 'English, Hindi', qualification: 'PUC', response: 'Radical minds sales', callStatus: 'Connected', location: 'Hanuman Nagar', experience: 2, followUp1: 'Apollo pharmacy', followUp2: 'Lalitha jewelle', followUp3: 'Interview scheduled', employee: 'Madiha Mehak' },
-  { id: '4', slNo: 4, date: '25/07/25', name: 'YESHASWINI', number: '9740384310', languages: 'Hindi', qualification: 'Degree', response: 'Incoming is not available', callStatus: 'No Answer', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: '', employee: 'Madiha Mehak' },
-  
-  // Madhavi (Recruiter)
-  { id: '5', slNo: 5, date: '25/07/25', name: 'SYED SHAHID', number: '8951371658', languages: 'Urdu', qualification: 'Degree', response: 'Selected', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: 'Walk-in done', followUp2: '', followUp3: '', employee: 'Madhavi' },
-  { id: '6', slNo: 6, date: '25/07/25', name: 'ASHFIYA SHEIKH', number: '8884318409', languages: 'English, Hindi', qualification: 'Diploma', response: 'Conformation pending', callStatus: 'Connected', location: 'Bengaluru', experience: 1, followUp1: 'Scheduled for 26th', followUp2: '', followUp3: '', employee: 'Madhavi' },
-  { id: '7', slNo: 7, date: '25/07/25', name: 'THANUSHREE JAIN', number: '9148004764', languages: 'Kannada', qualification: 'PUC', response: 'Joined', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: '', employee: 'Madhavi' },
-  
-  // Nusrath Hussain (HR Manager)
-  { id: '8', slNo: 8, date: '25/07/25', name: 'PADMAVATI', number: '9035586457', languages: 'Hindi', qualification: 'Degree', response: 'Selected', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: 'Interview scheduled', followUp2: '', followUp3: '', employee: 'Nusrath Hussain' },
-  { id: '9', slNo: 9, date: '25/07/25', name: 'SYED RISAITH', number: '9739363657', languages: 'English, Kannada', qualification: 'PUC', response: 'Incoming is not available', callStatus: 'Switched Off', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: '', employee: 'Nusrath Hussain' },
-  { id: '10', slNo: 10, date: '25/07/25', name: 'MANOJ KUMAR', number: '8884310864', languages: 'English', qualification: 'Degree', response: 'Joined', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: '', employee: 'Nusrath Hussain' },
-  
-  // Heena Beagum (Billing Manager)
-  { id: '11', slNo: 11, date: '25/07/25', name: 'RAHUL SHARMA', number: '9845012345', languages: 'Hindi, English', qualification: 'B.Com', response: 'Interview Scheduled', callStatus: 'Connected', location: 'Bengaluru', experience: 2, followUp1: 'Confirmed for 2 PM', followUp2: '', followUp3: '', employee: 'Heena Beagum' },
-
-  // Mohammed Raheel (Billing)
-  { id: '12', slNo: 12, date: '25/07/25', name: 'KAVYA REDDY', number: '9741234567', languages: 'Telugu, English', qualification: 'Degree', response: 'Selected', callStatus: 'Connected', location: 'Bengaluru', experience: 1, followUp1: 'Offer letter sent', followUp2: '', followUp3: '', employee: 'Mohammed Raheel' },
-
-  // Haseeb (Billing)
-  { id: '13', slNo: 13, date: '25/07/25', name: 'IMRAN KHAN', number: '9900112233', languages: 'Urdu, English', qualification: 'PUC', response: 'Joined', callStatus: 'Connected', location: 'Bengaluru', experience: 0, followUp1: 'Joined today', followUp2: '', followUp3: '', employee: 'Haseeb' }
-];
+const INITIAL_CANDIDATE_DATA = [];
 
 function TargetMetricCard({ title, icon, current, target, unit, weight = '20%', iconBg = '#F5F3FF', iconColor = '#7C5CFC', onClick }) {
   const percentage = Math.min(100, Math.round((current / target) * 100));
@@ -4595,13 +4570,28 @@ function RecruitmentPage({ db, save, user }) {
   const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
   const isEmp = !isSA && !isHR;
 
+  const deduplicateCandidates = (items) => {
+    const seen = new Set();
+    const result = [];
+    (items || []).forEach(c => {
+      const nameKey = (c.name || '').trim().toLowerCase();
+      const numKey = (c.number || '').trim();
+      const empKey = (c.employee || '').trim().toLowerCase();
+      const key = `${nameKey}_${numKey}_${empKey}`;
+      if (key === '__' || !seen.has(key)) {
+        if (key !== '__') seen.add(key);
+        result.push(c);
+      }
+    });
+    return result;
+  };
+
   const [candidates, setCandidates] = useState(() => {
-    const combinedMap = new Map();
-    INITIAL_CANDIDATE_DATA.forEach(c => combinedMap.set(c.id, c));
-    if (db && Array.isArray(db.candidates)) {
-      db.candidates.forEach(c => combinedMap.set(c.id || c._id, c));
+    let list = [];
+    if (db && Array.isArray(db.candidates) && db.candidates.length > 0) {
+      list = db.candidates.map(c => ({ ...c, id: c.id || c._id }));
     }
-    return Array.from(combinedMap.values());
+    return deduplicateCandidates(list);
   });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -4630,17 +4620,28 @@ function RecruitmentPage({ db, save, user }) {
             employee: item.employee || 'Madiha Mehak',
             callStatus: item.callStatus || 'Connected'
           }));
-          setCandidates(prev => {
-            const combinedMap = new Map();
-            INITIAL_CANDIDATE_DATA.forEach(i => combinedMap.set(i.id, i));
-            (prev || []).forEach(i => combinedMap.set(i.id, i));
-            cleaned.forEach(i => combinedMap.set(i.id, i));
-            return Array.from(combinedMap.values());
-          });
+          setCandidates(prev => deduplicateCandidates([...(prev || []), ...cleaned]));
         }
       })
       .catch(() => {});
   }, []);
+
+  const handleCleanDuplicates = () => {
+    const originalCount = candidates.length;
+    const cleaned = deduplicateCandidates(candidates);
+    const removedCount = originalCount - cleaned.length;
+    setCandidates(cleaned);
+    save('candidates', cleaned);
+    showToast(`✓ Removed ${removedCount} duplicate candidates! Datasheet is clean.`, 'success');
+  };
+
+  const handleClearAllCandidates = () => {
+    if (window.confirm('Are you sure you want to clear the candidate datasheet? You can upload a new Excel file anytime.')) {
+      setCandidates([]);
+      save('candidates', []);
+      showToast('Datasheet cleared. Ready for manual entry or file upload.', 'info');
+    }
+  };
 
   const hasKeyword = (cand, keywords) => {
     const text = `${cand.followUp1 || ''} ${cand.followUp2 || ''} ${cand.followUp3 || ''} ${cand.response || ''}`.toLowerCase();
@@ -5068,15 +5069,21 @@ function RecruitmentPage({ db, save, user }) {
               <p style={{ fontSize: 12.5, fontWeight: 600, color: '#059669', marginTop: 2 }}>✓ {saveStatus}</p>
             </div>
 
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <input
-                style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 600, width: 190, outline: 'none' }}
+                style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 600, width: 170, outline: 'none' }}
                 placeholder="Search candidate..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
               <button style={{ background: '#F3F4F6', border: '1px solid #E5E7EB', color: '#374151', borderRadius: 99, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }} onClick={handleTriggerImport}>
                 <IC n="file" s={13} /> Upload File
+              </button>
+              <button style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E', borderRadius: 99, padding: '7px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }} onClick={handleCleanDuplicates} title="Remove duplicate candidate entries">
+                🧹 Clean Duplicates
+              </button>
+              <button style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: 99, padding: '7px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }} onClick={handleClearAllCandidates} title="Clear all candidates to start fresh">
+                🗑️ Clear
               </button>
               {/* Hide Add Candidate button for Super Admin */}
               {!isSA && (
