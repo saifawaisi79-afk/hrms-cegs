@@ -5191,7 +5191,7 @@ function RecruitmentPage({ db, save, user }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [saveStatus, setSaveStatus] = useState('Auto-saved');
   const [targetViewMode, setTargetViewMode] = useState(isEmp ? 'employee' : 'hr');
-  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(isEmp ? (user?.name || 'Madiha Mehak') : 'ALL');
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(isEmp ? (user?.name || '') : 'ALL');
   const [toastMsg, setToastMsg] = useState(null);
 
   const fileInputRef = useRef(null);
@@ -5216,7 +5216,7 @@ function RecruitmentPage({ db, save, user }) {
           const cleaned = data.map(item => ({
             ...item,
             id: item._id || item.id,
-            employee: item.employee || 'Madiha Mehak',
+            employee: item.employee || '',
             callStatus: item.callStatus || 'Connected'
           }));
           const current = getStoredCandidates();
@@ -5249,21 +5249,21 @@ function RecruitmentPage({ db, save, user }) {
     return keywords.some(kw => text.includes(kw.toLowerCase()));
   };
 
-  const employeeList = Array.from(new Set(candidates.map(c => c.employee || 'Madiha Mehak'))).filter(Boolean);
-  if (!employeeList.includes(user?.name || 'Madiha Mehak')) {
-    employeeList.unshift(user?.name || 'Madiha Mehak');
+  const employeeList = Array.from(new Set(candidates.map(c => c.employee).filter(Boolean)));
+  if (user?.name && !employeeList.includes(user.name)) {
+    employeeList.unshift(user.name);
   }
 
-  // Strictly enforce role-based candidate data scoping while ensuring all employees have data access
+  // Strictly enforce user-specific candidate data scoping for employees
   const roleFilteredCandidates = candidates.filter(c => {
     if (isEmp) {
-      // Employee sees candidate entries assigned to them OR general unassigned candidate entries
-      const currentEmp = (user?.name || 'Madiha Mehak').toLowerCase();
-      const candEmp = (c.employee || '').toLowerCase();
-      return !candEmp || candEmp === 'madiha mehak' || candEmp === currentEmp;
+      // Employee sees ONLY candidate entries assigned specifically to them
+      const currentEmp = (user?.name || '').trim().toLowerCase();
+      const candEmp = (c.employee || '').trim().toLowerCase();
+      return candEmp === currentEmp;
     }
     if ((isHR || isSA) && selectedEmployeeFilter !== 'ALL') {
-      return (c.employee || '').toLowerCase() === selectedEmployeeFilter.toLowerCase();
+      return (c.employee || '').trim().toLowerCase() === selectedEmployeeFilter.toLowerCase();
     }
     return true;
   });
@@ -5329,11 +5329,8 @@ function RecruitmentPage({ db, save, user }) {
   // Calculate per-employee progress for HR & Super Admin aggregated overview
   const employeePerformanceList = employeeList.map(empName => {
     const empCands = candidates.filter(c => {
-      const candEmp = (c.employee || '').toLowerCase();
-      if (empName.toLowerCase() === 'madiha mehak') {
-        return !candEmp || candEmp === 'madiha mehak';
-      }
-      return candEmp === empName.toLowerCase();
+      const candEmp = (c.employee || '').trim().toLowerCase();
+      return candEmp === empName.trim().toLowerCase();
     });
     const calls = empCands.filter(c => isConnectedCall(c)).length;
     const itvs  = empCands.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical', 'itv'])).length;
