@@ -874,6 +874,9 @@ function LunchBreakWidget({ user, db, save }) {
 
   const [elapsedSecs, setElapsedSecs] = useState(0);
   const [viewTab, setViewTab] = useState('my_break');
+  const [isFocusedView, setIsFocusedView] = useState(() => {
+    return !!(todayRecord && todayRecord.status === 'in_progress');
+  });
 
   useEffect(() => {
     let timer;
@@ -908,6 +911,7 @@ function LunchBreakWidget({ user, db, save }) {
     };
 
     setActiveSession(newRecord);
+    setIsFocusedView(true); // AUTOMATICALLY MAXIMIZE AND BLUR SCREEN
     const updated = [newRecord, ...lunchRecords.filter(r => !(r.userId === user.id && r.date === todayStr))];
     save('lunchBreaks', updated);
   };
@@ -927,6 +931,7 @@ function LunchBreakWidget({ user, db, save }) {
     };
 
     setActiveSession(null);
+    setIsFocusedView(false);
     const updated = [completedRecord, ...lunchRecords.filter(r => !(r.userId === user.id && r.date === todayStr))];
     save('lunchBreaks', updated);
   };
@@ -945,127 +950,293 @@ function LunchBreakWidget({ user, db, save }) {
   const allUsers = db?.users || [];
 
   return (
-    <div style={{ background: '#FFFFFF', borderRadius: 24, padding: 22, border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 300 }}>
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 12, background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-              🍱
+    <>
+      {/* NORMAL INLINE DASHBOARD WIDGET */}
+      <div style={{ background: '#FFFFFF', borderRadius: 24, padding: 22, border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 300, position: 'relative' }}>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                🍱
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Lunch Break Tracker</div>
+                <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>Window: {officialHoursStr}</div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 16, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Lunch Break Tracker</div>
-              <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>Window: {officialHoursStr}</div>
+
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {(isHR || isSA) && (
+                <div style={{ display: 'flex', gap: 4, background: '#F3F4F6', padding: 3, borderRadius: 99 }}>
+                  <button className={`btn btn-xs ${viewTab==='my_break'?'btn-dark':'btn-ghost'}`} style={{ borderRadius: 99, fontSize: 10.5, padding: '3px 10px' }} onClick={()=>setViewTab('my_break')}>My Stopwatch</button>
+                  <button className={`btn btn-xs ${viewTab==='team'?'btn-dark':'btn-ghost'}`} style={{ borderRadius: 99, fontSize: 10.5, padding: '3px 10px' }} onClick={()=>setViewTab('team')}>Team Status</button>
+                </div>
+              )}
+              <button 
+                className="btn btn-xs btn-ghost" 
+                style={{ borderRadius: 99, fontSize: 11, fontWeight: 800, color: '#7C5CFC', background: '#F3F0FF', padding: '4px 10px' }} 
+                onClick={() => setIsFocusedView(true)} 
+                title="Maximize Lunch Break Stopwatch Focus Mode"
+              >
+                ⛶ Maximize
+              </button>
             </div>
           </div>
 
-          {(isHR || isSA) && (
-            <div style={{ display: 'flex', gap: 4, background: '#F3F4F6', padding: 3, borderRadius: 99 }}>
-              <button className={`btn btn-xs ${viewTab==='my_break'?'btn-dark':'btn-ghost'}`} style={{ borderRadius: 99, fontSize: 10.5, padding: '3px 10px' }} onClick={()=>setViewTab('my_break')}>My Stopwatch</button>
-              <button className={`btn btn-xs ${viewTab==='team'?'btn-dark':'btn-ghost'}`} style={{ borderRadius: 99, fontSize: 10.5, padding: '3px 10px' }} onClick={()=>setViewTab('team')}>Team Status</button>
+          {viewTab === 'my_break' ? (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: '#4B5563' }}>
+                  Role: <strong style={{ color: '#7C5CFC' }}>{(isHR || isSA) ? 'HR Manager (60 Mins)' : 'Employee (30 Mins)'}</strong>
+                </span>
+                <span style={{ 
+                  background: activeSession ? '#FEF3C7' : (currentDisplayRecord?.status === 'completed' ? '#E6F4EA' : currentDisplayRecord?.status === 'exceeded' ? '#FCE8E6' : '#F3F4F6'), 
+                  color: activeSession ? '#D97706' : (currentDisplayRecord?.status === 'completed' ? '#137333' : currentDisplayRecord?.status === 'exceeded' ? '#C5221F' : '#6B7280'), 
+                  borderRadius: 99, padding: '3px 10px', fontSize: 10.5, fontWeight: 800 
+                }}>
+                  {activeSession ? 'ON BREAK ⏳' : (currentDisplayRecord?.status === 'completed' ? 'COMPLETED ✓' : currentDisplayRecord?.status === 'exceeded' ? 'EXCEEDED ⚠️' : 'NOT STARTED')}
+                </span>
+              </div>
+
+              {/* STOPWATCH DIGITAL DISPLAY */}
+              <div style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', borderRadius: 20, padding: '18px 16px', color: '#FFFFFF', textAlign: 'center', margin: '10px 0', border: '1px solid rgba(255,255,255,0.1)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)', cursor: 'pointer' }} onClick={() => setIsFocusedView(true)}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#94A3B8', marginBottom: 4 }}>
+                  {activeSession ? (isOvertime ? 'EXCEEDED BREAK DURATION' : 'COUNTDOWN REMAINING') : (currentDisplayRecord?.status ? 'TODAY\'S LUNCH DURATION' : 'LUNCH BREAK STOPWATCH')}
+                </div>
+                <div style={{ fontSize: 36, fontWeight: 900, fontFamily: 'monospace', letterSpacing: '1.5px', color: isOvertime ? '#EF4444' : '#38BDF8' }}>
+                  {activeSession ? (isOvertime ? `+${fmtMinSec(elapsedSecs - totalTargetSecs)}` : fmtMinSec(remainingSecs)) : (currentDisplayRecord?.totalDurationSecs ? fmtMinSec(currentDisplayRecord.totalDurationSecs) : fmtMinSec(totalTargetSecs))}
+                </div>
+                <div style={{ fontSize: 11, color: '#CBD5E1', marginTop: 4, fontWeight: 600 }}>
+                  {activeSession ? `Elapsed: ${fmtMinSec(elapsedSecs)} / ${allowedMinutes}:00 Mins (Click to Maximize)` : (currentDisplayRecord?.startFormatted ? `Break taken: ${currentDisplayRecord.startFormatted} ${currentDisplayRecord.endFormatted ? `to ${currentDisplayRecord.endFormatted}` : ''}` : `Allotted Duration: ${allowedMinutes} Minutes`)}
+                </div>
+              </div>
+            </>
+          ) : (
+            /* TEAM LUNCH STATUS MONITORING (FOR HR & SUPER ADMIN) */
+            <div style={{ background: '#F9FAFB', borderRadius: 16, padding: 12, border: '1px solid #F3F4F6', maxHeight: 210, overflowY: 'auto' }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#111827', marginBottom: 8 }}>Staff Lunch Break Monitoring</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {allUsers.map(u => {
+                  const rec = lunchRecords.find(r => r.userId === u.id && r.date === todayStr);
+                  const isUserHR = u.role === 'admin' || (u.title && typeof u.title === 'string' && u.title.toLowerCase().includes('hr manager'));
+                  const userTargetMins = (isUserHR || u.role === 'super_admin') ? 60 : 30;
+
+                  return (
+                    <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFFFFF', padding: '6px 10px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 11.5 }}>
+                      <div>
+                        <div style={{ fontWeight: 800, color: '#111827' }}>{u.name}</div>
+                        <div style={{ fontSize: 10, color: '#6B7280' }}>Max: {userTargetMins} Mins</div>
+                      </div>
+                      {rec ? (
+                        <span style={{ 
+                          background: rec.status === 'in_progress' ? '#FEF3C7' : (rec.status === 'completed' ? '#E6F4EA' : '#FCE8E6'), 
+                          color: rec.status === 'in_progress' ? '#D97706' : (rec.status === 'completed' ? '#137333' : '#C5221F'), 
+                          borderRadius: 99, padding: '2px 8px', fontSize: 10, fontWeight: 800 
+                        }}>
+                          {rec.status === 'in_progress' ? 'ON BREAK ⏳' : `${Math.round(rec.totalDurationSecs / 60)} Mins ${rec.status === 'completed' ? '✓' : '⚠️'}`}
+                        </span>
+                      ) : (
+                        <span style={{ background: '#F3F4F6', color: '#9CA3AF', borderRadius: 99, padding: '2px 8px', fontSize: 10, fontWeight: 700 }}>Not Taken</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
 
-        {viewTab === 'my_break' ? (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: '#4B5563' }}>
-                Role: <strong style={{ color: '#7C5CFC' }}>{(isHR || isSA) ? 'HR Manager (60 Mins)' : 'Employee (30 Mins)'}</strong>
-              </span>
-              <span style={{ 
-                background: activeSession ? '#FEF3C7' : (currentDisplayRecord?.status === 'completed' ? '#E6F4EA' : currentDisplayRecord?.status === 'exceeded' ? '#FCE8E6' : '#F3F4F6'), 
-                color: activeSession ? '#D97706' : (currentDisplayRecord?.status === 'completed' ? '#137333' : currentDisplayRecord?.status === 'exceeded' ? '#C5221F' : '#6B7280'), 
-                borderRadius: 99, padding: '3px 10px', fontSize: 10.5, fontWeight: 800 
-              }}>
-                {activeSession ? 'ON BREAK ⏳' : (currentDisplayRecord?.status === 'completed' ? 'COMPLETED ✓' : currentDisplayRecord?.status === 'exceeded' ? 'EXCEEDED ⚠️' : 'NOT STARTED')}
-              </span>
-            </div>
+        {/* CONTROLS & ACTION BUTTONS */}
+        {viewTab === 'my_break' && (
+          <div style={{ marginTop: 12 }}>
+            {!activeSession && !currentDisplayRecord?.endTime && (
+              <button 
+                className="btn" 
+                style={{ width: '100%', background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)', color: '#FFFFFF', border: 'none', borderRadius: 14, padding: '12px', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 12px rgba(217,119,6,0.25)' }}
+                onClick={handleStartBreak}
+              >
+                🍱 Start Lunch Break ({allowedMinutes} Mins)
+              </button>
+            )}
 
-            {/* STOPWATCH DIGITAL DISPLAY */}
-            <div style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', borderRadius: 20, padding: '18px 16px', color: '#FFFFFF', textAlign: 'center', margin: '10px 0', border: '1px solid rgba(255,255,255,0.1)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: '#94A3B8', marginBottom: 4 }}>
-                {activeSession ? (isOvertime ? 'EXCEEDED BREAK DURATION' : 'COUNTDOWN REMAINING') : (currentDisplayRecord?.status ? 'TODAY\'S LUNCH DURATION' : 'LUNCH BREAK STOPWATCH')}
-              </div>
-              <div style={{ fontSize: 36, fontWeight: 900, fontFamily: 'monospace', letterSpacing: '1.5px', color: isOvertime ? '#EF4444' : '#38BDF8' }}>
-                {activeSession ? (isOvertime ? `+${fmtMinSec(elapsedSecs - totalTargetSecs)}` : fmtMinSec(remainingSecs)) : (currentDisplayRecord?.totalDurationSecs ? fmtMinSec(currentDisplayRecord.totalDurationSecs) : fmtMinSec(totalTargetSecs))}
-              </div>
-              <div style={{ fontSize: 11, color: '#CBD5E1', marginTop: 4, fontWeight: 600 }}>
-                {activeSession ? `Elapsed: ${fmtMinSec(elapsedSecs)} / ${allowedMinutes}:00 Mins` : (currentDisplayRecord?.startFormatted ? `Break taken: ${currentDisplayRecord.startFormatted} ${currentDisplayRecord.endFormatted ? `to ${currentDisplayRecord.endFormatted}` : ''}` : `Allotted Duration: ${allowedMinutes} Minutes`)}
-              </div>
-            </div>
-          </>
-        ) : (
-          /* TEAM LUNCH STATUS MONITORING (FOR HR & SUPER ADMIN) */
-          <div style={{ background: '#F9FAFB', borderRadius: 16, padding: 12, border: '1px solid #F3F4F6', maxHeight: 210, overflowY: 'auto' }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#111827', marginBottom: 8 }}>Staff Lunch Break Monitoring</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {allUsers.map(u => {
-                const rec = lunchRecords.find(r => r.userId === u.id && r.date === todayStr);
-                const isUserHR = u.role === 'admin' || (u.title && typeof u.title === 'string' && u.title.toLowerCase().includes('hr manager'));
-                const userTargetMins = (isUserHR || u.role === 'super_admin') ? 60 : 30;
+            {activeSession && (
+              <button 
+                className="btn" 
+                style={{ width: '100%', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#FFFFFF', border: 'none', borderRadius: 14, padding: '12px', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 12px rgba(16,185,129,0.25)' }}
+                onClick={handleEndBreak}
+              >
+                ✅ End Lunch Break & Resume Work
+              </button>
+            )}
 
-                return (
-                  <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFFFFF', padding: '6px 10px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 11.5 }}>
-                    <div>
-                      <div style={{ fontWeight: 800, color: '#111827' }}>{u.name}</div>
-                      <div style={{ fontSize: 10, color: '#6B7280' }}>Max: {userTargetMins} Mins</div>
-                    </div>
-                    {rec ? (
-                      <span style={{ 
-                        background: rec.status === 'in_progress' ? '#FEF3C7' : (rec.status === 'completed' ? '#E6F4EA' : '#FCE8E6'), 
-                        color: rec.status === 'in_progress' ? '#D97706' : (rec.status === 'completed' ? '#137333' : '#C5221F'), 
-                        borderRadius: 99, padding: '2px 8px', fontSize: 10, fontWeight: 800 
-                      }}>
-                        {rec.status === 'in_progress' ? 'ON BREAK ⏳' : `${Math.round(rec.totalDurationSecs / 60)} Mins ${rec.status === 'completed' ? '✓' : '⚠️'}`}
-                      </span>
-                    ) : (
-                      <span style={{ background: '#F3F4F6', color: '#9CA3AF', borderRadius: 99, padding: '2px 8px', fontSize: 10, fontWeight: 700 }}>Not Taken</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            {currentDisplayRecord?.endTime && (
+              <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 14, padding: '10px 14px', fontSize: 12, fontWeight: 700, color: '#374151', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Total Break Taken: {Math.round(currentDisplayRecord.totalDurationSecs / 60)} Mins</span>
+                <button className="btn btn-xs btn-ghost" style={{ fontSize: 11, color: '#6B7280' }} onClick={() => {
+                  if (window.confirm('Reset today\'s lunch break timer?')) {
+                    const updated = lunchRecords.filter(r => !(r.userId === user.id && r.date === todayStr));
+                    save('lunchBreaks', updated);
+                  }
+                }}>Reset</button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* CONTROLS & ACTION BUTTONS */}
-      {viewTab === 'my_break' && (
-        <div style={{ marginTop: 12 }}>
-          {!activeSession && !currentDisplayRecord?.endTime && (
-            <button 
-              className="btn" 
-              style={{ width: '100%', background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)', color: '#FFFFFF', border: 'none', borderRadius: 14, padding: '12px', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 12px rgba(217,119,6,0.25)' }}
-              onClick={handleStartBreak}
-            >
-              🍱 Start Lunch Break ({allowedMinutes} Mins)
-            </button>
-          )}
+      {/* MAXIMIZED FULLSCREEN FOCUS OVERLAY WITH BLURRED BACKGROUND */}
+      {isFocusedView && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100vw',
+          height: '100vh',
+          zIndex: 999999,
+          background: 'rgba(15, 23, 42, 0.78)',
+          backdropFilter: 'blur(18px)',
+          WebkitBackdropFilter: 'blur(18px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          animation: 'fadeIn 0.25s ease'
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: 32,
+            maxWidth: 580,
+            width: '100%',
+            padding: '36px 32px',
+            boxShadow: '0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.2)',
+            border: '2px solid #FDE68A',
+            position: 'relative',
+            fontFamily: "'Plus Jakarta Sans', sans-serif"
+          }} onClick={e => e.stopPropagation()}>
+            
+            {/* Top Header with Close/Minimize */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 56, height: 56, borderRadius: 18, background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, boxShadow: '0 4px 14px rgba(217,119,6,0.2)' }}>
+                  🍱
+                </div>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: '#0F172A', letterSpacing: '-0.5px' }}>
+                    {activeSession ? '🍱 LUNCH BREAK IN PROGRESS' : 'LUNCH BREAK TRACKER'}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#64748B', fontWeight: 600, marginTop: 2 }}>
+                    Official Window: <strong>{officialHoursStr}</strong> · {user?.name}
+                  </div>
+                </div>
+              </div>
 
-          {activeSession && (
-            <button 
-              className="btn" 
-              style={{ width: '100%', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#FFFFFF', border: 'none', borderRadius: 14, padding: '12px', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 12px rgba(16,185,129,0.25)' }}
-              onClick={handleEndBreak}
-            >
-              ✅ End Lunch Break & Resume Work
-            </button>
-          )}
-
-          {currentDisplayRecord?.endTime && (
-            <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 14, padding: '10px 14px', fontSize: 12, fontWeight: 700, color: '#374151', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Total Break Taken: {Math.round(currentDisplayRecord.totalDurationSecs / 60)} Mins</span>
-              <button className="btn btn-xs btn-ghost" style={{ fontSize: 11, color: '#6B7280' }} onClick={() => {
-                if (window.confirm('Reset today\'s lunch break timer?')) {
-                  const updated = lunchRecords.filter(r => !(r.userId === user.id && r.date === todayStr));
-                  save('lunchBreaks', updated);
-                }
-              }}>Reset</button>
+              <button 
+                onClick={() => setIsFocusedView(false)}
+                style={{
+                  background: '#F1F5F9',
+                  border: 'none',
+                  borderRadius: 99,
+                  padding: '8px 16px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  color: '#475569',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+                title="Minimize view to dashboard"
+              >
+                ✕ Minimize
+              </button>
             </div>
-          )}
+
+            {/* Giant Stopwatch Monitor Box */}
+            <div style={{
+              background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+              borderRadius: 24,
+              padding: '36px 24px',
+              textAlign: 'center',
+              margin: '20px 0',
+              border: '2px solid rgba(255,255,255,0.1)',
+              boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.5), 0 12px 30px rgba(15,23,42,0.3)'
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: activeSession ? (isOvertime ? '#FCA5A5' : '#38BDF8') : '#94A3B8', marginBottom: 8 }}>
+                {activeSession ? (isOvertime ? '⚠️ EXCEEDED ALLOTTED LUNCH DURATION' : '⏳ COUNTDOWN REMAINING') : (currentDisplayRecord?.status ? 'TODAY\'S LUNCH DURATION' : 'LUNCH BREAK STOPWATCH')}
+              </div>
+
+              <div style={{
+                fontSize: 68,
+                fontWeight: 900,
+                fontFamily: 'monospace',
+                letterSpacing: '3px',
+                color: isOvertime ? '#EF4444' : '#38BDF8',
+                textShadow: isOvertime ? '0 0 20px rgba(239,68,68,0.4)' : '0 0 24px rgba(56,189,248,0.4)',
+                margin: '10px 0'
+              }}>
+                {activeSession ? (isOvertime ? `+${fmtMinSec(elapsedSecs - totalTargetSecs)}` : fmtMinSec(remainingSecs)) : (currentDisplayRecord?.totalDurationSecs ? fmtMinSec(currentDisplayRecord.totalDurationSecs) : fmtMinSec(totalTargetSecs))}
+              </div>
+
+              <div style={{ fontSize: 14, color: '#E2E8F0', fontWeight: 700, marginTop: 10 }}>
+                {activeSession ? (
+                  <span>Elapsed Time: <strong style={{ color: '#FDE68A' }}>{fmtMinSec(elapsedSecs)}</strong> / Allotted {allowedMinutes}:00 Mins</span>
+                ) : currentDisplayRecord?.startFormatted ? (
+                  <span>Break session: <strong>{currentDisplayRecord.startFormatted}</strong> {currentDisplayRecord.endFormatted ? `to ${currentDisplayRecord.endFormatted}` : ''}</span>
+                ) : (
+                  <span>Allotted Break Window: <strong>{allowedMinutes} Minutes</strong></span>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons in Maximized View */}
+            <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {!activeSession && !currentDisplayRecord?.endTime && (
+                <button 
+                  className="btn" 
+                  style={{ width: '100%', background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)', color: '#FFFFFF', border: 'none', borderRadius: 16, padding: '16px', fontSize: 16, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 6px 20px rgba(217,119,6,0.35)' }}
+                  onClick={handleStartBreak}
+                >
+                  🍱 Start Lunch Break ({allowedMinutes} Mins)
+                </button>
+              )}
+
+              {activeSession && (
+                <button 
+                  className="btn" 
+                  style={{ width: '100%', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: '#FFFFFF', border: 'none', borderRadius: 16, padding: '16px', fontSize: 16, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 6px 20px rgba(16,185,129,0.35)' }}
+                  onClick={handleEndBreak}
+                >
+                  ✅ End Lunch Break & Resume Work
+                </button>
+              )}
+
+              {currentDisplayRecord?.endTime && (
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 16, padding: '14px 18px', fontSize: 14, fontWeight: 700, color: '#334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Total Break Duration: <strong>{Math.round(currentDisplayRecord.totalDurationSecs / 60)} Mins</strong></span>
+                  <button className="btn btn-xs btn-ghost" style={{ fontSize: 12, color: '#64748B' }} onClick={() => {
+                    if (window.confirm('Reset today\'s lunch break timer?')) {
+                      const updated = lunchRecords.filter(r => !(r.userId === user.id && r.date === todayStr));
+                      save('lunchBreaks', updated);
+                      setActiveSession(null);
+                    }
+                  }}>Reset Session</button>
+                </div>
+              )}
+
+              <button
+                style={{ background: 'transparent', border: 'none', color: '#64748B', fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'center', marginTop: 4 }}
+                onClick={() => setIsFocusedView(false)}
+              >
+                Return to Dashboard
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
