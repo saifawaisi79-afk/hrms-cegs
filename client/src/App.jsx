@@ -5140,13 +5140,13 @@ function RecruitmentPage({ db, save, user }) {
       const f1 = (c.followUp1 || '').trim();
       const f2 = (c.followUp2 || '').trim();
       const f3 = (c.followUp3 || '').trim();
+      const idKey = String(c.id || c._id || '').trim();
 
-      // AUTOMATICALLY DISCARD ALL BLANK GHOST ROWS (rows with no name, phone, or follow-ups)
-      if (!nameVal && !numVal && !respVal && !f1 && !f2 && !f3) {
+      // Only discard old empty rows if they are NOT a newly created entry row (id starting with 'cand_')
+      if (!nameVal && !numVal && !respVal && !f1 && !f2 && !f3 && !idKey.startsWith('cand_')) {
         return;
       }
 
-      const idKey = String(c.id || c._id || '').trim();
       const nameKey = nameVal.toLowerCase();
       const numKey = numVal;
       const empKey = (c.employee || '').trim().toLowerCase();
@@ -5269,8 +5269,9 @@ function RecruitmentPage({ db, save, user }) {
 
   // Strictly enforce user-specific candidate data scoping for employees and HR
   const roleFilteredCandidates = candidates.filter(c => {
-    // Ignore any ghost empty candidate entries
-    if (!(c.name || '').trim() && !(c.number || '').trim() && !(c.response || '').trim()) {
+    const idKey = String(c.id || c._id || '').trim();
+    // Keep row if it has name/number OR if it's a newly added candidate row (cand_)
+    if (!(c.name || '').trim() && !(c.number || '').trim() && !(c.response || '').trim() && !idKey.startsWith('cand_')) {
       return false;
     }
     if (isEmp) {
