@@ -1247,11 +1247,27 @@ router.put('/candidates/:id', async (req, res) => {
     const item = req.body;
     await dbQuery.run(
       `UPDATE candidates SET date=?, name=?, number=?, languages=?, qualification=?, response=?, callStatus=?, location=?, experience=?, followUp1=?, followUp2=?, followUp3=?, employee=? WHERE id=?`,
-      [item.date || '', item.name || '', item.number || '', item.languages || 'English', item.qualification || '', item.response || '', item.callStatus || 'Connected', item.location || 'Bengaluru', item.experience || 0, item.followUp1 || '', item.followUp2 || '', item.followUp3 || '', item.employee || 'Madiha Mehak', req.params.id]
-    );
     res.json({ message: 'Updated successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update candidate' });
+  }
+});
+
+router.delete('/candidates/all', async (req, res) => {
+  try {
+    await dbQuery.run('DELETE FROM candidates');
+    res.json({ message: 'Cleared all candidates' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to clear candidates' });
+  }
+});
+
+router.delete('/candidates/:id', async (req, res) => {
+  try {
+    await dbQuery.run('DELETE FROM candidates WHERE id=?', [req.params.id]);
+    res.json({ message: 'Deleted candidate successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete candidate' });
   }
 });
 

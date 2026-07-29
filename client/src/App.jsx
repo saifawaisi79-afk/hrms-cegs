@@ -5149,6 +5149,16 @@ function RecruitmentPage({ db, save, user }) {
 
   // Helper to get candidates directly from top-level db or persistent localStorage
   const getStoredCandidates = () => {
+    if (localStorage.getItem('cegs_candidates_cleared') === 'true') {
+      try {
+        const local = localStorage.getItem('vp_hrms_v4_candidates') || localStorage.getItem('cegs_db_v4_candidates') || localStorage.getItem('cegs_db_candidates');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+      return [];
+    }
     if (db && Array.isArray(db.candidates) && db.candidates.length > 0) {
       return db.candidates;
     }
@@ -5156,7 +5166,7 @@ function RecruitmentPage({ db, save, user }) {
       const local = localStorage.getItem('vp_hrms_v4_candidates') || localStorage.getItem('cegs_db_v4_candidates') || localStorage.getItem('cegs_db_candidates');
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     return [];
@@ -5167,6 +5177,9 @@ function RecruitmentPage({ db, save, user }) {
 
   const updateCandidatesStore = (newList) => {
     const cleaned = deduplicateCandidates(newList);
+    if (cleaned.length === 0) {
+      localStorage.setItem('cegs_candidates_cleared', 'true');
+    }
     save('candidates', cleaned);
     try {
       localStorage.setItem('vp_hrms_v4_candidates', JSON.stringify(cleaned));
@@ -5191,10 +5204,15 @@ function RecruitmentPage({ db, save, user }) {
   };
 
   useEffect(() => {
+    // If the user has explicitly cleared candidate data, do not auto-reinject initial server candidates
+    if (localStorage.getItem('cegs_candidates_cleared') === 'true') {
+      return;
+    }
     fetch(`${API_BASE}/candidates`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data && Array.isArray(data) && data.length > 0) {
+          if (localStorage.getItem('cegs_candidates_cleared') === 'true') return;
           const cleaned = data.map(item => ({
             ...item,
             id: item._id || item.id,
@@ -5218,9 +5236,11 @@ function RecruitmentPage({ db, save, user }) {
   };
 
   const handleClearAllCandidates = () => {
-    if (window.confirm('Are you sure you want to clear the candidate datasheet? You can upload a new Excel file anytime.')) {
+    if (window.confirm('Are you sure you want to clear all candidate entries permanently? You can add new entries manually or upload an Excel file.')) {
+      localStorage.setItem('cegs_candidates_cleared', 'true');
       updateCandidatesStore([]);
-      showToast('Datasheet cleared. Ready for manual entry or file upload.', 'info');
+      fetch(`${API_BASE}/candidates/all`, { method: 'DELETE' }).catch(() => {});
+      showToast('Datasheet cleared completely. Ready for manual entry or file upload.', 'info');
     }
   };
 
@@ -5363,6 +5383,7 @@ function RecruitmentPage({ db, save, user }) {
   const handleAddInlineRow = async () => {
     if (isSA) return; // Super admin cannot add personal task entries
     setSaveStatus('Saving...');
+    localStorage.removeItem('cegs_candidates_cleared');
     const newRow = {
       id: 'cand_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
       slNo: candidates.length + 1,
@@ -5402,6 +5423,7 @@ function RecruitmentPage({ db, save, user }) {
     if (!file) return;
 
     setSaveStatus('Saving...');
+    localStorage.removeItem('cegs_candidates_cleared');
     const reader = new FileReader();
 
     reader.onload = async (event) => {
