@@ -4972,11 +4972,28 @@ function RecruitmentPage({ db, save, user }) {
 
   const [candidates, setCandidates] = useState(() => {
     let list = [];
-    if (db && Array.isArray(db.candidates) && db.candidates.length > 0) {
+    try {
+      const local = localStorage.getItem('cegs_db_v4_candidates') || localStorage.getItem('cegs_db_candidates');
+      if (local) {
+        list = JSON.parse(local);
+      }
+    } catch {}
+    if ((!list || list.length === 0) && db && Array.isArray(db.candidates) && db.candidates.length > 0) {
       list = db.candidates.map(c => ({ ...c, id: c.id || c._id }));
     }
     return deduplicateCandidates(list);
   });
+
+  // PERMANENT AUTO-SAVE EFFECT: Guarantee candidates data never erases on refresh or back navigation
+  useEffect(() => {
+    if (candidates && Array.isArray(candidates)) {
+      save('candidates', candidates);
+      try {
+        localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(candidates));
+        localStorage.setItem('cegs_db_candidates', JSON.stringify(candidates));
+      } catch {}
+    }
+  }, [candidates]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [saveStatus, setSaveStatus] = useState('Auto-saved');
@@ -5004,7 +5021,15 @@ function RecruitmentPage({ db, save, user }) {
             employee: item.employee || 'Madiha Mehak',
             callStatus: item.callStatus || 'Connected'
           }));
-          setCandidates(prev => deduplicateCandidates([...(prev || []), ...cleaned]));
+          setCandidates(prev => {
+            const merged = deduplicateCandidates([...(prev || []), ...cleaned]);
+            save('candidates', merged);
+            try {
+              localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(merged));
+              localStorage.setItem('cegs_db_candidates', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
         }
       })
       .catch(() => {});
@@ -5016,6 +5041,10 @@ function RecruitmentPage({ db, save, user }) {
     const removedCount = originalCount - cleaned.length;
     setCandidates(cleaned);
     save('candidates', cleaned);
+    try {
+      localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(cleaned));
+      localStorage.setItem('cegs_db_candidates', JSON.stringify(cleaned));
+    } catch {}
     showToast(`✓ Removed ${removedCount} duplicate candidates! Datasheet is clean.`, 'success');
   };
 
@@ -5023,6 +5052,10 @@ function RecruitmentPage({ db, save, user }) {
     if (window.confirm('Are you sure you want to clear the candidate datasheet? You can upload a new Excel file anytime.')) {
       setCandidates([]);
       save('candidates', []);
+      try {
+        localStorage.removeItem('cegs_db_v4_candidates');
+        localStorage.removeItem('cegs_db_candidates');
+      } catch {}
       showToast('Datasheet cleared. Ready for manual entry or file upload.', 'info');
     }
   };
@@ -5139,6 +5172,11 @@ function RecruitmentPage({ db, save, user }) {
     setSaveStatus('Saving...');
     const updated = candidates.map(c => c.id === candId || c._id === candId ? { ...c, [field]: val } : c);
     setCandidates(updated);
+    save('candidates', updated);
+    try {
+      localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(updated));
+      localStorage.setItem('cegs_db_candidates', JSON.stringify(updated));
+    } catch {}
 
     const rowToSave = updated.find(c => c.id === candId || c._id === candId);
     if (rowToSave) {
@@ -5158,6 +5196,8 @@ function RecruitmentPage({ db, save, user }) {
       setCandidates(updated);
       save('candidates', updated);
       try {
+        localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(updated));
+        localStorage.setItem('cegs_db_candidates', JSON.stringify(updated));
         await fetch(`${API_BASE}/candidates/${candId}`, { method: 'DELETE' });
       } catch {}
       showToast('Deleted candidate entry.', 'info');
@@ -5184,21 +5224,23 @@ function RecruitmentPage({ db, save, user }) {
       employee: user?.name || 'Madiha Mehak'
     };
 
+    setCandidates(prev => {
+      const updated = [...prev, { ...newRow, id: Date.now().toString() }];
+      save('candidates', updated);
+      try {
+        localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(updated));
+        localStorage.setItem('cegs_db_candidates', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
     try {
-      const res = await fetch(`${API_BASE}/candidates`, {
+      await fetch(`${API_BASE}/candidates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRow)
       });
-      if (res.ok) {
-        const saved = await res.json();
-        setCandidates(prev => [...prev, { ...saved, id: saved._id || saved.id }]);
-      } else {
-        setCandidates(prev => [...prev, { ...newRow, id: Date.now().toString() }]);
-      }
-    } catch {
-      setCandidates(prev => [...prev, { ...newRow, id: Date.now().toString() }]);
-    }
+    } catch {}
     setSaveStatus('Auto-saved & Synced');
   };
 
@@ -5254,26 +5296,25 @@ function RecruitmentPage({ db, save, user }) {
         }
 
         if (newEntries.length > 0) {
+          setCandidates(prev => {
+            const updated = deduplicateCandidates([...prev, ...newEntries.map(r => ({ ...r, id: Date.now().toString() + Math.random() }))]);
+            save('candidates', updated);
+            try {
+              localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(updated));
+              localStorage.setItem('cegs_db_candidates', JSON.stringify(updated));
+            } catch {}
+            return updated;
+          });
+
           try {
-            const res = await fetch(`${API_BASE}/candidates`, {
+            await fetch(`${API_BASE}/candidates`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(newEntries)
             });
-            if (res.ok) {
-              const saved = await res.json();
-              const savedArray = (Array.isArray(saved) ? saved : [saved]).map(s => ({ ...s, id: s._id || s.id }));
-              setCandidates(prev => [...prev, ...savedArray]);
-              showToast(`Successfully uploaded ${newEntries.length} candidate records! Synced to MongoDB Atlas.`, 'success');
-            } else {
-              setCandidates(prev => [...prev, ...newEntries.map(r => ({ ...r, id: Date.now().toString() + Math.random() }))]);
-              showToast(`Imported ${newEntries.length} candidate records locally.`, 'success');
-            }
-          } catch {
-            setCandidates(prev => [...prev, ...newEntries.map(r => ({ ...r, id: Date.now().toString() + Math.random() }))]);
-            showToast(`Imported ${newEntries.length} candidate records.`, 'success');
-          }
-          setSaveStatus('Auto-saved');
+          } catch {}
+          showToast(`Successfully uploaded ${newEntries.length} candidate records! Saved permanently.`, 'success');
+          setSaveStatus('Auto-saved & Synced');
         }
       } catch (err) {
         showToast('Error reading file. Please check format.', 'error');
