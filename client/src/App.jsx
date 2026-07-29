@@ -2025,7 +2025,7 @@ function OrgChartPage({ db }) {
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 function LeavesPage({ db, save, user }) {
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({type:'vacation',start:'',end:'',reason:''});
+  const [form, setForm] = useState({type:'casual',start:'',end:'',reason:''});
   const [filter, setFilter] = useState('all');
   const getUserPermissionRole = (u) => {
     if (!u) return 'employee';
@@ -2043,7 +2043,7 @@ function LeavesPage({ db, save, user }) {
   const submit = e => {
     e.preventDefault();
     save('leaves',[{id:Date.now(),uid:user.id,...form,status:'pending',applied:new Date().toISOString().split('T')[0]},...db.leaves]);
-    setModal(false); setForm({type:'vacation',start:'',end:'',reason:''});
+    setModal(false); setForm({type:'casual',start:'',end:'',reason:''});
     alert('Leave request submitted successfully!');
   };
 
@@ -2054,12 +2054,14 @@ function LeavesPage({ db, save, user }) {
   };
 
   const myLeaves = db.leaves.filter(l=>l.uid===user.id);
-  const vacUsed=myLeaves.filter(l=>l.type==='vacation'&&l.status==='approved').length;
-  const sickUsed=myLeaves.filter(l=>l.type==='sick'&&l.status==='approved').length;
-  const casualUsed=myLeaves.filter(l=>l.type==='casual'&&l.status==='approved').length;
+  const sickUsed=myLeaves.filter(l=>(l.type==='sick'||l.type==='vacation')&&l.status==='approved').length;
+  const casualUsed=myLeaves.filter(l=>(l.type==='casual'||l.type==='personal')&&l.status==='approved').length;
   const list=(isAdmin?db.leaves:myLeaves).filter(l=>filter==='all'||l.status===filter);
 
-  const balances=[{l:'Vacation',used:vacUsed,tot:20,c:'#F59E0B'},{l:'Sick',used:sickUsed,tot:15,c:'#3B82F6'},{l:'Casual',used:casualUsed,tot:10,c:'#10B981'},{l:'Personal',used:1,tot:7,c:'#8B5CF6'}];
+  const balances=[
+    {l:'Casual Leave',used:casualUsed,tot:12,c:'#10B981'},
+    {l:'Sick Leave',used:sickUsed,tot:12,c:'#3B82F6'}
+  ];
 
   return (
     <div className="anim-fadeup">
@@ -2067,15 +2069,18 @@ function LeavesPage({ db, save, user }) {
         <button className="btn btn-dark" onClick={()=>setModal(true)}><IC n="plus"/> Apply for Leave</button>
       </PageHdr>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:24}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:16,marginBottom:24}}>
         {balances.map(b=>(
-          <div key={b.l} className="card" style={{padding:20}}>
+          <div key={b.l} className="card" style={{padding:24}}>
             <div style={{display:'flex',justifyContent:'space-between',marginBottom:12,alignItems:'flex-start'}}>
-              <div style={{fontWeight:700,fontSize:14}}>{b.l}</div>
-              <div style={{fontFamily:'Outfit',fontSize:22,fontWeight:900,color:b.c}}>{b.tot-b.used}</div>
+              <div>
+                <div style={{fontWeight:800,fontSize:16,color:'var(--text-primary)'}}>{b.l}</div>
+                <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>Annual Allowance: {b.tot} Days</div>
+              </div>
+              <div style={{fontFamily:'Outfit',fontSize:28,fontWeight:900,color:b.c}}>{b.tot-b.used}</div>
             </div>
-            <div className="progress-track progress-sm" style={{marginBottom:6}}><div className="progress-fill" style={{width:`${(b.used/b.tot)*100}%`,background:b.c}}/></div>
-            <div style={{fontSize:11,color:'var(--text-muted)',fontWeight:600}}>{b.used} used of {b.tot} days</div>
+            <div className="progress-track progress-sm" style={{marginBottom:8,height:8}}><div className="progress-fill" style={{width:`${Math.min(100, (b.used/b.tot)*100)}%`,background:b.c}}/></div>
+            <div style={{fontSize:12,color:'var(--text-secondary)',fontWeight:700}}>{b.used} used of {b.tot} days ({b.tot - b.used} remaining)</div>
           </div>
         ))}
       </div>
@@ -2098,7 +2103,7 @@ function LeavesPage({ db, save, user }) {
                 const days=Math.ceil((new Date(l.end)-new Date(l.start))/(1000*60*60*24))+1;
                 return <tr key={l.id}>
                   <td><div className="emp-cell"><img src={emp?.avatar} className="tbl-av" alt=""/><div><div style={{fontWeight:700,fontSize:13}}>{emp?.name}</div><div style={{fontSize:11,color:'var(--text-muted)'}}>{emp?.title}</div></div></div></td>
-                  <td><span className="badge b-info" style={{textTransform:'capitalize'}}>{l.type}</span></td>
+                  <td><span className="badge b-info" style={{textTransform:'capitalize'}}>{l.type === 'vacation' ? 'Sick Leave' : l.type === 'personal' ? 'Casual Leave' : `${l.type} Leave`}</span></td>
                   <td style={{fontSize:13,fontWeight:600}}>{l.start}</td>
                   <td style={{fontSize:13,fontWeight:600}}>{l.end}</td>
                   <td style={{fontFamily:'JetBrains Mono,monospace',fontWeight:700,color:'var(--amber-dark)'}}>{days}d</td>
@@ -2121,7 +2126,8 @@ function LeavesPage({ db, save, user }) {
         <form onSubmit={submit}>
           <div className="form-group"><label className="form-label">Leave Type</label>
             <select className="form-input" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>
-              <option value="vacation">Vacation</option><option value="sick">Sick Leave</option><option value="casual">Casual</option><option value="personal">Personal</option>
+              <option value="casual">Casual Leave (12 Days)</option>
+              <option value="sick">Sick Leave (12 Days)</option>
             </select>
           </div>
           <div className="form-row">
@@ -3497,12 +3503,8 @@ function SettingsPage({ db, save, user }) {
 
       {tab==='leave'&&<Section title="Annual Leave Allowances">
         <div className="form-row">
-          <div className="form-group"><label className="form-label">Vacation Days</label><input type="number" min={0} className="form-input" value={s.leave?.vacation||20} onChange={e=>setS({...s,leave:{...s.leave,vacation:parseInt(e.target.value)}})}/></div>
-          <div className="form-group"><label className="form-label">Sick Days</label><input type="number" min={0} className="form-input" value={s.leave?.sick||15} onChange={e=>setS({...s,leave:{...s.leave,sick:parseInt(e.target.value)}})}/></div>
-        </div>
-        <div className="form-row">
-          <div className="form-group"><label className="form-label">Casual Days</label><input type="number" min={0} className="form-input" value={s.leave?.casual||10} onChange={e=>setS({...s,leave:{...s.leave,casual:parseInt(e.target.value)}})}/></div>
-          <div className="form-group"><label className="form-label">Personal Days</label><input type="number" min={0} className="form-input" value={s.leave?.personal||7} onChange={e=>setS({...s,leave:{...s.leave,personal:parseInt(e.target.value)}})}/></div>
+          <div className="form-group"><label className="form-label">Casual Days</label><input type="number" min={0} className="form-input" value={s.leave?.casual||12} onChange={e=>setS({...s,leave:{...s.leave,casual:parseInt(e.target.value)}})}/></div>
+          <div className="form-group"><label className="form-label">Sick Days</label><input type="number" min={0} className="form-input" value={s.leave?.sick||12} onChange={e=>setS({...s,leave:{...s.leave,sick:parseInt(e.target.value)}})}/></div>
         </div>
         <div className="form-group"><label style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer'}}><input type="checkbox" checked={s.leave?.carryForward||false} onChange={e=>setS({...s,leave:{...s.leave,carryForward:e.target.checked}})} style={{width:18,height:18,accentColor:'var(--amber)'}}/><span style={{fontWeight:600,fontSize:14}}>Allow carry-forward of unused leave to next year</span></label></div>
       </Section>}
