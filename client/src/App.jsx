@@ -6,6 +6,7 @@ import confetti from 'canvas-confetti';
    DATA LAYER
 ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ======================================== ========================================  */
 const SEED_DATA = {
+  candidates: [],
   users:[
     {id:1,eid:'EMP-001',name:'CEO SuperAdmin',email:'superadmin@cegs.com',role:'super_admin',deptId:1,title:'Chief Executive Officer',joined:'2024-01-15',phone:'+1 212 555 0001',emergencyPhone:'+1 212 555 9901',status:'active',salary:95000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=ceo',reportsTo:null,bankName:'CEGS Bank',bankAccount:'3344556677',bankIfsc:'CEGS0000123',taxId:'TX-998877-A'},
     {id:2,eid:'EMP-002',name:'Nusrath Hussain',email:'nusrath@cegs.com',role:'admin',deptId:2,title:'HR Manager',joined:'2024-03-10',phone:'+1 212 555 0002',emergencyPhone:'+1 212 555 9902',status:'active',salary:30000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=nusrath',reportsTo:1,bankName:'CEGS Bank',bankAccount:'8899001122',bankIfsc:'CEGS0000123',taxId:'TX-998877-HR'},
@@ -4958,42 +4959,46 @@ function RecruitmentPage({ db, save, user }) {
     const seen = new Set();
     const result = [];
     (items || []).forEach(c => {
+      const idKey = String(c.id || c._id || '').trim();
       const nameKey = (c.name || '').trim().toLowerCase();
       const numKey = (c.number || '').trim();
       const empKey = (c.employee || '').trim().toLowerCase();
-      const key = `${nameKey}_${numKey}_${empKey}`;
-      if (key === '__' || !seen.has(key)) {
-        if (key !== '__') seen.add(key);
+      const key = (nameKey || numKey) ? `${nameKey}_${numKey}_${empKey}` : `row_${idKey || Math.random()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
         result.push(c);
       }
     });
     return result;
   };
 
-  const [candidates, setCandidates] = useState(() => {
-    let list = [];
+  // Helper to get candidates directly from top-level db or persistent localStorage
+  const getStoredCandidates = () => {
+    if (db && Array.isArray(db.candidates) && db.candidates.length > 0) {
+      return db.candidates;
+    }
     try {
-      const local = localStorage.getItem('cegs_db_v4_candidates') || localStorage.getItem('cegs_db_candidates');
+      const local = localStorage.getItem('vp_hrms_v4_candidates') || localStorage.getItem('cegs_db_v4_candidates') || localStorage.getItem('cegs_db_candidates');
       if (local) {
-        list = JSON.parse(local);
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-    if ((!list || list.length === 0) && db && Array.isArray(db.candidates) && db.candidates.length > 0) {
-      list = db.candidates.map(c => ({ ...c, id: c.id || c._id }));
-    }
-    return deduplicateCandidates(list);
-  });
+    return [];
+  };
 
-  // PERMANENT AUTO-SAVE EFFECT: Guarantee candidates data never erases on refresh or back navigation
-  useEffect(() => {
-    if (candidates && Array.isArray(candidates)) {
-      save('candidates', candidates);
-      try {
-        localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(candidates));
-        localStorage.setItem('cegs_db_candidates', JSON.stringify(candidates));
-      } catch {}
-    }
-  }, [candidates]);
+  // Central Top-Level Store Candidate List
+  const candidates = getStoredCandidates();
+
+  const updateCandidatesStore = (newList) => {
+    const cleaned = deduplicateCandidates(newList);
+    save('candidates', cleaned);
+    try {
+      localStorage.setItem('vp_hrms_v4_candidates', JSON.stringify(cleaned));
+      localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(cleaned));
+      localStorage.setItem('cegs_db_candidates', JSON.stringify(cleaned));
+    } catch {}
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [saveStatus, setSaveStatus] = useState('Auto-saved');
@@ -5021,15 +5026,9 @@ function RecruitmentPage({ db, save, user }) {
             employee: item.employee || 'Madiha Mehak',
             callStatus: item.callStatus || 'Connected'
           }));
-          setCandidates(prev => {
-            const merged = deduplicateCandidates([...(prev || []), ...cleaned]);
-            save('candidates', merged);
-            try {
-              localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(merged));
-              localStorage.setItem('cegs_db_candidates', JSON.stringify(merged));
-            } catch {}
-            return merged;
-          });
+          const current = getStoredCandidates();
+          const merged = deduplicateCandidates([...current, ...cleaned]);
+          updateCandidatesStore(merged);
         }
       })
       .catch(() => {});
@@ -5039,23 +5038,13 @@ function RecruitmentPage({ db, save, user }) {
     const originalCount = candidates.length;
     const cleaned = deduplicateCandidates(candidates);
     const removedCount = originalCount - cleaned.length;
-    setCandidates(cleaned);
-    save('candidates', cleaned);
-    try {
-      localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(cleaned));
-      localStorage.setItem('cegs_db_candidates', JSON.stringify(cleaned));
-    } catch {}
+    updateCandidatesStore(cleaned);
     showToast(`✓ Removed ${removedCount} duplicate candidates! Datasheet is clean.`, 'success');
   };
 
   const handleClearAllCandidates = () => {
     if (window.confirm('Are you sure you want to clear the candidate datasheet? You can upload a new Excel file anytime.')) {
-      setCandidates([]);
-      save('candidates', []);
-      try {
-        localStorage.removeItem('cegs_db_v4_candidates');
-        localStorage.removeItem('cegs_db_candidates');
-      } catch {}
+      updateCandidatesStore([]);
       showToast('Datasheet cleared. Ready for manual entry or file upload.', 'info');
     }
   };
@@ -5170,13 +5159,8 @@ function RecruitmentPage({ db, save, user }) {
   const handleCellChange = (candId, field, val) => {
     if (isSA) return; // Super Admin is read-only
     setSaveStatus('Saving...');
-    const updated = candidates.map(c => c.id === candId || c._id === candId ? { ...c, [field]: val } : c);
-    setCandidates(updated);
-    save('candidates', updated);
-    try {
-      localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(updated));
-      localStorage.setItem('cegs_db_candidates', JSON.stringify(updated));
-    } catch {}
+    const updated = candidates.map(c => (c.id === candId || c._id === candId) ? { ...c, [field]: val } : c);
+    updateCandidatesStore(updated);
 
     const rowToSave = updated.find(c => c.id === candId || c._id === candId);
     if (rowToSave) {
@@ -5193,11 +5177,8 @@ function RecruitmentPage({ db, save, user }) {
     if (isSA) return;
     if (window.confirm('Are you sure you want to delete this candidate record?')) {
       const updated = candidates.filter(c => (c.id || c._id) !== candId);
-      setCandidates(updated);
-      save('candidates', updated);
+      updateCandidatesStore(updated);
       try {
-        localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(updated));
-        localStorage.setItem('cegs_db_candidates', JSON.stringify(updated));
         await fetch(`${API_BASE}/candidates/${candId}`, { method: 'DELETE' });
       } catch {}
       showToast('Deleted candidate entry.', 'info');
@@ -5208,6 +5189,7 @@ function RecruitmentPage({ db, save, user }) {
     if (isSA) return; // Super admin cannot add personal task entries
     setSaveStatus('Saving...');
     const newRow = {
+      id: 'cand_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
       slNo: candidates.length + 1,
       date: new Date().toLocaleDateString('en-GB'),
       name: '',
@@ -5224,15 +5206,7 @@ function RecruitmentPage({ db, save, user }) {
       employee: user?.name || 'Madiha Mehak'
     };
 
-    setCandidates(prev => {
-      const updated = [...prev, { ...newRow, id: Date.now().toString() }];
-      save('candidates', updated);
-      try {
-        localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(updated));
-        localStorage.setItem('cegs_db_candidates', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
+    updateCandidatesStore([...candidates, newRow]);
 
     try {
       await fetch(`${API_BASE}/candidates`, {
@@ -5296,15 +5270,8 @@ function RecruitmentPage({ db, save, user }) {
         }
 
         if (newEntries.length > 0) {
-          setCandidates(prev => {
-            const updated = deduplicateCandidates([...prev, ...newEntries.map(r => ({ ...r, id: Date.now().toString() + Math.random() }))]);
-            save('candidates', updated);
-            try {
-              localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(updated));
-              localStorage.setItem('cegs_db_candidates', JSON.stringify(updated));
-            } catch {}
-            return updated;
-          });
+          const formattedNew = newEntries.map((r, i) => ({ ...r, id: 'imp_' + Date.now() + '_' + i }));
+          updateCandidatesStore([...candidates, ...formattedNew]);
 
           try {
             await fetch(`${API_BASE}/candidates`, {
