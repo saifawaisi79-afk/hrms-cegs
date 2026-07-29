@@ -5058,7 +5058,7 @@ const LANGUAGE_OPTIONS = [
 
 const INITIAL_CANDIDATE_DATA = [];
 
-function TargetMetricCard({ title, icon, current, target, unit, weight = '20%', iconBg = '#F5F3FF', iconColor = '#7C5CFC', onClick, onAddClick }) {
+function TargetMetricCard({ title, icon, current, target, unit, weight = '20%', iconBg = '#F5F3FF', iconColor = '#7C5CFC', onClick, onAddClick, isActive }) {
   const percentage = Math.min(100, Math.round((current / target) * 100));
 
   let badgeStyle = { background: '#E6F4EA', color: '#137333', border: '1px solid #CEEAD6' };
@@ -5077,21 +5077,29 @@ function TargetMetricCard({ title, icon, current, target, unit, weight = '20%', 
 
   return (
     <div 
+      onClick={onClick}
       style={{ 
-        background: '#FAFAFA', borderRadius: 20, border: '1px solid #F3F4F6', padding: '18px', 
+        background: isActive ? '#F5F3FF' : '#FAFAFA', 
+        borderRadius: 20, 
+        border: isActive ? '2.5px solid #7C5CFC' : '1px solid #F3F4F6', 
+        padding: '18px', 
         flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', 
-        boxShadow: '0 1px 3px rgba(0,0,0,0.03)', transition: 'all 0.2s ease', position: 'relative'
+        boxShadow: isActive ? '0 8px 24px rgba(124,92,252,0.22)' : '0 1px 3px rgba(0,0,0,0.03)', 
+        transition: 'all 0.25s ease', position: 'relative', cursor: 'pointer'
       }}
+      className="card-hover-effect"
     >
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 36, height: 36, borderRadius: 12, background: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800 }}>
               {icon}
             </div>
             <div>
               <div style={{ fontWeight: 800, fontSize: 13.5, color: '#1F2937', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>{title}</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#7C5CFC' }}>Weight: {weight}</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: isActive ? '#7C5CFC' : '#6B7280' }}>
+                {isActive ? '✨ ACTIVE SECTION' : `Weight: ${weight}`}
+              </div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -5101,7 +5109,7 @@ function TargetMetricCard({ title, icon, current, target, unit, weight = '20%', 
             {onAddClick && (
               <button 
                 onClick={(e) => { e.stopPropagation(); onAddClick(); }}
-                style={{ background: '#111827', color: '#FFFFFF', border: 'none', borderRadius: 99, padding: '4px 10px', fontSize: 10.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
+                style={{ background: isActive ? '#7C5CFC' : '#111827', color: '#FFFFFF', border: 'none', borderRadius: 99, padding: '4px 10px', fontSize: 10.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                 title={`Add new candidate entry for ${title}`}
               >
                 + Add
@@ -5110,12 +5118,12 @@ function TargetMetricCard({ title, icon, current, target, unit, weight = '20%', 
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8, cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 }}>
           <div style={{ display: 'flex', alignItems: 'baseline' }}>
             <span style={{ fontSize: 28, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '-0.8px' }}>{current}</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#9CA3AF', marginLeft: 4 }}>/ {target}</span>
           </div>
-          <span style={{ background: '#F3E8FF', color: '#7C5CFC', fontWeight: 800, borderRadius: 99, padding: '2px 8px', fontSize: 10.5 }}>
+          <span style={{ background: isActive ? '#7C5CFC' : '#F3E8FF', color: isActive ? '#FFFFFF' : '#7C5CFC', fontWeight: 800, borderRadius: 99, padding: '2px 8px', fontSize: 10.5 }}>
             {percentage}%
           </span>
         </div>
@@ -5210,6 +5218,7 @@ function RecruitmentPage({ db, save, user }) {
     } catch {}
   };
 
+  const [activeTaskTab, setActiveTaskTab] = useState('Calls Made');
   const [searchQuery, setSearchQuery] = useState('');
   const [saveStatus, setSaveStatus] = useState('Auto-saved');
   const [targetViewMode, setTargetViewMode] = useState(isEmp ? 'employee' : 'hr');
@@ -5410,6 +5419,8 @@ function RecruitmentPage({ db, save, user }) {
     localStorage.removeItem('cegs_candidates_cleared');
     setSearchQuery(''); // CRITICAL FIX: Clear search filter so new row is ALWAYS 100% visible!
 
+    const respToUse = presetResponse || (activeTaskTab === 'Interviews Scheduled' ? 'Interview Scheduled' : activeTaskTab === 'Walk-ins Today' ? 'Walk-in Today' : activeTaskTab === 'Selected Today' ? 'Selected Today' : activeTaskTab === 'Joined Today' ? 'Joined Today' : '');
+
     const newRow = {
       id: 'cand_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
       slNo: candidates.length + 1,
@@ -5418,13 +5429,13 @@ function RecruitmentPage({ db, save, user }) {
       number: '',
       languages: 'English',
       qualification: '',
-      response: presetResponse || '',
+      response: respToUse,
       callStatus: 'Connected',
       location: 'Bengaluru',
       experience: 0,
-      followUp1: presetResponse === 'Interview Scheduled' ? 'Interview Scheduled' : '',
-      followUp2: presetResponse === 'Walk-in Today' ? 'Walk-in Today' : '',
-      followUp3: (presetResponse === 'Selected Today' || presetResponse === 'Joined Today') ? presetResponse : '',
+      followUp1: respToUse === 'Interview Scheduled' ? 'Interview Scheduled' : '',
+      followUp2: respToUse === 'Walk-in Today' ? 'Walk-in Today' : '',
+      followUp3: (respToUse === 'Selected Today' || respToUse === 'Joined Today') ? respToUse : '',
       employee: user?.name || ''
     };
 
@@ -5694,11 +5705,11 @@ function RecruitmentPage({ db, save, user }) {
         ) : (
           /* FOR EMPLOYEE & INDIVIDUAL HR VIEW: ALL 5 TARGET METRIC CARDS */
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <TargetMetricCard title="Calls Made" icon="📞" current={callsMadeCount} target={80} unit="Calls" weight="20%" iconBg="#F5F3FF" iconColor="#7C5CFC" onClick={() => setSearchQuery('Connected')} onAddClick={() => handleAddInlineRow('Connected')} />
-            <TargetMetricCard title="Interviews Scheduled" icon="📅" current={interviewsScheduledTargetCount} target={15} unit="Interviews" weight="20%" iconBg="#EFF6FF" iconColor="#3B82F6" onClick={() => setSearchQuery('interview')} onAddClick={() => handleAddInlineRow('Interview Scheduled')} />
-            <TargetMetricCard title="Walk-ins Today" icon="🚶" current={walkinsTargetCount} target={5} unit="Walkins" weight="20%" iconBg="#FEF3C7" iconColor="#D97706" onClick={() => setSearchQuery('walkin')} onAddClick={() => handleAddInlineRow('Walk-in Today')} />
-            <TargetMetricCard title="Selected Today" icon="🏆" current={selectedTodayTargetCount} target={3} unit="Selected" weight="20%" iconBg="#ECFDF5" iconColor="#10B981" onClick={() => setSearchQuery('selected')} onAddClick={() => handleAddInlineRow('Selected Today')} />
-            <TargetMetricCard title="Joined Today" icon="👥" current={joinedTodayTargetCount} target={1} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" onClick={() => setSearchQuery('joined')} onAddClick={() => handleAddInlineRow('Joined Today')} />
+            <TargetMetricCard title="Calls Made" icon="📞" current={callsMadeCount} target={80} unit="Calls" weight="20%" iconBg="#F5F3FF" iconColor="#7C5CFC" isActive={activeTaskTab === 'Calls Made'} onClick={() => { setActiveTaskTab('Calls Made'); setSearchQuery(''); }} onAddClick={() => { setActiveTaskTab('Calls Made'); handleAddInlineRow('Connected'); }} />
+            <TargetMetricCard title="Interviews Scheduled" icon="📅" current={interviewsScheduledTargetCount} target={15} unit="Interviews" weight="20%" iconBg="#EFF6FF" iconColor="#3B82F6" isActive={activeTaskTab === 'Interviews Scheduled'} onClick={() => { setActiveTaskTab('Interviews Scheduled'); setSearchQuery(''); }} onAddClick={() => { setActiveTaskTab('Interviews Scheduled'); handleAddInlineRow('Interview Scheduled'); }} />
+            <TargetMetricCard title="Walk-ins Today" icon="🚶" current={walkinsTargetCount} target={5} unit="Walkins" weight="20%" iconBg="#FEF3C7" iconColor="#D97706" isActive={activeTaskTab === 'Walk-ins Today'} onClick={() => { setActiveTaskTab('Walk-ins Today'); setSearchQuery(''); }} onAddClick={() => { setActiveTaskTab('Walk-ins Today'); handleAddInlineRow('Walk-in Today'); }} />
+            <TargetMetricCard title="Selected Today" icon="🏆" current={selectedTodayTargetCount} target={3} unit="Selected" weight="20%" iconBg="#ECFDF5" iconColor="#10B981" isActive={activeTaskTab === 'Selected Today'} onClick={() => { setActiveTaskTab('Selected Today'); setSearchQuery(''); }} onAddClick={() => { setActiveTaskTab('Selected Today'); handleAddInlineRow('Selected Today'); }} />
+            <TargetMetricCard title="Joined Today" icon="👥" current={joinedTodayTargetCount} target={1} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" isActive={activeTaskTab === 'Joined Today'} onClick={() => { setActiveTaskTab('Joined Today'); setSearchQuery(''); }} onAddClick={() => { setActiveTaskTab('Joined Today'); handleAddInlineRow('Joined Today'); }} />
           </div>
         )}
       </div>
@@ -5709,9 +5720,14 @@ function RecruitmentPage({ db, save, user }) {
         <div style={{ background: '#FFFFFF', borderRadius: 24, padding: 24, border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
             <div>
-              <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>
-                Recruitment Candidate Datasheet {isEmp ? `(${user?.name})` : selectedEmployeeFilter !== 'ALL' ? `(${selectedEmployeeFilter})` : '(All Recruiter Log)'}
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>
+                  Recruitment Candidate Datasheet {isEmp ? `(${user?.name})` : selectedEmployeeFilter !== 'ALL' ? `(${selectedEmployeeFilter})` : '(All Recruiter Log)'}
+                </h3>
+                <span style={{ background: '#F5F3FF', color: '#7C5CFC', border: '1px solid #DDD6FE', borderRadius: 99, padding: '3px 10px', fontSize: 11, fontWeight: 800 }}>
+                  Active Section: {activeTaskTab}
+                </span>
+              </div>
               <p style={{ fontSize: 12.5, fontWeight: 600, color: '#059669', marginTop: 2 }}>✓ {saveStatus}</p>
             </div>
 
