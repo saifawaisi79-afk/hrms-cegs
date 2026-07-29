@@ -5233,6 +5233,33 @@ function RecruitmentPage({ db, save, user }) {
     }
   }, []);
 
+  useEffect(() => {
+    // Auto-generate 1 fresh empty candidate entry form if the user has no candidate rows yet
+    if (user?.name && !isSA) {
+      const userRows = candidates.filter(c => (c.employee || '').trim().toLowerCase() === user.name.trim().toLowerCase());
+      if (userRows.length === 0) {
+        const initialRow = {
+          id: 'cand_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+          slNo: 1,
+          date: new Date().toLocaleDateString('en-GB'),
+          name: '',
+          number: '',
+          languages: 'English',
+          qualification: '',
+          response: '',
+          callStatus: 'Connected',
+          location: 'Bengaluru',
+          experience: 0,
+          followUp1: '',
+          followUp2: '',
+          followUp3: '',
+          employee: user.name
+        };
+        updateCandidatesStore([...candidates, initialRow]);
+      }
+    }
+  }, [user?.name, candidates.length]);
+
   const handleCleanDuplicates = () => {
     const originalCount = candidates.length;
     const cleaned = deduplicateCandidates(candidates);
