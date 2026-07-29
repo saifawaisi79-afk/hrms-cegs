@@ -5205,6 +5205,7 @@ function RecruitmentPage({ db, save, user }) {
     } catch {}
   };
 
+  const [activeTaskCategory, setActiveTaskCategory] = useState('calls'); // 'calls' | 'interviews' | 'walkins' | 'selected' | 'joined'
   const [searchQuery, setSearchQuery] = useState('');
   const [saveStatus, setSaveStatus] = useState('Auto-saved');
   const [targetViewMode, setTargetViewMode] = useState(isEmp ? 'employee' : 'hr');
@@ -5214,6 +5215,16 @@ function RecruitmentPage({ db, save, user }) {
   const fileInputRef = useRef(null);
   const tableScrollRef = useRef(null);
   const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
+
+  const getCategoryFromCandidate = (cand) => {
+    if (cand.category) return cand.category;
+    const text = `${cand.followUp1 || ''} ${cand.followUp2 || ''} ${cand.followUp3 || ''} ${cand.response || ''}`.toLowerCase();
+    if (text.includes('joined') || text.includes('joining')) return 'joined';
+    if (text.includes('selected') || text.includes('hired')) return 'selected';
+    if (text.includes('walkin') || text.includes('walk-in') || text.includes('visited')) return 'walkins';
+    if (text.includes('interview') || text.includes('scheduled') || text.includes('schedule')) return 'interviews';
+    return 'calls';
+  };
 
   const showToast = (msg, type = 'info') => {
     setToastMsg({ text: msg, type });
@@ -5234,10 +5245,20 @@ function RecruitmentPage({ db, save, user }) {
   }, []);
 
   useEffect(() => {
-    // Auto-generate 1 fresh empty candidate entry form if the user has no candidate rows yet
+    // Auto-generate 1 fresh empty candidate entry form for the active task category page if empty
     if (user?.name && !isSA) {
-      const userRows = candidates.filter(c => (c.employee || '').trim().toLowerCase() === user.name.trim().toLowerCase());
-      if (userRows.length === 0) {
+      const userCatRows = candidates.filter(c => 
+        (c.employee || '').trim().toLowerCase() === user.name.trim().toLowerCase() &&
+        getCategoryFromCandidate(c) === activeTaskCategory
+      );
+      if (userCatRows.length === 0) {
+        let resp = '';
+        let f1 = '', f2 = '', f3 = '';
+        if (activeTaskCategory === 'interviews') { resp = 'Interview Scheduled'; f1 = 'Interview Scheduled'; }
+        else if (activeTaskCategory === 'walkins') { resp = 'Walk-in Today'; f2 = 'Walk-in Today'; }
+        else if (activeTaskCategory === 'selected') { resp = 'Selected Today'; f3 = 'Selected Today'; }
+        else if (activeTaskCategory === 'joined') { resp = 'Joined Today'; f3 = 'Joined Today'; }
+
         const initialRow = {
           id: 'cand_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
           slNo: 1,
@@ -5246,19 +5267,20 @@ function RecruitmentPage({ db, save, user }) {
           number: '',
           languages: 'English',
           qualification: '',
-          response: '',
+          response: resp,
           callStatus: 'Connected',
           location: 'Bengaluru',
           experience: 0,
-          followUp1: '',
-          followUp2: '',
-          followUp3: '',
+          followUp1: f1,
+          followUp2: f2,
+          followUp3: f3,
+          category: activeTaskCategory,
           employee: user.name
         };
         updateCandidatesStore([...candidates, initialRow]);
       }
     }
-  }, [user?.name, candidates.length]);
+  }, [user?.name, activeTaskCategory, candidates.length]);
 
   const handleCleanDuplicates = () => {
     const originalCount = candidates.length;
@@ -5421,21 +5443,31 @@ function RecruitmentPage({ db, save, user }) {
     localStorage.removeItem('cegs_candidates_cleared');
     setSearchQuery(''); // CRITICAL FIX: Clear search filter so new row is ALWAYS 100% visible!
 
+    let resp = '';
+    let f1 = '', f2 = '', f3 = '';
+    if (activeTaskCategory === 'interviews') { resp = 'Interview Scheduled'; f1 = 'Interview Scheduled'; }
+    else if (activeTaskCategory === 'walkins') { resp = 'Walk-in Today'; f2 = 'Walk-in Today'; }
+    else if (activeTaskCategory === 'selected') { resp = 'Selected Today'; f3 = 'Selected Today'; }
+    else if (activeTaskCategory === 'joined') { resp = 'Joined Today'; f3 = 'Joined Today'; }
+
+    const categoryRows = roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === activeTaskCategory);
+
     const newRow = {
       id: 'cand_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-      slNo: candidates.length + 1,
+      slNo: categoryRows.length + 1,
       date: new Date().toLocaleDateString('en-GB'),
       name: '',
       number: '',
       languages: 'English',
       qualification: '',
-      response: '',
-      callStatus: 'Select Status',
+      response: resp,
+      callStatus: 'Connected',
       location: 'Bengaluru',
       experience: 0,
-      followUp1: '',
-      followUp2: '',
-      followUp3: '',
+      followUp1: f1,
+      followUp2: f2,
+      followUp3: f3,
+      category: activeTaskCategory,
       employee: user?.name || ''
     };
 
@@ -5525,7 +5557,9 @@ function RecruitmentPage({ db, save, user }) {
     e.target.value = '';
   };
 
-  const filteredCandidates = roleFilteredCandidates.filter(cand => {
+  const categoryCandidates = roleFilteredCandidates.filter(cand => getCategoryFromCandidate(cand) === activeTaskCategory);
+
+  const filteredCandidates = categoryCandidates.filter(cand => {
     const q = searchQuery.toLowerCase();
     return (cand.name || '').toLowerCase().includes(q) ||
       (cand.number || '').toLowerCase().includes(q) ||
@@ -5705,13 +5739,86 @@ function RecruitmentPage({ db, save, user }) {
         ) : (
           /* FOR EMPLOYEE & INDIVIDUAL HR VIEW: ALL 5 TARGET METRIC CARDS */
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <TargetMetricCard title="Calls Made" icon="📞" current={callsMadeCount} target={80} unit="Calls" weight="20%" iconBg="#F5F3FF" iconColor="#7C5CFC" onClick={() => setSearchQuery('Connected')} />
-            <TargetMetricCard title="Interviews Scheduled" icon="📅" current={interviewsScheduledTargetCount} target={15} unit="Interviews" weight="20%" iconBg="#EFF6FF" iconColor="#3B82F6" onClick={() => setSearchQuery('interview')} />
-            <TargetMetricCard title="Walk-ins Today" icon="🚶" current={walkinsTargetCount} target={5} unit="Walkins" weight="20%" iconBg="#FEF3C7" iconColor="#D97706" onClick={() => setSearchQuery('walkin')} />
-            <TargetMetricCard title="Selected Today" icon="🏆" current={selectedTodayTargetCount} target={3} unit="Selected" weight="20%" iconBg="#ECFDF5" iconColor="#10B981" onClick={() => setSearchQuery('selected')} />
-            <TargetMetricCard title="Joined Today" icon="👥" current={joinedTodayTargetCount} target={1} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" onClick={() => setSearchQuery('joined')} />
+            <TargetMetricCard title="Calls Made" icon="📞" current={callsMadeCount} target={80} unit="Calls" weight="20%" iconBg="#F5F3FF" iconColor="#7C5CFC" onClick={() => setActiveTaskCategory('calls')} />
+            <TargetMetricCard title="Interviews Scheduled" icon="📅" current={interviewsScheduledTargetCount} target={15} unit="Interviews" weight="20%" iconBg="#EFF6FF" iconColor="#3B82F6" onClick={() => setActiveTaskCategory('interviews')} />
+            <TargetMetricCard title="Walk-ins Today" icon="🚶" current={walkinsTargetCount} target={5} unit="Walkins" weight="20%" iconBg="#FEF3C7" iconColor="#D97706" onClick={() => setActiveTaskCategory('walkins')} />
+            <TargetMetricCard title="Selected Today" icon="🏆" current={selectedTodayTargetCount} target={3} unit="Selected" weight="20%" iconBg="#ECFDF5" iconColor="#10B981" onClick={() => setActiveTaskCategory('selected')} />
+            <TargetMetricCard title="Joined Today" icon="👥" current={joinedTodayTargetCount} target={1} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" onClick={() => setActiveTaskCategory('joined')} />
           </div>
         )}
+      </div>
+
+      {/* 5 INDEPENDENT TASK DATASHEET PAGES TAB BAR */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button 
+          onClick={() => setActiveTaskCategory('calls')}
+          style={{
+            background: activeTaskCategory === 'calls' ? '#7C5CFC' : '#FFFFFF',
+            color: activeTaskCategory === 'calls' ? '#FFFFFF' : '#374151',
+            border: activeTaskCategory === 'calls' ? '1px solid #6D28D9' : '1px solid #E5E7EB',
+            borderRadius: 99, padding: '9px 18px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer',
+            boxShadow: activeTaskCategory === 'calls' ? '0 4px 12px rgba(124,92,252,0.2)' : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          📞 Calls Made Page ({roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === 'calls').length})
+        </button>
+
+        <button 
+          onClick={() => setActiveTaskCategory('interviews')}
+          style={{
+            background: activeTaskCategory === 'interviews' ? '#3B82F6' : '#FFFFFF',
+            color: activeTaskCategory === 'interviews' ? '#FFFFFF' : '#374151',
+            border: activeTaskCategory === 'interviews' ? '1px solid #2563EB' : '1px solid #E5E7EB',
+            borderRadius: 99, padding: '9px 18px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer',
+            boxShadow: activeTaskCategory === 'interviews' ? '0 4px 12px rgba(59,130,246,0.2)' : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          📅 Interviews Scheduled Page ({roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === 'interviews').length})
+        </button>
+
+        <button 
+          onClick={() => setActiveTaskCategory('walkins')}
+          style={{
+            background: activeTaskCategory === 'walkins' ? '#D97706' : '#FFFFFF',
+            color: activeTaskCategory === 'walkins' ? '#FFFFFF' : '#374151',
+            border: activeTaskCategory === 'walkins' ? '1px solid #B45309' : '1px solid #E5E7EB',
+            borderRadius: 99, padding: '9px 18px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer',
+            boxShadow: activeTaskCategory === 'walkins' ? '0 4px 12px rgba(217,119,6,0.2)' : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          🚶 Walk-ins Today Page ({roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === 'walkins').length})
+        </button>
+
+        <button 
+          onClick={() => setActiveTaskCategory('selected')}
+          style={{
+            background: activeTaskCategory === 'selected' ? '#10B981' : '#FFFFFF',
+            color: activeTaskCategory === 'selected' ? '#FFFFFF' : '#374151',
+            border: activeTaskCategory === 'selected' ? '1px solid #059669' : '1px solid #E5E7EB',
+            borderRadius: 99, padding: '9px 18px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer',
+            boxShadow: activeTaskCategory === 'selected' ? '0 4px 12px rgba(16,185,129,0.2)' : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          🏆 Selected Today Page ({roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === 'selected').length})
+        </button>
+
+        <button 
+          onClick={() => setActiveTaskCategory('joined')}
+          style={{
+            background: activeTaskCategory === 'joined' ? '#F97316' : '#FFFFFF',
+            color: activeTaskCategory === 'joined' ? '#FFFFFF' : '#374151',
+            border: activeTaskCategory === 'joined' ? '1px solid #EA580C' : '1px solid #E5E7EB',
+            borderRadius: 99, padding: '9px 18px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer',
+            boxShadow: activeTaskCategory === 'joined' ? '0 4px 12px rgba(249,115,22,0.2)' : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          👥 Joined Today Page ({roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === 'joined').length})
+        </button>
       </div>
 
       {/* CANDIDATE DATASHEET TABLE & STATUS OVERVIEW GRID */}
@@ -5721,7 +5828,11 @@ function RecruitmentPage({ db, save, user }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
             <div>
               <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>
-                Recruitment Candidate Datasheet {isEmp ? `(${user?.name})` : selectedEmployeeFilter !== 'ALL' ? `(${selectedEmployeeFilter})` : '(All Recruiter Log)'}
+                {activeTaskCategory === 'calls' ? '📞 Calls Made Datasheet' :
+                 activeTaskCategory === 'interviews' ? '📅 Interviews Scheduled Datasheet' :
+                 activeTaskCategory === 'walkins' ? '🚶 Walk-ins Today Datasheet' :
+                 activeTaskCategory === 'selected' ? '🏆 Selected Today Datasheet' :
+                 '👥 Joined Today Datasheet'} {isEmp ? `(${user?.name})` : selectedEmployeeFilter !== 'ALL' ? `(${selectedEmployeeFilter})` : '(All Recruiter Log)'}
               </h3>
               <p style={{ fontSize: 12.5, fontWeight: 600, color: '#059669', marginTop: 2 }}>✓ {saveStatus}</p>
             </div>
