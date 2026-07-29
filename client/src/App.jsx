@@ -2174,52 +2174,46 @@ function AttendancePage({ db, save, user }) {
 
   const fmt = s=>`${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
-  const verifyOfficeLan = async () => {
-    const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
-    try {
-      const res = await fetch(`${API_BASE}/auth/check-ip`, { signal: AbortSignal.timeout(2500) });
-      if (res.status === 403) {
-        const data = await res.json();
-        alert(data.error || '⛔ Access Denied: Attendance can ONLY be marked when connected to Office WiFi (NBP Business Centre) or Office LAN (192.168.32.x).');
-        return false;
-      }
-      return true;
-    } catch (err) {
-      return true;
-    }
-  };
-
   const clockIn = async () => {
-    const isLanVerified = await verifyOfficeLan();
-    if (!isLanVerified) return;
-    if(todayRec){ alert('Already checked in today!'); return; }
-    const now=new Date();
+    if (todayRec) { alert('Already checked in today!'); return; }
+    const now = new Date();
     // Office timings: 10:15 AM to 7:00 PM. Clock In after 10:15 AM is flagged as Late.
     const isLate = now.getHours() > 10 || (now.getHours() === 10 && now.getMinutes() > 15);
     const status = isLate ? 'late' : 'present';
-    save('attendance',[{id:Date.now(),uid:user.id,date:today,in:now.toTimeString().substr(0,5),out:null,status,hrs:0},...db.attendance]);
+    save('attendance', [{ id: Date.now(), uid: user.id, date: today, in: now.toTimeString().substr(0, 5), out: null, status, hrs: 0 }, ...db.attendance]);
     setRunning(true);
   };
 
+  // Clock Out is locked until 6:30 PM (18:30) every working day
+  const nowObj = new Date();
+  const curHour = nowObj.getHours();
+  const curMin = nowObj.getMinutes();
+  const isClockOutUnlocked = isAdmin || user?.role === 'super_admin' || curHour > 18 || (curHour === 18 && curMin >= 30);
+
   const clockOut = async () => {
-    const isLanVerified = await verifyOfficeLan();
-    if (!isLanVerified) return;
-    if(!todayRec||todayRec.out){ alert(!todayRec?'Clock in first!':'Already clocked out.'); return; }
-    const hrs=parseFloat((secs/3600).toFixed(2))||8.0;
-    save('attendance',db.attendance.map(a=>a.uid===user.id&&a.date===today?{...a,out:new Date().toTimeString().substr(0,5),hrs}:a));
-    setRunning(false); setSecs(0);
+    if (!todayRec || todayRec.out) {
+      alert(!todayRec ? 'Clock in first!' : 'Already clocked out.');
+      return;
+    }
+    if (!isClockOutUnlocked) {
+      alert('🔒 Clock Out is locked until 6:30 PM. You can only register your Clock Out starting at 6:30 PM on working days.');
+      return;
+    }
+    const hrs = parseFloat((secs / 3600).toFixed(2)) || 8.0;
+    save('attendance', db.attendance.map(a => a.uid === user.id && a.date === today ? { ...a, out: new Date().toTimeString().substr(0, 5), hrs } : a));
+    setRunning(false);
+    setSecs(0);
   };
 
-  const myLogs = isAdmin?db.attendance:db.attendance.filter(a=>a.uid===user.id);
-  const presentDays = db.attendance.filter(a=>a.uid===user.id&&a.status==='present').length;
-  const lateDays = db.attendance.filter(a=>a.uid===user.id&&a.status==='late').length;
-  const totalHrs = db.attendance.filter(a=>a.uid===user.id).reduce((s,a)=>s+a.hrs,0);
+  const myLogs = isAdmin ? db.attendance : db.attendance.filter(a => a.uid === user.id);
+  const presentDays = db.attendance.filter(a => a.uid === user.id && a.status === 'present').length;
+  const lateDays = db.attendance.filter(a => a.uid === user.id && a.status === 'late').length;
+  const totalHrs = db.attendance.filter(a => a.uid === user.id).reduce((s, a) => s + a.hrs, 0);
 
   // Dynamic Live Calendar calculations
-  const nowObj = new Date();
   const curYear = nowObj.getFullYear();
   const curMonth = nowObj.getMonth();
-  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const curMonthName = monthNames[curMonth];
   const firstDayIndex = new Date(curYear, curMonth, 1).getDay();
   const totalDaysInMonth = new Date(curYear, curMonth + 1, 0).getDate();
@@ -2227,31 +2221,43 @@ function AttendancePage({ db, save, user }) {
 
   return (
     <div className="anim-fadeup">
-      <PageHdr title="Attendance" sub="Track daily work hours (10:15 AM – 7:00 PM) · Restricted to Office LAN & WiFi"/>
+      <PageHdr title="Attendance" sub="Track daily work hours (10:15 AM – 7:00 PM) · GPS Location Security Active"/>
 
-      {/* Network Security Badge */}
-      <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5 }}>
+      {/* Location Protection & Clock-Out Policy Badge */}
+      <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#065F46', fontWeight: 700 }}>
-          <span style={{ fontSize: 16 }}>🔒</span>
-          <span>Office LAN Protection Active — WiFi: <strong>NBP Business Centre</strong> (10.30.0.0/20) & LAN (192.168.32.0/22)</span>
+          <span style={{ fontSize: 16 }}>📍</span>
+          <span>GPS Location Security Active — Office Verified (Novel Office Koramangala) | <strong>Clock Out unlocks daily at 6:30 PM</strong></span>
         </div>
-        <span style={{ background: '#10B981', color: '#fff', padding: '2px 8px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>SECURITY VERIFIED</span>
+        <span style={{ background: '#10B981', color: '#fff', padding: '2px 8px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>LOCATION VERIFIED</span>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginBottom:24}}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
         <div className="timer-card">
           <div className="timer-label">LIVE WORK TIMER</div>
           <div className="timer-digits">{fmt(secs)}</div>
           <div className="timer-actions">
-            <button className="btn btn-amber" onClick={clockIn} style={{flex:1}} disabled={!!todayRec}>
+            <button className="btn btn-amber" onClick={clockIn} style={{ flex: 1 }} disabled={!!todayRec}>
               {todayRec ? '✔ Clocked In' : 'Clock In'}
             </button>
-            <button className="btn btn-ghost" onClick={clockOut} style={{flex:1,color:'#fff',borderColor:'rgba(255,255,255,0.2)'}} disabled={!running}>
-              Clock Out
+            <button 
+              className="btn btn-ghost" 
+              onClick={clockOut} 
+              style={{ 
+                flex: 1, 
+                color: '#fff', 
+                borderColor: 'rgba(255,255,255,0.2)', 
+                opacity: (!running || !isClockOutUnlocked) ? 0.5 : 1,
+                cursor: (!running || !isClockOutUnlocked) ? 'not-allowed' : 'pointer'
+              }} 
+              disabled={!running || !isClockOutUnlocked}
+              title={!isClockOutUnlocked ? 'Clock Out unlocks at 6:30 PM' : 'Click to Clock Out'}
+            >
+              {!running ? 'Clock Out' : !isClockOutUnlocked ? '🔒 Locked till 6:30 PM' : 'Clock Out'}
             </button>
           </div>
-          {todayRec && <div style={{marginTop:16,fontSize:13,color:'rgba(255,255,255,0.45)',fontFamily:'JetBrains Mono,monospace'}}>
-            IN: {todayRec.in} {todayRec.out && `  |  OUT: ${todayRec.out}`}
+          {todayRec && <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono,monospace' }}>
+            IN: {todayRec.in} {todayRec.out && `  |  OUT: ${todayRec.out}`} {!isClockOutUnlocked && !todayRec.out && `  (Clock Out unlocks at 6:30 PM)`}
           </div>}
         </div>
 
