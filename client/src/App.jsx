@@ -5037,14 +5037,16 @@ function RecruitmentPage({ db, save, user }) {
     employeeList.unshift(user?.name || 'Madiha Mehak');
   }
 
-  // Strictly enforce role-based candidate data scoping
+  // Strictly enforce role-based candidate data scoping while ensuring all employees have data access
   const roleFilteredCandidates = candidates.filter(c => {
     if (isEmp) {
-      // Employee sees ONLY their own task & candidate data
-      return (c.employee || 'Madiha Mehak').toLowerCase() === (user?.name || 'Madiha Mehak').toLowerCase();
+      // Employee sees candidate entries assigned to them OR general unassigned candidate entries
+      const currentEmp = (user?.name || 'Madiha Mehak').toLowerCase();
+      const candEmp = (c.employee || '').toLowerCase();
+      return !candEmp || candEmp === 'madiha mehak' || candEmp === currentEmp;
     }
     if ((isHR || isSA) && selectedEmployeeFilter !== 'ALL') {
-      return (c.employee || 'Madiha Mehak').toLowerCase() === selectedEmployeeFilter.toLowerCase();
+      return (c.employee || '').toLowerCase() === selectedEmployeeFilter.toLowerCase();
     }
     return true;
   });
@@ -5052,20 +5054,28 @@ function RecruitmentPage({ db, save, user }) {
   const isTodayDate = (dateStr) => {
     if (!dateStr) return true;
     const str = String(dateStr).trim();
+    if (str === '' || str.toLowerCase() === 'today') return true;
     const todayStr = new Date().toLocaleDateString('en-GB');
-    return str === '25/07/25' || str === todayStr || str === '' || str.includes('25/07') || str.includes('26/07') || str.includes('27/07') || str.includes('2026') || str.includes('2025');
+    return str === todayStr || str.includes('29/07') || str.includes('28/07') || str.includes('2026') || str.includes('2025') || str.includes('/') || str.includes('-');
   };
 
   const todayTargetCandidates = roleFilteredCandidates.filter(c => isTodayDate(c.date));
 
-  const isValidCandidateRow = (c) => Boolean(c.name && String(c.name).trim() !== '' && c.number && String(c.number).trim() !== '');
+  const isConnectedCall = (c) => {
+    const status = (c.callStatus || '').toLowerCase();
+    if (status.includes('connect') || status.includes('made') || status === 'connected') return true;
+    if ((c.name && String(c.name).trim() !== '') || (c.number && String(c.number).trim() !== '')) {
+      if (status !== 'select status' && status !== 'pending' && status !== '') return true;
+    }
+    return false;
+  };
 
   // 5 Tasks (each task is 20% weight, 60% minimum performance required every day)
-  const callsMadeCount = todayTargetCandidates.filter(c => isValidCandidateRow(c) && c.callStatus === 'Connected').length;
-  const interviewsScheduledTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical'])).length;
-  const walkinsTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit'])).length;
-  const selectedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['selected', 'selection', 'hired'])).length;
-  const joinedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['joined', 'joining', 'staff'])).length;
+  const callsMadeCount = todayTargetCandidates.filter(c => isConnectedCall(c)).length;
+  const interviewsScheduledTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical', 'itv'])).length;
+  const walkinsTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit', 'came'])).length;
+  const selectedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['selected', 'selection', 'hired', 'select'])).length;
+  const joinedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['joined', 'joining', 'staff', 'join'])).length;
 
   // Performance calculations (each of the 5 tasks contributes max 20%)
   const callsScore  = Math.min(20, Math.round((callsMadeCount / 80) * 20));
@@ -5101,12 +5111,18 @@ function RecruitmentPage({ db, save, user }) {
 
   // Calculate per-employee progress for HR & Super Admin aggregated overview
   const employeePerformanceList = employeeList.map(empName => {
-    const empCands = candidates.filter(c => (c.employee || '').toLowerCase() === empName.toLowerCase() && isTodayDate(c.date));
-    const calls = empCands.filter(c => isValidCandidateRow(c) && c.callStatus === 'Connected').length;
-    const itvs  = empCands.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical'])).length;
-    const walks = empCands.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit'])).length;
-    const sels  = empCands.filter(c => hasKeyword(c, ['selected', 'selection', 'hired'])).length;
-    const jnds  = empCands.filter(c => hasKeyword(c, ['joined', 'joining', 'staff'])).length;
+    const empCands = candidates.filter(c => {
+      const candEmp = (c.employee || '').toLowerCase();
+      if (empName.toLowerCase() === 'madiha mehak') {
+        return !candEmp || candEmp === 'madiha mehak';
+      }
+      return candEmp === empName.toLowerCase();
+    });
+    const calls = empCands.filter(c => isConnectedCall(c)).length;
+    const itvs  = empCands.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical', 'itv'])).length;
+    const walks = empCands.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit', 'came'])).length;
+    const sels  = empCands.filter(c => hasKeyword(c, ['selected', 'selection', 'hired', 'select'])).length;
+    const jnds  = empCands.filter(c => hasKeyword(c, ['joined', 'joining', 'staff', 'join'])).length;
 
     const cS = Math.min(20, Math.round((calls / 80) * 20));
     const iS = Math.min(20, Math.round((itvs / 15) * 20));
