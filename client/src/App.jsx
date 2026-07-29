@@ -5134,11 +5134,24 @@ function RecruitmentPage({ db, save, user }) {
     const seen = new Set();
     const result = [];
     (items || []).forEach(c => {
+      const nameVal = (c.name || '').trim();
+      const numVal = (c.number || '').trim();
+      const respVal = (c.response || '').trim();
+      const f1 = (c.followUp1 || '').trim();
+      const f2 = (c.followUp2 || '').trim();
+      const f3 = (c.followUp3 || '').trim();
+
+      // AUTOMATICALLY DISCARD ALL BLANK GHOST ROWS (rows with no name, phone, or follow-ups)
+      if (!nameVal && !numVal && !respVal && !f1 && !f2 && !f3) {
+        return;
+      }
+
       const idKey = String(c.id || c._id || '').trim();
-      const nameKey = (c.name || '').trim().toLowerCase();
-      const numKey = (c.number || '').trim();
+      const nameKey = nameVal.toLowerCase();
+      const numKey = numVal;
       const empKey = (c.employee || '').trim().toLowerCase();
-      const key = (nameKey || numKey) ? `${nameKey}_${numKey}_${empKey}` : `row_${idKey || Math.random()}`;
+      const key = (nameKey || numKey) ? `${nameKey}_${numKey}_${empKey}` : `row_${idKey}`;
+
       if (!seen.has(key)) {
         seen.add(key);
         result.push(c);
@@ -5154,19 +5167,19 @@ function RecruitmentPage({ db, save, user }) {
         const local = localStorage.getItem('vp_hrms_v4_candidates') || localStorage.getItem('cegs_db_v4_candidates') || localStorage.getItem('cegs_db_candidates');
         if (local) {
           const parsed = JSON.parse(local);
-          if (Array.isArray(parsed)) return parsed;
+          if (Array.isArray(parsed)) return deduplicateCandidates(parsed);
         }
       } catch {}
       return [];
     }
     if (db && Array.isArray(db.candidates) && db.candidates.length > 0) {
-      return db.candidates;
+      return deduplicateCandidates(db.candidates);
     }
     try {
       const local = localStorage.getItem('vp_hrms_v4_candidates') || localStorage.getItem('cegs_db_v4_candidates') || localStorage.getItem('cegs_db_candidates');
       if (local) {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return deduplicateCandidates(parsed);
       }
     } catch {}
     return [];
@@ -5254,8 +5267,12 @@ function RecruitmentPage({ db, save, user }) {
     employeeList.unshift(user.name);
   }
 
-  // Strictly enforce user-specific candidate data scoping for employees
+  // Strictly enforce user-specific candidate data scoping for employees and HR
   const roleFilteredCandidates = candidates.filter(c => {
+    // Ignore any ghost empty candidate entries
+    if (!(c.name || '').trim() && !(c.number || '').trim() && !(c.response || '').trim()) {
+      return false;
+    }
     if (isEmp) {
       // Employee sees ONLY candidate entries assigned specifically to them
       const currentEmp = (user?.name || '').trim().toLowerCase();
