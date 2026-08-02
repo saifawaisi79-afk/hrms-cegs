@@ -3833,58 +3833,497 @@ function ExpensesPage({ db, save, user }) {
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 function DocumentsPage({ db, save, user }) {
   const [modal, setModal] = useState(false);
+  const [docTab, setDocTab] = useState('upload'); // 'upload' | 'template'
   const [preview, setPreview] = useState(null);
-  const [selTemp, setSelTemp] = useState(1);
+  
+  // Selection state
   const [selEmp, setSelEmp] = useState(user.id);
-  const isAdmin=['admin','super_admin'].includes(user.role);
+  const [selTemp, setSelTemp] = useState(db.templates?.[0]?.id || 1);
+  
+  // File Upload Form State
+  const [docTitle, setDocTitle] = useState('');
+  const [docCategory, setDocCategory] = useState('Offer Letter / Contract');
+  const [uploadedFile, setUploadedFile] = useState(null); // { name, size, type, dataUrl }
+  const [docNotes, setDocNotes] = useState('');
 
-  const generate=()=>{
-    const t=db.templates.find(x=>x.id===parseInt(selTemp));
-    const emp=db.users.find(x=>x.id===parseInt(selEmp));
-    const issuer=db.users.find(u=>u.role==='admin'||u.role==='super_admin');
-    if(!t||!emp) return;
-    const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-    const body=t.body.replace(/\{\{NAME\}\}/g,emp.name).replace(/\{\{EID\}\}/g,emp.eid).replace(/\{\{JOIN\}\}/g,emp.joined).replace(/\{\{TITLE\}\}/g,emp.title).replace(/\{\{ISSUER\}\}/g,issuer?.name||'HR Manager').replace(/\{\{TODAY\}\}/g,today);
-    const doc={id:Date.now(),uid:parseInt(selEmp),title:`${t.name} - ${emp.name}`,type:t.name,body,date:new Date().toISOString().split('T')[0]};
-    save('documents',[doc,...db.documents]);
-    setModal(false); setPreview(doc);
+  // Filter and Search state
+  const [search, setSearch] = useState('');
+  const [empFilter, setEmpFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+
+  const isAdmin = ['admin', 'super_admin'].includes(user.role);
+
+  // File selection handler
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setUploadedFile({
+        name: file.name,
+        size: (file.size / 1024).toFixed(1) + ' KB',
+        type: file.name.split('.').pop().toUpperCase(),
+        dataUrl: evt.target.result
+      });
+      if (!docTitle) {
+        setDocTitle(file.name.replace(/\.[^/.]+$/, ''));
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const myDocs=isAdmin?db.documents:db.documents.filter(d=>d.uid===user.id);
+  // Submit uploaded document
+  const handleUploadSubmit = (e) => {
+    e.preventDefault();
+    if (!uploadedFile && !docTitle.trim()) {
+      alert('Please choose a file to upload or enter a document title.');
+      return;
+    }
+
+    const emp = (db.users || []).find(x => x.id === parseInt(selEmp)) || user;
+    const newDoc = {
+      id: Date.now(),
+      uid: parseInt(selEmp),
+      empName: emp.name,
+      empEid: emp.eid || 'EMP-000',
+      title: docTitle.trim() || uploadedFile?.name || 'HR Document',
+      type: docCategory,
+      fileUrl: uploadedFile?.dataUrl || null,
+      fileName: uploadedFile?.name || null,
+      fileSize: uploadedFile?.size || null,
+      fileType: uploadedFile?.type || 'DOC',
+      notes: docNotes,
+      isUploaded: true,
+      date: new Date().toISOString().split('T')[0],
+      uploadedBy: user.name
+    };
+
+    save('documents', [newDoc, ...(db.documents || [])]);
+    setModal(false);
+    setUploadedFile(null);
+    setDocTitle('');
+    setDocNotes('');
+    alert(`✔ Document uploaded successfully for ${emp.name}!`);
+  };
+
+  // Submit generated template document
+  const handleGenerateSubmit = (e) => {
+    e.preventDefault();
+    const t = (db.templates || []).find(x => x.id === parseInt(selTemp));
+    const emp = (db.users || []).find(x => x.id === parseInt(selEmp)) || user;
+    const issuer = (db.users || []).find(u => u.role === 'admin' || u.role === 'super_admin');
+    if (!t || !emp) return;
+
+    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const body = t.body
+      .replace(/\{\{NAME\}\}/g, emp.name)
+      .replace(/\{\{EID\}\}/g, emp.eid || 'EMP-000')
+      .replace(/\{\{JOIN\}\}/g, emp.joined || '2024-01-01')
+      .replace(/\{\{TITLE\}\}/g, emp.title || 'Staff Member')
+      .replace(/\{\{ISSUER\}\}/g, issuer?.name || 'HR Manager')
+      .replace(/\{\{TODAY\}\}/g, today);
+
+    const doc = {
+      id: Date.now(),
+      uid: parseInt(selEmp),
+      empName: emp.name,
+      empEid: emp.eid || 'EMP-000',
+      title: `${t.name} - ${emp.name}`,
+      type: t.name,
+      body,
+      isUploaded: false,
+      date: new Date().toISOString().split('T')[0],
+      uploadedBy: user.name
+    };
+
+    save('documents', [doc, ...(db.documents || [])]);
+    setModal(false);
+    setPreview(doc);
+  };
+
+  // Delete document
+  const handleDeleteDoc = (docId) => {
+    if (confirm('Are you sure you want to delete this document record?')) {
+      save('documents', (db.documents || []).filter(d => d.id !== docId));
+    }
+  };
+
+  // Filtered documents list
+  const userDocs = isAdmin ? (db.documents || []) : (db.documents || []).filter(d => d.uid === user.id);
+  
+  const filteredDocs = userDocs.filter(d => {
+    const assignedUser = (db.users || []).find(u => u.id === d.uid);
+    const empName = d.empName || assignedUser?.name || '';
+    
+    const matchesSearch = d.title.toLowerCase().includes(search.toLowerCase()) || 
+                          d.type.toLowerCase().includes(search.toLowerCase()) || 
+                          empName.toLowerCase().includes(search.toLowerCase());
+                          
+    const matchesEmp = empFilter === 'all' || d.uid === parseInt(empFilter);
+    const matchesType = typeFilter === 'all' || 
+                        (typeFilter === 'uploaded' ? d.isUploaded : !d.isUploaded);
+
+    return matchesSearch && matchesEmp && matchesType;
+  });
 
   return (
     <div className="anim-fadeup">
-      <PageHdr title="Documents" sub="HR letters, certificates & generated records">
-        {isAdmin&&<button className="btn btn-dark" onClick={()=>setModal(true)}><IC n="plus"/> Generate Document</button>}
+      <PageHdr title="Documents" sub="HR letters, employee records, uploaded files & generated certificates">
+        {isAdmin && (
+          <button 
+            className="btn btn-dark" 
+            style={{ background: '#7C5CFC', borderRadius: 99, padding: '9px 18px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            onClick={() => setModal(true)}
+          >
+            ➕ Upload / Generate Document
+          </button>
+        )}
       </PageHdr>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:16}}>
-        {myDocs.map(doc=>(
-          <div key={doc.id} className="card" style={{padding:24}}>
-            <div style={{marginBottom:14}}><IC n="file" s={36} style={{color:'var(--amber)'}}/></div>
-            <div style={{fontWeight:800,fontSize:15,marginBottom:6,letterSpacing:'-.3px'}}>{doc.title}</div>
-            <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:4}}><span className="badge b-gray">{doc.type}</span></div>
-            <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:18}}>Generated {doc.date}</div>
-            <div style={{display:'flex',gap:8}}>
-              <button className="btn btn-sm btn-ghost" style={{flex:1}} onClick={()=>setPreview(doc)}><IC n="eye" s={12}/> Preview</button>
-              <button className="btn btn-sm btn-dark" onClick={()=>window.print()}><IC n="print" s={12}/></button>
-            </div>
-          </div>
-        ))}
-        {myDocs.length===0&&<div className="empty-state"><span className="empty-state-icon"><IC n="file" s={48} style={{color:'var(--text-muted)'}}/></span><h3>No documents yet</h3><p>{isAdmin?'Generate an HR document using a template':'Documents generated for you will appear here'}</p></div>}
+      {/* FILTER & SEARCH TOOLBAR */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20, background: '#FFFFFF', padding: '14px 18px', borderRadius: 20, border: '1px solid #E5E7EB', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+        <input 
+          className="form-input" 
+          style={{ flex: '1 1 240px', borderRadius: 99, fontSize: 12.5 }}
+          placeholder="🔍 Search documents by title, category or employee name..." 
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+
+        {isAdmin && (
+          <select 
+            className="form-input" 
+            style={{ flex: '0 0 180px', borderRadius: 99, fontSize: 12.5 }}
+            value={empFilter}
+            onChange={e => setEmpFilter(e.target.value)}
+          >
+            <option value="all">👤 All Employees</option>
+            {(db.users || []).map(u => (
+              <option key={u.id} value={u.id}>{u.name} ({u.eid})</option>
+            ))}
+          </select>
+        )}
+
+        <select 
+          className="form-input" 
+          style={{ flex: '0 0 180px', borderRadius: 99, fontSize: 12.5 }}
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+        >
+          <option value="all">📁 All Document Types</option>
+          <option value="uploaded">📤 Uploaded Files</option>
+          <option value="template">📄 Template Generated</option>
+        </select>
       </div>
 
-      <Modal open={modal} onClose={()=>setModal(false)} title="Generate HR Document" subtitle="Select a template and employee to create a document">
-        <div className="form-group"><label className="form-label">Template</label><select className="form-input" value={selTemp} onChange={e=>setSelTemp(e.target.value)}>{db.templates.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
-        <div className="form-group"><label className="form-label">For Employee</label><select className="form-input" value={selEmp} onChange={e=>setSelEmp(e.target.value)}>{db.users.map(u=><option key={u.id} value={u.id}>{u.name} ({u.eid})</option>)}</select></div>
-        <div className="btn-row"><button className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button><button className="btn btn-dark" onClick={generate}>Generate Document</button></div>
+      {/* DOCUMENTS GRID */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+        {filteredDocs.map(doc => {
+          const assignedUser = (db.users || []).find(u => u.id === doc.uid);
+          return (
+            <div key={doc.id} className="card" style={{ padding: 20, borderRadius: 20, background: '#FFFFFF', border: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 14, background: doc.isUploaded ? '#FEF3C7' : '#F3E8FF', color: doc.isUploaded ? '#D97706' : '#7C5CFC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>
+                    {doc.isUploaded ? '📁' : '📄'}
+                  </div>
+                  <span style={{ background: doc.isUploaded ? '#FEF3C7' : '#F3E8FF', color: doc.isUploaded ? '#B45309' : '#6D28D9', padding: '3px 10px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>
+                    {doc.isUploaded ? `UPLOADED (${doc.fileType || 'FILE'})` : 'TEMPLATE'}
+                  </span>
+                </div>
+
+                <div style={{ fontWeight: 900, fontSize: 15, color: '#111827', marginBottom: 6, letterSpacing: '-0.3px' }}>
+                  {doc.title}
+                </div>
+
+                <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ background: '#F3F4F6', padding: '2px 8px', borderRadius: 6, fontWeight: 700, color: '#374151' }}>
+                    {doc.type}
+                  </span>
+                  {doc.fileSize && <span style={{ fontWeight: 700, color: '#9CA3AF' }}>• {doc.fileSize}</span>}
+                </div>
+
+                <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '8px 12px', margin: '10px 0', border: '1px solid #F3F4F6' }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#7C5CFC' }}>
+                    👤 Employee: {doc.empName || assignedUser?.name || 'Staff Member'} ({doc.empEid || assignedUser?.eid || 'EMP'})
+                  </div>
+                  <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 2 }}>
+                    📅 Date: {doc.date} {doc.uploadedBy ? `• By ${doc.uploadedBy}` : ''}
+                  </div>
+                  {doc.notes && (
+                    <div style={{ fontSize: 10.5, color: '#4B5563', marginTop: 4, fontStyle: 'italic' }}>
+                      "{doc.notes}"
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button 
+                  className="btn btn-sm btn-ghost" 
+                  style={{ flex: 1, borderRadius: 10, fontSize: 11.5, fontWeight: 800 }} 
+                  onClick={() => setPreview(doc)}
+                >
+                  👁️ Preview / View
+                </button>
+                {doc.fileUrl ? (
+                  <a 
+                    href={doc.fileUrl} 
+                    download={doc.fileName || `${doc.title}.png`}
+                    className="btn btn-sm btn-dark" 
+                    style={{ background: '#7C5CFC', borderRadius: 10, padding: '6px 12px', fontSize: 11.5, fontWeight: 800, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                  >
+                    ⬇️ Download
+                  </a>
+                ) : (
+                  <button className="btn btn-sm btn-dark" style={{ background: '#111827', borderRadius: 10 }} onClick={() => window.print()}>
+                    <IC n="print" s={12}/> Print
+                  </button>
+                )}
+                {isAdmin && (
+                  <button 
+                    className="btn btn-sm btn-ghost" 
+                    style={{ color: '#EF4444', borderRadius: 10, padding: '6px 10px' }} 
+                    onClick={() => handleDeleteDoc(doc.id)}
+                    title="Delete Document"
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {filteredDocs.length === 0 && (
+        <div className="empty-state" style={{ background: '#FFFFFF', padding: 40, borderRadius: 24, margin: '20px 0', border: '1px dashed #E5E7EB' }}>
+          <span className="empty-state-icon"><IC n="file" s={48} style={{ color: 'var(--text-muted)' }}/></span>
+          <h3 style={{ fontSize: 16, fontWeight: 900, marginTop: 10 }}>No documents found</h3>
+          <p style={{ fontSize: 12.5, color: '#6B7280' }}>
+            {isAdmin ? 'Click "+ Upload / Generate Document" to attach an employee document or issue a template' : 'Documents assigned to you will appear here'}
+          </p>
+        </div>
+      )}
+
+      {/* UPLOAD & GENERATE HR DOCUMENT MODAL */}
+      <Modal open={modal} onClose={() => setModal(false)} title="📁 Upload & Issue Employee Document">
+        {/* Tab switcher inside Modal */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18, borderBottom: '1px solid #E5E7EB', paddingBottom: 12 }}>
+          <button 
+            type="button" 
+            style={{
+              flex: 1,
+              background: docTab === 'upload' ? '#7C5CFC' : '#F3F4F6',
+              color: docTab === 'upload' ? '#FFFFFF' : '#4B5563',
+              border: 'none',
+              borderRadius: 99,
+              padding: '9px 14px',
+              fontSize: 12.5,
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: docTab === 'upload' ? '0 4px 12px rgba(124,92,252,0.3)' : 'none'
+            }}
+            onClick={() => setDocTab('upload')}
+          >
+            📁 Upload HR File / Attachment
+          </button>
+
+          <button 
+            type="button" 
+            style={{
+              flex: 1,
+              background: docTab === 'template' ? '#7C5CFC' : '#F3F4F6',
+              color: docTab === 'template' ? '#FFFFFF' : '#4B5563',
+              border: 'none',
+              borderRadius: 99,
+              padding: '9px 14px',
+              fontSize: 12.5,
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: docTab === 'template' ? '0 4px 12px rgba(124,92,252,0.3)' : 'none'
+            }}
+            onClick={() => setDocTab('template')}
+          >
+            📄 Generate from Template
+          </button>
+        </div>
+
+        {/* EMPLOYEE SELECTION FOR BOTH MODES */}
+        <div className="form-group" style={{ marginBottom: 16 }}>
+          <label className="form-label" style={{ fontWeight: 800, color: '#111827' }}>👤 Select Employee *</label>
+          <select className="form-input" style={{ borderRadius: 12 }} value={selEmp} onChange={e => setSelEmp(e.target.value)}>
+            {(db.users || []).map(u => (
+              <option key={u.id} value={u.id}>{u.name} — {u.title || 'Staff'} ({u.eid || 'EMP'})</option>
+            ))}
+          </select>
+        </div>
+
+        {/* MODE 1: UPLOAD FILE */}
+        {docTab === 'upload' && (
+          <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800, color: '#111827' }}>Document Title *</label>
+              <input 
+                className="form-input" 
+                style={{ borderRadius: 12 }}
+                placeholder="e.g., Offer Letter / Passport Copy / Relieving Certificate" 
+                value={docTitle} 
+                onChange={e => setDocTitle(e.target.value)} 
+                required 
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800, color: '#111827' }}>Document Category</label>
+              <select className="form-input" style={{ borderRadius: 12 }} value={docCategory} onChange={e => setDocCategory(e.target.value)}>
+                <option value="Offer Letter / Contract">Offer Letter / Employment Contract</option>
+                <option value="Identity Proof (Aadhaar/PAN/Passport)">Identity Proof (Aadhaar / PAN / Passport)</option>
+                <option value="Relieving Certificate">Relieving & Experience Certificate</option>
+                <option value="Educational Certificate">Educational & Marksheets</option>
+                <option value="Payslip / Bank Record">Payslip / Bank Statement</option>
+                <option value="Performance Review">Performance Evaluation</option>
+                <option value="Other HR File">Other HR File</option>
+              </select>
+            </div>
+
+            {/* FILE UPLOAD DROP ZONE */}
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800, color: '#111827' }}>Upload File (PDF, DOCX, JPG, PNG) *</label>
+              <div 
+                style={{
+                  border: '2px dashed #7C5CFC',
+                  borderRadius: 16,
+                  padding: '20px 16px',
+                  textAlign: 'center',
+                  background: '#F9FAFB',
+                  cursor: 'pointer',
+                  position: 'relative'
+                }}
+              >
+                <input 
+                  type="file" 
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt" 
+                  onChange={handleFileSelect}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0,
+                    cursor: 'pointer'
+                  }}
+                />
+                <div style={{ fontSize: 32, marginBottom: 6 }}>📤</div>
+                {uploadedFile ? (
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: '#7C5CFC' }}>{uploadedFile.name}</div>
+                    <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>Size: {uploadedFile.size} • Type: {uploadedFile.type}</div>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#10B981', marginTop: 4 }}>✓ File Selected & Ready to Upload</div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#374151' }}>Click to browse or drag & drop file here</div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>Supports PDF, DOCX, PNG, JPG up to 10MB</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Notes / Remarks (Optional)</label>
+              <textarea 
+                className="form-input" 
+                style={{ borderRadius: 12 }}
+                rows="2" 
+                placeholder="e.g., Verified by HR on onboarding day..." 
+                value={docNotes} 
+                onChange={e => setDocNotes(e.target.value)} 
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <button type="submit" className="btn btn-dark" style={{ flex: 1, padding: 11, background: '#7C5CFC', borderRadius: 99, fontWeight: 800 }}>
+                📁 Upload & Save Document
+              </button>
+              <button type="button" className="btn btn-ghost" style={{ padding: '11px 20px', borderRadius: 99, fontWeight: 700 }} onClick={() => setModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* MODE 2: GENERATE TEMPLATE */}
+        {docTab === 'template' && (
+          <form onSubmit={handleGenerateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800, color: '#111827' }}>HR Document Template *</label>
+              <select className="form-input" style={{ borderRadius: 12 }} value={selTemp} onChange={e => setSelTemp(e.target.value)}>
+                {(db.templates || []).map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <button type="submit" className="btn btn-dark" style={{ flex: 1, padding: 11, background: '#111827', borderRadius: 99, fontWeight: 800 }}>
+                📄 Generate & Issue Document
+              </button>
+              <button type="button" className="btn btn-ghost" style={{ padding: '11px 20px', borderRadius: 99, fontWeight: 700 }} onClick={() => setModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
 
-      <Modal open={!!preview} onClose={()=>setPreview(null)} title={preview?.title||'Document'}>
-        {preview&&<>
-          <div className="doc-preview">{preview.body}</div>
-          <div className="btn-row"><button className="btn btn-ghost" onClick={()=>setPreview(null)}>Close</button><button className="btn btn-dark" onClick={()=>window.print()}><IC n="print" s={14}/> Print</button></div>
-        </>}
+      {/* PREVIEW / VIEW DOCUMENT MODAL */}
+      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview?.title || 'Document Preview'}>
+        {preview && (
+          <>
+            <div style={{ marginBottom: 14, background: '#F9FAFB', padding: '12px 16px', borderRadius: 14, border: '1px solid #E5E7EB' }}>
+              <div style={{ fontSize: 13, fontWeight: 900, color: '#111827' }}>{preview.title}</div>
+              <div style={{ fontSize: 11.5, color: '#7C5CFC', fontWeight: 700, marginTop: 2 }}>
+                👤 Assigned to: {preview.empName || 'Employee'} ({preview.empEid || 'EMP'})
+              </div>
+            </div>
+
+            {preview.fileUrl ? (
+              preview.fileUrl.startsWith('data:image/') ? (
+                <div style={{ textAlign: 'center', padding: 10 }}>
+                  <img src={preview.fileUrl} alt={preview.title} style={{ maxWidth: '100%', maxHeight: 400, borderRadius: 14, border: '1px solid #E5E7EB' }} />
+                </div>
+              ) : (
+                <div style={{ background: '#F3F4F6', borderRadius: 16, padding: 30, textAlign: 'center', margin: '14px 0' }}>
+                  <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#111827' }}>{preview.fileName || preview.title}</div>
+                  <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>File Size: {preview.fileSize || 'N/A'} • Type: {preview.fileType || 'Document'}</div>
+                  <a 
+                    href={preview.fileUrl} 
+                    download={preview.fileName || `${preview.title}.png`}
+                    className="btn btn-dark" 
+                    style={{ background: '#7C5CFC', borderRadius: 99, padding: '8px 20px', marginTop: 14, fontSize: 12, fontWeight: 800, textDecoration: 'none', display: 'inline-block' }}
+                  >
+                    ⬇️ Download Attached File
+                  </a>
+                </div>
+              )
+            ) : (
+              <div className="doc-preview" style={{ background: '#F9FAFB', padding: 20, borderRadius: 14, fontFamily: 'monospace', fontSize: 12.5, whiteSpace: 'pre-wrap', lineHeight: 1.6, border: '1px solid #E5E7EB' }}>
+                {preview.body || 'No document text body available.'}
+              </div>
+            )}
+
+            <div className="btn-row" style={{ marginTop: 18 }}>
+              <button className="btn btn-ghost" style={{ borderRadius: 99 }} onClick={() => setPreview(null)}>Close</button>
+              <button className="btn btn-dark" style={{ borderRadius: 99, background: '#111827' }} onClick={() => window.print()}>
+                <IC n="print" s={14}/> Print Document
+              </button>
+            </div>
+          </>
+        )}
       </Modal>
     </div>
   );
