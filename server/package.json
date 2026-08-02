@@ -15,7 +15,7 @@
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "mongodb": "^7.5.0",
+    "mongodb": "^6.21.0",
     "multer": "^1.4.5-lts.1",
     "sqlite3": "^5.1.7"
   }

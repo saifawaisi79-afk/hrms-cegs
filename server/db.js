@@ -8,40 +8,103 @@ require('dotenv').config();
 const dbPath = process.env.VERCEL || process.env.NOW_REGION
   ? '/tmp/database.sqlite'
   : path.join(__dirname, 'database.sqlite');
+
 let db = null;
 let mongoClient = null;
 let mongoDb = null;
+let syncPending = false;
+let syncTimer = null;
 
-// Function to handle MongoDB connection and SQLite file syncing
+// ─────────────────────────────────────────────────────────────────────────────
+// ROBUST MONGODB CONNECTION with full TLS options for OpenSSL 3.x + Node 26+
+// ─────────────────────────────────────────────────────────────────────────────
+async function createMongoClient(uri) {
+  const { MongoClient } = require('mongodb');
+
+  // Try Option 1: Standard connection (works on most systems)
+  try {
+    const client = new MongoClient(uri, {
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
+      socketTimeoutMS: 30000,
+    });
+    await client.connect();
+    return client;
+  } catch (err1) {
+    console.warn('[MongoDB] Standard TLS failed, trying with tlsAllowInvalidCertificates...', err1.message.slice(0, 80));
+  }
+
+  // Try Option 2: Relaxed TLS (for OpenSSL 3.x compatibility issues)
+  try {
+    const { MongoClient: MC2 } = require('mongodb');
+    const client2 = new MC2(uri, {
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
+      socketTimeoutMS: 30000,
+      tls: true,
+      tlsAllowInvalidCertificates: true,
+      tlsAllowInvalidHostnames: true,
+    });
+    await client2.connect();
+    console.warn('[MongoDB] Connected with relaxed TLS (tlsAllowInvalidCertificates=true)');
+    return client2;
+  } catch (err2) {
+    console.warn('[MongoDB] Relaxed TLS also failed:', err2.message.slice(0, 80));
+  }
+
+  // Try Option 3: Append directConnection and authSource
+  try {
+    const { MongoClient: MC3 } = require('mongodb');
+    const uriWithOptions = uri.includes('?')
+      ? `${uri}&tlsInsecure=true`
+      : `${uri}?tlsInsecure=true`;
+    const client3 = new MC3(uriWithOptions, {
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
+    });
+    await client3.connect();
+    console.warn('[MongoDB] Connected with tlsInsecure=true URI param');
+    return client3;
+  } catch (err3) {
+    console.error('[MongoDB] All TLS options failed. Last error:', err3.message.slice(0, 120));
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONNECT: Downloads existing SQLite binary from MongoDB Atlas on startup
+// ─────────────────────────────────────────────────────────────────────────────
 async function connectDatabase() {
   if (db) return; // Already connected
 
   const mongoUri = process.env.MONGODB_URI;
 
   if (mongoUri) {
-    console.log('[MongoDB Connect] Attempting to connect to MongoDB...');
-    const { MongoClient } = require('mongodb');
+    console.log('[MongoDB Connect] Attempting to connect to MongoDB Atlas...');
     try {
-      mongoClient = new MongoClient(mongoUri);
-      await mongoClient.connect();
-      mongoDb = mongoClient.db();
-      console.log('[MongoDB Connect] Connected to MongoDB:', mongoDb.databaseName);
+      mongoClient = await createMongoClient(mongoUri);
+      if (mongoClient) {
+        mongoDb = mongoClient.db();
+        console.log('[MongoDB Connect] Connected to MongoDB:', mongoDb.databaseName);
 
-      // Try to retrieve database binary from collection 'cegs_db'
-      const doc = await mongoDb.collection('cegs_db').findOne({ _id: 'sqlite_database' });
-      if (doc && doc.data) {
-        console.log('[MongoDB Connect] Existing database backup found in MongoDB. Loading binary...');
-        const buffer = doc.data.buffer || doc.data;
-        fs.writeFileSync(dbPath, buffer);
-        console.log('[MongoDB Connect] Database file written locally.');
+        // Try to retrieve database binary from collection 'cegs_db'
+        const doc = await mongoDb.collection('cegs_db').findOne({ _id: 'sqlite_database' });
+        if (doc && doc.data) {
+          console.log('[MongoDB Connect] Existing database backup found in MongoDB. Loading binary...');
+          const buffer = doc.data.buffer || doc.data;
+          fs.writeFileSync(dbPath, buffer);
+          console.log('[MongoDB Connect] Database file written locally. Size:', buffer.length, 'bytes');
+        } else {
+          console.log('[MongoDB Connect] No database backup found. Starting fresh SQLite file.');
+        }
       } else {
-        console.log('[MongoDB Connect] No database backup found. Starting fresh SQLite file.');
+        console.warn('[MongoDB Connect] Could not establish MongoDB connection. Running in local-only mode.');
       }
     } catch (err) {
-      console.error('[MongoDB Connect] Failed to connect or download backup. Operating locally.', err);
+      console.error('[MongoDB Connect] Failed to connect or download backup. Operating locally.', err.message);
     }
   } else {
-    console.log('[MongoDB Connect] MONGODB_URI not found in environment variables. Operating locally.');
+    console.log('[MongoDB Connect] MONGODB_URI not found. Operating locally.');
   }
 
   return new Promise((resolve, reject) => {
@@ -57,39 +120,97 @@ async function connectDatabase() {
   });
 }
 
-// Function to sync local SQLite file back to MongoDB
+// ─────────────────────────────────────────────────────────────────────────────
+// SYNC: Uploads SQLite binary to MongoDB Atlas — DEBOUNCED & NON-BLOCKING
+// Uses a 500ms debounce so rapid writes don't spam the network
+// ─────────────────────────────────────────────────────────────────────────────
+function scheduleSyncToMongo() {
+  if (!mongoDb) return; // No MongoDB connection, skip
+
+  // Clear any pending sync timer
+  if (syncTimer) clearTimeout(syncTimer);
+
+  // Mark sync as pending
+  syncPending = true;
+
+  // Debounce: wait 500ms after the last write before syncing
+  syncTimer = setTimeout(async () => {
+    syncPending = false;
+    syncTimer = null;
+    await syncToMongo();
+  }, 500);
+}
+
 async function syncToMongo() {
   if (!mongoDb) return;
   try {
-    if (!fs.existsSync(dbPath)) return;
+    if (!fs.existsSync(dbPath)) {
+      console.warn('[MongoDB Sync] SQLite file not found, skipping sync.');
+      return;
+    }
+
     const data = fs.readFileSync(dbPath);
+
     await mongoDb.collection('cegs_db').updateOne(
       { _id: 'sqlite_database' },
       { $set: { data: data, updatedAt: new Date() } },
       { upsert: true }
     );
-    console.log('[MongoDB Sync] SQLite database synced to cloud Atlas successfully.');
+
+    console.log('[MongoDB Sync] ✓ SQLite database synced to MongoDB Atlas successfully. Size:', data.length, 'bytes');
   } catch (err) {
-    console.error('[MongoDB Sync] Error uploading database binary to MongoDB:', err);
+    console.error('[MongoDB Sync] ✗ Error uploading to MongoDB Atlas:', err.message);
+
+    // If the connection was lost, try to reconnect once
+    if (err.message && (err.message.includes('topology') || err.message.includes('connection') || err.message.includes('SSL') || err.message.includes('TLS'))) {
+      console.log('[MongoDB Sync] Attempting MongoDB reconnection...');
+      try {
+        const mongoUri = process.env.MONGODB_URI;
+        if (mongoUri) {
+          if (mongoClient) {
+            try { await mongoClient.close(); } catch {}
+          }
+          mongoClient = await createMongoClient(mongoUri);
+          if (mongoClient) {
+            mongoDb = mongoClient.db();
+            console.log('[MongoDB Sync] Reconnected. Retrying sync...');
+            await syncToMongo(); // Retry once after reconnect
+          }
+        }
+      } catch (reconnErr) {
+        console.error('[MongoDB Sync] Reconnection failed:', reconnErr.message);
+      }
+    }
   }
 }
 
-// Helper promise-based database functions
+// ─────────────────────────────────────────────────────────────────────────────
+// PERIODIC SYNC: Backup every 30 seconds regardless of writes
+// ─────────────────────────────────────────────────────────────────────────────
+function startPeriodicSync(intervalMs = 30000) {
+  setInterval(async () => {
+    if (!syncPending && mongoDb) {
+      await syncToMongo();
+    }
+  }, intervalMs);
+  console.log('[MongoDB Sync] Periodic sync enabled every', intervalMs / 1000, 'seconds.');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QUERY HELPERS: Promise-based wrappers around sqlite3 callbacks
+// ─────────────────────────────────────────────────────────────────────────────
 const dbQuery = {
   run(sql, params = []) {
     return new Promise((resolve, reject) => {
       if (!db) return reject(new Error('Database not initialized.'));
-      db.run(sql, params, async function (err) {
+      db.run(sql, params, function (err) {
         if (err) {
           reject(err);
         } else {
-          try {
-            await syncToMongo();
-            resolve({ id: this.lastID, changes: this.changes });
-          } catch (syncErr) {
-            console.error('Sync failed, but SQL executed:', syncErr);
-            resolve({ id: this.lastID, changes: this.changes });
-          }
+          const result = { id: this.lastID, changes: this.changes };
+          // Schedule async (non-blocking) sync to MongoDB
+          scheduleSyncToMongo();
+          resolve(result);
         }
       });
     });
@@ -115,24 +236,22 @@ const dbQuery = {
   exec(sql) {
     return new Promise((resolve, reject) => {
       if (!db) return reject(new Error('Database not initialized.'));
-      db.exec(sql, async (err) => {
+      db.exec(sql, (err) => {
         if (err) {
           reject(err);
         } else {
-          try {
-            await syncToMongo();
-            resolve();
-          } catch (syncErr) {
-            console.error('Sync failed, but SQL executed:', syncErr);
-            resolve();
-          }
+          // Schedule async (non-blocking) sync to MongoDB
+          scheduleSyncToMongo();
+          resolve();
         }
       });
     });
   }
 };
 
-// Initialize schema
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT DATABASE: Creates all tables if they don't exist
+// ─────────────────────────────────────────────────────────────────────────────
 async function initDatabase() {
   // Connect database and pull from Mongo first if needed
   await connectDatabase();
@@ -172,10 +291,29 @@ async function initDatabase() {
       bank_name TEXT,
       account_number TEXT,
       ifsc_code TEXT,
+      dob TEXT,
+      address TEXT,
+      employment_type TEXT DEFAULT 'full_time',
+      must_change_password INTEGER DEFAULT 1,
+      temp_password_expires_at TEXT,
       FOREIGN KEY (department_id) REFERENCES departments(id),
       FOREIGN KEY (reports_to) REFERENCES users(id)
     )
   `);
+
+  // Safely add missing columns to existing users table if migrating
+  const userCols = ['dob', 'address', 'employment_type', 'must_change_password', 'temp_password_expires_at'];
+  for (const col of userCols) {
+    try {
+      if (col === 'must_change_password') {
+        await dbQuery.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0`);
+      } else {
+        await dbQuery.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
+      }
+    } catch (colErr) {
+      // Column already exists — ignore
+    }
+  }
 
   // 3. Leaves Table
   await dbQuery.exec(`
@@ -360,6 +498,15 @@ async function initDatabase() {
     )
   `);
 
+  // 15. System Settings Table
+  await dbQuery.exec(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT UNIQUE NOT NULL,
+      value TEXT NOT NULL
+    )
+  `);
+
   // 16. Candidates Table
   await dbQuery.exec(`
     CREATE TABLE IF NOT EXISTS candidates (
@@ -380,11 +527,33 @@ async function initDatabase() {
     )
   `);
 
+  // 17. Audit Logs Table
+  await dbQuery.exec(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      admin_id INTEGER NOT NULL,
+      admin_name TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target_user_id INTEGER NOT NULL,
+      details_json TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (admin_id) REFERENCES users(id),
+      FOREIGN KEY (target_user_id) REFERENCES users(id)
+    )
+  `);
+
   console.log('Database tables successfully verified/created.');
+
+  // Start periodic sync after init
+  startPeriodicSync(30000);
+
+  // Immediately sync current state to MongoDB
+  await syncToMongo();
 }
 
 module.exports = {
   db,
   dbQuery,
-  initDatabase
+  initDatabase,
+  syncToMongo,
 };

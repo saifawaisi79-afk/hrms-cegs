@@ -5,6 +5,43 @@ const { dbQuery } = require('../db');
 const { authenticateToken, requireRole, checkPermission } = require('../middleware/auth');
 
 // ==========================================
+// 0. ALIAS ROUTES (keep frontend compatibility)
+// ==========================================
+
+// GET /api/users - alias for /api/employees
+router.get('/users', authenticateToken, async (req, res) => {
+  try {
+    const isElevated = ['admin', 'super_admin'].includes(req.user.role);
+    const query = isElevated
+      ? `SELECT u.*, d.name as department_name FROM users u LEFT JOIN departments d ON u.department_id = d.id`
+      : `SELECT u.id, u.employee_id, u.name, u.email, u.role, u.department_id, u.designation, u.joining_date, u.status, u.avatar_url, d.name as department_name FROM users u LEFT JOIN departments d ON u.department_id = d.id WHERE u.status = 'active'`;
+    const users = await dbQuery.all(query);
+    res.json(users);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// GET /api/users/:id - alias for /api/employees/:id
+router.get('/users/:id', authenticateToken, async (req, res) => {
+  try {
+    const user = await dbQuery.get(
+      `SELECT u.*, d.name as department_name FROM users u LEFT JOIN departments d ON u.department_id = d.id WHERE u.id = ?`,
+      [req.params.id]
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    delete user.password_hash;
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+
+
+// ==========================================
 // 1. DEPARTMENTS
 // ==========================================
 
@@ -1047,11 +1084,221 @@ router.post('/notifications/broadcast', authenticateToken, requireRole(['admin',
 
 
 // ==========================================
-// 12. USER MANAGEMENT & permissions (Super Admin Exclusive)
+// 12. USER MANAGEMENT & ONBOARDING (Admin & Super Admin)
 // ==========================================
 
+// GET /api/admin/employees
+router.get('/admin/employees', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const users = await dbQuery.all(`
+      SELECT u.id, u.employee_id, u.name, u.email, u.role, u.status, u.designation, u.joining_date, u.contact,
+             u.dob, u.address, u.employment_type, u.must_change_password, u.temp_password_expires_at,
+             u.basic_salary, u.bank_name, u.account_number, u.ifsc_code, u.emergency_contact, u.last_login,
+             d.id as department_id, d.name as department_name, mgr.name as manager_name
+      FROM users u
+      LEFT JOIN departments d ON u.department_id = d.id
+      LEFT JOIN users mgr ON u.reports_to = mgr.id
+      ORDER BY u.id DESC
+    `);
+    res.json(users);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch employees' });
+  }
+});
+
+// POST /api/admin/employees/onboard
+router.post('/admin/employees/onboard', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
+  const {
+    employee_id, name, email, contact, designation, department_id, reports_to,
+    joining_date, dob, address, employment_type, basic_salary, emergency_contact,
+    bank_name, account_number, ifsc_code, role
+  } = req.body;
+
+  if (!employee_id || !name || !email) {
+    return res.status(400).json({ error: 'Employee ID, Full Name, and Email are required.' });
+  }
+
+  try {
+    const existingEmpId = await dbQuery.get('SELECT id FROM users WHERE employee_id = ?', [String(employee_id).trim()]);
+    if (existingEmpId) {
+      return res.status(400).json({ error: `Employee ID "${employee_id}" is already assigned to another user.` });
+    }
+
+    const existingEmail = await dbQuery.get('SELECT id FROM users WHERE LOWER(email) = LOWER(?)', [String(email).trim()]);
+    if (existingEmail) {
+      return res.status(400).json({ error: `Email address "${email}" is already registered in the system.` });
+    }
+
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$';
+    let tempPassword = 'Cegs#';
+    for (let i = 0; i < 5; i++) {
+      tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    const password_hash = await bcrypt.hash(tempPassword, 10);
+    const expiresAt = new Date(Date.now() + 72 * 3600 * 1000).toISOString();
+
+    const result = await dbQuery.run(
+      `INSERT INTO users (
+        employee_id, name, email, password_hash, role, department_id, reports_to,
+        designation, joining_date, contact, status, basic_salary, emergency_contact,
+        bank_name, account_number, ifsc_code, dob, address, employment_type,
+        must_change_password, temp_password_expires_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      [
+        String(employee_id).trim(), String(name).trim(), String(email).trim().toLowerCase(),
+        password_hash, role || 'employee', department_id || null, reports_to || null,
+        designation || 'Team Member', joining_date || new Date().toISOString().slice(0, 10),
+        contact || '', basic_salary || 3000, emergency_contact || '', bank_name || '',
+        account_number || '', ifsc_code || '', dob || '', address || '', employment_type || 'full_time',
+        expiresAt
+      ]
+    );
+
+    const newUserId = result.id;
+
+    await dbQuery.run(
+      `INSERT INTO audit_logs (admin_id, admin_name, action, target_user_id, details_json, created_at)
+       VALUES (?, ?, 'employee_onboarded', ?, ?, ?)`,
+      [
+        req.user.id, req.user.name, newUserId,
+        JSON.stringify({ employee_id, name, email, role: role || 'employee', temp_password_generated: true }),
+        new Date().toISOString()
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: 'Employee successfully onboarded and credentials generated!',
+      user_id: newUserId,
+      temp_password: tempPassword,
+      credentials: {
+        employee_id,
+        name,
+        email,
+        temporary_password: tempPassword
+      }
+    });
+
+  } catch (err) {
+    console.error('Onboard error:', err);
+    res.status(500).json({ error: 'Failed to onboard employee.' });
+  }
+});
+
+// PUT /api/admin/employees/:id
+router.put('/admin/employees/:id', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
+  const {
+    name, contact, designation, department_id, reports_to, joining_date, dob,
+    address, employment_type, basic_salary, emergency_contact, bank_name, account_number, ifsc_code, role
+  } = req.body;
+
+  try {
+    const userToUpdate = await dbQuery.get('SELECT id, name FROM users WHERE id = ?', [req.params.id]);
+    if (!userToUpdate) return res.status(404).json({ error: 'Employee record not found.' });
+
+    await dbQuery.run(
+      `UPDATE users SET
+        name = COALESCE(?, name),
+        contact = COALESCE(?, contact),
+        designation = COALESCE(?, designation),
+        department_id = COALESCE(?, department_id),
+        reports_to = COALESCE(?, reports_to),
+        joining_date = COALESCE(?, joining_date),
+        dob = COALESCE(?, dob),
+        address = COALESCE(?, address),
+        employment_type = COALESCE(?, employment_type),
+        basic_salary = COALESCE(?, basic_salary),
+        emergency_contact = COALESCE(?, emergency_contact),
+        bank_name = COALESCE(?, bank_name),
+        account_number = COALESCE(?, account_number),
+        ifsc_code = COALESCE(?, ifsc_code),
+        role = COALESCE(?, role)
+       WHERE id = ?`,
+      [
+        name, contact, designation, department_id, reports_to, joining_date, dob,
+        address, employment_type, basic_salary, emergency_contact, bank_name, account_number, ifsc_code, role,
+        req.params.id
+      ]
+    );
+
+    await dbQuery.run(
+      `INSERT INTO audit_logs (admin_id, admin_name, action, target_user_id, details_json, created_at)
+       VALUES (?, ?, 'details_updated', ?, ?, ?)`,
+      [req.user.id, req.user.name, req.params.id, JSON.stringify({ name, designation }), new Date().toISOString()]
+    );
+
+    res.json({ message: 'Employee details updated successfully.' });
+  } catch (err) {
+    console.error('Update employee error:', err);
+    res.status(500).json({ error: 'Failed to update employee details.' });
+  }
+});
+
+// POST /api/admin/employees/:id/reset-password
+router.post('/admin/employees/:id/reset-password', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const userToReset = await dbQuery.get('SELECT id, name, email, employee_id FROM users WHERE id = ?', [req.params.id]);
+    if (!userToReset) return res.status(404).json({ error: 'Employee not found.' });
+
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$';
+    let tempPassword = 'Cegs#';
+    for (let i = 0; i < 5; i++) {
+      tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    const password_hash = await bcrypt.hash(tempPassword, 10);
+    const expiresAt = new Date(Date.now() + 72 * 3600 * 1000).toISOString();
+
+    await dbQuery.run(
+      `UPDATE users SET password_hash = ?, must_change_password = 1, temp_password_expires_at = ? WHERE id = ?`,
+      [password_hash, expiresAt, userToReset.id]
+    );
+
+    await dbQuery.run(
+      `INSERT INTO audit_logs (admin_id, admin_name, action, target_user_id, details_json, created_at)
+       VALUES (?, ?, 'credentials_reset', ?, ?, ?)`,
+      [req.user.id, req.user.name, userToReset.id, JSON.stringify({ employee_id: userToReset.employee_id, email: userToReset.email }), new Date().toISOString()]
+    );
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully! Temporary credentials generated.',
+      temp_password: tempPassword,
+      credentials: {
+        employee_id: userToReset.employee_id,
+        name: userToReset.name,
+        email: userToReset.email,
+        temporary_password: tempPassword
+      }
+    });
+
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Failed to reset employee password.' });
+  }
+});
+
+// GET /api/admin/audit-logs
+router.get('/admin/audit-logs', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
+  try {
+    const logs = await dbQuery.all(`
+      SELECT a.*, u.name as target_user_name, u.email as target_user_email, u.employee_id as target_employee_id
+      FROM audit_logs a
+      LEFT JOIN users u ON a.target_user_id = u.id
+      ORDER BY a.id DESC
+      LIMIT 100
+    `);
+    res.json(logs);
+  } catch (err) {
+    console.error('Fetch audit logs error:', err);
+    res.status(500).json({ error: 'Failed to fetch audit logs.' });
+  }
+});
+
 // GET /api/admin/users
-router.get('/admin/users', authenticateToken, requireRole(['super_admin']), async (req, res) => {
+router.get('/admin/users', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
   try {
     const users = await dbQuery.all(`
       SELECT u.id, u.employee_id, u.name, u.email, u.role, u.status, u.last_login, d.name as department_name
@@ -1073,6 +1320,13 @@ router.put('/admin/users/:id/role', authenticateToken, requireRole(['super_admin
   }
   try {
     await dbQuery.run('UPDATE users SET role = ? WHERE id = ?', [role, req.params.id]);
+
+    await dbQuery.run(
+      `INSERT INTO audit_logs (admin_id, admin_name, action, target_user_id, details_json, created_at)
+       VALUES (?, ?, 'role_changed', ?, ?, ?)`,
+      [req.user.id, req.user.name, req.params.id, JSON.stringify({ role }), new Date().toISOString()]
+    );
+
     res.json({ message: 'User role updated successfully' });
   } catch (err) {
     console.error(err);
@@ -1081,13 +1335,20 @@ router.put('/admin/users/:id/role', authenticateToken, requireRole(['super_admin
 });
 
 // PUT /api/admin/users/:id/status
-router.put('/admin/users/:id/status', authenticateToken, requireRole(['super_admin']), async (req, res) => {
+router.put('/admin/users/:id/status', authenticateToken, requireRole(['admin', 'super_admin']), async (req, res) => {
   const { status } = req.body;
   if (!['active', 'inactive'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
   try {
     await dbQuery.run('UPDATE users SET status = ? WHERE id = ?', [status, req.params.id]);
+
+    await dbQuery.run(
+      `INSERT INTO audit_logs (admin_id, admin_name, action, target_user_id, details_json, created_at)
+       VALUES (?, ?, 'status_changed', ?, ?, ?)`,
+      [req.user.id, req.user.name, req.params.id, JSON.stringify({ status }), new Date().toISOString()]
+    );
+
     res.json({ message: 'User status updated successfully' });
   } catch (err) {
     console.error(err);
@@ -1245,9 +1506,25 @@ router.post('/candidates', async (req, res) => {
 router.put('/candidates/:id', async (req, res) => {
   try {
     const item = req.body;
-    await dbQuery.run(
-      `UPDATE candidates SET date=?, name=?, number=?, languages=?, qualification=?, response=?, callStatus=?, location=?, experience=?, followUp1=?, followUp2=?, followUp3=?, employee=? WHERE id=?`,
-    res.json({ message: 'Updated successfully' });
+    const isNumericId = !isNaN(Number(req.params.id)) && Number(req.params.id) > 0;
+
+    let updateResult = { changes: 0 };
+    if (isNumericId) {
+      updateResult = await dbQuery.run(
+        `UPDATE candidates SET date=?, name=?, number=?, languages=?, qualification=?, response=?, callStatus=?, location=?, experience=?, followUp1=?, followUp2=?, followUp3=?, employee=? WHERE id=?`,
+        [item.date || '', item.name || '', item.number || '', item.languages || 'English', item.qualification || '', item.response || '', item.callStatus || 'Select Status', item.location || 'Bengaluru', item.experience || 0, item.followUp1 || '', item.followUp2 || '', item.followUp3 || '', item.employee || 'Madiha Mehak', Number(req.params.id)]
+      );
+    }
+
+    if (!isNumericId || !updateResult || updateResult.changes === 0) {
+      const insertResult = await dbQuery.run(
+        `INSERT INTO candidates (date, name, number, languages, qualification, response, callStatus, location, experience, followUp1, followUp2, followUp3, employee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [item.date || '', item.name || '', item.number || '', item.languages || 'English', item.qualification || '', item.response || '', item.callStatus || 'Select Status', item.location || 'Bengaluru', item.experience || 0, item.followUp1 || '', item.followUp2 || '', item.followUp3 || '', item.employee || 'Madiha Mehak']
+      );
+      return res.json({ message: 'Inserted candidate successfully', id: insertResult.id });
+    }
+
+    res.json({ message: 'Updated successfully', id: Number(req.params.id) });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update candidate' });
   }

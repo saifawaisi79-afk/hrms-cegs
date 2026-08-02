@@ -3075,7 +3075,7 @@ function EmployeesPage({ db, save, user }) {
     return 'employee';
   };
   const currentPermRole = getUserPermissionRole(user);
-  const canEdit = db.permissions?.[currentPermRole]?.deleteEmp || ['admin','super_admin'].includes(user.role);
+  const canEdit = db.permissions?.[currentPermRole]?.deleteEmp ?? ['admin','super_admin'].includes(user.role);
 
   const list = db.users.filter(u=>
     (deptF==='all'||u.deptId===parseInt(deptF)) &&
@@ -3325,7 +3325,7 @@ function LeavesPage({ db, save, user }) {
     return 'employee';
   };
   const currentPermRole = getUserPermissionRole(user);
-  const isAdmin = db.permissions?.[currentPermRole]?.approveLeave || ['admin','super_admin'].includes(user.role);
+  const isAdmin = db.permissions?.[currentPermRole]?.approveLeave ?? ['admin','super_admin'].includes(user.role);
 
   const submit = e => {
     e.preventDefault();
@@ -3442,7 +3442,7 @@ function AttendancePage({ db, save, user }) {
     return 'employee';
   };
   const currentPermRole = getUserPermissionRole(user);
-  const isAdmin = db.permissions?.[currentPermRole]?.attendance || ['admin','super_admin'].includes(user.role);
+  const isAdmin = db.permissions?.[currentPermRole]?.attendance ?? ['admin','super_admin'].includes(user.role);
   const today = new Date().toISOString().split('T')[0];
   const todayRec = db.attendance.find(a=>a.uid===user.id&&a.date===today);
 
@@ -3574,7 +3574,7 @@ function PayrollPage({ db, save, user }) {
     return 'employee';
   };
   const currentPermRole = getUserPermissionRole(user);
-  const isAdmin = db.permissions?.[currentPermRole]?.payroll || ['admin','super_admin'].includes(user.role);
+  const isAdmin = db.permissions?.[currentPermRole]?.payroll ?? ['admin','super_admin'].includes(user.role);
 
   const runPayroll = () => {
     const active=db.users.filter(u=>['active','on_leave'].includes(u.status));

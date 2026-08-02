@@ -68,6 +68,7 @@ router.post('/login', ipWhitelist, async (req, res) => {
         contact: user.contact,
         status: user.status,
         avatar_url: user.avatar_url,
+        must_change_password: user.must_change_password ? 1 : 0,
         last_login: nowStr
       }
     });
@@ -107,12 +108,42 @@ router.get('/session', authenticateToken, async (req, res) => {
         contact: user.contact,
         status: user.status,
         avatar_url: user.avatar_url,
+        must_change_password: user.must_change_password ? 1 : 0,
         last_login: user.last_login
       }
     });
   } catch (err) {
     console.error('Session error:', err);
     res.status(500).json({ error: 'Server error fetching session' });
+  }
+});
+
+// POST /auth/change-first-password
+router.post('/change-first-password', authenticateToken, async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+  if (new_password.length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+  }
+
+  try {
+    const user = await dbQuery.get('SELECT * FROM users WHERE id = ?', [req.user.id]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const match = await bcrypt.compare(current_password, user.password_hash);
+    if (!match) {
+      return res.status(400).json({ error: 'Incorrect temporary/current password' });
+    }
+
+    const newHash = await bcrypt.hash(new_password, 10);
+    await dbQuery.run('UPDATE users SET password_hash = ?, must_change_password = 0, temp_password_expires_at = NULL WHERE id = ?', [newHash, user.id]);
+
+    res.json({ message: 'Password updated successfully! Welcome to your Employee Portal.' });
+  } catch (err) {
+    console.error('Change first password error:', err);
+    res.status(500).json({ error: 'Server error updating password' });
   }
 });
 

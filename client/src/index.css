@@ -2,12 +2,12 @@
    DESIGN TOKENS
 ======================================== */
 :root {
-  /* Light Mode */
-  --bg-body: #F7F4ED;
-  --bg-surface: #FDFCF8;
-  --bg-raised: #FFFFFF;
-  --bg-overlay: rgba(253,252,248,0.85);
-  --border: rgba(0,0,0,0.07);
+  /* Light Mode - Translucent Marble Glass */
+  --bg-body: #F4EFE6;
+  --bg-surface: rgba(255, 255, 255, 0.65);
+  --bg-raised: rgba(255, 255, 255, 0.8);
+  --bg-overlay: rgba(255, 255, 255, 0.85);
+  --border: rgba(120, 100, 80, 0.12);
   --border-focus: #F59E0B;
 
   --text-primary: #111827;
@@ -67,7 +67,8 @@
 html { scroll-behavior: smooth; }
 body {
   font-family: 'Plus Jakarta Sans', 'Outfit', -apple-system, sans-serif;
-  background: var(--bg-body);
+  background: #F4EFE6 url('/bg_marble.png') no-repeat center center fixed;
+  background-size: cover;
   color: var(--text-primary);
   min-height: 100vh;
   line-height: 1.5;
@@ -595,29 +596,42 @@ textarea.form-input { resize:vertical; min-height:88px; line-height:1.6; }
    MODAL
 ======================================== */
 .modal-backdrop {
-  position:fixed; inset:0; z-index:99999;
-  background:rgba(15,23,42,0.65); backdrop-filter:blur(8px);
-  display:flex; align-items:center; justify-content:center; 
-  padding:80px 20px 40px 20px; overflow-y:auto;
-  animation:fadeIn .2s ease;
+  position: fixed; inset: 0; z-index: 99999;
+  background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(8px);
+  display: flex; align-items: flex-start; justify-content: center; 
+  padding: 30px 16px; overflow-y: auto;
+  animation: fadeIn .2s ease;
 }
 .modal-box {
-  background:var(--bg-raised); border-radius:var(--r-2xl);
-  width:100%; max-width:580px; max-height:85vh; overflow-y:auto;
-  box-shadow:0 32px 80px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.06);
-  animation:scaleIn .25s var(--ease-spring);
-  padding:32px; margin:auto;
+  background: var(--bg-raised); border-radius: 24px;
+  width: 100%; max-width: 680px; max-height: calc(100vh - 60px);
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  animation: scaleIn .25s var(--ease-spring);
+  margin: 0 auto; flex-shrink: 0;
+  border: 1px solid var(--border);
 }
-.modal-hdr { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:26px; }
-.modal-title { font-size:22px; font-weight:800; letter-spacing:-.5px; }
-.modal-subtitle { font-size:13px; color:var(--text-muted); margin-top:3px; }
+.modal-hdr {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 20px 24px 14px 24px; border-bottom: 1px solid var(--border);
+  background: var(--bg-raised); flex-shrink: 0;
+}
+.modal-title { font-size: 19px; font-weight: 800; letter-spacing: -.4px; }
+.modal-subtitle { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
+.modal-body-scroll {
+  padding: 20px 24px; overflow-y: auto; flex: 1 1 auto; min-height: 0;
+  scrollbar-width: thin;
+}
+.modal-body-scroll form {
+  display: flex; flex-direction: column; min-height: 0;
+}
 .modal-close {
-  background:none; border:none; cursor:pointer;
-  width:32px; height:32px; border-radius:8px;
-  display:flex; align-items:center; justify-content:center;
-  color:var(--text-muted); transition:all .2s; flex-shrink:0;
+  background: none; border: none; cursor: pointer;
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); transition: all .2s; flex-shrink: 0;
 }
-.modal-close:hover { background:var(--red-light); color:var(--red); }
+.modal-close:hover { background: var(--red-light); color: var(--red); }
 
 /* ========================================
    PROGRESS / BARS
@@ -1823,26 +1837,41 @@ input:checked + .switch-slider:before {
   align-items: center;
   justify-content: space-between;
   height: 72px;
-  padding: 0 24px;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
+  padding: 0 44px;
+  background: rgba(255, 255, 255, 0.58) !important;
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.75);
   position: sticky;
   top: 0;
   z-index: 500;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 24px rgba(120, 100, 80, 0.06);
+  transition: all 0.25s ease;
 }
 .cegs-header .cegs-logo-capsule {
   margin: 0 !important;
   align-self: center !important;
-  border: 1.5px solid var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 99px;
-  padding: 8px 18px;
+  padding: 8px 22px;
   font-family: 'Outfit', sans-serif;
   font-size: 15px;
-  font-weight: 800;
-  color: var(--text-primary);
+  font-weight: 900;
+  color: #0F172A;
   letter-spacing: -0.3px;
-  background: var(--bg-raised);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cegs-header .cegs-logo-capsule:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 6px 18px rgba(124, 92, 252, 0.18);
+  border-color: #7C5CFC;
+}
+.cegs-header .cegs-logo-capsule span {
+  color: #7C5CFC;
+  margin-left: 2px;
 }
 .header-center {
   display: flex;
@@ -1851,11 +1880,13 @@ input:checked + .switch-slider:before {
 .nav-capsule-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: var(--bg-raised);
-  padding: 4px;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(12px);
+  padding: 5px 6px;
   border-radius: 99px;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 .nav-dropdown-wrapper {
   position: relative;
@@ -1863,109 +1894,268 @@ input:checked + .switch-slider:before {
 .nav-capsule-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
+  gap: 7px;
+  padding: 8px 18px;
   border-radius: 99px;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
-  color: var(--text-muted);
-  font-family: 'Inter', sans-serif;
+  color: #64748B;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s var(--ease);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .nav-capsule-btn:hover {
-  background: rgba(0, 0, 0, 0.03);
-  color: var(--text-primary);
+  background: #FFFFFF;
+  color: #7C5CFC;
+  border-color: rgba(124, 92, 252, 0.2);
+  box-shadow: 0 2px 8px rgba(124, 92, 252, 0.08);
 }
 .nav-capsule-btn.active {
-  background: var(--text-primary);
-  color: var(--text-inverse);
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
 }
 .nav-dropdown-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   left: 50%;
   transform: translateX(-50%);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-lg);
-  padding: 6px;
-  min-width: 190px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  padding: 8px;
+  min-width: 210px;
   z-index: 510;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  animation: navDropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 3px;
+  animation: navDropdownSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
-@keyframes navDropdownFadeIn {
+@keyframes navDropdownSlideIn {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(-4px);
+    transform: translateX(-50%) translateY(-8px) scale(0.97);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(-50%) translateY(0) scale(1);
   }
 }
 .dropdown-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  color: var(--text-muted);
-  font-family: 'Inter', sans-serif;
+  padding: 10px 14px;
+  border-radius: 12px;
+  color: #475569;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.18s ease;
   white-space: nowrap;
 }
 .dropdown-item:hover {
-  background: var(--bg-raised);
-  color: var(--text-primary);
+  background: #F3F0FF;
+  color: #7C5CFC;
+  transform: translateX(2px);
 }
 .dropdown-item svg {
-  width: 14px;
-  height: 14px;
-  color: var(--text-muted);
-  opacity: 0.8;
-  transition: color 0.15s;
+  width: 15px;
+  height: 15px;
+  color: #64748B;
+  opacity: 0.85;
+  transition: all 0.18s ease;
 }
 .dropdown-item:hover svg {
-  color: var(--text-primary);
+  color: #7C5CFC;
+  opacity: 1;
+  transform: scale(1.1);
 }
 .header-right {
   display: flex;
   align-items: center;
   gap: 12px;
+  padding-right: 12px;
+}
+.header-right .cegs-btn-bell {
+  background: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
 }
 .header-right .cegs-btn-setting {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
+  padding: 9px 20px;
   border-radius: 99px;
-  border: none;
-  background: var(--text-primary);
-  color: var(--text-inverse);
-  font-family: 'Inter', sans-serif;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+  color: #FFFFFF;
+  font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 800;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.2s, opacity 0.2s;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .header-right .cegs-btn-setting:hover {
-  transform: translateY(-1px);
-  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+  background: linear-gradient(135deg, #7C5CFC 0%, #6366F1 100%);
 }
 .header-right .cegs-btn-setting svg {
-  color: var(--text-inverse);
+  color: #FFFFFF;
 }
+
+/* ========================================
+   GLASSMARBLE MERGED SECTIONS (ENTIRE HRMS)
+======================================== */
+.card,
+.welcome-widget,
+.personal-profile-card,
+.calendar-schedule-widget,
+.team-widget,
+.taskboard-widget,
+.checklist-card,
+.donut-graph-widget,
+.recruitment-widget,
+.page-hdr,
+.metric-card,
+.stat-card,
+.chart-card,
+.tbl-wrap,
+.tbl-container,
+.filter-bar,
+.search-bar,
+.tab-container,
+.table-container,
+.section-container,
+.panel-card,
+.profile-view,
+.payroll-summary,
+.leave-summary,
+.attendance-summary,
+.workflow-card,
+.announcement-card,
+.helpdesk-card,
+.audit-card,
+.settings-card,
+.permissions-card,
+.organizations-card,
+.directory-card,
+.candidates-card,
+.rewards-card,
+.jobs-card,
+.meetings-card,
+.notifications-card,
+.lunch-widget,
+.recruitment-page-card,
+.timesheet-card,
+.asset-card,
+.document-card,
+.policy-card,
+.integration-card {
+  background: rgba(255, 255, 255, 0.62) !important;
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.75) !important;
+  box-shadow: 0 8px 32px rgba(120, 100, 80, 0.08), 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.card:hover,
+.welcome-widget:hover,
+.personal-profile-card:hover,
+.calendar-schedule-widget:hover,
+.team-widget:hover,
+.taskboard-widget:hover,
+.checklist-card:hover,
+.metric-card:hover,
+.stat-card:hover,
+.announcement-card:hover {
+  background: rgba(255, 255, 255, 0.78) !important;
+  box-shadow: 0 12px 40px rgba(120, 100, 80, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+}
+
+.summary-box-card {
+  background: rgba(255, 255, 255, 0.68) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+}
+
+.taskboard-column {
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+}
+
+.team-slide-card {
+  background: rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Translucent Tables Across Entire App */
+.tbl-wrap, .tbl-wrap table, .tbl {
+  background: transparent !important;
+}
+
+.tbl th {
+  background: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-bottom: 1.5px solid rgba(120, 100, 80, 0.15) !important;
+}
+
+.tbl tr {
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  transition: background 0.2s ease !important;
+}
+
+.tbl tr:hover {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Translucent Modals & Overlays */
+.modal-overlay, .modal-backdrop {
+  background: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+.modal-content, .modal-box, .modal-card {
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18) !important;
+}
+
+/* Translucent Inputs & Form Controls */
+.form-input, select.form-input, textarea.form-input {
+  background: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(120, 100, 80, 0.18) !important;
+  transition: all 0.2s ease !important;
+}
+
+.form-input:focus {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: #7C5CFC !important;
+  box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.15) !important;
+}
+
+
 
 
 

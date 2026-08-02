@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -32,9 +33,10 @@ app.use(express.urlencoded({ extended: true }));
 const uploadsDir = path.join(__dirname, 'uploads');
 app.use('/uploads', express.static(uploadsDir));
 
-// Route Mounts
-app.use('/auth', authRoutes);
-app.use('/api', apiRoutes);
+// Route Mounts — ORDER MATTERS: specific routes must come BEFORE generic /api
+app.use('/auth', authRoutes);          // Legacy path (e.g. from direct calls)
+app.use('/api/auth', authRoutes);      // Canonical path — MUST BE BEFORE /api
+app.use('/api', apiRoutes);            // Generic API routes (must be last)
 
 // Health check endpoint
 app.get('/health', (req, res) => {
