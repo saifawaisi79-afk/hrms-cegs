@@ -1978,40 +1978,87 @@ input:checked + .switch-slider:before {
   transform: scale(1.1);
 }
 .header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-right: 12px;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  padding-right: 36px !important;
+  margin-right: 12px !important;
+  flex-shrink: 0 !important;
 }
 .header-right .cegs-btn-bell {
-  background: rgba(255, 255, 255, 0.75) !important;
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  min-height: 42px !important;
+  aspect-ratio: 1 / 1 !important;
+  flex-shrink: 0 !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.95) !important;
   backdrop-filter: blur(8px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.85) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.header-right .cegs-btn-bell:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 14px rgba(124, 92, 252, 0.18) !important;
+  border-color: rgba(124, 92, 252, 0.3) !important;
+}
+.header-right .cegs-btn-avatar {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  min-height: 42px !important;
+  aspect-ratio: 1 / 1 !important;
+  flex-shrink: 0 !important;
+  border-radius: 50% !important;
+  background: #0F172A !important;
+  color: #FFFFFF !important;
+  border: none !important;
+  font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2) !important;
+  transition: all 0.2s ease !important;
+}
+.header-right .cegs-btn-avatar:hover {
+  transform: translateY(-2px) !important;
+  background: #7C5CFC !important;
+  box-shadow: 0 6px 16px rgba(124, 92, 252, 0.3) !important;
 }
 .header-right .cegs-btn-setting {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 20px;
-  border-radius: 99px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
-  color: #FFFFFF;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 13px;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  height: 42px !important;
+  padding: 0 20px !important;
+  border-radius: 99px !important;
+  border: 1px solid rgba(15, 23, 42, 0.1) !important;
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%) !important;
+  color: #FFFFFF !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15) !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  flex-shrink: 0 !important;
 }
 .header-right .cegs-btn-setting:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
-  background: linear-gradient(135deg, #7C5CFC 0%, #6366F1 100%);
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25) !important;
+  background: linear-gradient(135deg, #7C5CFC 0%, #6366F1 100%) !important;
 }
 .header-right .cegs-btn-setting svg {
-  color: #FFFFFF;
+  color: #FFFFFF !important;
 }
 
 /* ========================================
