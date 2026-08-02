@@ -2014,7 +2014,78 @@ function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTarge
   };
   const weekdays = getWeekDates();
   const todayIdx = weekdays.findIndex(w => w.isToday);
-  const [activeDay, setActiveDay] = useState(todayIdx >= 0 ? todayIdx : 3);
+  const [activeDay, setActiveDay] = useState(todayIdx >= 0 ? todayIdx : 0);
+
+  // ── EVENT CALENDAR STATE & DATA ──
+  const [eventCategoryFilter, setEventCategoryFilter] = useState('all'); // 'all' | 'leave' | 'hiring' | 'holiday' | 'birthday' | 'meeting'
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [newEventForm, setNewEventForm] = useState({ title: '', type: 'leave', date: new Date().toISOString().split('T')[0], person: user?.name || '', notes: '' });
+
+  const defaultEvents = [
+    { id: 'evt_1', title: 'Casual Leave - Nusrath Hussain', type: 'leave', date: '2026-08-04', person: 'Nusrath Hussain', icon: '🌴', badgeColor: '#EF4444', badgeBg: '#FEE2E2', notes: 'Approved Annual Leave' },
+    { id: 'evt_2', title: 'Medical Leave - Madiha Mehak', type: 'leave', date: '2026-08-07', person: 'Madiha Mehak', icon: '🩺', badgeColor: '#F59E0B', badgeBg: '#FEF3C7', notes: 'Sick Leave & Doctor Checkup' },
+    { id: 'evt_3', title: 'Personal Leave - Mohammed Raheel', type: 'leave', date: '2026-08-11', person: 'Mohammed Raheel', icon: '🌴', badgeColor: '#EF4444', badgeBg: '#FEE2E2', notes: 'Family Event' },
+    { id: 'evt_4', title: 'Onboarding - Mohammed Raheel (Billing)', type: 'hiring', date: '2026-08-03', person: 'Mohammed Raheel', icon: '🚀', badgeColor: '#8B5CF6', badgeBg: '#F3E8FF', notes: 'Billing Specialist Joining Date' },
+    { id: 'evt_5', title: 'New Hire Joining - Ananya Sharma (Engineering)', type: 'hiring', date: '2026-08-05', person: 'Ananya Sharma', icon: '✨', badgeColor: '#3B82F6', badgeBg: '#EFF6FF', notes: 'Frontend Engineer Welcome & System Setup' },
+    { id: 'evt_6', title: 'New Hire Joining - Vikramaditya (Sales Strategy)', type: 'hiring', date: '2026-08-08', person: 'Vikramaditya', icon: '💼', badgeColor: '#10B981', badgeBg: '#ECFDF5', notes: 'Senior Sales Lead Orientation' },
+    { id: 'evt_7', title: 'Independence Day (National Holiday)', type: 'holiday', date: '2026-08-15', person: 'Company Holiday', icon: '🏖️', badgeColor: '#D97706', badgeBg: '#FEF3C7', notes: 'Official CEGS Office Holiday' },
+    { id: 'evt_8', title: 'Raksha Bandhan Holiday', type: 'holiday', date: '2026-08-19', person: 'Company Holiday', icon: '🪔', badgeColor: '#EC4899', badgeBg: '#FCE7F3', notes: 'Festive Holiday' },
+    { id: 'evt_9', title: 'Janmashtami Holiday', type: 'holiday', date: '2026-08-26', person: 'Company Holiday', icon: '🪶', badgeColor: '#6366F1', badgeBg: '#EEF2FF', notes: 'Festive Holiday' },
+    { id: 'evt_10', title: "CEO Saif's Birthday 🎂🎉", type: 'birthday', date: '2026-08-12', person: 'Saif Awaisi', icon: '🎂', badgeColor: '#EC4899', badgeBg: '#FCE7F3', notes: 'System Architect & CEO Birthday Celebration' },
+    { id: 'evt_11', title: "Madiha's Birthday 🎂", type: 'birthday', date: '2026-08-22', person: 'Madiha Mehak', icon: '🎂', badgeColor: '#8B5CF6', badgeBg: '#F3E8FF', notes: 'Team Birthday Celebration' },
+    { id: 'evt_12', title: "Raheel's Birthday 🎂", type: 'birthday', date: '2026-08-28', person: 'Mohammed Raheel', icon: '🎈', badgeColor: '#3B82F6', badgeBg: '#EFF6FF', notes: 'Billing Specialist Birthday' },
+    { id: 'evt_13', title: 'Monthly All-Hands Strategy Meeting', type: 'meeting', date: '2026-08-10', person: 'All CEGS Staff', icon: '🎯', badgeColor: '#059669', badgeBg: '#ECFDF5', notes: 'Monthly Targets & Performance Review' },
+    { id: 'evt_14', title: 'Q3 Recruitment Target Sync', type: 'meeting', date: '2026-08-20', person: 'HR Team', icon: '📊', badgeColor: '#6D28D9', badgeBg: '#EDE9FE', notes: 'Recruitment & Onboarding Alignment' }
+  ];
+
+  const eventsList = db.events && db.events.length > 0 ? db.events : defaultEvents;
+
+  // Merge approved leaves dynamically from db.leaves
+  const approvedLeavesEvents = (db.leaves || []).filter(l => l.status === 'approved').map(l => ({
+    id: `leave_${l.id}`,
+    title: `Approved Leave - ${l.employee_name || 'Staff Member'}`,
+    type: 'leave',
+    date: l.start_date,
+    person: l.employee_name || 'Staff Member',
+    icon: '🌴',
+    badgeColor: '#EF4444',
+    badgeBg: '#FEE2E2',
+    notes: `${l.leave_type} (${l.start_date} to ${l.end_date})`
+  }));
+
+  const allEventsCombined = [...eventsList, ...approvedLeavesEvents];
+
+  const handleAddEventSubmit = (e) => {
+    e.preventDefault();
+    if (!newEventForm.title.trim()) return;
+
+    let icon = '🎯';
+    let badgeColor = '#8B5CF6';
+    let badgeBg = '#F3E8FF';
+    if (newEventForm.type === 'leave') { icon = '🌴'; badgeColor = '#EF4444'; badgeBg = '#FEE2E2'; }
+    else if (newEventForm.type === 'hiring') { icon = '🚀'; badgeColor = '#3B82F6'; badgeBg = '#EFF6FF'; }
+    else if (newEventForm.type === 'holiday') { icon = '🏖️'; badgeColor = '#D97706'; badgeBg = '#FEF3C7'; }
+    else if (newEventForm.type === 'birthday') { icon = '🎂'; badgeColor = '#EC4899'; badgeBg = '#FCE7F3'; }
+
+    const createdEvent = {
+      id: 'evt_' + Date.now(),
+      title: newEventForm.title.trim(),
+      type: newEventForm.type,
+      date: newEventForm.date,
+      person: newEventForm.person || user?.name || '',
+      icon,
+      badgeColor,
+      badgeBg,
+      notes: newEventForm.notes || ''
+    };
+
+    save('events', [...allEventsCombined, createdEvent]);
+    setShowAddEventModal(false);
+    setNewEventForm({ title: '', type: 'leave', date: new Date().toISOString().split('T')[0], person: user?.name || '', notes: '' });
+  };
+
+  // ── LIVE CHAT SIDEBAR SEARCH STATE ──
+  const [chatWidgetSearch, setChatWidgetSearch] = useState('');
 
   // Team Slider scrolling Ref
   const teamSliderRef = useRef(null);
@@ -2120,27 +2191,197 @@ function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTarge
           </div>
         </div>
 
-        {/* ROW 2: Calendar planner slider */}
-        <div className="calendar-schedule-widget">
-          <div className="calendar-header">
-            <div className="calendar-title">Calendar / Schedule</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>{weekdays[activeDay] ? `${weekdays[activeDay].monthName} ${weekdays[activeDay].year}` : 'July 2026'} ➔</div>
+        {/* ROW 2: Interactive Event Calendar (Leaves, New Hirings, Holidays, Birthdays, Meetings) */}
+        <div className="calendar-schedule-widget" style={{ borderRadius: 24, padding: 24, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0,0,0,0.04)' }}>
+          {/* Header & Filter Controls */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: '#111827', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif" }}>
+                  📅 Team Event & Schedule Calendar
+                </h3>
+                <span style={{ background: '#F3E8FF', color: '#7C5CFC', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
+                  {allEventsCombined.length} Scheduled Events
+                </span>
+              </div>
+              <p style={{ fontSize: 12.5, color: '#6B7280', marginTop: 3, fontWeight: 500 }}>
+                Track staff leaves 🌴, new hirings 🚀, upcoming holidays 🏖️, team birthdays 🎂, & meetings 🎯
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button 
+                type="button" 
+                style={{ background: '#7C5CFC', color: '#ffffff', border: 'none', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 8px rgba(124,92,252,0.3)' }}
+                onClick={() => setShowAddEventModal(true)}
+              >
+                ➕ Add Event
+              </button>
+            </div>
           </div>
-          <div className="calendar-slider-container">
+
+          {/* EVENT CATEGORY FILTER PILLS */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18, borderBottom: '1px solid #F3F4F6', paddingBottom: 14 }}>
+            {[
+              { id: 'all', label: 'All Events', icon: '✨' },
+              { id: 'leave', label: 'Leaves', icon: '🌴' },
+              { id: 'hiring', label: 'New Hirings', icon: '🚀' },
+              { id: 'holiday', label: 'Holidays', icon: '🏖️' },
+              { id: 'birthday', label: 'Birthdays', icon: '🎂' },
+              { id: 'meeting', label: 'Meetings', icon: '🎯' }
+            ].map(cat => (
+              <button
+                key={cat.id}
+                type="button"
+                style={{
+                  background: eventCategoryFilter === cat.id ? '#111827' : '#F3F4F6',
+                  color: eventCategoryFilter === cat.id ? '#FFFFFF' : '#4B5563',
+                  border: 'none',
+                  borderRadius: 99,
+                  padding: '6px 14px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: eventCategoryFilter === cat.id ? '0 2px 6px rgba(0,0,0,0.15)' : 'none'
+                }}
+                onClick={() => setEventCategoryFilter(cat.id)}
+              >
+                {cat.icon} {cat.label} ({cat.id === 'all' ? allEventsCombined.length : allEventsCombined.filter(e => e.type === cat.id).length})
+              </button>
+            ))}
+          </div>
+
+          {/* DAY CAPSULES SLIDER WITH EVENT INDICATOR DOTS */}
+          <div className="calendar-slider-container" style={{ gap: 10, paddingBottom: 8 }}>
             {weekdays.map((w, idx) => {
               const isSunday = w.day === 'Sunday';
+              const isSelected = activeDay === idx;
+              const dayEvents = allEventsCombined.filter(e => e.date === w.fullDateStr || (isSunday && e.type === 'holiday'));
+
               return (
                 <div 
                   key={idx} 
-                  className={`cal-capsule ${activeDay === idx ? 'active' : ''} ${isSunday ? 'sunday-blur' : ''}`} 
-                  onClick={() => !isSunday && setActiveDay(idx)}
-                  style={isSunday ? { filter: 'blur(1px) grayscale(100%)', opacity: 0.4, pointerEvents: 'none' } : {}}
+                  className={`cal-capsule ${isSelected ? 'active' : ''} ${isSunday ? 'sunday-blur' : ''}`} 
+                  onClick={() => setActiveDay(idx)}
+                  style={{
+                    flex: '0 0 calc(100% / 7 - 10px)',
+                    minWidth: 72,
+                    padding: '12px 6px',
+                    borderRadius: 20,
+                    background: isSelected ? 'linear-gradient(135deg, #7C5CFC 0%, #6366F1 100%)' : isSunday ? '#FEF2F2' : '#F9FAFB',
+                    border: isSelected ? '2px solid #7C5CFC' : isSunday ? '1px solid #FCA5A5' : '1px solid #E5E7EB',
+                    color: isSelected ? '#FFFFFF' : isSunday ? '#991B1B' : '#111827',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: isSelected ? '0 6px 16px rgba(124,92,252,0.35)' : 'none',
+                    transition: 'all 0.2s ease'
+                  }}
                 >
-                  <span className="cal-capsule-day">{w.day.slice(0, 3)} {isSunday && '(Holiday)'}</span>
-                  <span className="cal-capsule-date">{w.date}</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', opacity: isSelected ? 0.9 : 0.6 }}>
+                    {w.day.slice(0, 3)}
+                  </span>
+                  <span style={{ fontSize: 18, fontWeight: 900, margin: '2px 0' }}>
+                    {w.date}
+                  </span>
+                  
+                  {/* Event Dots */}
+                  <div style={{ display: 'flex', gap: 3, marginTop: 4 }}>
+                    {dayEvents.length > 0 ? (
+                      dayEvents.slice(0, 3).map((ev, i) => (
+                        <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: isSelected ? '#FFFFFF' : ev.badgeColor || '#7C5CFC', display: 'inline-block' }} />
+                      ))
+                    ) : (
+                      <span style={{ fontSize: 9, opacity: 0.4 }}>•</span>
+                    )}
+                  </div>
                 </div>
               );
             })}
+          </div>
+
+          {/* SELECTED DAY / FILTERED EVENT CARDS LIST */}
+          <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #F3F4F6' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#374151', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>
+                📌 {eventCategoryFilter === 'all' 
+                  ? `Events for ${weekdays[activeDay]?.day || 'Selected Date'} (${weekdays[activeDay]?.date || ''} ${weekdays[activeDay]?.monthName || ''})`
+                  : `${eventCategoryFilter.toUpperCase()} EVENTS LIST`}
+              </span>
+              <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>
+                Click "+ Add Event" to add custom team events
+              </span>
+            </div>
+
+            {/* Event List Items */}
+            {(() => {
+              const selectedDateStr = weekdays[activeDay]?.fullDateStr;
+              const displayEvents = allEventsCombined.filter(e => {
+                const matchesCategory = eventCategoryFilter === 'all' || e.type === eventCategoryFilter;
+                const matchesDate = eventCategoryFilter !== 'all' ? true : (e.date === selectedDateStr || (weekdays[activeDay]?.day === 'Sunday' && e.type === 'holiday'));
+                return matchesCategory && matchesDate;
+              });
+
+              if (displayEvents.length === 0) {
+                return (
+                  <div style={{ background: '#F9FAFB', borderRadius: 16, padding: '16px 20px', textAlign: 'center', color: '#9CA3AF', fontSize: 12.5, fontWeight: 600, border: '1px dashed #E5E7EB' }}>
+                    ✨ No scheduled events on this date. Click "+ Add Event" to add leaves, birthdays, or meetings!
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
+                  {displayEvents.map(evt => {
+                    const evtUser = (db.users || []).find(u => u.name.toLowerCase() === evt.person.toLowerCase());
+                    return (
+                      <div 
+                        key={evt.id} 
+                        style={{ 
+                          background: evt.badgeBg || '#F9FAFB', 
+                          border: `1px solid ${evt.badgeColor}40`, 
+                          borderRadius: 16, 
+                          padding: '12px 16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 12
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ fontSize: 24, width: 40, height: 40, borderRadius: 12, background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
+                            {evt.icon || '📌'}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 900, color: '#111827' }}>{evt.title}</div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: evt.badgeColor, marginTop: 2 }}>
+                              👤 {evt.person} • 📅 {evt.date}
+                            </div>
+                            {evt.notes && (
+                              <div style={{ fontSize: 10.5, color: '#6B7280', marginTop: 2 }}>{evt.notes}</div>
+                            )}
+                          </div>
+                        </div>
+
+                        {evtUser && evtUser.id !== user?.id && (
+                          <button 
+                            type="button"
+                            className="btn btn-xs"
+                            onClick={() => openChatWithUser ? openChatWithUser(evtUser) : (setChatTargetUser && setChatTargetUser(evtUser))}
+                            style={{ background: evt.badgeColor, color: '#FFFFFF', borderRadius: 8, padding: '4px 10px', fontSize: 10.5, fontWeight: 800, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            💬 Wish / Chat
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -2313,51 +2554,92 @@ function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTarge
 
       {/* RIGHT FLOATING SIDEBAR */}
       <div className="modern-dash-sidebar">
-        {/* WIDGET 1: New Hirings & Onboarding Section */}
-        <div className="card" style={{ padding: 18, borderRadius: 20 }}>
-          <div className="card-hdr" style={{ paddingBottom: 10, marginBottom: 12, borderBottom: '1px solid var(--border)' }}>
+        {/* WIDGET 1: Modern Live Team Chat & Messenger Sidebar */}
+        <div className="card" style={{ padding: 20, borderRadius: 24, background: 'rgba(255, 255, 255, 0.75)', backdropFilter: 'blur(16px)', border: '1px solid rgba(124, 92, 252, 0.2)', boxShadow: '0 10px 30px rgba(124, 92, 252, 0.08)' }}>
+          <div className="card-hdr" style={{ paddingBottom: 12, marginBottom: 14, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
             <div>
-              <div className="section-title" style={{ fontSize: 16, fontWeight: 900, fontFamily: "'Outfit', sans-serif" }}>
-                ✨ New Hirings & Onboarding
+              <div className="section-title" style={{ fontSize: 16, fontWeight: 900, fontFamily: "'Outfit', sans-serif", color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
+                💬 Live Team Messenger
               </div>
-              <div className="section-sub" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Recent team members onboarded to CEGS
+              <div className="section-sub" style={{ fontSize: 11.5, color: '#6B7280', marginTop: 2 }}>
+                Instant direct messaging across staff
               </div>
             </div>
-            <span className="badge b-purple" style={{ fontSize: 11, fontWeight: 800 }}>
-              {db.users.length} Active
+            <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '3px 10px', borderRadius: 99, fontSize: 10.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981' }} />
+              {db.users.length} Online
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 240, overflowY: 'auto', paddingRight: 4 }}>
-            {db.users.slice(0, 4).map(u => (
-              <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-surface, #F8FAFC)', borderRadius: 14, border: '1px solid var(--border, #E2E8F0)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <img src={u.avatar || u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name)}`} style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid #7C5CFC', objectFit: 'cover' }} alt="" />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-main, #111827)' }}>{u.name}</div>
-                    <div style={{ fontSize: 11, color: '#7C5CFC', fontWeight: 700 }}>{u.title || u.designation || 'Team Member'}</div>
+          {/* SEARCH TEAM INPUT */}
+          <input 
+            style={{ width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 99, padding: '7px 14px', fontSize: 12, fontWeight: 600, outline: 'none', marginBottom: 12 }}
+            placeholder="🔍 Search colleague..."
+            value={chatWidgetSearch}
+            onChange={e => setChatWidgetSearch(e.target.value)}
+          />
+
+          {/* TEAM CHAT CARDS LIST */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 260, overflowY: 'auto', paddingRight: 2 }}>
+            {(db.users || [])
+              .filter(u => u.id !== user?.id && (u.name.toLowerCase().includes(chatWidgetSearch.toLowerCase()) || (u.title || '').toLowerCase().includes(chatWidgetSearch.toLowerCase())))
+              .slice(0, 5)
+              .map(u => {
+                const unreadCount = (db.messages || []).filter(m => m.fromId === u.id && m.toId === user?.id && !m.read).length;
+                return (
+                  <div 
+                    key={u.id} 
+                    onClick={() => openChatWithUser ? openChatWithUser(u) : (setChatTargetUser && setChatTargetUser(u))}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      padding: '10px 12px', 
+                      background: unreadCount > 0 ? '#F3E8FF' : '#F9FAFB', 
+                      borderRadius: 16, 
+                      border: unreadCount > 0 ? '1px solid #C084FC' : '1px solid #E5E7EB', 
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ position: 'relative' }}>
+                        <img src={u.avatar || u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name)}`} style={{ width: 38, height: 38, borderRadius: '50%', border: '2px solid #7C5CFC', objectFit: 'cover' }} alt="" />
+                        <span style={{ position: 'absolute', bottom: 1, right: 1, width: 10, height: 10, borderRadius: '50%', background: '#10B981', border: '2px solid #FFFFFF' }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 900, color: '#111827' }}>{u.name}</div>
+                        <div style={{ fontSize: 11, color: '#7C5CFC', fontWeight: 700 }}>{u.title || u.designation || 'Team Member'}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {unreadCount > 0 && (
+                        <span style={{ background: '#EF4444', color: '#FFFFFF', borderRadius: 99, padding: '2px 7px', fontSize: 10, fontWeight: 900 }}>
+                          {unreadCount} new
+                        </span>
+                      )}
+                      <button 
+                        type="button" 
+                        className="btn btn-xs"
+                        style={{ padding: '5px 10px', fontSize: 11, fontWeight: 800, background: 'linear-gradient(135deg, #7C5CFC 0%, #6366F1 100%)', color: '#ffffff', borderRadius: 99, border: 'none', cursor: 'pointer', boxShadow: '0 2px 6px rgba(124,92,252,0.25)' }}
+                      >
+                        💬 Chat
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <button 
-                  type="button" 
-                  className="btn btn-xs btn-dark" 
-                  onClick={() => openChatWithUser ? openChatWithUser(u) : (setChatTargetUser && setChatTargetUser(u))}
-                  style={{ padding: '4px 8px', fontSize: 10.5, fontWeight: 800, background: '#7C5CFC', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 3 }}
-                >
-                  💬 Chat
-                </button>
-              </div>
-            ))}
+                );
+              })}
           </div>
 
           <button 
             type="button" 
             className="btn btn-sm btn-ghost" 
-            onClick={() => setView('onboarding')} 
-            style={{ width: '100%', marginTop: 12, fontSize: 12, fontWeight: 800, borderRadius: 10, border: '1px dashed #7C5CFC', color: '#7C5CFC' }}
+            onClick={() => setShowMessengerInbox(true)} 
+            style={{ width: '100%', marginTop: 14, fontSize: 12, fontWeight: 800, borderRadius: 99, border: '1px dashed #7C5CFC', color: '#7C5CFC', padding: 8 }}
           >
-            ➕ Onboard New Hire & View All
+            🚀 Open Full Team Messenger Inbox
           </button>
         </div>
 
@@ -2536,6 +2818,80 @@ function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTarge
               </button>
             </div>
           </div>
+        </Modal>
+
+        {/* ADD EVENT MODAL */}
+        <Modal open={showAddEventModal} onClose={() => setShowAddEventModal(false)} title="📅 Add Team Event / Schedule">
+          <form onSubmit={handleAddEventSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="form-group">
+              <label className="form-label">Event Title *</label>
+              <input 
+                className="form-input" 
+                placeholder="e.g., Casual Leave - Nusrath / Diwali Holiday" 
+                value={newEventForm.title} 
+                onChange={e => setNewEventForm({ ...newEventForm, title: e.target.value })} 
+                required 
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Event Type *</label>
+                <select 
+                  className="form-input" 
+                  value={newEventForm.type} 
+                  onChange={e => setNewEventForm({ ...newEventForm, type: e.target.value })}
+                >
+                  <option value="leave">🌴 Leave / Absence</option>
+                  <option value="hiring">🚀 New Hiring / Onboarding</option>
+                  <option value="holiday">🏖️ Holiday / Festivity</option>
+                  <option value="birthday">🎂 Birthday Celebration</option>
+                  <option value="meeting">🎯 Meeting / Company Sync</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Event Date *</label>
+                <input 
+                  type="date" 
+                  className="form-input" 
+                  value={newEventForm.date} 
+                  onChange={e => setNewEventForm({ ...newEventForm, date: e.target.value })} 
+                  required 
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Person / Staff Name</label>
+              <input 
+                className="form-input" 
+                placeholder="e.g., Saif Awaisi / Company Holiday" 
+                value={newEventForm.person} 
+                onChange={e => setNewEventForm({ ...newEventForm, person: e.target.value })} 
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Notes / Description</label>
+              <textarea 
+                className="form-input" 
+                rows="2" 
+                placeholder="Optional details or instructions..." 
+                value={newEventForm.notes} 
+                onChange={e => setNewEventForm({ ...newEventForm, notes: e.target.value })} 
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <button type="submit" className="btn btn-dark" style={{ flex: 1, padding: 10, background: '#7C5CFC', borderRadius: 99, fontWeight: 800 }}>
+                ✓ Save Event to Calendar
+              </button>
+              <button type="button" className="btn btn-ghost" style={{ padding: '10px 18px', borderRadius: 99, fontWeight: 700 }} onClick={() => setShowAddEventModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
         </Modal>
       </div>
     </div>
