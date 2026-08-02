@@ -33,11 +33,11 @@ const SEED_DATA = {
   ],
   permissions: {
     super_admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true },
-    admin: { payroll: false, attendance: true, deleteEmp: true, approveLeave: true, reports: true },
-    manager: { payroll: false, attendance: true, deleteEmp: false, approveLeave: true, reports: true },
-    employee: { payroll: false, attendance: false, deleteEmp: false, approveLeave: false, reports: false },
-    recruiter: { payroll: false, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
-    finance: { payroll: false, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
+    admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true },
+    manager: { payroll: true, attendance: true, deleteEmp: false, approveLeave: true, reports: true },
+    employee: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: false },
+    recruiter: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
+    finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
   },
   departments:[
     {id:1,name:'Executive',code:'EXEC',managerId:1,budget:1000000,color:'#8B5CF6'},
@@ -500,7 +500,7 @@ function App() {
 
   const currentPermRole = user ? getUserPermissionRole(user) : 'employee';
   const userPerms = (db.permissions && db.permissions[currentPermRole]) || {
-    payroll: user ? (user.role === 'super_admin') : false,
+    payroll: user ? true : false,
     attendance: user ? (user.role === 'super_admin' || user.role === 'admin' || user.title?.toLowerCase().includes('manager')) : false,
     deleteEmp: user ? (user.role === 'super_admin' || user.role === 'admin') : false,
     approveLeave: user ? (user.role === 'super_admin' || user.role === 'admin' || user.title?.toLowerCase().includes('manager')) : false,
@@ -688,6 +688,7 @@ function App() {
                     <div className="dropdown-item" onClick={() => { setView('security'); setActiveDropdown(null); }}><IC n="shield" /> Security</div>
                   </>}
                   {isHR && <>
+                    <div className="dropdown-item" onClick={() => { setView('payroll'); setActiveDropdown(null); }}><IC n="card" /> Payroll & Salary Slips</div>
                     {canEditAttendance && <div className="dropdown-item" onClick={() => { setView('attendance'); setActiveDropdown(null); }}><IC n="clock" /> Attendance</div>}
                     {canApproveLeaves && <div className="dropdown-item" onClick={() => { setView('leaves'); setActiveDropdown(null); }}><IC n="calendar" /> Leave {pendingLeaves > 0 && <span className="nav-badge" style={{ display: 'inline-flex', marginLeft: 6, position: 'static' }}>{pendingLeaves}</span>}</div>}
                     <div className="dropdown-item" onClick={() => { setView('documents'); setActiveDropdown(null); }}><IC n="file" /> Documents</div>
@@ -695,6 +696,7 @@ function App() {
                     <div className="dropdown-item" onClick={() => { setView('auditor'); setActiveDropdown(null); }}><IC n="shield" /> Compliance</div>
                   </>}
                   {isEmp && <>
+                    <div className="dropdown-item" onClick={() => { setView('payroll'); setActiveDropdown(null); }}><IC n="card" /> My Payroll & Payslips</div>
                     <div className="dropdown-item" onClick={() => { setView('attendance'); setActiveDropdown(null); }}><IC n="clock" /> Attendance</div>
                     <div className="dropdown-item" onClick={() => { setView('leaves'); setActiveDropdown(null); }}><IC n="calendar" /> Leave</div>
                     <div className="dropdown-item" onClick={() => { setView('documents'); setActiveDropdown(null); }}><IC n="file" /> Documents</div>
@@ -3498,58 +3500,71 @@ function PayrollPage({ db, save, user, setView }) {
   const [payslip, setPayslip] = useState(null);
 
   const isSuperAdmin = user?.role === 'super_admin';
-
-  if (!isSuperAdmin) {
-    return (
-      <div className="card anim-fadeup" style={{ padding: 40, textAlign: 'center', maxWidth: 600, margin: '40px auto', borderRadius: 24, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-        <h2 style={{ fontSize: 20, fontWeight: 900, color: '#111827', marginBottom: 8, fontFamily: "'Outfit', sans-serif" }}>Payroll Access Restricted</h2>
-        <p style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6, marginBottom: 20, fontWeight: 500 }}>
-          Payroll processing, salary records, and financial disbursement tools are restricted exclusively to the <strong>Super Admin Portal</strong>. HR Managers and staff do not have permission to access Payroll.
-        </p>
-        <button className="btn btn-dark" style={{ background: '#7C5CFC', borderRadius: 99, padding: '10px 24px', fontWeight: 800, border: 'none', cursor: 'pointer' }} onClick={() => setView('dashboard')}>
-          ➔ Return to Dashboard
-        </button>
-      </div>
-    );
-  }
-
-  const isAdmin = true;
+  const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
+  const canRunPayroll = isSuperAdmin;
+  const canViewAllStaff = isSuperAdmin || isHR;
 
   const runPayroll = () => {
-    const active=db.users.filter(u=>['active','on_leave'].includes(u.status));
-    const recs=active.map((emp,i)=>{
-      const allowances=Math.round(emp.salary*.12);
-      const deductions=Math.round((emp.salary+allowances)*.09);
-      return {id:Date.now()+i,uid:emp.id,month:parseInt(month),year,basic:emp.salary,allowances,overtime:0,bonus:0,deductions,net:emp.salary+allowances-deductions,status:'processed',date:new Date().toISOString().split('T')[0]};
+    const active = (db.users || []).filter(u => ['active', 'on_leave'].includes(u.status));
+    const recs = active.map((emp, i) => {
+      const allowances = Math.round(emp.salary * .12);
+      const deductions = Math.round((emp.salary + allowances) * .09);
+      return {
+        id: Date.now() + i,
+        uid: emp.id,
+        month: parseInt(month),
+        year,
+        basic: emp.salary,
+        allowances,
+        overtime: 0,
+        bonus: 0,
+        deductions,
+        net: emp.salary + allowances - deductions,
+        status: 'processed',
+        date: new Date().toISOString().split('T')[0]
+      };
     });
-    const old=db.payroll.filter(p=>!(p.month===parseInt(month)&&p.year===year));
-    save('payroll',[...old,...recs]);
+    const old = (db.payroll || []).filter(p => !(p.month === parseInt(month) && p.year === year));
+    save('payroll', [...old, ...recs]);
     alert(`✔ Payroll processed for ${recs.length} employees for month ${month}/${year}`);
   };
 
-  const list=isAdmin?db.payroll:db.payroll.filter(p=>p.uid===user.id);
-  const totalNet=list.reduce((s,p)=>s+p.net,0);
+  const list = canViewAllStaff ? (db.payroll || []) : (db.payroll || []).filter(p => p.uid === user.id);
+  const totalNet = list.reduce((s, p) => s + (p.net || 0), 0);
 
   return (
     <div className="anim-fadeup">
-      <PageHdr title="Payroll" sub="Salary processing, payslips & financial records">
-        {isAdmin&&<div style={{display:'flex',gap:10}}>
-          <select className="form-input" style={{width:130}} value={month} onChange={e=>setMonth(e.target.value)}>
-            {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i)=><option key={i} value={i+1}>{m}</option>)}
-          </select>
-          <button className="btn btn-amber" onClick={runPayroll}>⚡ Run Payroll</button>
-        </div>}
+      <PageHdr title="Payroll & Salary Slips" sub="View monthly salary statements, payslips & disbursement records">
+        {canRunPayroll ? (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <select className="form-input" style={{ width: 130 }} value={month} onChange={e => setMonth(e.target.value)}>
+              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                <option key={i} value={i + 1}>{m}</option>
+              ))}
+            </select>
+            <button className="btn btn-amber" onClick={runPayroll}>⚡ Run Payroll</button>
+          </div>
+        ) : (
+          <div style={{ background: '#ECFDF5', color: '#047857', padding: '6px 14px', borderRadius: 99, fontSize: 12, fontWeight: 800, border: '1px solid #A7F3D0' }}>
+            ✓ Verified Salary Records & Payslips
+          </div>
+        )}
       </PageHdr>
 
-      {isAdmin&&<div className="stats-grid stagger" style={{marginBottom:24}}>
-        {[{l:'Total Disbursed',v:`₹${totalNet.toLocaleString()}`,bg:'#D1FAE5',ic:'#059669',icon:'card'},{l:'Employees Paid',v:new Set(list.map(p=>p.uid)).size,bg:'#DBEAFE',ic:'#2563EB',icon:'users'},{l:'Avg Salary',v:`₹${Math.round(totalNet/Math.max(list.length,1)).toLocaleString()}`,bg:'#FEF3C7',ic:'#D97706',icon:'trending'}].map((s,i)=>(
-          <div key={i} className="stat-c">
-            <div className="stat-icon-wrap" style={{background:s.bg}}><IC n={s.icon} s={20} c={s.ic}/></div>
-            <div><div className="stat-label">{s.l}</div><div className="stat-value">{s.v}</div></div>
-          </div>
-        ))}
-      </div>}
+      {canViewAllStaff && (
+        <div className="stats-grid stagger" style={{ marginBottom: 24 }}>
+          {[
+            { l: 'Total Disbursed', v: `₹${totalNet.toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'card' },
+            { l: 'Employees Paid', v: new Set(list.map(p => p.uid)).size, bg: '#DBEAFE', ic: '#2563EB', icon: 'users' },
+            { l: 'Avg Salary', v: `₹${Math.round(totalNet / Math.max(list.length, 1)).toLocaleString()}`, bg: '#FEF3C7', ic: '#D97706', icon: 'trending' }
+          ].map((s, i) => (
+            <div key={i} className="stat-c">
+              <div className="stat-icon-wrap" style={{ background: s.bg }}><IC n={s.icon} s={20} c={s.ic}/></div>
+              <div><div className="stat-label">{s.l}</div><div className="stat-value">{s.v}</div></div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="card">
         <div className="tbl-wrap">
