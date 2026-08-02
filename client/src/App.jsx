@@ -707,9 +707,8 @@ function App() {
         </div>
 
         <div className="header-right">
-          <button className="cegs-btn-setting" onClick={() => setView('settings')}>
-            <IC n="settings" s={14} />
-            <span>Setting</span>
+          <button className="cegs-btn-setting" onClick={() => setView('settings')} title="System Settings">
+            <IC n="settings" s={16} />
           </button>
           <button 
             className="cegs-btn-bell" 
