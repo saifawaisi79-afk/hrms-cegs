@@ -2699,20 +2699,20 @@ function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTarge
           onClick={() => setShowDevQuickView(true)}
           title="Click to view Developer Profile Quick View"
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ position: 'relative', display: 'inline-block' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0 }}>
               <img 
                 src="/dev_saif.jpg" 
                 alt="Saif Awaisi - Developer & System Architect" 
                 onError={(e) => { e.target.onerror = null; e.target.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=SaifAwaisi'; }}
-                style={{ width: 64, height: 64, borderRadius: 18, border: '2px solid #7C5CFC', background: '#F3E8FF', objectFit: 'cover', boxShadow: '0 4px 12px rgba(124,92,252,0.2)' }} 
+                style={{ width: 90, height: 90, borderRadius: 18, border: '3px solid #7C5CFC', background: '#F3E8FF', objectFit: 'cover', boxShadow: '0 6px 20px rgba(124,92,252,0.25)' }} 
               />
-              <span style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, background: '#10B981', border: '2px solid #FFFFFF', borderRadius: '50%' }} />
+              <span style={{ position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, background: '#10B981', border: '2px solid #FFFFFF', borderRadius: '50%' }} />
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Saif Awaisi</div>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#7C5CFC', marginTop: 1 }}>Developer & System Architect</div>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: '#6B7280', marginTop: 2 }}>CEGS HRMS Lead Engineer</div>
+              <div style={{ fontSize: 17, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Saif Awaisi</div>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: '#7C5CFC', marginTop: 2 }}>Developer & System Architect</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginTop: 2 }}>CEGS HRMS Lead Engineer</div>
             </div>
           </div>
 
@@ -2760,15 +2760,15 @@ function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTarge
 
         {/* DEVELOPER QUICK VIEW MODAL */}
         <Modal open={showDevQuickView} onClose={() => setShowDevQuickView(false)} title="Developer & System Architect Quick View">
-          <div style={{ padding: '6px 4px', textAlign: 'center' }}>
-            <div style={{ position: 'relative', width: 72, height: 72, margin: '0 auto 10px' }}>
+          <div style={{ padding: '8px 6px', textAlign: 'center' }}>
+            <div style={{ position: 'relative', width: 160, height: 160, margin: '0 auto 16px' }}>
               <img 
                 src="/dev_saif.jpg" 
                 alt="Saif Awaisi" 
                 onError={(e) => { e.target.onerror = null; e.target.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=SaifAwaisi'; }}
-                style={{ width: 72, height: 72, borderRadius: 20, border: '2px solid #7C5CFC', objectFit: 'cover', boxShadow: '0 4px 16px rgba(124,92,252,0.25)' }} 
+                style={{ width: 160, height: 160, borderRadius: 24, border: '4px solid #7C5CFC', objectFit: 'cover', boxShadow: '0 8px 30px rgba(124,92,252,0.3)' }} 
               />
-              <span style={{ position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, background: '#10B981', border: '2px solid #FFFFFF', borderRadius: '50%' }} />
+              <span style={{ position: 'absolute', bottom: 6, right: 6, width: 18, height: 18, background: '#10B981', border: '3px solid #FFFFFF', borderRadius: '50%' }} />
             </div>
 
             <h2 style={{ fontSize: 18, fontWeight: 900, color: '#111827', margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Saif Awaisi</h2>
