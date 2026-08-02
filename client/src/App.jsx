@@ -33,11 +33,11 @@ const SEED_DATA = {
   ],
   permissions: {
     super_admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true },
-    admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true },
+    admin: { payroll: false, attendance: true, deleteEmp: true, approveLeave: true, reports: true },
     manager: { payroll: false, attendance: true, deleteEmp: false, approveLeave: true, reports: true },
     employee: { payroll: false, attendance: false, deleteEmp: false, approveLeave: false, reports: false },
     recruiter: { payroll: false, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
-    finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
+    finance: { payroll: false, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
   },
   departments:[
     {id:1,name:'Executive',code:'EXEC',managerId:1,budget:1000000,color:'#8B5CF6'},
@@ -500,7 +500,7 @@ function App() {
 
   const currentPermRole = user ? getUserPermissionRole(user) : 'employee';
   const userPerms = (db.permissions && db.permissions[currentPermRole]) || {
-    payroll: user ? (user.role === 'super_admin' || user.role === 'admin' || user.title?.toLowerCase().includes('billing')) : false,
+    payroll: user ? (user.role === 'super_admin') : false,
     attendance: user ? (user.role === 'super_admin' || user.role === 'admin' || user.title?.toLowerCase().includes('manager')) : false,
     deleteEmp: user ? (user.role === 'super_admin' || user.role === 'admin') : false,
     approveLeave: user ? (user.role === 'super_admin' || user.role === 'admin' || user.title?.toLowerCase().includes('manager')) : false,
@@ -678,6 +678,7 @@ function App() {
               {activeDropdown === 'billing' && (
                 <div className="nav-dropdown-menu" onMouseEnter={() => handleMouseEnterDropdown('billing')} onMouseLeave={handleMouseLeaveDropdown}>
                   {isSA && <>
+                    <div className="dropdown-item" onClick={() => { setView('payroll'); setActiveDropdown(null); }}><IC n="card" /> Payroll Management</div>
                     <div className="dropdown-item" onClick={() => { setView('organizations'); setActiveDropdown(null); }}><IC n="building" /> Organizations</div>
                     <div className="dropdown-item" onClick={() => { setView('permissions'); setActiveDropdown(null); }}><IC n="shield" /> Roles & Permissions</div>
                     <div className="dropdown-item" onClick={() => { setView('departments'); setActiveDropdown(null); }}><IC n="building" /> Departments</div>
@@ -689,7 +690,6 @@ function App() {
                   {isHR && <>
                     {canEditAttendance && <div className="dropdown-item" onClick={() => { setView('attendance'); setActiveDropdown(null); }}><IC n="clock" /> Attendance</div>}
                     {canApproveLeaves && <div className="dropdown-item" onClick={() => { setView('leaves'); setActiveDropdown(null); }}><IC n="calendar" /> Leave {pendingLeaves > 0 && <span className="nav-badge" style={{ display: 'inline-flex', marginLeft: 6, position: 'static' }}>{pendingLeaves}</span>}</div>}
-                    {canViewGlobalPayroll && <div className="dropdown-item" onClick={() => { setView('payroll'); setActiveDropdown(null); }}><IC n="card" /> Payroll</div>}
                     <div className="dropdown-item" onClick={() => { setView('documents'); setActiveDropdown(null); }}><IC n="file" /> Documents</div>
                     <div className="dropdown-item" onClick={() => { setView('assets'); setActiveDropdown(null); }}><IC n="monitor" /> Assets</div>
                     <div className="dropdown-item" onClick={() => { setView('auditor'); setActiveDropdown(null); }}><IC n="shield" /> Compliance</div>
@@ -697,7 +697,6 @@ function App() {
                   {isEmp && <>
                     <div className="dropdown-item" onClick={() => { setView('attendance'); setActiveDropdown(null); }}><IC n="clock" /> Attendance</div>
                     <div className="dropdown-item" onClick={() => { setView('leaves'); setActiveDropdown(null); }}><IC n="calendar" /> Leave</div>
-                    <div className="dropdown-item" onClick={() => { setView('payroll'); setActiveDropdown(null); }}><IC n="card" /> Payroll</div>
                     <div className="dropdown-item" onClick={() => { setView('documents'); setActiveDropdown(null); }}><IC n="file" /> Documents</div>
                     <div className="dropdown-item" onClick={() => { setView('assets'); setActiveDropdown(null); }}><IC n="monitor" /> Assets</div>
                   </>}
@@ -3494,22 +3493,29 @@ function AttendancePage({ db, save, user }) {
 /* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
    PAYROLL PAGE
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
-function PayrollPage({ db, save, user }) {
+function PayrollPage({ db, save, user, setView }) {
   const [month, setMonth] = useState(7);
   const [year] = useState(2026);
   const [payslip, setPayslip] = useState(null);
-  const getUserPermissionRole = (u) => {
-    if (!u) return 'employee';
-    if (u.role === 'super_admin') return 'super_admin';
-    if (u.role === 'admin') return 'admin';
-    const title = (u.title || '').toLowerCase();
-    if (title.includes('manager')) return 'manager';
-    if (title.includes('recruiter')) return 'recruiter';
-    if (title.includes('billing') || title.includes('finance') || title.includes('accounts')) return 'finance';
-    return 'employee';
-  };
-  const currentPermRole = getUserPermissionRole(user);
-  const isAdmin = db.permissions?.[currentPermRole]?.payroll ?? ['admin','super_admin'].includes(user.role);
+
+  const isSuperAdmin = user?.role === 'super_admin';
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="card anim-fadeup" style={{ padding: 40, textAlign: 'center', maxWidth: 600, margin: '40px auto', borderRadius: 24, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <h2 style={{ fontSize: 20, fontWeight: 900, color: '#111827', marginBottom: 8, fontFamily: "'Outfit', sans-serif" }}>Payroll Access Restricted</h2>
+        <p style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6, marginBottom: 20, fontWeight: 500 }}>
+          Payroll processing, salary records, and financial disbursement tools are restricted exclusively to the <strong>Super Admin Portal</strong>. HR Managers and staff do not have permission to access Payroll.
+        </p>
+        <button className="btn btn-dark" style={{ background: '#7C5CFC', borderRadius: 99, padding: '10px 24px', fontWeight: 800, border: 'none', cursor: 'pointer' }} onClick={() => setView('dashboard')}>
+          ➔ Return to Dashboard
+        </button>
+      </div>
+    );
+  }
+
+  const isAdmin = true;
 
   const runPayroll = () => {
     const active=db.users.filter(u=>['active','on_leave'].includes(u.status));
