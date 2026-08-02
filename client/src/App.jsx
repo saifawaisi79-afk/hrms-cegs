@@ -2705,6 +2705,7 @@ function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTarge
               <img 
                 src="/dev_saif.jpg" 
                 alt="Saif Awaisi - Developer & System Architect" 
+                onError={(e) => { e.target.onerror = null; e.target.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=SaifAwaisi'; }}
                 style={{ width: 64, height: 64, borderRadius: 18, border: '2px solid #7C5CFC', background: '#F3E8FF', objectFit: 'cover', boxShadow: '0 4px 12px rgba(124,92,252,0.2)' }} 
               />
               <span style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, background: '#10B981', border: '2px solid #FFFFFF', borderRadius: '50%' }} />
@@ -2765,6 +2766,7 @@ function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTarge
               <img 
                 src="/dev_saif.jpg" 
                 alt="Saif Awaisi" 
+                onError={(e) => { e.target.onerror = null; e.target.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=SaifAwaisi'; }}
                 style={{ width: 72, height: 72, borderRadius: 20, border: '2px solid #7C5CFC', objectFit: 'cover', boxShadow: '0 4px 16px rgba(124,92,252,0.25)' }} 
               />
               <span style={{ position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, background: '#10B981', border: '2px solid #FFFFFF', borderRadius: '50%' }} />
