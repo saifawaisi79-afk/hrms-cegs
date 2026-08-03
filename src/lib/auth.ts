@@ -2,21 +2,34 @@ import jwt from 'jsonwebtoken';
 
 export const JWT_SECRET = process.env.JWT_SECRET || 'cegshrmssecret12345';
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface AuthUserPayload {
+  id: string;
+  employee_id: string;
+  name: string;
+  email: string;
+  role: string;
+  department_id: string | null;
+  avatar_url?: string;
+  [key: string]: any;
+}
+
 // ─── JWT Helpers ──────────────────────────────────────────────────────────────
 
-export function signToken(payload) {
+export function signToken(payload: object): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
 }
 
-export function verifyToken(token) {
+export function verifyToken(token: string): AuthUserPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, JWT_SECRET) as AuthUserPayload;
   } catch {
     return null;
   }
 }
 
-export function getAuthUser(request) {
+export function getAuthUser(request: Request): AuthUserPayload | null {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) return null;
@@ -25,7 +38,7 @@ export function getAuthUser(request) {
 
 // ─── IP Whitelist Logic ───────────────────────────────────────────────────────
 
-function normalizeIp(ip) {
+function normalizeIp(ip: string | null | undefined): string {
   if (!ip) return '';
   ip = ip.trim();
   // Unwrap IPv4-mapped IPv6 addresses (::ffff:192.168.1.1 → 192.168.1.1)
@@ -33,7 +46,7 @@ function normalizeIp(ip) {
   return ip;
 }
 
-function ipToInt(ip) {
+function ipToInt(ip: string): number | null {
   const parts = ip.split('.');
   if (parts.length !== 4) return null;
   let result = 0;
@@ -45,7 +58,7 @@ function ipToInt(ip) {
   return result >>> 0;
 }
 
-function ipInCidr(ip, cidr) {
+function ipInCidr(ip: string, cidr: string): boolean {
   // Exact match (handles IPv6 literals like ::1 and plain IPs)
   if (!cidr.includes('/')) return ip === cidr.trim();
 
@@ -67,7 +80,7 @@ function ipInCidr(ip, cidr) {
  * Supports: IPv4, CIDR notation, IPv4-mapped IPv6, raw IPv6 literals (e.g. ::1).
  * If ALLOWED_IP_RANGES is not set or empty → allow all (open mode).
  */
-export function checkIpAllowed(clientIp) {
+export function checkIpAllowed(clientIp: string | null | undefined): boolean {
   const allowedRanges = process.env.ALLOWED_IP_RANGES;
   // No whitelist configured → allow everyone
   if (!allowedRanges || allowedRanges.trim() === '') return true;
@@ -84,7 +97,7 @@ export function checkIpAllowed(clientIp) {
  * Extract the real client IP from a Next.js Request object.
  * Respects x-forwarded-for (Vercel/CDN) when TRUST_PROXY=true.
  */
-export function getClientIp(request) {
+export function getClientIp(request: Request): string {
   const trustProxy = process.env.TRUST_PROXY === 'true';
 
   if (trustProxy) {
@@ -101,7 +114,7 @@ export function getClientIp(request) {
 
 // ─── Role Authorization ───────────────────────────────────────────────────────
 
-export function requireRole(user, allowedRoles) {
+export function requireRole(user: AuthUserPayload | null, allowedRoles: string[]): boolean {
   if (!user) return false;
   return allowedRoles.includes(user.role);
 }

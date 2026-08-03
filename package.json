@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "node scripts/seed.mjs"
+    "seed": "npx tsx scripts/seed_ts.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -22,7 +22,13 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/dotenv": "^6.1.1",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "dotenv": "^17.4.2",
     "eslint": "^8",
-    "eslint-config-next": "14.2.35"
+    "eslint-config-next": "14.2.35",
+    "typescript": "^6.0.3",
+    "zod": "^4.4.3"
   }
 }

@@ -1,6 +1,32 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema, Document, Model } from 'mongoose';
 
-const UserSchema = new mongoose.Schema({
+export interface IUser extends Document {
+  employee_id: string;
+  name: string;
+  email: string;
+  password_hash: string;
+  role: 'employee' | 'admin' | 'super_admin';
+  department_id?: mongoose.Types.ObjectId | null;
+  reports_to?: mongoose.Types.ObjectId | null;
+  designation: string;
+  joining_date: string;
+  contact: string;
+  status: 'active' | 'inactive' | 'on_leave';
+  basic_salary: number;
+  avatar_url: string;
+  last_login?: string | null;
+  emergency_contact: string;
+  bank_name: string;
+  account_number: string;
+  ifsc_code: string;
+  must_change_password: boolean;
+  temp_password_expires_at?: Date | null;
+  permissions_json?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const UserSchema: Schema<IUser> = new mongoose.Schema({
   employee_id:              { type: String, required: true, unique: true },
   name:                     { type: String, required: true },
   email:                    { type: String, required: true, unique: true },
@@ -24,4 +50,6 @@ const UserSchema = new mongoose.Schema({
   permissions_json:         { type: String, default: null },
 }, { timestamps: true });
 
-export default mongoose.models.User || mongoose.model('User', UserSchema);
+const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
+
+export default User;

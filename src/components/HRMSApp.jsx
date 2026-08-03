@@ -40,7 +40,18 @@ if (typeof window !== 'undefined') {
         };
       }
     }
-    return originalFetch(resource, config);
+    
+    const response = await originalFetch(resource, config);
+    
+    // Global 401 Interceptor - Force logout on invalid token
+    if (response.status === 401 && url.includes('/api/') && !url.includes('/api/auth/login')) {
+      console.error('🔒 401 Unauthorized detected globally. Forcing logout to prevent desync.');
+      localStorage.removeItem('cegs_token');
+      localStorage.removeItem('cegs_user');
+      window.location.reload();
+    }
+    
+    return response;
   };
 }
 
@@ -658,7 +669,7 @@ function App() {
     integrations: <IntegrationsPage setView={setView} />,
     security: <SecurityPage setView={setView} />,
     reports: <ReportsPage setView={setView} />,
-    recruitment: <RecruitmentPage db={db} save={save} user={user} setView={setView} setQuickViewUser={setQuickViewUser} setChatTargetUser={setChatTargetUser} openChatWithUser={openChatWithUser} />,
+    recruitment: <ComponentErrorBoundary name="RecruitmentPage"><RecruitmentPage db={db} save={save} user={user} setView={setView} setQuickViewUser={setQuickViewUser} setChatTargetUser={setChatTargetUser} openChatWithUser={openChatWithUser} /></ComponentErrorBoundary>,
     performance: <PerformancePage user={user} setView={setView} />,
     learning: <LearningPage setView={setView} />,
     helpdesk: <ITTicketsPage db={db} save={save} user={user} setView={setView} />,
@@ -985,7 +996,7 @@ function LoginPage({ login, db }) {
 
   const checkWorkModeLocationAccess = () => {
     if (workMode === 'WFO' && !locationVerified) {
-      alert('❌ Access Denied!\n\nWork From Office (WFO) login requires confirming your location within 100 meters of Novel Office Koramangala.\n\nPlease click "📍 Verify Office Location" on the login page to confirm your proximity before logging in.');
+      alert('Access Denied!\n\nWork From Office (WFO) login requires confirming your location within 100 meters of Novel Office Koramangala.\n\nPlease click "Verify Office Location" on the login page to confirm your proximity before logging in.');
       return false;
     }
     return true;
@@ -1012,10 +1023,10 @@ function LoginPage({ login, db }) {
     <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 20, padding: 18, marginBottom: 20, maxWidth: 640, width: '100%', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', textAlign: 'left' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
-          🛡️ Location & Work Mode Security
+          <IC n="shield" s={16} /> Location & Work Mode Security
         </div>
-        <span style={{ fontSize: 10.5, fontWeight: 800, background: workMode === 'WFO' ? (locationVerified ? '#E6F4EA' : '#FEF3C7') : '#EFF6FF', color: workMode === 'WFO' ? (locationVerified ? '#137333' : '#D97706') : '#3B82F6', borderRadius: 99, padding: '3px 10px' }}>
-          {workMode === 'WFO' ? (locationVerified ? 'WFO VERIFIED ✓' : 'WFO LOCATION REQUIRED 📍') : 'WORK FROM HOME (WFH) 🏡'}
+        <span style={{ fontSize: 10.5, fontWeight: 800, background: workMode === 'WFO' ? (locationVerified ? '#E6F4EA' : '#FEF3C7') : '#EFF6FF', color: workMode === 'WFO' ? (locationVerified ? '#137333' : '#D97706') : '#3B82F6', borderRadius: 99, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+          {workMode === 'WFO' ? (locationVerified ? <>WFO VERIFIED <IC n="check2" s={12} /></> : <>WFO LOCATION REQUIRED <IC n="map" s={12} /></>) : <>WORK FROM HOME (WFH) <IC n="building" s={12} /></>}
         </span>
       </div>
 
@@ -1030,7 +1041,7 @@ function LoginPage({ login, db }) {
           }}
           onClick={() => { setWorkMode('WFO'); setLocationVerified(false); setGeoStatusMsg(null); }}
         >
-          🏢 Work From Office (WFO)
+          <IC n="building" s={14} /> Work From Office (WFO)
         </button>
         <button 
           type="button"
@@ -1042,14 +1053,14 @@ function LoginPage({ login, db }) {
           }}
           onClick={() => { setWorkMode('WFH'); setLocationVerified(true); setGeoStatusMsg(null); }}
         >
-          🏡 Work From Home (WFH)
+          <IC n="building" s={14} /> Work From Home (WFH)
         </button>
       </div>
 
       {workMode === 'WFO' && (
         <div style={{ background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 14, padding: 12 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', marginBottom: 4 }}>
-            🏢 Office: <strong>Novel Office Koramangala</strong> (57 13th Cross, Baldwins Rd, Bengaluru 560030)
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <IC n="building" s={14} /> <span>Office: <strong>Novel Office Koramangala</strong> (57 13th Cross, Baldwins Rd, Bengaluru 560030)</span>
           </div>
           <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 10 }}>
             WFO Login requires GPS confirmation within <strong>100 meters</strong> of Novel Office Koramangala.
@@ -1062,7 +1073,7 @@ function LoginPage({ login, db }) {
               onClick={handleVerifyLocation}
               disabled={geoLoading}
             >
-              📍 {geoLoading ? 'Verifying GPS...' : 'Verify Office Location'}
+              <IC n="map" s={14} /> {geoLoading ? 'Verifying GPS...' : 'Verify Office Location'}
             </button>
             <button 
               type="button"
@@ -1070,7 +1081,7 @@ function LoginPage({ login, db }) {
               onClick={handleDevTestVerify}
               title="Simulate 100m office proximity for local testing"
             >
-              ⚡ Dev Confirm (100m Proximity)
+              <IC n="check2" s={14} /> Dev Confirm (100m Proximity)
             </button>
           </div>
 
@@ -7899,10 +7910,17 @@ function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTar
 
   const [activeTaskCategory, setActiveTaskCategory] = useState('calls'); // 'calls' | 'interviews' | 'walkins' | 'selected' | 'joined'
   const [searchQuery, setSearchQuery] = useState('');
-  const [saveStatus, setSaveStatus] = useState('Auto-saved');
+  const [saveStatus, setSaveStatus] = useState('Synced');
   const [targetViewMode, setTargetViewMode] = useState(isEmp ? 'employee' : 'hr');
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(isEmp ? (user?.name || '') : 'ALL');
   const [toastMsg, setToastMsg] = useState(null);
+  
+  // Modal Form State
+  const [showCandidateModal, setShowCandidateModal] = useState(false);
+  const [candidateForm, setCandidateForm] = useState({
+    name: '', number: '', languages: 'English', qualification: '', response: '', callStatus: 'Select Status', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: ''
+  });
+  const [formError, setFormError] = useState('');
 
   const fileInputRef = useRef(null);
   const tableScrollRef = useRef(null);
@@ -8124,30 +8142,53 @@ function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTar
     return { name: empName, calls, itvs, walks, sels, jnds, pct };
   });
 
-  const handleCellChange = (candId, field, val) => {
-    if (isSA) return; // Super Admin is read-only
-    setSaveStatus('Saving...');
-    lastEditedRef.current = Date.now(); // Record user active edit timestamp
+  const handleAddCandidateSubmit = async (e) => {
+    e.preventDefault();
+    setFormError('');
 
-    const updated = candidates.map(c => (c.id === candId || c._id === candId) ? { ...c, [field]: val } : c);
-    updateCandidatesStore(updated);
-
-    const rowToSave = updated.find(c => c.id === candId || c._id === candId);
-    if (rowToSave) {
-      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
-      saveDebounceRef.current = setTimeout(() => {
-        fetch(`${API_BASE}/candidates/${candId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(rowToSave)
-        }).then(r => r.json()).then(res => {
-          if (res && res.id) {
-            setCandidates(prev => prev.map(c => (c.id === candId || c._id === candId) ? { ...c, id: res.id } : c));
-          }
-        }).catch(() => {});
-      }, 400);
+    // Validations
+    if (!candidateForm.name || /\d/.test(candidateForm.name)) {
+      setFormError('Name is required and cannot contain numbers.');
+      return;
     }
-    setSaveStatus('Auto-saved & Synced');
+    const numClean = (candidateForm.number || '').replace(/\D/g, '');
+    if (numClean.length < 10 || numClean.length > 12) {
+      setFormError('Contact number must be between 10 and 12 digits.');
+      return;
+    }
+
+    setSaveStatus('Saving...');
+    const categoryRows = roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === activeTaskCategory);
+    
+    const draftRow = {
+      ...candidateForm,
+      slNo: categoryRows.length + 1,
+      date: new Date().toLocaleDateString('en-GB'),
+      category: activeTaskCategory,
+      employee: user?.name || 'Madiha Mehak'
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/candidates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draftRow)
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        updateCandidatesStore([...candidates, { ...draftRow, id: saved.id || saved._id }]);
+        setSaveStatus('Synced');
+        setShowCandidateModal(false);
+        setCandidateForm({ name: '', number: '', languages: 'English', qualification: '', response: '', callStatus: 'Select Status', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: '' });
+        showToast('Candidate successfully saved!', 'success');
+      } else {
+        setFormError('Failed to save to database.');
+        setSaveStatus('Error');
+      }
+    } catch (err) {
+      setFormError('Network error while saving.');
+      setSaveStatus('Error');
+    }
   };
 
   const handleDeleteCandidate = async (candId) => {
@@ -8160,70 +8201,6 @@ function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTar
       } catch {}
       showToast('Deleted candidate entry.', 'info');
     }
-  };
-
-  const handleAddInlineRow = async () => {
-    if (isSA) return; // Super admin cannot add personal task entries
-    setSaveStatus('Saving...');
-    localStorage.removeItem('cegs_candidates_cleared');
-    setSearchQuery(''); // Clear search filter so new row is ALWAYS 100% visible!
-
-    let resp = '';
-    let f1 = '', f2 = '', f3 = '';
-    if (activeTaskCategory === 'interviews') { resp = 'Interview Scheduled'; f1 = 'Interview Scheduled'; }
-    else if (activeTaskCategory === 'walkins') { resp = 'Walk-in Today'; f2 = 'Walk-in Today'; }
-    else if (activeTaskCategory === 'selected') { resp = 'Selected Today'; f3 = 'Selected Today'; }
-    else if (activeTaskCategory === 'joined') { resp = 'Joined Today'; f3 = 'Joined Today'; }
-
-    const categoryRows = roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === activeTaskCategory);
-    const tempId = 'cand_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-
-    const draftRow = {
-      id: tempId,
-      slNo: categoryRows.length + 1,
-      date: new Date().toLocaleDateString('en-GB'),
-      name: '',
-      number: '',
-      languages: 'English',
-      qualification: '',
-      response: resp,
-      callStatus: 'Select Status',
-      location: 'Bengaluru',
-      experience: 0,
-      followUp1: f1,
-      followUp2: f2,
-      followUp3: f3,
-      category: activeTaskCategory,
-      employee: user?.name || 'Madiha Mehak'
-    };
-
-    // 1. INSTANT UI RENDER: Update candidates store immediately
-    updateCandidatesStore([...candidates, draftRow]);
-
-    // 2. Scroll table to bottom
-    if (tableScrollRef.current) {
-      setTimeout(() => {
-        if (tableScrollRef.current) tableScrollRef.current.scrollTop = tableScrollRef.current.scrollHeight;
-      }, 50);
-    }
-
-    // 3. ASYNC BACKEND SYNC: POST to backend in background and update ID
-    try {
-      const res = await fetch(`${API_BASE}/candidates`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draftRow)
-      });
-      if (res.ok) {
-        const saved = await res.json();
-        if (saved && saved.id) {
-          setCandidates(prev => prev.map(c => c.id === tempId ? { ...c, id: saved.id } : c));
-        }
-      }
-    } catch (err) {
-      console.warn('Backend POST candidate fallback:', err);
-    }
-    setSaveStatus('Auto-saved & Synced');
   };
 
   const handleTriggerImport = () => {
@@ -8598,7 +8575,7 @@ function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTar
               </button>
               {/* Hide Add Candidate button for Super Admin */}
               {!isSA && (
-                <button style={{ background: '#111827', color: '#ffffff', border: 'none', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }} onClick={handleAddInlineRow}>
+                <button style={{ background: '#111827', color: '#ffffff', border: 'none', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(0,0,0,0.15)' }} onClick={() => setShowCandidateModal(true)}>
                   <IC n="plus" s={13} /> Add Candidate
                 </button>
               )}
@@ -8621,108 +8598,20 @@ function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTar
                 {filteredCandidates.map(row => (
                   <tr key={row.id || row._id} style={{ borderBottom: '1px solid #F3F4F6', transition: 'background-color 0.15s ease' }}>
                     <td style={{ padding: '10px 14px', fontWeight: 800, color: '#9CA3AF' }}>{row.slNo}</td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <input
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, width: 85, fontWeight: 600, color: '#111827' }}
-                        value={row.date || ''}
-                        onChange={e => handleCellChange(row.id || row._id, 'date', e.target.value)}
-                      />
+                    <td style={{ padding: '8px 10px', fontWeight: 600, color: '#111827' }}>{row.date || ''}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 800, textTransform: 'uppercase', color: '#111827' }}>{row.name || ''}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600, color: '#111827' }}>{row.number || ''}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600, color: '#111827' }}>{row.languages || 'English'}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600, color: '#111827' }}>{row.qualification || ''}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600, color: '#111827' }}>{row.response || ''}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 800, color: '#111827' }}>
+                      <span style={{ background: '#F3F4F6', padding: '4px 8px', borderRadius: 6 }}>{row.callStatus || 'Unknown'}</span>
                     </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <input
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#111827', width: 140 }}
-                        value={row.name || ''}
-                        onChange={e => handleCellChange(row.id || row._id, 'name', e.target.value.toUpperCase())}
-                      />
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <input
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 110 }}
-                        value={row.number || ''}
-                        onChange={e => handleCellChange(row.id || row._id, 'number', e.target.value)}
-                      />
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <select
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', outline: 'none' }}
-                        value={row.languages || 'English'}
-                        onChange={e => handleCellChange(row.id || row._id, 'languages', e.target.value)}
-                      >
-                        {LANGUAGE_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
-                      </select>
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <input
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 90 }}
-                        value={row.qualification || ''}
-                        onChange={e => handleCellChange(row.id || row._id, 'qualification', e.target.value)}
-                      />
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <input
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 130 }}
-                        value={row.response || ''}
-                        onChange={e => handleCellChange(row.id || row._id, 'response', e.target.value)}
-                      />
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <select
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 800, color: '#111827', outline: 'none' }}
-                        value={row.callStatus || 'Select Status'}
-                        onChange={e => handleCellChange(row.id || row._id, 'callStatus', e.target.value)}
-                      >
-                        <option value="Select Status">Select Status</option>
-                        {CALL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <input
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 100 }}
-                        value={row.location || ''}
-                        onChange={e => handleCellChange(row.id || row._id, 'location', e.target.value)}
-                      />
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <input
-                        disabled={isSA}
-                        type="number"
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 6px', fontSize: 11, width: 45, textAlign: 'center', fontWeight: 700, color: '#111827' }}
-                        value={row.experience ?? 0}
-                        onChange={e => handleCellChange(row.id || row._id, 'experience', e.target.value)}
-                      />
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <input
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 110 }}
-                        value={row.followUp1 || ''}
-                        onChange={e => handleCellChange(row.id || row._id, 'followUp1', e.target.value)}
-                      />
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <input
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 110 }}
-                        value={row.followUp2 || ''}
-                        onChange={e => handleCellChange(row.id || row._id, 'followUp2', e.target.value)}
-                      />
-                    </td>
-                    <td style={{ padding: '8px 10px' }}>
-                      <input
-                        disabled={isSA}
-                        style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 600, color: '#111827', width: 110 }}
-                        value={row.followUp3 || ''}
-                        onChange={e => handleCellChange(row.id || row._id, 'followUp3', e.target.value)}
-                      />
-                    </td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600, color: '#111827' }}>{row.location || ''}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 700, color: '#111827', textAlign: 'center' }}>{row.experience || 0}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600, color: '#111827' }}>{row.followUp1 || ''}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600, color: '#111827' }}>{row.followUp2 || ''}</td>
+                    <td style={{ padding: '8px 10px', fontWeight: 600, color: '#111827' }}>{row.followUp3 || ''}</td>
                     <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                       {!isSA && (
                         <button 
@@ -8730,7 +8619,7 @@ function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTar
                           onClick={() => handleDeleteCandidate(row.id || row._id)}
                           title="Delete candidate row"
                         >
-                          🗑️ Delete
+                          <IC n="trash" s={12} /> Delete
                         </button>
                       )}
                     </td>
@@ -8828,6 +8717,65 @@ function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTar
           {toastMsg.text}
         </div>
       )}
+
+      <Modal open={showCandidateModal} onClose={() => setShowCandidateModal(false)} title="Add New Candidate" subtitle="Please fill out the candidate details carefully." maxWidth={600}>
+        <form onSubmit={handleAddCandidateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 20 }}>
+          {formError && <div style={{ padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>{formError}</div>}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800 }}>Candidate Name *</label>
+              <input className="form-input" required value={candidateForm.name} onChange={e => setCandidateForm({...candidateForm, name: e.target.value.toUpperCase()})} placeholder="E.g. JOHN DOE" />
+            </div>
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800 }}>Contact Number *</label>
+              <input className="form-input" required value={candidateForm.number} onChange={e => setCandidateForm({...candidateForm, number: e.target.value})} placeholder="10 to 12 digits" />
+            </div>
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800 }}>Languages</label>
+              <select className="form-input" value={candidateForm.languages} onChange={e => setCandidateForm({...candidateForm, languages: e.target.value})}>
+                {LANGUAGE_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800 }}>Qualification</label>
+              <input className="form-input" value={candidateForm.qualification} onChange={e => setCandidateForm({...candidateForm, qualification: e.target.value})} placeholder="E.g. B.Tech" />
+            </div>
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800 }}>Response</label>
+              <input className="form-input" value={candidateForm.response} onChange={e => setCandidateForm({...candidateForm, response: e.target.value})} placeholder="Candidate feedback" />
+            </div>
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800 }}>Call Status</label>
+              <select className="form-input" value={candidateForm.callStatus} onChange={e => setCandidateForm({...candidateForm, callStatus: e.target.value})}>
+                <option value="Select Status">Select Status</option>
+                {CALL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800 }}>Location</label>
+              <input className="form-input" value={candidateForm.location} onChange={e => setCandidateForm({...candidateForm, location: e.target.value})} placeholder="E.g. Bengaluru" />
+            </div>
+            <div className="form-group">
+              <label className="form-label" style={{ fontWeight: 800 }}>Experience (Yrs)</label>
+              <input type="number" className="form-input" value={candidateForm.experience} onChange={e => setCandidateForm({...candidateForm, experience: Number(e.target.value)})} min="0" />
+            </div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label className="form-label" style={{ fontWeight: 800 }}>Follow Up Notes</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                <input className="form-input" value={candidateForm.followUp1} onChange={e => setCandidateForm({...candidateForm, followUp1: e.target.value})} placeholder="Note 1" />
+                <input className="form-input" value={candidateForm.followUp2} onChange={e => setCandidateForm({...candidateForm, followUp2: e.target.value})} placeholder="Note 2" />
+                <input className="form-input" value={candidateForm.followUp3} onChange={e => setCandidateForm({...candidateForm, followUp3: e.target.value})} placeholder="Note 3" />
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 10, borderTop: '1px solid #E5E7EB', paddingTop: 16 }}>
+            <button type="button" className="btn" onClick={() => setShowCandidateModal(false)} style={{ background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB' }}>Cancel</button>
+            <button type="submit" className="btn btn-dark" disabled={saveStatus === 'Saving...'} style={{ minWidth: 120 }}>
+              {saveStatus === 'Saving...' ? 'Saving...' : 'Save Candidate'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

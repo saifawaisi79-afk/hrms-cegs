@@ -1,6 +1,26 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema, Document, Model } from 'mongoose';
 
-const CandidateSchema = new mongoose.Schema({
+export interface ICandidate extends Document {
+  slNo: number;
+  date: string;
+  name: string;
+  number: string;
+  languages: string;
+  qualification: string;
+  response: string;
+  callStatus: string;
+  location: string;
+  experience: number;
+  followUp1: string;
+  followUp2: string;
+  followUp3: string;
+  category: string;
+  employee: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const CandidateSchema: Schema<ICandidate> = new mongoose.Schema({
   slNo:          { type: Number, default: 0 },
   date:          { type: String, default: '' },
   name:          { type: String, default: '' },
@@ -18,4 +38,6 @@ const CandidateSchema = new mongoose.Schema({
   employee:      { type: String, default: '' },
 }, { timestamps: true });
 
-export default mongoose.models.Candidate || mongoose.model('Candidate', CandidateSchema);
+const Candidate: Model<ICandidate> = mongoose.models.Candidate || mongoose.model<ICandidate>('Candidate', CandidateSchema);
+
+export default Candidate;
