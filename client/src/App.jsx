@@ -969,7 +969,7 @@ function LoginPage({ login, db }) {
 
   const quickLogin = async role => {
     if (!checkWorkModeLocationAccess()) return;
-    const map = {employee:'madiha@cegs.com',admin:'nusrath@cegs.com',super_admin:'superadmin@cegs.com'};
+    const map = { employee: 'madiha@cegs.com', admin: 'nusrath@cegs.com', super_admin: 'superadmin@cegs.com', it_team: 'saifawaisi79@gmail.com' };
     setEmail(map[role] || '');
     setPass('Password123');
     setMode('creds');
@@ -1167,6 +1167,21 @@ function LoginPage({ login, db }) {
             <p className="pc-desc">Full system control. Manage user roles, configure policies, permission matrices, audit logs and all system-wide settings.</p>
             <button className="pc-cta" disabled={loading==='super_admin'}>
               {loading==='super_admin' ? 'Opening...' : <><span>SYSTEM ACCESS</span> <IC n="arrow" s={15} /></>}
+            </button>
+          </div>
+        </div>
+
+        {/* IT & Dev Cell Portal */}
+        <div className="pc pc-cyan anim-fadeup" onClick={()=>quickLogin('it_team')}>
+          <div className="pc-top">
+            <div className="pc-icon"><IC n="help" s={28} /></div>
+            <span className="pc-pill pill-cyan">IT & DEV CELL</span>
+          </div>
+          <div className="pc-body">
+            <div className="pc-name">CEGS-Ops</div>
+            <p className="pc-desc">Organization IT & Dev support hub. Monitor user ticket queues, SLA compliance, IT assets, software licenses, internal notes & KB articles.</p>
+            <button className="pc-cta" disabled={loading==='it_team'}>
+              {loading==='it_team' ? 'Opening...' : <><span>WORKSTATION ACCESS</span> <IC n="arrow" s={15} /></>}
             </button>
           </div>
         </div>

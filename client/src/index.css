@@ -190,17 +190,18 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
 }
 .ws-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 20px;
-  max-width: 1060px; width: 100%;
+  max-width: 1320px; width: 100%;
   animation: fadeUp .5s .2s var(--ease) both;
 }
-@media(max-width: 900px) { .ws-grid { grid-template-columns: 1fr; } }
+@media(max-width: 1100px) { .ws-grid { grid-template-columns: repeat(2, 1fr); } }
+@media(max-width: 650px) { .ws-grid { grid-template-columns: 1fr; } }
 
 /* Portal Cards */
 .pc {
-  border-radius: 36px; padding: 36px;
-  height: 430px; min-height: 430px;
+  border-radius: 36px; padding: 32px;
+  height: 440px; min-height: 440px;
   display: flex; flex-direction: column;
   cursor: pointer; position: relative; overflow: hidden;
   transition: transform .35s var(--ease-spring), box-shadow .35s var(--ease);
@@ -208,6 +209,32 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
 .pc::before { content:''; position:absolute; inset:0; opacity:0; transition: opacity .3s ease; }
 .pc:hover { transform: translateY(-12px); }
 .pc:hover::before { opacity: 1; }
+
+.pc-cyan {
+  background: #0B132B;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  color: #FFFFFF;
+  box-shadow: 0 10px 30px rgba(6, 182, 212, 0.15);
+}
+.pc-cyan .pc-icon {
+  background: rgba(6, 182, 212, 0.2);
+  color: #06B6D4;
+}
+.pc-cyan .pc-name {
+  color: #FFFFFF;
+}
+.pc-cyan .pc-desc {
+  color: #94A3B8;
+}
+.pc-cyan .pc-cta {
+  background: #06B6D4;
+  color: #FFFFFF;
+}
+.pill-cyan {
+  background: rgba(6, 182, 212, 0.18);
+  color: #06B6D4;
+  border: 1px solid rgba(6, 182, 212, 0.4);
+}
 .pc:active { transform: translateY(-5px) scale(.99); }
 
 .pc-cream {
