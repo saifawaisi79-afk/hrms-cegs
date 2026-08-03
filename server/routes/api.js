@@ -1548,4 +1548,323 @@ router.delete('/candidates/:id', async (req, res) => {
   }
 });
 
+// ==========================================
+// IT & DEV CELL MODULE ENDPOINTS
+// ==========================================
+
+// Helper: Calculate SLA target due date
+function calculateSlaDueAt(priority, createdAtIso) {
+  const baseTime = createdAtIso ? new Date(createdAtIso).getTime() : Date.now();
+  const hoursMap = { Critical: 4, High: 8, Medium: 24, Low: 72 };
+  const hours = hoursMap[priority] || 24;
+  return new Date(baseTime + hours * 3600 * 1000).toISOString();
+}
+
+// GET /api/it/tickets - List tickets (filtered by my tickets or full queue)
+router.get('/it/tickets', authenticateToken, async (req, res) => {
+  try {
+    const isIT = ['it_team', 'admin', 'super_admin'].includes(req.user.role) || (req.user.designation && req.user.designation.toLowerCase().includes('it'));
+    const isMyOnly = req.query.my === 'true' || !isIT;
+    
+    let query = `
+      SELECT t.*, 
+             u.name as employee_name, u.employee_id as employee_eid, u.avatar_url as employee_avatar,
+             a.name as assignee_name, a.avatar_url as assignee_avatar
+      FROM it_tickets t
+      LEFT JOIN users u ON t.employee_id = u.id
+      LEFT JOIN users a ON t.assignee_id = a.id
+    `;
+    const params = [];
+
+    if (isMyOnly) {
+      query += ` WHERE t.employee_id = ?`;
+      params.push(req.user.id);
+    }
+
+    query += ` ORDER BY t.created_at DESC`;
+
+    const tickets = await dbQuery.all(query, params);
+    
+    // Add overdue computation flag
+    const nowIso = new Date().toISOString();
+    const processed = tickets.map(t => ({
+      ...t,
+      is_overdue: nowIso > t.sla_due_at && !['Resolved', 'Closed'].includes(t.status)
+    }));
+
+    res.json(processed);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch IT tickets' });
+  }
+});
+
+// POST /api/it/tickets - Raise new IT ticket
+router.post('/it/tickets', authenticateToken, async (req, res) => {
+  try {
+    const { category, priority, subject, description, attachment_url } = req.body;
+    if (!subject || !description || !category) {
+      return res.status(400).json({ error: 'Subject, category, and description are required' });
+    }
+
+    const ticketId = 'IT-' + Math.floor(1000 + Math.random() * 9000);
+    const createdAt = new Date().toISOString();
+    const slaDueAt = calculateSlaDueAt(priority || 'Medium', createdAt);
+
+    await dbQuery.run(
+      `INSERT INTO it_tickets (id, employee_id, category, priority, status, subject, description, attachment_url, created_at, updated_at, sla_due_at)
+       VALUES (?, ?, ?, ?, 'Open', ?, ?, ?, ?, ?, ?)`,
+      [ticketId, req.user.id, category, priority || 'Medium', subject, description, attachment_url || null, createdAt, createdAt, slaDueAt]
+    );
+
+    // Initial message entry
+    await dbQuery.run(
+      `INSERT INTO it_ticket_messages (ticket_id, sender_id, sender_role, body, attachment_url, visibility, created_at)
+       VALUES (?, ?, ?, ?, ?, 'public', ?)`,
+      [ticketId, req.user.id, req.user.role, description, attachment_url || null, createdAt]
+    );
+
+    res.status(201).json({
+      id: ticketId,
+      employee_id: req.user.id,
+      category,
+      priority: priority || 'Medium',
+      status: 'Open',
+      subject,
+      description,
+      attachment_url: attachment_url || null,
+      created_at: createdAt,
+      sla_due_at: slaDueAt
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to raise IT ticket' });
+  }
+});
+
+// GET /api/it/tickets/:id - Get single ticket details & messages
+router.get('/it/tickets/:id', authenticateToken, async (req, res) => {
+  try {
+    const ticket = await dbQuery.get(
+      `SELECT t.*, 
+              u.name as employee_name, u.employee_id as employee_eid, u.avatar_url as employee_avatar,
+              a.name as assignee_name, a.avatar_url as assignee_avatar
+       FROM it_tickets t
+       LEFT JOIN users u ON t.employee_id = u.id
+       LEFT JOIN users a ON t.assignee_id = a.id
+       WHERE t.id = ?`,
+      [req.params.id]
+    );
+
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    const isIT = ['it_team', 'admin', 'super_admin'].includes(req.user.role);
+    if (!isIT && ticket.employee_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied to this ticket' });
+    }
+
+    // Messages filter: employees only see public messages
+    let msgQuery = `
+      SELECT m.*, u.name as sender_name, u.avatar_url as sender_avatar
+      FROM it_ticket_messages m
+      LEFT JOIN users u ON m.sender_id = u.id
+      WHERE m.ticket_id = ?
+    `;
+    if (!isIT) {
+      msgQuery += ` AND m.visibility = 'public'`;
+    }
+    msgQuery += ` ORDER BY m.created_at ASC`;
+
+    const messages = await dbQuery.all(msgQuery, [req.params.id]);
+
+    res.json({
+      ...ticket,
+      is_overdue: new Date().toISOString() > ticket.sla_due_at && !['Resolved', 'Closed'].includes(ticket.status),
+      messages
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch ticket details' });
+  }
+});
+
+// POST /api/it/tickets/:id/messages - Add reply or internal note
+router.post('/it/tickets/:id/messages', authenticateToken, async (req, res) => {
+  try {
+    const { body, attachment_url, visibility } = req.body;
+    if (!body) return res.status(400).json({ error: 'Message body is required' });
+
+    const ticket = await dbQuery.get(`SELECT * FROM it_tickets WHERE id = ?`, [req.params.id]);
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    const isIT = ['it_team', 'admin', 'super_admin'].includes(req.user.role);
+    const isInternalNote = visibility === 'internal_note';
+
+    if (isInternalNote && !isIT) {
+      return res.status(403).json({ error: 'Only IT staff can add internal notes' });
+    }
+
+    const createdAt = new Date().toISOString();
+
+    const result = await dbQuery.run(
+      `INSERT INTO it_ticket_messages (ticket_id, sender_id, sender_role, body, attachment_url, visibility, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [req.params.id, req.user.id, req.user.role, body, attachment_url || null, isInternalNote ? 'internal_note' : 'public', createdAt]
+    );
+
+    // Update ticket timestamp
+    await dbQuery.run(`UPDATE it_tickets SET updated_at = ? WHERE id = ?`, [createdAt, req.params.id]);
+
+    res.status(201).json({
+      id: result.id,
+      ticket_id: req.params.id,
+      sender_id: req.user.id,
+      sender_name: req.user.name,
+      sender_role: req.user.role,
+      body,
+      attachment_url: attachment_url || null,
+      visibility: isInternalNote ? 'internal_note' : 'public',
+      created_at: createdAt
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// PUT /api/it/tickets/:id/status - Update status, priority, or assignee
+router.put('/it/tickets/:id/status', authenticateToken, async (req, res) => {
+  try {
+    const { status, priority, assignee_id } = req.body;
+    const ticket = await dbQuery.get(`SELECT * FROM it_tickets WHERE id = ?`, [req.params.id]);
+    if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+
+    const isIT = ['it_team', 'admin', 'super_admin'].includes(req.user.role);
+    const isOwner = ticket.employee_id === req.user.id;
+
+    // Employees can only mark resolved or reopen
+    if (!isIT && !isOwner) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const newStatus = status || ticket.status;
+    const newPriority = priority || ticket.priority;
+    const newAssignee = assignee_id !== undefined ? assignee_id : ticket.assignee_id;
+    const updatedAt = new Date().toISOString();
+    const resolvedAt = (newStatus === 'Resolved' && !ticket.resolved_at) ? updatedAt : ticket.resolved_at;
+    const slaDueAt = (priority && priority !== ticket.priority) ? calculateSlaDueAt(newPriority, ticket.created_at) : ticket.sla_due_at;
+
+    await dbQuery.run(
+      `UPDATE it_tickets 
+       SET status = ?, priority = ?, assignee_id = ?, updated_at = ?, resolved_at = ?, sla_due_at = ?
+       WHERE id = ?`,
+      [newStatus, newPriority, newAssignee, updatedAt, resolvedAt, slaDueAt, req.params.id]
+    );
+
+    res.json({ message: 'Ticket updated successfully', id: req.params.id, status: newStatus, priority: newPriority, assignee_id: newAssignee });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update ticket status' });
+  }
+});
+
+// GET /api/it/assets - List IT assets
+router.get('/it/assets', authenticateToken, async (req, res) => {
+  try {
+    const assets = await dbQuery.all(`
+      SELECT a.*, u.name as assigned_to_name, u.employee_id as assigned_to_eid
+      FROM it_assets a
+      LEFT JOIN users u ON a.assigned_to = u.id
+      ORDER BY a.created_at DESC
+    `);
+    res.json(assets);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch IT assets' });
+  }
+});
+
+// POST /api/it/assets - Add IT asset
+router.post('/it/assets', authenticateToken, requireRole(['it_team', 'admin', 'super_admin']), async (req, res) => {
+  try {
+    const { name, type, serial_number, assigned_to, issued_on, status, notes } = req.body;
+    if (!name || !type) return res.status(400).json({ error: 'Name and type are required' });
+
+    const assetId = 'AST-' + Math.floor(1000 + Math.random() * 9000);
+    const createdAt = new Date().toISOString();
+
+    await dbQuery.run(
+      `INSERT INTO it_assets (id, name, type, serial_number, assigned_to, issued_on, status, notes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [assetId, name, type, serial_number || null, assigned_to || null, issued_on || null, status || 'In Stock', notes || null, createdAt]
+    );
+
+    res.status(201).json({ id: assetId, name, type, serial_number, assigned_to, issued_on, status, notes });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create IT asset' });
+  }
+});
+
+// GET /api/it/kb - List KB articles
+router.get('/it/kb', authenticateToken, async (req, res) => {
+  try {
+    const articles = await dbQuery.all(`
+      SELECT k.*, u.name as author_name
+      FROM it_kb_articles k
+      LEFT JOIN users u ON k.created_by = u.id
+      ORDER BY k.updated_at DESC
+    `);
+    res.json(articles);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch KB articles' });
+  }
+});
+
+// POST /api/it/kb - Create KB article
+router.post('/it/kb', authenticateToken, requireRole(['it_team', 'admin', 'super_admin']), async (req, res) => {
+  try {
+    const { title, body, category } = req.body;
+    if (!title || !body || !category) return res.status(400).json({ error: 'Title, body, and category are required' });
+
+    const now = new Date().toISOString();
+
+    const result = await dbQuery.run(
+      `INSERT INTO it_kb_articles (title, body, category, views, helpful_count, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, 0, 0, ?, ?, ?)`,
+      [title, body, category, req.user.id, now, now]
+    );
+
+    res.status(201).json({ id: result.id, title, body, category, views: 0, helpful_count: 0, created_by: req.user.id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create KB article' });
+  }
+});
+
+// GET /api/it/stats - Overall stats for IT dashboard & oversight
+router.get('/it/stats', authenticateToken, async (req, res) => {
+  try {
+    const allTickets = await dbQuery.all(`SELECT * FROM it_tickets`);
+    const nowIso = new Date().toISOString();
+
+    const openCount = allTickets.filter(t => ['Open', 'In Progress', 'On Hold'].includes(t.status)).length;
+    const overdueCount = allTickets.filter(t => nowIso > t.sla_due_at && !['Resolved', 'Closed'].includes(t.status)).length;
+    const resolvedCount = allTickets.filter(t => ['Resolved', 'Closed'].includes(t.status)).length;
+
+    res.json({
+      total: allTickets.length,
+      open: openCount,
+      overdue: overdueCount,
+      resolved: resolvedCount,
+      sla_compliance: allTickets.length ? Math.round(((allTickets.length - overdueCount) / allTickets.length) * 100) : 100
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch IT stats' });
+  }
+});
+
 module.exports = router;
+

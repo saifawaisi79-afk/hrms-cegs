@@ -140,11 +140,101 @@ const SEED_DATA = {
     { id: 1, fromId: 1, toId: 2, text: 'Hello Nusrath, welcome to CEGS HRMS! Please ensure employee onboarding and system setup are complete.', time: '2026-07-31T10:00:00Z', read: 1 },
     { id: 2, fromId: 2, toId: 1, text: 'Thank you CEO SuperAdmin! All onboarding files and initial employee accounts are set up and active.', time: '2026-07-31T10:15:00Z', read: 1 },
     { id: 3, fromId: 3, toId: 1, text: 'Hi CEO SuperAdmin! Real-time messaging, employee quick view, and security features have been deployed.', time: '2026-07-31T10:30:00Z', read: 1 }
+  ],
+  it_tickets: [
+    {
+      id: 'IT-1042',
+      employee_id: 4,
+      category: 'Network/VPN',
+      priority: 'High',
+      status: 'In Progress',
+      subject: 'VPN Login Authentication Error on Remote Network',
+      description: 'Unable to authenticate into CEGS VPN endpoint from home WiFi network.',
+      assignee_id: 3,
+      attachment_url: null,
+      created_at: '2026-08-02T10:00:00Z',
+      updated_at: '2026-08-02T11:30:00Z',
+      resolved_at: null,
+      sla_due_at: '2026-08-02T18:00:00Z'
+    },
+    {
+      id: 'IT-1043',
+      employee_id: 2,
+      category: 'Hardware',
+      priority: 'Critical',
+      status: 'Open',
+      subject: 'MacBook Air Monitor Flickering & Battery Warning',
+      description: 'Display flickers when connecting to external monitor.',
+      assignee_id: null,
+      attachment_url: null,
+      created_at: '2026-08-03T08:00:00Z',
+      updated_at: '2026-08-03T08:00:00Z',
+      resolved_at: null,
+      sla_due_at: '2026-08-03T12:00:00Z'
+    },
+    {
+      id: 'IT-1044',
+      employee_id: 4,
+      category: 'Access & Permissions',
+      priority: 'Medium',
+      status: 'Resolved',
+      subject: 'Request for Figma Pro License Access',
+      description: 'Need access to design files for HR portal UI enhancement.',
+      assignee_id: 3,
+      attachment_url: null,
+      created_at: '2026-08-01T09:00:00Z',
+      updated_at: '2026-08-01T14:00:00Z',
+      resolved_at: '2026-08-01T14:00:00Z',
+      sla_due_at: '2026-08-02T09:00:00Z'
+    }
+  ],
+  it_messages: [
+    {
+      id: 1,
+      ticket_id: 'IT-1042',
+      sender_id: 4,
+      sender_role: 'employee',
+      body: 'Unable to authenticate into CEGS VPN endpoint from home WiFi network.',
+      attachment_url: null,
+      visibility: 'public',
+      created_at: '2026-08-02T10:00:00Z'
+    },
+    {
+      id: 2,
+      ticket_id: 'IT-1042',
+      sender_id: 3,
+      sender_role: 'super_admin',
+      body: 'Investigating firewall logs for gateway IP 192.168.1.1.',
+      attachment_url: null,
+      visibility: 'internal_note',
+      created_at: '2026-08-02T10:45:00Z'
+    },
+    {
+      id: 3,
+      ticket_id: 'IT-1042',
+      sender_id: 3,
+      sender_role: 'super_admin',
+      body: 'Please flush DNS and reconnect to vpn.cegs.com:443.',
+      attachment_url: null,
+      visibility: 'public',
+      created_at: '2026-08-02T11:30:00Z'
+    }
+  ],
+  it_assets: [
+    { id: 'AST-9021', name: 'MacBook Pro 16" M3', type: 'Laptop', serial_number: 'SN-MAC-998877', assigned_to: 3, issued_on: '2024-01-15', status: 'Active', notes: 'Lead Dev Machine' },
+    { id: 'AST-9022', name: 'Dell UltraSharp 32" 4K', type: 'Accessory', serial_number: 'SN-DELL-776655', assigned_to: 2, issued_on: '2024-03-12', status: 'Active', notes: 'HR Desk Display' },
+    { id: 'AST-9023', name: 'Microsoft 365 Enterprise E5', type: 'Software License', serial_number: 'LIC-MS-00912', assigned_to: 4, issued_on: '2026-07-31', status: 'Active', notes: 'Billing Suite' },
+    { id: 'AST-9024', name: 'Logitech MX Master 3S', type: 'Accessory', serial_number: 'SN-LOGI-443322', assigned_to: null, issued_on: null, status: 'In Stock', notes: 'Available in IT Storage' }
+  ],
+  it_kb: [
+    { id: 1, title: 'How to Connect to CEGS Corporate VPN', category: 'Network/VPN', body: 'Step 1: Download Cisco AnyConnect / OpenVPN client.\nStep 2: Enter server host vpn.cegs.com.\nStep 3: Enter your CEGS email and password.', views: 142, helpful_count: 38 },
+    { id: 2, title: 'Requesting Software & License Approvals', category: 'Access & Permissions', body: 'Submit an IT ticket selecting "Access & Permissions" category. HR Manager approval is auto-routed upon ticket filing.', views: 89, helpful_count: 24 },
+    { id: 3, title: 'Wi-Fi & Office Network Credentials', category: 'Network/VPN', body: 'Connect to "CEGS_SECURE_WIFI" using your employee EID and system password.', views: 210, helpful_count: 65 }
   ]
 };
 
-// ── Store (v10 key enables Raheel permanent password and smart must_change_password logic) ──
-const STORE_VERSION = 'v10';
+// ── Store (v11 key enables IT & Dev Cell support module) ──
+const STORE_VERSION = 'v11';
 const Store = {
   key: k => `vp_hrms_${STORE_VERSION}_${k}`,
   get(k){ try{ const v=localStorage.getItem(this.key(k)); return v?JSON.parse(v):null; } catch{ return null; } },
@@ -547,7 +637,8 @@ function App() {
     recruitment: <RecruitmentPage db={db} save={save} user={user} setView={setView} setQuickViewUser={setQuickViewUser} setChatTargetUser={setChatTargetUser} openChatWithUser={openChatWithUser} />,
     performance: <PerformancePage user={user} setView={setView} />,
     learning: <LearningPage setView={setView} />,
-    helpdesk: <HelpdeskPage user={user} setView={setView} />,
+    helpdesk: <ITTicketsPage db={db} save={save} user={user} setView={setView} />,
+    ittickets: <ITTicketsPage db={db} save={save} user={user} setView={setView} />,
     exit: <ExitPage setView={setView} />,
     directory: <DirectoryPage db={db} setView={setView} setQuickViewUser={setQuickViewUser} setChatTargetUser={setChatTargetUser} openChatWithUser={openChatWithUser} />,
     announcements: <AnnouncementsPage db={db} setView={setView} />,
@@ -678,6 +769,7 @@ function App() {
               {activeDropdown === 'billing' && (
                 <div className="nav-dropdown-menu" onMouseEnter={() => handleMouseEnterDropdown('billing')} onMouseLeave={handleMouseLeaveDropdown}>
                   {isSA && <>
+                    <div className="dropdown-item" onClick={() => { setView('ittickets'); setActiveDropdown(null); }}><IC n="help" /> IT & Dev Workstation</div>
                     <div className="dropdown-item" onClick={() => { setView('payroll'); setActiveDropdown(null); }}><IC n="card" /> Payroll Management</div>
                     <div className="dropdown-item" onClick={() => { setView('organizations'); setActiveDropdown(null); }}><IC n="building" /> Organizations</div>
                     <div className="dropdown-item" onClick={() => { setView('permissions'); setActiveDropdown(null); }}><IC n="shield" /> Roles & Permissions</div>
@@ -688,6 +780,7 @@ function App() {
                     <div className="dropdown-item" onClick={() => { setView('security'); setActiveDropdown(null); }}><IC n="shield" /> Security</div>
                   </>}
                   {isHR && <>
+                    <div className="dropdown-item" onClick={() => { setView('ittickets'); setActiveDropdown(null); }}><IC n="help" /> IT Support & Assets</div>
                     <div className="dropdown-item" onClick={() => { setView('payroll'); setActiveDropdown(null); }}><IC n="card" /> Payroll & Salary Slips</div>
                     {canEditAttendance && <div className="dropdown-item" onClick={() => { setView('attendance'); setActiveDropdown(null); }}><IC n="clock" /> Attendance</div>}
                     {canApproveLeaves && <div className="dropdown-item" onClick={() => { setView('leaves'); setActiveDropdown(null); }}><IC n="calendar" /> Leave {pendingLeaves > 0 && <span className="nav-badge" style={{ display: 'inline-flex', marginLeft: 6, position: 'static' }}>{pendingLeaves}</span>}</div>}
@@ -696,6 +789,7 @@ function App() {
                     <div className="dropdown-item" onClick={() => { setView('auditor'); setActiveDropdown(null); }}><IC n="shield" /> Compliance</div>
                   </>}
                   {isEmp && <>
+                    <div className="dropdown-item" onClick={() => { setView('ittickets'); setActiveDropdown(null); }}><IC n="help" /> IT & Dev Support</div>
                     <div className="dropdown-item" onClick={() => { setView('payroll'); setActiveDropdown(null); }}><IC n="card" /> My Payroll & Payslips</div>
                     <div className="dropdown-item" onClick={() => { setView('attendance'); setActiveDropdown(null); }}><IC n="clock" /> Attendance</div>
                     <div className="dropdown-item" onClick={() => { setView('leaves'); setActiveDropdown(null); }}><IC n="calendar" /> Leave</div>
@@ -8759,60 +8853,1038 @@ function LearningPage() {
   );
 }
 
-function HelpdeskPage({ user }) {
-  const [tickets, setTickets] = useState([
-    { id: 'TKT-88', title: 'Salary slip deduction breakdown', cat: 'Payroll', status: 'Pending', date: '2026-07-14' },
-    { id: 'TKT-82', title: 'VPN login authentication errors', cat: 'IT Support', status: 'Resolved', date: '2026-07-10' },
-  ]);
-  const [title, setTitle] = useState('');
-  const [cat, setCat] = useState('IT Support');
+/* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+   IT & DEV CELL SUPPORT / TICKETING MODULE
+======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================= */
+function ITTicketsPage({ db, save, user, setView }) {
+  const [activeTab, setActiveTab] = useState('tickets'); // 'tickets' | 'assets' | 'kb' | 'reports'
+  const [ticketFilterStatus, setTicketFilterStatus] = useState('all');
+  const [ticketFilterPriority, setTicketFilterPriority] = useState('all');
+  const [ticketFilterCategory, setTicketFilterCategory] = useState('all');
+  const [filterOverdueOnly, setFilterOverdueOnly] = useState(false);
+  const [search, setSearch] = useState('');
 
-  const addTicket = e => {
+  // Modals & Active Selections
+  const [showRaiseModal, setShowRaiseModal] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [showAddAssetModal, setShowAddAssetModal] = useState(false);
+  const [showAddKBModal, setShowAddKBModal] = useState(false);
+
+  // New Ticket Form State
+  const [raiseForm, setRaiseForm] = useState({
+    category: 'Hardware',
+    priority: 'Medium',
+    subject: '',
+    description: '',
+    attachment_url: null
+  });
+
+  // Reply Form State
+  const [replyBody, setReplyBody] = useState('');
+  const [replyAttachment, setReplyAttachment] = useState(null);
+  const [internalNoteBody, setInternalNoteBody] = useState('');
+
+  // Asset Form State
+  const [assetForm, setAssetForm] = useState({
+    name: '',
+    type: 'Laptop',
+    serial_number: '',
+    assigned_to: '',
+    status: 'Active',
+    notes: ''
+  });
+
+  // KB Form State
+  const [kbForm, setKbForm] = useState({
+    title: '',
+    category: 'Network/VPN',
+    body: ''
+  });
+
+  // Roles & Permissions
+  const isIT = ['it_team', 'admin', 'super_admin'].includes(user?.role) || (user?.title && user.title.toLowerCase().includes('it')) || (user?.title && user.title.toLowerCase().includes('dev'));
+  const isSuperAdmin = user?.role === 'super_admin';
+  const isAdmin = ['admin', 'super_admin'].includes(user?.role);
+
+  // Helper: SLA Hours mapping
+  const getSlaHours = priority => ({ Critical: 4, High: 8, Medium: 24, Low: 72 }[priority] || 24);
+
+  // Helper: Calculate SLA Due Date
+  const calculateSlaDue = (priority, baseIso) => {
+    const start = baseIso ? new Date(baseIso).getTime() : Date.now();
+    const hours = getSlaHours(priority);
+    return new Date(start + hours * 3600 * 1000).toISOString();
+  };
+
+  // Helper: Check if ticket is overdue
+  const isTicketOverdue = ticket => {
+    if (!ticket) return false;
+    if (['Resolved', 'Closed'].includes(ticket.status)) return false;
+    return new Date().toISOString() > ticket.sla_due_at;
+  };
+
+  // State Collections from DB
+  const tickets = db.it_tickets || [];
+  const messages = db.it_messages || [];
+  const assets = db.it_assets || [];
+  const kbArticles = db.it_kb || [];
+
+  // Filtered Tickets
+  const displayTickets = tickets.filter(t => {
+    // Role filter: Employees only see their own tickets unless IT/Admin
+    if (!isIT && !isAdmin && t.employee_id !== user.id) return false;
+
+    // Search filter
+    const emp = (db.users || []).find(u => u.id === t.employee_id);
+    const empName = emp?.name || '';
+    const matchSearch = t.id.toLowerCase().includes(search.toLowerCase()) ||
+                        t.subject.toLowerCase().includes(search.toLowerCase()) ||
+                        empName.toLowerCase().includes(search.toLowerCase()) ||
+                        t.category.toLowerCase().includes(search.toLowerCase());
+    if (!matchSearch) return false;
+
+    // Overdue filter
+    if (filterOverdueOnly && !isTicketOverdue(t)) return false;
+
+    // Status filter
+    if (ticketFilterStatus !== 'all' && t.status !== ticketFilterStatus) return false;
+
+    // Priority filter
+    if (ticketFilterPriority !== 'all' && t.priority !== ticketFilterPriority) return false;
+
+    // Category filter
+    if (ticketFilterCategory !== 'all' && t.category !== ticketFilterCategory) return false;
+
+    return true;
+  });
+
+  // KPI Calculations
+  const totalOpen = tickets.filter(t => ['Open', 'In Progress', 'On Hold'].includes(t.status)).length;
+  const totalOverdue = tickets.filter(t => isTicketOverdue(t)).length;
+  const totalResolved = tickets.filter(t => ['Resolved', 'Closed'].includes(t.status)).length;
+  const slaCompliance = tickets.length ? Math.round(((tickets.length - totalOverdue) / tickets.length) * 100) : 100;
+
+  // File Upload Handlers (FileReader Base64 DataURL)
+  const handleFileUpload = (e, callback) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size exceeds 5MB limit.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      callback(ev.target.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Submit New Ticket
+  const handleRaiseTicket = e => {
     e.preventDefault();
-    if (!title) return;
-    setTickets([{ id: `TKT-${Math.floor(Math.random()*90)+10}`, title, cat, status: 'Pending', date: new Date().toISOString().split('T')[0] }, ...tickets]);
-    setTitle('');
+    if (!raiseForm.subject.trim() || !raiseForm.description.trim()) {
+      alert('Please fill in both subject and detailed description.');
+      return;
+    }
+
+    const ticketId = 'IT-' + Math.floor(1000 + Math.random() * 9000);
+    const nowIso = new Date().toISOString();
+    const slaDueIso = calculateSlaDue(raiseForm.priority, nowIso);
+
+    const newTicket = {
+      id: ticketId,
+      employee_id: user.id,
+      category: raiseForm.category,
+      priority: raiseForm.priority,
+      status: 'Open',
+      subject: raiseForm.subject,
+      description: raiseForm.description,
+      assignee_id: null,
+      attachment_url: raiseForm.attachment_url,
+      created_at: nowIso,
+      updated_at: nowIso,
+      resolved_at: null,
+      sla_due_at: slaDueIso
+    };
+
+    const initialMessage = {
+      id: Date.now(),
+      ticket_id: ticketId,
+      sender_id: user.id,
+      sender_role: user.role,
+      body: raiseForm.description,
+      attachment_url: raiseForm.attachment_url,
+      visibility: 'public',
+      created_at: nowIso
+    };
+
+    save('it_tickets', [newTicket, ...tickets]);
+    save('it_messages', [...messages, initialMessage]);
+
+    // Push notification to user & IT
+    const newNotifs = [
+      { id: Date.now(), title: 'IT Support Ticket Filed', body: `Ticket #${ticketId} ("${raiseForm.subject}") filed successfully.`, time: 'Just now', read: 0, uid: user.id },
+      ...(db.notifications || [])
+    ];
+    save('notifications', newNotifs);
+
+    setShowRaiseModal(false);
+    setRaiseForm({ category: 'Hardware', priority: 'Medium', subject: '', description: '', attachment_url: null });
+    alert(`✔ Support Ticket #${ticketId} raised successfully!`);
+  };
+
+  // Send Public Reply
+  const handleSendReply = e => {
+    e.preventDefault();
+    if (!replyBody.trim() && !replyAttachment) return;
+    if (!selectedTicket) return;
+
+    const nowIso = new Date().toISOString();
+    const newMsg = {
+      id: Date.now(),
+      ticket_id: selectedTicket.id,
+      sender_id: user.id,
+      sender_role: user.role,
+      body: replyBody,
+      attachment_url: replyAttachment,
+      visibility: 'public',
+      created_at: nowIso
+    };
+
+    const updatedTickets = tickets.map(t => t.id === selectedTicket.id ? { ...t, updated_at: nowIso } : t);
+
+    save('it_messages', [...messages, newMsg]);
+    save('it_tickets', updatedTickets);
+
+    setReplyBody('');
+    setReplyAttachment(null);
+  };
+
+  // Send IT Internal Note (strictly hidden from employee)
+  const handleSendInternalNote = e => {
+    e.preventDefault();
+    if (!internalNoteBody.trim()) return;
+    if (!selectedTicket) return;
+
+    const nowIso = new Date().toISOString();
+    const newNote = {
+      id: Date.now(),
+      ticket_id: selectedTicket.id,
+      sender_id: user.id,
+      sender_role: user.role,
+      body: internalNoteBody,
+      attachment_url: null,
+      visibility: 'internal_note',
+      created_at: nowIso
+    };
+
+    save('it_messages', [...messages, newNote]);
+    setInternalNoteBody('');
+  };
+
+  // Update Ticket Status / Assignee / Priority
+  const handleUpdateTicketStatus = (ticketId, newStatus, newAssigneeId = undefined, newPriority = undefined) => {
+    const nowIso = new Date().toISOString();
+    const targetTicket = tickets.find(t => t.id === ticketId);
+    if (!targetTicket) return;
+
+    const updatedPriority = newPriority !== undefined ? newPriority : targetTicket.priority;
+    const updatedAssignee = newAssigneeId !== undefined ? newAssigneeId : targetTicket.assignee_id;
+    const updatedSlaDue = newPriority !== undefined ? calculateSlaDue(newPriority, targetTicket.created_at) : targetTicket.sla_due_at;
+
+    const updatedTickets = tickets.map(t => {
+      if (t.id === ticketId) {
+        return {
+          ...t,
+          status: newStatus,
+          priority: updatedPriority,
+          assignee_id: updatedAssignee,
+          updated_at: nowIso,
+          resolved_at: (newStatus === 'Resolved' && !t.resolved_at) ? nowIso : t.resolved_at,
+          sla_due_at: updatedSlaDue
+        };
+      }
+      return t;
+    });
+
+    save('it_tickets', updatedTickets);
+
+    if (selectedTicket && selectedTicket.id === ticketId) {
+      setSelectedTicket({
+        ...selectedTicket,
+        status: newStatus,
+        priority: updatedPriority,
+        assignee_id: updatedAssignee,
+        updated_at: nowIso,
+        sla_due_at: updatedSlaDue
+      });
+    }
+  };
+
+  // Create New IT Asset
+  const handleCreateAsset = e => {
+    e.preventDefault();
+    if (!assetForm.name.trim()) return;
+
+    const assetId = 'AST-' + Math.floor(1000 + Math.random() * 9000);
+    const newAsset = {
+      id: assetId,
+      name: assetForm.name,
+      type: assetForm.type,
+      serial_number: assetForm.serial_number || `SN-${Math.floor(Math.random()*900000+100000)}`,
+      assigned_to: assetForm.assigned_to ? parseInt(assetForm.assigned_to) : null,
+      issued_on: assetForm.assigned_to ? new Date().toISOString().split('T')[0] : null,
+      status: assetForm.status,
+      notes: assetForm.notes
+    };
+
+    save('it_assets', [newAsset, ...assets]);
+    setShowAddAssetModal(false);
+    setAssetForm({ name: '', type: 'Laptop', serial_number: '', assigned_to: '', status: 'Active', notes: '' });
+    alert(`✔ IT Asset #${assetId} registered successfully!`);
+  };
+
+  // Create New Knowledge Base Article
+  const handleCreateKB = e => {
+    e.preventDefault();
+    if (!kbForm.title.trim() || !kbForm.body.trim()) return;
+
+    const newArticle = {
+      id: Date.now(),
+      title: kbForm.title,
+      category: kbForm.category,
+      body: kbForm.body,
+      views: 1,
+      helpful_count: 0
+    };
+
+    save('it_kb', [newArticle, ...kbArticles]);
+    setShowAddKBModal(false);
+    setKbForm({ title: '', category: 'Network/VPN', body: '' });
+    alert(`✔ Knowledge Base article created!`);
   };
 
   return (
-    <div className="dash-grid anim-fadeup">
-      <div className="card">
-        <div className="card-hdr"><div className="section-title">Support History & Tickets</div></div>
-        <div className="tbl-wrap">
-          <table className="tbl">
-            <thead><tr><th>ID</th><th>Subject</th><th>Classification</th><th>Status</th><th>Submitted</th></tr></thead>
-            <tbody>
-              {tickets.map(t => (
-                <tr key={t.id}>
-                  <td style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: 12 }}>{t.id}</td>
-                  <td style={{ fontWeight: 700 }}>{t.title}</td>
-                  <td><span className="tag">{t.cat}</span></td>
-                  <td><span className={`badge ${t.status==='Resolved'?'b-success':'b-pending'}`}>{t.status}</span></td>
-                  <td style={{ fontSize: 12 }}>{t.date}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className="anim-fadeup">
+      {/* PAGE HEADER */}
+      <PageHdr 
+        title={isIT ? "IT & Dev Cell Workstation" : "IT & Dev Support Center"} 
+        sub={isIT ? "Manage organization ticket queues, SLA compliance, IT assets & knowledge base" : "File IT support requests, track ticket status & access self-serve help guides"}
+      >
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button 
+            className="btn btn-amber" 
+            style={{ borderRadius: 99, padding: '10px 22px', fontWeight: 800, border: 'none', display: 'flex', alignItems: 'center', gap: 6 }} 
+            onClick={() => setShowRaiseModal(true)}
+          >
+            <span>➕</span> Raise IT Ticket
+          </button>
         </div>
-      </div>
-      <div className="card">
-        <div className="card-hdr"><div className="section-title">File Support Request Ticket</div></div>
-        <form onSubmit={addTicket}>
-          <div className="form-group">
-            <label className="form-label">Subject Description</label>
-            <input className="form-input" placeholder="What issues are you experiencing?" value={title} onChange={e=>setTitle(e.target.value)} required />
+      </PageHdr>
+
+      {/* DASHBOARD TOP KPI STATS */}
+      <div className="stats-grid stagger" style={{ marginBottom: 24 }}>
+        {[
+          { l: 'Open Queue', v: totalOpen, bg: '#DBEAFE', ic: '#2563EB', icon: 'clock' },
+          { l: 'SLA Overdue', v: totalOverdue, bg: '#FEE2E2', ic: '#DC2626', icon: 'file' },
+          { l: 'Resolved', v: totalResolved, bg: '#D1FAE5', ic: '#059669', icon: 'card' },
+          { l: 'SLA Compliance Rate', v: `${slaCompliance}%`, bg: '#F3E8FF', ic: '#7C5CFC', icon: 'trending' }
+        ].map((s, i) => (
+          <div key={i} className="stat-c">
+            <div className="stat-icon-wrap" style={{ background: s.bg }}><IC n={s.icon} s={20} c={s.ic}/></div>
+            <div><div className="stat-label">{s.l}</div><div className="stat-value">{s.v}</div></div>
           </div>
-          <div className="form-group" style={{ marginTop: 12 }}>
-            <label className="form-label">Department Category</label>
-            <select className="form-input" value={cat} onChange={e=>setCat(e.target.value)}>
-              <option>IT Support</option>
-              <option>Payroll</option>
-              <option>HR Policies</option>
+        ))}
+      </div>
+
+      {/* WORKSPACE NAVIGATION TABS */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid #E2E8F0', paddingBottom: 12 }}>
+        <button 
+          className={`btn ${activeTab === 'tickets' ? 'btn-dark' : 'btn-ghost'}`}
+          style={{ borderRadius: 99, fontSize: 12.5, fontWeight: 800 }}
+          onClick={() => setActiveTab('tickets')}
+        >
+          🎟️ Ticket Queue & History ({displayTickets.length})
+        </button>
+        <button 
+          className={`btn ${activeTab === 'assets' ? 'btn-dark' : 'btn-ghost'}`}
+          style={{ borderRadius: 99, fontSize: 12.5, fontWeight: 800 }}
+          onClick={() => setActiveTab('assets')}
+        >
+          💻 IT Asset Manager ({assets.length})
+        </button>
+        <button 
+          className={`btn ${activeTab === 'kb' ? 'btn-dark' : 'btn-ghost'}`}
+          style={{ borderRadius: 99, fontSize: 12.5, fontWeight: 800 }}
+          onClick={() => setActiveTab('kb')}
+        >
+          📚 Self-Serve Knowledge Base ({kbArticles.length})
+        </button>
+        {isIT && (
+          <button 
+            className={`btn ${activeTab === 'reports' ? 'btn-dark' : 'btn-ghost'}`}
+            style={{ borderRadius: 99, fontSize: 12.5, fontWeight: 800 }}
+            onClick={() => setActiveTab('reports')}
+          >
+            📊 SLA & Workload Reports
+          </button>
+        )}
+      </div>
+
+      {/* TAB 1: TICKETS QUEUE & LIST */}
+      {activeTab === 'tickets' && (
+        <>
+          {/* SEARCH & FILTERS BAR */}
+          <div className="card" style={{ padding: '16px 20px', marginBottom: 20, borderRadius: 16 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+              <input 
+                className="form-input" 
+                style={{ borderRadius: 99, maxWidth: 300, fontSize: 12.5 }} 
+                placeholder="🔍 Search ticket ID, subject, staff..." 
+                value={search} 
+                onChange={e => setSearch(e.target.value)} 
+              />
+              
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <select 
+                  className="form-input" 
+                  style={{ width: 130, fontSize: 12, borderRadius: 99 }} 
+                  value={ticketFilterStatus} 
+                  onChange={e => setTicketFilterStatus(e.target.value)}
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="Open">Open</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="On Hold">On Hold</option>
+                  <option value="Resolved">Resolved</option>
+                  <option value="Closed">Closed</option>
+                </select>
+
+                <select 
+                  className="form-input" 
+                  style={{ width: 130, fontSize: 12, borderRadius: 99 }} 
+                  value={ticketFilterPriority} 
+                  onChange={e => setTicketFilterPriority(e.target.value)}
+                >
+                  <option value="all">All Priorities</option>
+                  <option value="Critical">Critical (4h)</option>
+                  <option value="High">High (8h)</option>
+                  <option value="Medium">Medium (24h)</option>
+                  <option value="Low">Low (72h)</option>
+                </select>
+
+                <select 
+                  className="form-input" 
+                  style={{ width: 150, fontSize: 12, borderRadius: 99 }} 
+                  value={ticketFilterCategory} 
+                  onChange={e => setTicketFilterCategory(e.target.value)}
+                >
+                  <option value="all">All Categories</option>
+                  <option value="Hardware">Hardware</option>
+                  <option value="Software">Software</option>
+                  <option value="Network/VPN">Network/VPN</option>
+                  <option value="Access & Permissions">Access & Permissions</option>
+                  <option value="HRMS Bug Report">HRMS Bug Report</option>
+                  <option value="New Asset Request">New Asset Request</option>
+                  <option value="Email">Email</option>
+                  <option value="Other">Other</option>
+                </select>
+
+                {/* OVERDUE ONLY TOGGLE FILTER */}
+                <button 
+                  type="button" 
+                  style={{
+                    padding: '6px 16px',
+                    borderRadius: 99,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    border: '1px solid #FCA5A5',
+                    background: filterOverdueOnly ? '#EF4444' : '#FEF2F2',
+                    color: filterOverdueOnly ? '#FFFFFF' : '#991B1B',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onClick={() => setFilterOverdueOnly(!filterOverdueOnly)}
+                >
+                  ⚠️ Overdue Only ({totalOverdue})
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* TICKETS TABLE */}
+          <div className="card" style={{ borderRadius: 20, overflow: 'hidden' }}>
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Ticket ID</th>
+                    <th>Employee</th>
+                    <th>Category</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>SLA Target</th>
+                    <th>Assignee</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayTickets.length === 0 && (
+                    <tr>
+                      <td colSpan={8}>
+                        <div className="empty-state" style={{ padding: 40 }}>
+                          <span className="empty-state-icon"><IC n="help" s={48} style={{ color: 'var(--text-muted)' }}/></span>
+                          <h3>No support tickets match filters</h3>
+                          <p>Click "Raise IT Ticket" to submit a new support request.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {displayTickets.map(t => {
+                    const emp = (db.users || []).find(u => u.id === t.employee_id);
+                    const assignee = (db.users || []).find(u => u.id === t.assignee_id);
+                    const overdue = isTicketOverdue(t);
+
+                    const priorityBg = { Critical: '#FEE2E2', High: '#FFEDD5', Medium: '#FEF3C7', Low: '#F1F5F9' }[t.priority] || '#F1F5F9';
+                    const priorityColor = { Critical: '#991B1B', High: '#C2410C', Medium: '#B45309', Low: '#475569' }[t.priority] || '#475569';
+
+                    return (
+                      <tr key={t.id} style={{ background: overdue ? '#FFF5F5' : 'transparent' }}>
+                        <td>
+                          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 900, fontSize: 13, color: '#7C5CFC' }}>{t.id}</div>
+                          <div style={{ fontSize: 11, color: '#6B7280' }}>{new Date(t.created_at).toLocaleDateString()}</div>
+                        </td>
+                        <td>
+                          <div className="emp-cell">
+                            <img src={emp?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Staff'} className="tbl-av" alt=""/>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{emp?.name || 'Employee'}</div>
+                              <div style={{ fontSize: 11, color: '#6B7280' }}>{emp?.eid || 'EMP'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: '#1E293B' }}>{t.subject}</div>
+                          <span className="tag" style={{ marginTop: 2 }}>{t.category}</span>
+                        </td>
+                        <td>
+                          <span style={{ background: priorityBg, color: priorityColor, padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 900 }}>
+                            {t.priority}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`badge ${t.status === 'Resolved' || t.status === 'Closed' ? 'b-success' : 'b-pending'}`}>
+                            <span className="badge-dot"/>{t.status}
+                          </span>
+                        </td>
+                        <td>
+                          {overdue ? (
+                            <span style={{ background: '#EF4444', color: '#FFF', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 900 }}>
+                              ⚠️ BREACHED
+                            </span>
+                          ) : (
+                            <div style={{ fontSize: 12, color: '#4B5563', fontWeight: 600 }}>
+                              Due: {new Date(t.sla_due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          {assignee ? (
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#1F2937' }}>{assignee.name}</div>
+                          ) : (
+                            <span style={{ fontSize: 11.5, color: '#9CA3AF', italic: true }}>Unassigned</span>
+                          )}
+                        </td>
+                        <td>
+                          <button 
+                            className="btn btn-sm btn-dark" 
+                            style={{ borderRadius: 10, fontSize: 11.5, fontWeight: 800 }} 
+                            onClick={() => setSelectedTicket(t)}
+                          >
+                            👁️ Open Ticket
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* TAB 2: IT ASSET MANAGER */}
+      {activeTab === 'assets' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color: '#111827', fontFamily: 'Outfit, sans-serif' }}>IT Asset Inventory & Assignments</div>
+            {isIT && (
+              <button className="btn btn-dark" style={{ borderRadius: 99, padding: '8px 20px', fontSize: 12.5, fontWeight: 800 }} onClick={() => setShowAddAssetModal(true)}>
+                ➕ Register New IT Asset
+              </button>
+            )}
+          </div>
+
+          <div className="card" style={{ borderRadius: 20, overflow: 'hidden' }}>
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Asset ID</th>
+                    <th>Device / License Name</th>
+                    <th>Classification</th>
+                    <th>Serial Number</th>
+                    <th>Assigned Employee</th>
+                    <th>Issued Date</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {assets.length === 0 && (
+                    <tr>
+                      <td colSpan={7}>
+                        <div className="empty-state" style={{ padding: 30 }}>
+                          <h3>No IT assets registered</h3>
+                          <p>Register company laptops, monitors & software licenses here.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {assets.map(a => {
+                    const assignedUser = (db.users || []).find(u => u.id === a.assigned_to);
+                    return (
+                      <tr key={a.id}>
+                        <td style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 900, fontSize: 13, color: '#7C5CFC' }}>{a.id}</td>
+                        <td style={{ fontWeight: 800, fontSize: 13.5, color: '#111827' }}>{a.name}</td>
+                        <td><span className="tag">{a.type}</span></td>
+                        <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#4B5563' }}>{a.serial_number || 'N/A'}</td>
+                        <td>
+                          {assignedUser ? (
+                            <div className="emp-cell">
+                              <img src={assignedUser.avatar} className="tbl-av" alt=""/>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 12.5 }}>{assignedUser.name}</div>
+                                <div style={{ fontSize: 11, color: '#6B7280' }}>{assignedUser.eid}</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 12, color: '#9CA3AF' }}>In IT Storage</span>
+                          )}
+                        </td>
+                        <td style={{ fontSize: 12.5, color: '#4B5563' }}>{a.issued_on || '—'}</td>
+                        <td>
+                          <span className={`badge ${a.status === 'Active' ? 'b-success' : 'b-pending'}`}>
+                            <span className="badge-dot"/>{a.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: SELF-SERVE KNOWLEDGE BASE */}
+      {activeTab === 'kb' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color: '#111827', fontFamily: 'Outfit, sans-serif' }}>Self-Serve Knowledge Base & Troubleshooting Guides</div>
+            {isIT && (
+              <button className="btn btn-dark" style={{ borderRadius: 99, padding: '8px 20px', fontSize: 12.5, fontWeight: 800 }} onClick={() => setShowAddKBModal(true)}>
+                ➕ Create Help Article
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+            {kbArticles.map(k => (
+              <div key={k.id} className="card" style={{ padding: 20, borderRadius: 16, border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span className="tag">{k.category}</span>
+                    <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>👁️ {k.views} views</span>
+                  </div>
+                  <h3 style={{ fontSize: 15, fontWeight: 900, color: '#1E293B', marginBottom: 8, lineHeight: 1.4 }}>{k.title}</h3>
+                  <p style={{ fontSize: 13, color: '#4B5563', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{k.body}</p>
+                </div>
+                <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                  <span style={{ color: '#059669', fontWeight: 700 }}>👍 {k.helpful_count} helpful votes</span>
+                  <button className="btn btn-xs btn-ghost" onClick={() => alert('Article feedback submitted! Thank you.')}>Was this helpful?</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: REPORTS & SLA OVERSIGHT */}
+      {activeTab === 'reports' && isIT && (
+        <div className="dash-grid">
+          <div className="card" style={{ padding: 24, borderRadius: 20 }}>
+            <div className="section-title" style={{ marginBottom: 16 }}>Ticket Volume vs Resolution Rate</div>
+            <div style={{ padding: '20px 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13, fontWeight: 700 }}>
+                <span>Total Tickets Resolved</span>
+                <span style={{ color: '#059669' }}>{totalResolved} / {tickets.length} ({slaCompliance}%)</span>
+              </div>
+              <div className="progress-track" style={{ height: 12, background: '#E2E8F0', borderRadius: 99 }}>
+                <div className="progress-fill" style={{ width: `${slaCompliance}%`, background: '#059669', borderRadius: 99 }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 24, borderRadius: 20 }}>
+            <div className="section-title" style={{ marginBottom: 16 }}>Tickets Category Breakdown</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {['Hardware', 'Software', 'Network/VPN', 'Access & Permissions'].map((cat, i) => {
+                const count = tickets.filter(t => t.category === cat).length;
+                const pct = tickets.length ? Math.round((count / tickets.length) * 100) : 0;
+                return (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ fontWeight: 700, color: '#334155' }}>{cat}</span>
+                    <span style={{ fontWeight: 900, color: '#7C5CFC' }}>{count} tickets ({pct}%)</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: RAISE TICKET */}
+      <Modal open={showRaiseModal} onClose={() => setShowRaiseModal(false)} title="Raise IT & Dev Support Ticket" subtitle="File a support request with automated SLA tracking">
+        <form onSubmit={handleRaiseTicket}>
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label className="form-label">Support Category</label>
+            <select 
+              className="form-input" 
+              value={raiseForm.category} 
+              onChange={e => setRaiseForm({ ...raiseForm, category: e.target.value })}
+            >
+              <option value="Hardware">Hardware (Laptop, Monitor, Peripherals)</option>
+              <option value="Software">Software & Application Install</option>
+              <option value="Network/VPN">Network / VPN Access</option>
+              <option value="Access & Permissions">Access & Permissions</option>
+              <option value="HRMS Bug Report">HRMS Bug Report</option>
+              <option value="New Asset Request">New Asset Request</option>
+              <option value="Email">Email & Communication</option>
+              <option value="Other">Other General Inquiry</option>
             </select>
           </div>
-          <button className="btn btn-dark" style={{ marginTop: 16 }} type="submit">Submit Ticket</button>
+
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label className="form-label">Priority Level (SLA Target)</label>
+            <select 
+              className="form-input" 
+              value={raiseForm.priority} 
+              onChange={e => setRaiseForm({ ...raiseForm, priority: e.target.value })}
+            >
+              <option value="Low">Low (SLA Target: 72 Hours)</option>
+              <option value="Medium">Medium (SLA Target: 24 Hours)</option>
+              <option value="High">High (SLA Target: 8 Hours)</option>
+              <option value="Critical">Critical (SLA Target: 4 Hours)</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label className="form-label">Ticket Subject</label>
+            <input 
+              className="form-input" 
+              placeholder="Brief summary of the issue..." 
+              value={raiseForm.subject} 
+              onChange={e => setRaiseForm({ ...raiseForm, subject: e.target.value })} 
+              required 
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label className="form-label">Detailed Description</label>
+            <textarea 
+              className="form-input" 
+              rows={4} 
+              placeholder="Provide exact error messages, steps to reproduce, or asset specifications..." 
+              value={raiseForm.description} 
+              onChange={e => setRaiseForm({ ...raiseForm, description: e.target.value })} 
+              required 
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label className="form-label">Attach File / Screenshot (Optional)</label>
+            <input 
+              type="file" 
+              accept="image/*,.pdf,.doc,.docx" 
+              className="form-input" 
+              onChange={e => handleFileUpload(e, url => setRaiseForm({ ...raiseForm, attachment_url: url }))} 
+            />
+            {raiseForm.attachment_url && (
+              <div style={{ marginTop: 8, fontSize: 12, color: '#059669', fontWeight: 700 }}>
+                ✓ File attached successfully
+              </div>
+            )}
+          </div>
+
+          <div className="btn-row" style={{ marginTop: 20 }}>
+            <button className="btn btn-ghost" type="button" onClick={() => setShowRaiseModal(false)}>Cancel</button>
+            <button className="btn btn-dark" type="submit" style={{ background: '#7C5CFC' }}>Submit Ticket</button>
+          </div>
         </form>
-      </div>
+      </Modal>
+
+      {/* MODAL 2: TICKET DETAIL & DUAL THREAD CONVERSATION */}
+      <Modal open={!!selectedTicket} onClose={() => setSelectedTicket(null)} title={`Ticket #${selectedTicket?.id}`} subtitle={selectedTicket?.subject}>
+        {selectedTicket && (
+          <div>
+            {/* TICKET SUMMARY BAR */}
+            <div style={{ background: '#F8FAFC', padding: 16, borderRadius: 12, border: '1px solid #E2E8F0', marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12.5 }}>
+              <div><span style={{ color: '#64748B' }}>Category:</span> <strong>{selectedTicket.category}</strong></div>
+              <div><span style={{ color: '#64748B' }}>Priority:</span> <strong>{selectedTicket.priority} (Target: {getSlaHours(selectedTicket.priority)}h)</strong></div>
+              <div>
+                <span style={{ color: '#64748B' }}>Status:</span>{' '}
+                <span className={`badge ${selectedTicket.status === 'Resolved' || selectedTicket.status === 'Closed' ? 'b-success' : 'b-pending'}`}>
+                  {selectedTicket.status}
+                </span>
+              </div>
+              <div>
+                <span style={{ color: '#64748B' }}>SLA Target:</span>{' '}
+                <strong style={{ color: isTicketOverdue(selectedTicket) ? '#DC2626' : '#059669' }}>
+                  {isTicketOverdue(selectedTicket) ? '⚠️ BREACHED' : new Date(selectedTicket.sla_due_at).toLocaleString()}
+                </strong>
+              </div>
+            </div>
+
+            {/* IT CONTROLS BAR (Only visible to IT Staff or Admin) */}
+            {isIT && (
+              <div style={{ background: '#EFF6FF', padding: 14, borderRadius: 12, border: '1px solid #BFDBFE', marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 900, color: '#1E40AF', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  ⚙️ IT Management Controls
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 800, display: 'block', marginBottom: 3 }}>Change Status</label>
+                    <select 
+                      className="form-input" 
+                      style={{ fontSize: 12, width: 130 }}
+                      value={selectedTicket.status} 
+                      onChange={e => handleUpdateTicketStatus(selectedTicket.id, e.target.value)}
+                    >
+                      <option value="Open">Open</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="On Hold">On Hold</option>
+                      <option value="Resolved">Resolved</option>
+                      <option value="Closed">Closed</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 800, display: 'block', marginBottom: 3 }}>Reassign IT Staff</label>
+                    <select 
+                      className="form-input" 
+                      style={{ fontSize: 12, width: 150 }}
+                      value={selectedTicket.assignee_id || ''} 
+                      onChange={e => handleUpdateTicketStatus(selectedTicket.id, selectedTicket.status, e.target.value ? parseInt(e.target.value) : null)}
+                    >
+                      <option value="">Unassigned</option>
+                      {(db.users || []).map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 800, display: 'block', marginBottom: 3 }}>Priority Level</label>
+                    <select 
+                      className="form-input" 
+                      style={{ fontSize: 12, width: 130 }}
+                      value={selectedTicket.priority} 
+                      onChange={e => handleUpdateTicketStatus(selectedTicket.id, selectedTicket.status, undefined, e.target.value)}
+                    >
+                      <option value="Low">Low (72h)</option>
+                      <option value="Medium">Medium (24h)</option>
+                      <option value="High">High (8h)</option>
+                      <option value="Critical">Critical (4h)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* EMPLOYEE ACTION BAR */}
+            {!isIT && selectedTicket.employee_id === user.id && (
+              <div style={{ marginBottom: 16, display: 'flex', gap: 10 }}>
+                {selectedTicket.status !== 'Resolved' && selectedTicket.status !== 'Closed' && (
+                  <button 
+                    className="btn btn-sm btn-dark" 
+                    style={{ background: '#059669', borderRadius: 99 }} 
+                    onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'Resolved')}
+                  >
+                    ✓ Mark as Resolved
+                  </button>
+                )}
+                {selectedTicket.status === 'Resolved' && (
+                  <button 
+                    className="btn btn-sm btn-dark" 
+                    style={{ background: '#DC2626', borderRadius: 99 }} 
+                    onClick={() => handleUpdateTicketStatus(selectedTicket.id, 'In Progress')}
+                  >
+                    🔄 Re-open Ticket
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* CONVERSATION THREAD */}
+            <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12, paddingRight: 6 }}>
+              {messages.filter(m => m.ticket_id === selectedTicket.id && (isIT || m.visibility === 'public')).map(m => {
+                const sender = (db.users || []).find(u => u.id === m.sender_id);
+                const isInternal = m.visibility === 'internal_note';
+
+                return (
+                  <div 
+                    key={m.id} 
+                    style={{
+                      padding: 12,
+                      borderRadius: 12,
+                      background: isInternal ? '#FEF3C7' : (m.sender_id === user.id ? '#F1F5F9' : '#FFFFFF'),
+                      border: isInternal ? '1px solid #FCD34D' : '1px solid #E2E8F0',
+                      marginLeft: m.sender_id === user.id ? 20 : 0,
+                      marginRight: m.sender_id === user.id ? 0 : 20
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontWeight: 800, fontSize: 12, color: '#1E293B' }}>{sender?.name || 'User'}</span>
+                        {isInternal && (
+                          <span style={{ background: '#D97706', color: '#FFF', fontSize: 10, fontWeight: 900, padding: '2px 6px', borderRadius: 4 }}>
+                            🔒 INTERNAL IT NOTE
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 10.5, color: '#94A3B8' }}>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.5, margin: 0 }}>{m.body}</p>
+
+                    {m.attachment_url && (
+                      <div style={{ marginTop: 8 }}>
+                        <a href={m.attachment_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#7C5CFC', fontWeight: 700 }}>
+                          📎 View Attachment
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* PUBLIC REPLY BOX */}
+            <form onSubmit={handleSendReply} style={{ marginBottom: isIT ? 16 : 0 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input 
+                  className="form-input" 
+                  placeholder="Type public reply to ticket thread..." 
+                  value={replyBody} 
+                  onChange={e => setReplyBody(e.target.value)} 
+                />
+                <button className="btn btn-dark" type="submit">Send</button>
+              </div>
+            </form>
+
+            {/* INTERNAL NOTE BOX (IT ONLY) */}
+            {isIT && (
+              <form onSubmit={handleSendInternalNote} style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #CBD5E1' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: '#D97706', marginBottom: 6 }}>
+                  🔒 Add Internal IT Note (Strictly hidden from employee)
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input 
+                    className="form-input" 
+                    style={{ background: '#FFFBEB', borderColor: '#FCD34D' }}
+                    placeholder="Private investigation notes..." 
+                    value={internalNoteBody} 
+                    onChange={e => setInternalNoteBody(e.target.value)} 
+                  />
+                  <button className="btn btn-amber" type="submit" style={{ background: '#D97706', border: 'none' }}>Save Note</button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* MODAL 3: REGISTER IT ASSET */}
+      <Modal open={showAddAssetModal} onClose={() => setShowAddAssetModal(false)} title="Register IT Asset" subtitle="Add hardware device or software license to inventory">
+        <form onSubmit={handleCreateAsset}>
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Asset Name</label>
+            <input className="form-input" placeholder="e.g. MacBook Pro 16 M3" value={assetForm.name} onChange={e => setAssetForm({ ...assetForm, name: e.target.value })} required />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Asset Classification</label>
+            <select className="form-input" value={assetForm.type} onChange={e => setAssetForm({ ...assetForm, type: e.target.value })}>
+              <option value="Laptop">Laptop</option>
+              <option value="Accessory">Accessory / Display</option>
+              <option value="Software License">Software License</option>
+              <option value="Mobile Device">Mobile Device</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Serial Number / Key</label>
+            <input className="form-input" placeholder="e.g. SN-MAC-998877" value={assetForm.serial_number} onChange={e => setAssetForm({ ...assetForm, serial_number: e.target.value })} />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Assign to Employee</label>
+            <select className="form-input" value={assetForm.assigned_to} onChange={e => setAssetForm({ ...assetForm, assigned_to: e.target.value })}>
+              <option value="">Unassigned (In IT Storage)</option>
+              {(db.users || []).map(u => (
+                <option key={u.id} value={u.id}>{u.name} ({u.eid})</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="btn-row" style={{ marginTop: 20 }}>
+            <button className="btn btn-ghost" type="button" onClick={() => setShowAddAssetModal(false)}>Cancel</button>
+            <button className="btn btn-dark" type="submit">Save Asset</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 4: CREATE KB ARTICLE */}
+      <Modal open={showAddKBModal} onClose={() => setShowAddKBModal(false)} title="Create Knowledge Base Article" subtitle="Publish self-serve guide for employees">
+        <form onSubmit={handleCreateKB}>
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Article Title</label>
+            <input className="form-input" placeholder="e.g. How to Connect to CEGS VPN" value={kbForm.title} onChange={e => setKbForm({ ...kbForm, title: e.target.value })} required />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Category</label>
+            <select className="form-input" value={kbForm.category} onChange={e => setKbForm({ ...kbForm, category: e.target.value })}>
+              <option value="Network/VPN">Network/VPN</option>
+              <option value="Access & Permissions">Access & Permissions</option>
+              <option value="Hardware">Hardware</option>
+              <option value="HRMS System">HRMS System</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Article Body & Guide</label>
+            <textarea className="form-input" rows={5} placeholder="Step by step instructions..." value={kbForm.body} onChange={e => setKbForm({ ...kbForm, body: e.target.value })} required />
+          </div>
+
+          <div className="btn-row" style={{ marginTop: 20 }}>
+            <button className="btn btn-ghost" type="button" onClick={() => setShowAddKBModal(false)}>Cancel</button>
+            <button className="btn btn-dark" type="submit">Publish Article</button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

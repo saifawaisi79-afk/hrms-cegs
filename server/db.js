@@ -542,6 +542,75 @@ async function initDatabase() {
     )
   `);
 
+  // 18. IT Support Tickets Table
+  await dbQuery.exec(`
+    CREATE TABLE IF NOT EXISTS it_tickets (
+      id TEXT PRIMARY KEY,
+      employee_id INTEGER NOT NULL,
+      category TEXT NOT NULL,
+      priority TEXT CHECK(priority IN ('Low', 'Medium', 'High', 'Critical')) NOT NULL DEFAULT 'Medium',
+      status TEXT CHECK(status IN ('Open', 'In Progress', 'On Hold', 'Resolved', 'Closed')) NOT NULL DEFAULT 'Open',
+      subject TEXT NOT NULL,
+      description TEXT NOT NULL,
+      assignee_id INTEGER,
+      attachment_url TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      resolved_at TEXT,
+      sla_due_at TEXT NOT NULL,
+      FOREIGN KEY (employee_id) REFERENCES users(id),
+      FOREIGN KEY (assignee_id) REFERENCES users(id)
+    )
+  `);
+
+  // 19. IT Ticket Messages & Internal Notes Table
+  await dbQuery.exec(`
+    CREATE TABLE IF NOT EXISTS it_ticket_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id TEXT NOT NULL,
+      sender_id INTEGER NOT NULL,
+      sender_role TEXT NOT NULL,
+      body TEXT NOT NULL,
+      attachment_url TEXT,
+      visibility TEXT CHECK(visibility IN ('public', 'internal_note')) NOT NULL DEFAULT 'public',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (ticket_id) REFERENCES it_tickets(id) ON DELETE CASCADE,
+      FOREIGN KEY (sender_id) REFERENCES users(id)
+    )
+  `);
+
+  // 20. IT Assets Table
+  await dbQuery.exec(`
+    CREATE TABLE IF NOT EXISTS it_assets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT CHECK(type IN ('Laptop', 'Accessory', 'Software License', 'Mobile Device', 'Other')) NOT NULL,
+      serial_number TEXT,
+      assigned_to INTEGER,
+      issued_on TEXT,
+      status TEXT CHECK(status IN ('Active', 'In Stock', 'Under Maintenance', 'Retired')) NOT NULL DEFAULT 'In Stock',
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (assigned_to) REFERENCES users(id)
+    )
+  `);
+
+  // 21. IT Knowledge Base Articles Table
+  await dbQuery.exec(`
+    CREATE TABLE IF NOT EXISTS it_kb_articles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      category TEXT NOT NULL,
+      views INTEGER DEFAULT 0,
+      helpful_count INTEGER DEFAULT 0,
+      created_by INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )
+  `);
+
   console.log('Database tables successfully verified/created.');
 
   // Start periodic sync after init
