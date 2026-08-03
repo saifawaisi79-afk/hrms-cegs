@@ -2199,29 +2199,45 @@ function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTarge
     }
   };
 
-  // Onboarding Checklist state
-  const [checklist, setChecklist] = useState([
-    { label: 'Office Tour', done: true, sub: '100% Complete' },
-    { label: 'Introduction to Management', done: true, sub: '50% Review' },
-    { label: 'Work Tool setup', done: true, sub: '25% Setup' },
-    { label: 'Intro to Colleagues', done: false, sub: 'Not Started' },
-    { label: 'Job Responsibilities alignment', done: false, sub: 'Not Started' }
-  ]);
+  // ── CHECKLIST TRACKER SECTIONS (NEW HIRING & ONBOARDING) ──
+  const [activeChecklistCategory, setActiveChecklistCategory] = useState('new_hiring'); // 'new_hiring' | 'onboarding'
+  const [checklistsData, setChecklistsData] = useState({
+    new_hiring: [
+      { label: 'Offer Letter & Employment Contract', done: true, sub: '100% Signed' },
+      { label: 'Background Verification & Document Audit', done: true, sub: 'Verified & Approved' },
+      { label: 'IT Workstation & Laptop Allocation', done: true, sub: 'Assigned (MacBook M3)' },
+      { label: 'Email & CEGS HRMS Credentials Setup', done: true, sub: 'Credentials Issued' },
+      { label: 'First Day HR Orientation & Welcome Sync', done: false, sub: 'Scheduled for 10:00 AM' },
+      { label: 'Department Mentor Assignment', done: false, sub: 'In Progress' }
+    ],
+    onboarding: [
+      { label: 'Office Tour', done: true, sub: '100% Complete' },
+      { label: 'Introduction to Management', done: true, sub: '50% Review' },
+      { label: 'Work Tool setup', done: true, sub: '25% Setup' },
+      { label: 'Intro to Colleagues', done: false, sub: 'Not Started' },
+      { label: 'Job Responsibilities alignment', done: false, sub: 'Not Started' }
+    ]
+  });
+
+  const activeChecklist = checklistsData[activeChecklistCategory] || [];
 
   const toggleCheck = (idx) => {
-    setChecklist(checklist.map((c, i) => i === idx ? { ...c, done: !c.done } : c));
+    const updated = activeChecklist.map((c, i) => i === idx ? { ...c, done: !c.done } : c);
+    setChecklistsData({ ...checklistsData, [activeChecklistCategory]: updated });
   };
 
   const addCheckItem = () => {
-    const label = prompt('Enter new onboarding task description:');
+    const label = prompt('Enter new task description:');
     if (label) {
-      setChecklist([...checklist, { label, done: false, sub: 'Not Started' }]);
+      const updated = [...activeChecklist, { label, done: false, sub: 'Not Started' }];
+      setChecklistsData({ ...checklistsData, [activeChecklistCategory]: updated });
     }
   };
 
   const deleteLastCheckItem = () => {
-    if (checklist.length > 0) {
-      setChecklist(checklist.slice(0, -1));
+    if (activeChecklist.length > 0) {
+      const updated = activeChecklist.slice(0, -1);
+      setChecklistsData({ ...checklistsData, [activeChecklistCategory]: updated });
     }
   };
 
@@ -2747,14 +2763,62 @@ function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTarge
           </button>
         </div>
 
-        {/* WIDGET 2: Interactive Checklist */}
+        {/* WIDGET 2: Interactive Checklist Tracker */}
         <div className="checklist-card">
-          <div className="checklist-header">
-            <div className="checklist-title">Checklist tracker</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>July 2026</div>
+          <div className="checklist-header" style={{ marginBottom: 12 }}>
+            <div>
+              <div className="checklist-title">Checklist tracker</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>August 2026</div>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 800, background: '#F3E8FF', color: '#7C5CFC', padding: '3px 10px', borderRadius: 99 }}>
+              {activeChecklist.filter(c => c.done).length} / {activeChecklist.length} Done
+            </span>
           </div>
+
+          {/* SECTION SWITCHER PILLS FOR NEW HIRING & ONBOARDING */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'var(--bg-subtle, #F1F5F9)', padding: 4, borderRadius: 99 }}>
+            <button 
+              type="button" 
+              style={{
+                flex: 1,
+                border: 'none',
+                borderRadius: 99,
+                padding: '6px 10px',
+                fontSize: 11.5,
+                fontWeight: 800,
+                cursor: 'pointer',
+                background: activeChecklistCategory === 'new_hiring' ? '#7C5CFC' : 'transparent',
+                color: activeChecklistCategory === 'new_hiring' ? '#FFFFFF' : 'var(--text-secondary, #64748B)',
+                transition: 'all 0.2s ease',
+                boxShadow: activeChecklistCategory === 'new_hiring' ? '0 2px 6px rgba(124,92,252,0.25)' : 'none'
+              }}
+              onClick={() => setActiveChecklistCategory('new_hiring')}
+            >
+              🚀 New Hiring
+            </button>
+            <button 
+              type="button" 
+              style={{
+                flex: 1,
+                border: 'none',
+                borderRadius: 99,
+                padding: '6px 10px',
+                fontSize: 11.5,
+                fontWeight: 800,
+                cursor: 'pointer',
+                background: activeChecklistCategory === 'onboarding' ? '#7C5CFC' : 'transparent',
+                color: activeChecklistCategory === 'onboarding' ? '#FFFFFF' : 'var(--text-secondary, #64748B)',
+                transition: 'all 0.2s ease',
+                boxShadow: activeChecklistCategory === 'onboarding' ? '0 2px 6px rgba(124,92,252,0.25)' : 'none'
+              }}
+              onClick={() => setActiveChecklistCategory('onboarding')}
+            >
+              📋 Onboarding
+            </button>
+          </div>
+
           <div className="checklist-items-list">
-            {checklist.map((c, idx) => (
+            {activeChecklist.map((c, idx) => (
               <div key={idx} className="checklist-row-item">
                 <div className="checklist-item-details">
                   <span className="checklist-item-label" style={{ textDecoration: c.done ? 'line-through' : 'none', opacity: c.done ? 0.6 : 1 }}>{c.label}</span>
