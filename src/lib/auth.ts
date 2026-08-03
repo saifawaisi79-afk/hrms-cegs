@@ -1,6 +1,14 @@
 import jwt from 'jsonwebtoken';
 
-export const JWT_SECRET = process.env.JWT_SECRET || 'cegshrmssecret12345';
+function resolveJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || !String(secret).trim()) {
+    throw new Error('JWT_SECRET environment variable is required. Set it in .env.local (see .env.example).');
+  }
+  return String(secret);
+}
+
+export const JWT_SECRET = resolveJwtSecret();
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,7 +49,6 @@ export function getAuthUser(request: Request): AuthUserPayload | null {
 function normalizeIp(ip: string | null | undefined): string {
   if (!ip) return '';
   ip = ip.trim();
-  // Unwrap IPv4-mapped IPv6 addresses (::ffff:192.168.1.1 → 192.168.1.1)
   if (ip.startsWith('::ffff:')) ip = ip.substring(7);
   return ip;
 }
@@ -59,7 +66,6 @@ function ipToInt(ip: string): number | null {
 }
 
 function ipInCidr(ip: string, cidr: string): boolean {
-  // Exact match (handles IPv6 literals like ::1 and plain IPs)
   if (!cidr.includes('/')) return ip === cidr.trim();
 
   const [rangeIp, maskBitsStr] = cidr.split('/');
@@ -71,32 +77,26 @@ function ipInCidr(ip: string, cidr: string): boolean {
   if (ipInt === null || rangeIpInt === null) return false;
   if (maskBits === 0) return true;
 
-  const mask = ((0xffffffff << (32 - maskBits)) >>> 0);
+  const mask = (0xffffffff << (32 - maskBits)) >>> 0;
   return (ipInt & mask) === (rangeIpInt & mask);
 }
 
 /**
  * Check if a client IP is in the configured ALLOWED_IP_RANGES.
- * Supports: IPv4, CIDR notation, IPv4-mapped IPv6, raw IPv6 literals (e.g. ::1).
  * If ALLOWED_IP_RANGES is not set or empty → allow all (open mode).
  */
 export function checkIpAllowed(clientIp: string | null | undefined): boolean {
   const allowedRanges = process.env.ALLOWED_IP_RANGES;
-  // No whitelist configured → allow everyone
   if (!allowedRanges || allowedRanges.trim() === '') return true;
 
-  const ranges = allowedRanges.split(',').map(r => r.trim()).filter(Boolean);
+  const ranges = allowedRanges.split(',').map((r) => r.trim()).filter(Boolean);
   const cleanIp = normalizeIp(clientIp);
 
   if (!cleanIp) return false;
 
-  return ranges.some(range => ipInCidr(cleanIp, range));
+  return ranges.some((range) => ipInCidr(cleanIp, range));
 }
 
-/**
- * Extract the real client IP from a Next.js Request object.
- * Respects x-forwarded-for (Vercel/CDN) when TRUST_PROXY=true.
- */
 export function getClientIp(request: Request): string {
   const trustProxy = process.env.TRUST_PROXY === 'true';
 
@@ -111,8 +111,6 @@ export function getClientIp(request: Request): string {
     '127.0.0.1'
   );
 }
-
-// ─── Role Authorization ───────────────────────────────────────────────────────
 
 export function requireRole(user: AuthUserPayload | null, allowedRoles: string[]): boolean {
   if (!user) return false;

@@ -1,28 +1,28 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
 
+/**
+ * Forgot-password no longer resets to a hardcoded password or returns credentials.
+ * Safe acknowledgement only until email-based reset is wired.
+ */
 export async function POST(request) {
-  const { email } = await request.json();
-  if (!email) {
-    return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+  try {
+    const body = await request.json();
+    const email = String(body?.email || '').trim().toLowerCase();
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    }
+
+    await connectDB();
+    await User.findOne({ email });
+
+    return NextResponse.json({
+      message: 'If an account exists for that email, password reset instructions will be sent when email delivery is enabled. Contact your administrator for urgent access.',
+    });
+  } catch {
+    return NextResponse.json({
+      message: 'If an account exists for that email, password reset instructions will be sent when email delivery is enabled. Contact your administrator for urgent access.',
+    });
   }
-
-  await connectDB();
-  const user = await User.findOne({ email });
-
-  if (!user) {
-    return NextResponse.json({ message: 'If the email exists, a password reset link has been sent.' });
-  }
-
-  const hash = await bcrypt.hash('Password123', 10);
-  await User.findByIdAndUpdate(user._id, {
-    password_hash: hash,
-    must_change_password: true,
-  });
-
-  return NextResponse.json({
-    message: 'Password reset successful! Temporary password is "Password123". Please login and change it.',
-  });
 }
