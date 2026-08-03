@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CEGS HRMS — Human Resource Management System
 
-## Getting Started
+CEGS HRMS is an enterprise-grade Human Resource Management System built with **Next.js 14**, **React 18**, **TypeScript**, and **MongoDB / Mongoose**. It provides centralized employee lifecycle management, automated attendance & timesheet tracking, payroll processing, asset allocation, expense tracking, leave management, and role-based authorization.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 🚀 Features
+
+- **Employee Lifecycle Management**: Centralized records for employee details, roles, departments, documents, and onboarding progress.
+- **Attendance & Timesheets**: Clock-in/clock-out tracking, timesheet log approvals, and working hours analytics.
+- **Leave Management**: Leave requests, approvals, balance tracking, and holiday calendar integration.
+- **Payroll & Expenses**: Automated salary calculations, expense claims submission, reimbursement workflows, and export capabilities.
+- **Asset Allocation**: Track hardware and software asset assignments across team members.
+- **Role-Based Access Control (RBAC)**: Secure access permissions for Admins, Managers, and Employees with JWT authentication.
+- **Data Seeding**: Built-in seed scripts for quickly populating initial demo and administrative data.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 14 (App Router / Pages)
+- **Frontend**: React 18, Lucide React Icons, Canvas Confetti
+- **Backend / Database**: Node.js, MongoDB, Mongoose, Zod
+- **Authentication**: JSON Web Tokens (JWT), BcryptJS
+- **Language**: TypeScript
+
+---
+
+## 📋 Prerequisites
+
+- **Node.js**: `v18.x` or higher
+- **npm**: `v9.x` or higher
+- **MongoDB**: Connection string to a MongoDB cluster (e.g., MongoDB Atlas)
+
+---
+
+## ⚙️ Environment Variables Setup
+
+Create a `.env` or `.env.local` file in the root directory and configure the following variables:
+
+```env
+MONGODB_URI=your_mongodb_connection_string
+PORT=5001
+JWT_SECRET=your_jwt_secret_key
+TRUST_PROXY=false
+ALLOW_SEED_AUTH=true
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## 🚦 Getting Started
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. Install Dependencies
+```bash
+npm install
+```
 
-## Learn More
+### 2. Seed Initial Database (Optional)
+Populate the MongoDB database with initial administrative and sample data:
+```bash
+npm run seed
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Run Development Server
+```bash
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:5001](http://localhost:5001) (or `http://localhost:3000`) in your browser.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 4. Build for Production
+```bash
+npm run build
+npm run start
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 📁 Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+cegs-hrms/
+├── src/                  # Application source code (components, pages/app, API routes, models)
+├── scripts/              # Database seed & utility scripts
+├── public/               # Static assets & public resources
+├── .env.example          # Environment variables template
+├── next.config.mjs       # Next.js configuration
+├── package.json          # Project dependencies & scripts
+└── tsconfig.json         # TypeScript configuration
+```
+
+---
+
+## 📝 License
+
+Internal project for **CEGS (Center for Electronic Governance Systems)**. All rights reserved.
