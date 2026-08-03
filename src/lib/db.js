@@ -3,24 +3,45 @@ import mongoose from 'mongoose';
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  throw new Error('Please define MONGODB_URI in your .env.local file');
+  throw new Error(
+    '❌ MONGODB_URI is not defined. Please add it to your .env.local file.'
+  );
 }
 
-let cached = global.mongoose;
+/**
+ * Global singleton cache — prevents Next.js hot-reload from creating
+ * multiple simultaneous connections to MongoDB Atlas.
+ */
+let cached = global._mongoose;
 
 if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+  cached = global._mongoose = { conn: null, promise: null };
 }
 
 async function connectDB() {
+  // Already connected — reuse
   if (cached.conn) return cached.conn;
 
+  // Connection in progress — wait for it
   if (!cached.promise) {
+    const opts = {
+      bufferCommands: false,
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+    };
+
     cached.promise = mongoose
-      .connect(MONGODB_URI, {
-        bufferCommands: false,
+      .connect(MONGODB_URI, opts)
+      .then((m) => {
+        console.log('✅ MongoDB connected to:', m.connection.host);
+        return m;
       })
-      .then((m) => m);
+      .catch((err) => {
+        cached.promise = null; // Reset so next call retries
+        console.error('❌ MongoDB connection error:', err.message);
+        throw err;
+      });
   }
 
   try {
