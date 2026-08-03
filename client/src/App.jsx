@@ -799,6 +799,16 @@ function App() {
                 </div>
               )}
             </div>
+
+            {/* DIRECT IT CELL SUPPORT CAPSULE BUTTON */}
+            <button 
+              className={`nav-capsule-btn ${view === 'ittickets' ? 'active' : ''}`} 
+              onClick={() => { setView('ittickets'); setActiveDropdown(null); }}
+              style={{ background: view === 'ittickets' ? '#7C5CFC' : undefined, color: view === 'ittickets' ? '#FFFFFF' : undefined }}
+            >
+              <IC n="help" s={14} />
+              <span>IT Cell Support</span>
+            </button>
           </div>
         </div>
 
