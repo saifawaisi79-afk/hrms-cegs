@@ -3498,6 +3498,8 @@ function PayrollPage({ db, save, user, setView }) {
   const [month, setMonth] = useState(7);
   const [year] = useState(2026);
   const [payslip, setPayslip] = useState(null);
+  const [payrollTab, setPayrollTab] = useState('all'); // 'all' | 'mine'
+  const [search, setSearch] = useState('');
 
   const isSuperAdmin = user?.role === 'super_admin';
   const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
@@ -3529,8 +3531,22 @@ function PayrollPage({ db, save, user, setView }) {
     alert(`✔ Payroll processed for ${recs.length} employees for month ${month}/${year}`);
   };
 
-  const list = canViewAllStaff ? (db.payroll || []) : (db.payroll || []).filter(p => p.uid === user.id);
-  const totalNet = list.reduce((s, p) => s + (p.net || 0), 0);
+  // Determine list based on tab or role
+  const rawList = (canViewAllStaff && payrollTab === 'all') ? (db.payroll || []) : (db.payroll || []).filter(p => p.uid === user.id);
+  
+  const filteredList = rawList.filter(p => {
+    const emp = (db.users || []).find(u => u.id === p.uid);
+    const empName = emp?.name || '';
+    const empEid = emp?.eid || '';
+    const monthName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(p.month || 7) - 1];
+    
+    return empName.toLowerCase().includes(search.toLowerCase()) || 
+           empEid.toLowerCase().includes(search.toLowerCase()) ||
+           monthName.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const totalNet = filteredList.reduce((s, p) => s + (p.net || 0), 0);
+  const myRecord = (db.payroll || []).find(p => p.uid === user.id);
 
   return (
     <div className="anim-fadeup">
@@ -3551,40 +3567,135 @@ function PayrollPage({ db, save, user, setView }) {
         )}
       </PageHdr>
 
+      {/* HR MANAGER & SUPER ADMIN TAB SWITCHER */}
       {canViewAllStaff && (
-        <div className="stats-grid stagger" style={{ marginBottom: 24 }}>
-          {[
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+          <button 
+            type="button" 
+            style={{
+              padding: '9px 18px',
+              borderRadius: 99,
+              fontSize: 12.5,
+              fontWeight: 800,
+              border: 'none',
+              cursor: 'pointer',
+              background: payrollTab === 'all' ? '#7C5CFC' : '#FFFFFF',
+              color: payrollTab === 'all' ? '#FFFFFF' : '#4B5563',
+              boxShadow: payrollTab === 'all' ? '0 4px 14px rgba(124,92,252,0.3)' : '0 2px 8px rgba(0,0,0,0.04)'
+            }}
+            onClick={() => setPayrollTab('all')}
+          >
+            👥 All Staff Payroll Records
+          </button>
+          <button 
+            type="button" 
+            style={{
+              padding: '9px 18px',
+              borderRadius: 99,
+              fontSize: 12.5,
+              fontWeight: 800,
+              border: 'none',
+              cursor: 'pointer',
+              background: payrollTab === 'mine' ? '#7C5CFC' : '#FFFFFF',
+              color: payrollTab === 'mine' ? '#FFFFFF' : '#4B5563',
+              boxShadow: payrollTab === 'mine' ? '0 4px 14px rgba(124,92,252,0.3)' : '0 2px 8px rgba(0,0,0,0.04)'
+            }}
+            onClick={() => setPayrollTab('mine')}
+          >
+            👤 My Salary & Payslips
+          </button>
+        </div>
+      )}
+
+      {/* STAT CARDS */}
+      <div className="stats-grid stagger" style={{ marginBottom: 24 }}>
+        {canViewAllStaff && payrollTab === 'all' ? (
+          [
             { l: 'Total Disbursed', v: `₹${totalNet.toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'card' },
-            { l: 'Employees Paid', v: new Set(list.map(p => p.uid)).size, bg: '#DBEAFE', ic: '#2563EB', icon: 'users' },
-            { l: 'Avg Salary', v: `₹${Math.round(totalNet / Math.max(list.length, 1)).toLocaleString()}`, bg: '#FEF3C7', ic: '#D97706', icon: 'trending' }
+            { l: 'Employees Paid', v: new Set(filteredList.map(p => p.uid)).size, bg: '#DBEAFE', ic: '#2563EB', icon: 'users' },
+            { l: 'Avg Salary', v: `₹${Math.round(totalNet / Math.max(filteredList.length, 1)).toLocaleString()}`, bg: '#FEF3C7', ic: '#D97706', icon: 'trending' }
           ].map((s, i) => (
             <div key={i} className="stat-c">
               <div className="stat-icon-wrap" style={{ background: s.bg }}><IC n={s.icon} s={20} c={s.ic}/></div>
               <div><div className="stat-label">{s.l}</div><div className="stat-value">{s.v}</div></div>
             </div>
-          ))}
+          ))
+        ) : (
+          [
+            { l: 'Basic Monthly Pay', v: `₹${(myRecord?.basic || user.salary || 50000).toLocaleString()}`, bg: '#DBEAFE', ic: '#2563EB', icon: 'card' },
+            { l: 'Allowances (+12%)', v: `+₹${(myRecord?.allowances || Math.round((user.salary || 50000) * .12)).toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'trending' },
+            { l: 'Deductions (-9%)', v: `-₹${(myRecord?.deductions || Math.round((user.salary || 50000) * 1.12 * .09)).toLocaleString()}`, bg: '#FEE2E2', ic: '#DC2626', icon: 'file' },
+            { l: 'Net Take-Home', v: `₹${(myRecord?.net || Math.round((user.salary || 50000) * 1.12 * .91)).toLocaleString()}`, bg: '#F3E8FF', ic: '#7C5CFC', icon: 'card' }
+          ].map((s, i) => (
+            <div key={i} className="stat-c">
+              <div className="stat-icon-wrap" style={{ background: s.bg }}><IC n={s.icon} s={20} c={s.ic}/></div>
+              <div><div className="stat-label">{s.l}</div><div className="stat-value">{s.v}</div></div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* SEARCH TOOLBAR FOR STAFF LIST */}
+      {canViewAllStaff && payrollTab === 'all' && (
+        <div style={{ marginBottom: 16 }}>
+          <input 
+            className="form-input" 
+            style={{ borderRadius: 99, padding: '10px 18px', maxWidth: 360, fontSize: 12.5 }}
+            placeholder="🔍 Search employee name, EID or period..." 
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
       )}
 
-      <div className="card">
+      {/* SALARY RECORDS TABLE */}
+      <div className="card" style={{ borderRadius: 20, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
         <div className="tbl-wrap">
           <table className="tbl">
             <thead><tr><th>Employee</th><th>Period</th><th>Basic</th><th>Allowances</th><th>Deductions</th><th>Net Salary</th><th>Status</th><th>Payslip</th></tr></thead>
             <tbody>
-              {list.length===0&&<tr><td colSpan={8}><div className="empty-state"><span className="empty-state-icon"><IC n="card" s={48} style={{color:'var(--text-muted)'}}/></span><h3>No payroll records</h3><p>Click "Run Payroll" to process salaries for this period</p></div></td></tr>}
-              {list.map(p=>{
-                const emp=db.users.find(u=>u.id===p.uid);
-                const monthName=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(p.month||7)-1];
-                return <tr key={p.id}>
-                  <td><div className="emp-cell"><img src={emp?.avatar} className="tbl-av" alt=""/><div><div style={{fontWeight:700,fontSize:13}}>{emp?.name}</div><div style={{fontSize:11,color:'var(--text-muted)'}}>{emp?.eid}</div></div></div></td>
-                  <td style={{fontSize:13,color:'var(--text-muted)'}}>{monthName} {p.year}</td>
-                  <td style={{fontFamily:'JetBrains Mono,monospace',fontSize:13}}>₹{p.basic?.toLocaleString()}</td>
-                  <td style={{color:'var(--green-dark)',fontWeight:600,fontSize:13}}>+₹{p.allowances?.toLocaleString()}</td>
-                  <td style={{color:'var(--red-dark)',fontWeight:600,fontSize:13}}>-₹{p.deductions?.toLocaleString()}</td>
-                  <td style={{fontFamily:'Outfit,sans-serif',fontWeight:900,fontSize:18,color:'var(--text-primary)'}}>₹{p.net?.toLocaleString()}</td>
-                  <td><span className="badge b-success"><span className="badge-dot"/>{p.status}</span></td>
-                  <td><button className="btn btn-xs btn-ghost" onClick={()=>setPayslip(p)}><IC n="eye" s={12}/> View</button></td>
-                </tr>;
+              {filteredList.length === 0 && (
+                <tr>
+                  <td colSpan={8}>
+                    <div className="empty-state" style={{ padding: 30 }}>
+                      <span className="empty-state-icon"><IC n="card" s={48} style={{ color: 'var(--text-muted)' }}/></span>
+                      <h3>No payroll records found</h3>
+                      <p>Payroll records for this period will appear here</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {filteredList.map(p => {
+                const emp = (db.users || []).find(u => u.id === p.uid);
+                const monthName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(p.month || 7) - 1];
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      <div className="emp-cell">
+                        <img src={emp?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Staff'} className="tbl-av" alt=""/>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{emp?.name || 'Employee'}</div>
+                          <div style={{ fontSize: 11, color: '#6B7280' }}>{emp?.eid || 'EMP'} • {emp?.title || 'Staff'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ fontSize: 13, color: '#4B5563', fontWeight: 600 }}>{monthName} {p.year}</td>
+                    <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>₹{p.basic?.toLocaleString()}</td>
+                    <td style={{ color: '#059669', fontWeight: 700, fontSize: 13 }}>+₹{p.allowances?.toLocaleString()}</td>
+                    <td style={{ color: '#DC2626', fontWeight: 700, fontSize: 13 }}>-₹{p.deductions?.toLocaleString()}</td>
+                    <td style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 17, color: '#111827' }}>₹{p.net?.toLocaleString()}</td>
+                    <td><span className="badge b-success"><span className="badge-dot"/>{p.status}</span></td>
+                    <td>
+                      <button 
+                        className="btn btn-sm btn-ghost" 
+                        style={{ borderRadius: 10, fontWeight: 800, fontSize: 11.5, color: '#7C5CFC' }} 
+                        onClick={() => setPayslip(p)}
+                      >
+                        👁️ View / Print Slip
+                      </button>
+                    </td>
+                  </tr>
+                );
               })}
             </tbody>
           </table>
