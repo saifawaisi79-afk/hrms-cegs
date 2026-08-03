@@ -21,6 +21,30 @@ import {
 const GLOBAL_API_BASE = '/api';
 
 /* ==========================================================================================
+   GLOBAL FETCH INTERCEPTOR (INJECT JWT TOKEN)
+   ========================================================================================== */
+if (typeof window !== 'undefined') {
+  const originalFetch = window.fetch;
+  window.fetch = async (...args) => {
+    let [resource, config] = args;
+    const url = typeof resource === 'string' ? resource : (resource && resource.url ? resource.url : '');
+    
+    // Check if the request is going to our Next.js API
+    if (url.includes('/api/') && !url.includes('/api/auth/login')) {
+      const token = localStorage.getItem('cegs_token');
+      if (token) {
+        config = config || {};
+        config.headers = {
+          ...config.headers,
+          Authorization: `Bearer ${token}`
+        };
+      }
+    }
+    return originalFetch(resource, config);
+  };
+}
+
+/* ==========================================================================================
    DATA LAYER
    ========================================================================================== */
 const SEED_DATA = {
