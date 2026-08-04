@@ -1,3 +1,10 @@
+/**
+ * Bootstrap only: Super Admin + HR Admin (no demo employees).
+ * Real staff accounts should be created via HR Onboarding after this.
+ *
+ * Run: npm run seed
+ * This WIPES all users and prints fresh one-time passwords — save them securely.
+ */
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';

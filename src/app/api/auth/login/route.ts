@@ -3,11 +3,15 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
-import { signToken, getClientIp, checkIpAllowed } from '@/lib/auth';
+import { signToken, getClientIp, checkIpAllowed, verifyLocationToken } from '@/lib/auth';
+import { PORTAL_HOME } from '@/lib/nav';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Invalid email address' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  portal: z.enum(['employee', 'admin', 'super_admin']).optional(),
+  workMode: z.enum(['WFO', 'WFH']).default('WFH'),
+  locationToken: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -30,8 +34,25 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email, password } = parseResult.data;
+    const { email, password, portal, workMode, locationToken } = parseResult.data;
     const nowStr = new Date().toISOString();
+
+    // Production WFO gate — must present a fresh location attestation JWT
+    if (workMode === 'WFO') {
+      if (!locationToken) {
+        return NextResponse.json(
+          { error: 'Office location verification required for Work From Office login.' },
+          { status: 403 }
+        );
+      }
+      const loc = verifyLocationToken(locationToken);
+      if (!loc) {
+        return NextResponse.json(
+          { error: 'Location verification expired or invalid. Verify office location again.' },
+          { status: 403 }
+        );
+      }
+    }
 
     await connectDB();
     const user = await User.findOne({ email: String(email).trim().toLowerCase() }).lean();
@@ -52,6 +73,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
+    if (portal) {
+      const required = PORTAL_HOME[portal]?.role;
+      if (required && required !== user.role) {
+        return NextResponse.json(
+          {
+            error: `This account (${user.role.replace('_', ' ')}) cannot access the ${PORTAL_HOME[portal].label}. Select the matching portal.`,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     await User.findByIdAndUpdate(user._id, { last_login: nowStr });
 
     const token = signToken({
@@ -62,6 +95,7 @@ export async function POST(request: Request) {
       role: user.role,
       department_id: user.department_id?.toString() || null,
       avatar_url: user.avatar_url,
+      workMode,
     });
 
     return NextResponse.json({
@@ -80,6 +114,7 @@ export async function POST(request: Request) {
         avatar_url: user.avatar_url,
         must_change_password: user.must_change_password ? 1 : 0,
         last_login: nowStr,
+        workMode,
       },
     });
   } catch (error: any) {

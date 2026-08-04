@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "npx tsx scripts/seed_ts.ts"
+    "seed": "npx tsx scripts/seed_ts.ts",
+    "clear-demos": "node scripts/clear-demo-users.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

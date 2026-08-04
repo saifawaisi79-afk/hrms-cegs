@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useRouter } from 'next/navigation';
 import { Store } from '@/components/hrms/HrmsLegacy';
 import { API_BASE, AUTH_TOKEN_KEY, clearAuthStorage, getAuthToken, setAuthToken } from '@/lib/auth-client';
-import { buildNavConfig, pathForView } from '@/lib/nav';
+import { buildNavConfig, pathForView, portalMatchesRole, homePathForPortal, portalLabel } from '@/lib/nav';
 
 const AppContext = createContext(null);
 
@@ -134,9 +134,11 @@ export function AppProvider({ children }) {
     setShowMessengerInbox(true);
   }, []);
 
-  const login = async (email, pass) => {
+  const login = async (email, pass, selectedPortal = null, options = {}) => {
     const cleanEmail = String(email || '').trim().toLowerCase();
     const cleanPass = String(pass || '').trim();
+    const workMode = options.workMode === 'WFO' ? 'WFO' : 'WFH';
+    const locationToken = options.locationToken || undefined;
 
     if (!cleanEmail) {
       alert('Please enter your official email address.');
@@ -146,24 +148,47 @@ export function AppProvider({ children }) {
       alert('Please enter your password (minimum 6 characters).');
       return false;
     }
+    if (!selectedPortal) {
+      alert('Please select a portal (Employee, HR Admin, or Super Admin) before signing in.');
+      return false;
+    }
+    if (workMode === 'WFO' && !locationToken) {
+      alert('Verify office location for Work From Office login.');
+      return false;
+    }
 
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password: cleanPass }),
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: cleanPass,
+          portal: selectedPortal,
+          workMode,
+          ...(workMode === 'WFO' ? { locationToken } : {}),
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(data.error || 'Invalid email or password. Use credentials from HR Onboarding.');
+        alert(data.error || 'Invalid email or password.');
         return false;
       }
 
       const apiUser = data.user;
       if (!data.token || !apiUser) {
         alert('Login failed: no session token returned.');
+        return false;
+      }
+
+      const accountRole = apiUser.role || 'employee';
+      if (!portalMatchesRole(selectedPortal, accountRole)) {
+        clearAuthStorage();
+        alert(
+          `This account (${accountRole.replace('_', ' ')}) cannot access the ${portalLabel(selectedPortal)}. Select the matching portal and try again.`
+        );
         return false;
       }
 
@@ -176,11 +201,12 @@ export function AppProvider({ children }) {
         employee_id: apiUser.employee_id || apiUser.employeeId || 'EMP-NEW',
         name: apiUser.name || cleanEmail.split('@')[0],
         email: cleanEmail,
-        role: apiUser.role || 'employee',
+        role: accountRole,
         designation: apiUser.designation || 'Team Member',
         title: apiUser.designation || 'Team Member',
         status: 'active',
         must_change_password: apiUser.must_change_password || 0,
+        workMode: apiUser.workMode || workMode,
         avatar:
           apiUser.avatar_url ||
           `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(apiUser.name || cleanEmail)}`,
@@ -195,7 +221,7 @@ export function AppProvider({ children }) {
       save('users', updatedUserList);
       setUser(formattedUser);
       Store.set('currentUser', formattedUser);
-      router.push('/dashboard');
+      router.push(homePathForPortal(selectedPortal));
       return true;
     } catch (err) {
       console.warn('Login request failed:', err);
@@ -218,7 +244,84 @@ export function AppProvider({ children }) {
   const nav = useMemo(() => buildNavConfig(user, db), [user, db]);
 
   const unread = (db.notifications || []).filter((n) => !n.read && (!n.to || n.to === user?.id)).length;
-  const unreadMsgCount = (db.messages || []).filter((m) => m.toId === user?.id && !m.read).length;
+  const unreadMsgCount = (db.messages || []).filter(
+    (m) => String(m.toId) === String(user?.id) && !m.read
+  ).length;
+
+  // Sync employee directory from MongoDB (production source of truth)
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const token = getAuthToken();
+    if (!token) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/employees`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const rows = await res.json();
+        if (!Array.isArray(rows) || cancelled) return;
+        const mapped = rows.map((u) => ({
+          id: u.id,
+          employee_id: u.employee_id,
+          employeeId: u.employee_id,
+          eid: u.employee_id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          designation: u.designation,
+          title: u.designation,
+          department_id: u.department_id,
+          department_name: u.department_name,
+          deptName: u.department_name || 'General Operations',
+          joining_date: u.joining_date,
+          joined: u.joining_date,
+          contact: u.contact,
+          phone: u.contact,
+          status: u.status || 'active',
+          avatar: u.avatar_url,
+          avatar_url: u.avatar_url,
+          employment_type: 'full_time',
+          basic_salary: u.basic_salary,
+          bank_name: u.bank_name,
+          account_number: u.account_number,
+          ifsc_code: u.ifsc_code,
+          emergency_contact: u.emergency_contact,
+          must_change_password: u.must_change_password || 0,
+          last_login: u.last_login,
+        }));
+        save('users', mapped);
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, save]);
+
+  // Sync live chat from Mongo so both parties share the same inbox
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const token = getAuthToken();
+    if (!token) return undefined;
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/messages`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (Array.isArray(data) && !cancelled) save('messages', data);
+      } catch {}
+    };
+    pull();
+    const timer = setInterval(pull, 8000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [user?.id, save]);
 
   const pageProps = useMemo(
     () => ({

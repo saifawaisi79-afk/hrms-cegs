@@ -17,6 +17,18 @@ import {
   PartyPopper, BarChart3, Pin, Laptop, Upload, Pause, Play,
   Target, Cake, Palmtree, Rocket, CircleDot, Timer
 } from 'lucide-react';
+import { isOversightOnly, getRecruiters } from '@/lib/nav';
+import {
+  allocateLeavePay,
+  calcLeaveBalance,
+  countLeaveDays,
+  payTypeLabel,
+  typeRemainingFor,
+  PAID_LEAVES_PER_MONTH,
+  CASUAL_ANNUAL,
+  SICK_ANNUAL,
+  ANNUAL_TOTAL,
+} from '@/lib/leave-policy';
 
 /* ==========================================================================================
  GLOBAL API ENDPOINT CONFIGURATION — Next.js App Router API Routes
@@ -75,84 +87,39 @@ if (typeof window !== 'undefined') {
  ========================================================================================== */
 export const SEED_DATA = {
  candidates: [],
- users:[
- {id:1,eid:'EMP-001',name:'CEO SuperAdmin',email:'superadmin@cegs.com',role:'super_admin',deptId:1,title:'Chief Executive Officer',joined:'2024-01-15',phone:'+1 212 555 0001',emergencyPhone:'+1 212 555 9901',status:'active',salary:95000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=ceo',reportsTo:null,bankName:'CEGS Bank',bankAccount:'3344556677',bankIfsc:'CEGS0000123',taxId:'TX-998877-A'},
- {id:2,eid:'EMP-002',name:'Nusrath Hussain',email:'nusrath@cegs.com',role:'admin',deptId:2,title:'HR Manager',joined:'2024-03-10',phone:'+1 212 555 0002',emergencyPhone:'+1 212 555 9902',status:'active',salary:30000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=nusrath',reportsTo:1,bankName:'CEGS Bank',bankAccount:'8899001122',bankIfsc:'CEGS0000123',taxId:'TX-998877-HR'},
-  {id:3,eid:'DEV-001',name:'Saif Awaisi',email:'saifawaisi79@gmail.com',role:'super_admin',deptId:1,title:'Developer & System Architect',joined:'2024-01-01',phone:'+91 99887 76655',emergencyPhone:'+91 99887 76655',status:'active',salary:120000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=saif',reportsTo:null,bankName:'CEGS Bank',bankAccount:'9900112233',bankIfsc:'CEGS0000123',taxId:'TX-998877-DEV'},
- {id:4,eid:'EMP-004',name:'Mohammed Raheel',email:'raheel@careerglobalexpertsolution.com',role:'employee',deptId:3,title:'Billing Specialist',joined:'2026-07-31',phone:'+1 212 555 0004',emergencyPhone:'+1 212 555 9904',status:'active',salary:35000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=raheel',reportsTo:2,bankName:'CEGS Bank',bankAccount:'7788990011',bankIfsc:'CEGS0000123',taxId:'TX-998877-BILL'}
- ],
+ // Users come from MongoDB (HR Onboarding). Do not seed demo logins.
+ users:[],
  permissions: {
- super_admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true },
- admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true },
- manager: { payroll: true, attendance: true, deleteEmp: false, approveLeave: true, reports: true },
- employee: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: false },
- recruiter: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
- finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
+ super_admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true, onboard: true },
+ admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true, onboard: true },
+ manager: { payroll: true, attendance: true, deleteEmp: false, approveLeave: true, reports: true, onboard: false },
+ employee: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: false, onboard: false },
+ recruiter: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true, onboard: false },
+ finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true, onboard: false },
  },
  departments:[
- {id:1,name:'Executive',code:'EXEC',managerId:1,budget:1000000,color:'var(--accent)'},
- {id:2,name:'Human Resources',code:'HR',managerId:2,budget:300000,color:'#3B82F6'},
- {id:3,name:'Billing & Finance',code:'FIN',managerId:4,budget:500000,color:'#10B981'},
+ {id:1,name:'Executive',code:'EXEC',managerId:null,budget:1000000,color:'var(--accent)'},
+ {id:2,name:'Human Resources',code:'HR',managerId:null,budget:300000,color:'#3B82F6'},
+ {id:3,name:'Billing & Finance',code:'FIN',managerId:null,budget:500000,color:'#10B981'},
+ {id:4,name:'General Operations',code:'OPS',managerId:null,budget:200000,color:'#F59E0B'},
  ],
- leaves:[
- {id:1,uid:5,type:'vacation',start:'2026-07-10',end:'2026-07-20',reason:'Summer holiday in Europe',status:'approved',applied:'2026-07-01',by:2},
- {id:2,uid:3,type:'sick',start:'2026-07-15',end:'2026-07-16',reason:'Dental procedure recovery',status:'pending',applied:'2026-07-12'},
- {id:3,uid:4,type:'personal',start:'2026-06-05',end:'2026-06-06',reason:'Moving to new apartment',status:'rejected',applied:'2026-06-01',by:2,note:'Peak billing period. Please reschedule.'},
- {id:4,uid:6,type:'casual',start:'2026-07-18',end:'2026-07-18',reason:'Family event',status:'pending',applied:'2026-07-13'},
- ],
- attendance:[
- {id:1,uid:3,date:'2026-07-06',in:'08:45',out:'17:00',status:'present',hrs:8.25},
- {id:2,uid:3,date:'2026-07-07',in:'08:50',out:'17:30',status:'present',hrs:8.67},
- {id:3,uid:3,date:'2026-07-08',in:'09:28',out:'17:00',status:'late',hrs:7.53},
- {id:4,uid:2,date:'2026-07-13',in:'08:30',out:'17:00',status:'present',hrs:8.50},
- {id:5,uid:6,date:'2026-07-13',in:'09:05',out:'17:30',status:'late',hrs:8.42},
- ],
- payroll:[
- {id:1,uid:3,month:6,year:2026,basic:20000,allowances:2000,overtime:500,bonus:0,deductions:1500,net:21000,status:'processed',date:'2026-06-30'},
- {id:2,uid:4,month:6,year:2026,basic:25000,allowances:2500,overtime:0,bonus:1000,deductions:2000,net:26500,status:'processed',date:'2026-06-30'},
- {id:3,uid:5,month:6,year:2026,basic:15000,allowances:1500,overtime:0,bonus:0,deductions:1000,net:15500,status:'processed',date:'2026-06-30'},
- ],
- timesheets:[
- {id:1,uid:3,date:'2026-07-09',project:'HR Recruitment',task:'Screened resumes for developers',hours:8,status:'approved',by:2},
- {id:2,uid:3,date:'2026-07-10',project:'HR Recruitment',task:'Conducted interviews',hours:7,status:'approved',by:2},
- {id:3,uid:4,date:'2026-07-13',project:'Billing Portal',task:'Prepared billing statements',hours:6,status:'pending'},
- ],
- assets:[
- {id:1,name:'MacBook Pro 16"',serial:'SN-MAC-998877',cat:'Laptop',status:'assigned',uid:3,condition:'Excellent',loc:'Remote'},
- {id:2,name:'Dell UltraSharp 32"',serial:'SN-DELL-776655',cat:'Monitor',status:'assigned',uid:3,condition:'Excellent',loc:'Main Office'},
- ],
- expenses:[
- {id:1,uid:3,title:'SaaS Recruitment Subscription',cat:'SaaS Tools',amount:199.50,date:'2026-07-02',status:'approved',by:2},
- {id:2,uid:4,title:'Billing Software License',cat:'SaaS Tools',amount:120.00,date:'2026-07-12',status:'pending'},
- ],
+ leaves:[],
+ attendance:[],
+ payroll:[],
+ timesheets:[],
+ assets:[],
+ expenses:[],
  templates:[
  {id:1,name:'Employment Verification Letter',body:'To Whom It May Concern,\n\nThis letter is to verify that {{NAME}} (Employee ID: {{EID}}) has been employed with CEGS since {{JOIN}} in the capacity of {{TITLE}}.\n\nThey remain an active and valued member of our team.\n\nSincerely,\n{{ISSUER}}\nHR Manager\nCEGS'},
  {id:2,name:'Experience Certificate',body:'Certificate of Experience\n\nThis is to certify that {{NAME}} served in the role of {{TITLE}} at CEGS from {{JOIN}} to the present date.\n\nSincerely,\n{{ISSUER}}\nHR Manager\nCEGS'},
  ],
- documents:[
- {id:1,uid:3,title:'Employment Verification - Madiha Mehak',type:'Employment Verification Letter',body:'To Whom It May Concern,\n\nThis letter is to verify that Madiha Mehak (Employee ID: EMP-003) has been employed with CEGS since 2024-06-01 in the capacity of Recruiter.\n\nThey remain an active and valued member of our team.\n\nSincerely,\nNusrath Hussain\nHR Manager\nCEGS',date:'2026-07-05'},
- ],
- onboarding:[
- {id:1,uid:6,role:'Billing Specialist',start:'2026-07-20',progress:40,status:'in_progress'},
- ],
- tasks:[
- {id:1,hid:1,task:'Submit government-issued ID & tax forms',done:1,who:'employee'},
- {id:2,hid:1,task:'Configure payroll & bank details',done:1,who:'admin'},
- {id:3,hid:1,task:'Provision laptop from IT',done:0,who:'admin'},
- {id:4,hid:1,task:'Complete orientation & read handbook',done:0,who:'employee'},
- ],
- workTasks:[
- {id:1,uid:3,title:'Screen candidates for Billing Role',desc:'Filter resumes for the billing specialist opening.',status:'completed',priority:'high',dueDate:'2026-07-13'},
- ],
- auditLogs:[
- {id:1,user:'CEO SuperAdmin',action:'Logged In',details:'System Administrator dashboard access authorized',time:'2026-07-13T09:12:00Z',ip:'192.168.1.1'},
- ],
- notifications:[
- {id:1,from:1,to:null,title:'Welcome to CEGS HRMS 2.0',msg:'The new system is live! Please update your contact info and review the Q3 policy guidelines.',read:0,at:'2026-07-13T09:00:00Z'},
- ],
- verihrmAudits:[
- {id:1,auditId:'V-332211',name:'madiha mehak',type:'Degree/Diploma',serial:'CERT-78229',institution:'Stanford University',year:2024,score:95,status:'VERIFIED',date:'7/12/2026, 11:30:00 AM'},
- ],
+ documents:[],
+ onboarding:[],
+ tasks:[],
+ workTasks:[],
+ auditLogs:[],
+ notifications:[],
+ verihrmAudits:[],
  settings:{
  company:{name:'CEGS Corp.',address:'42 Wall Street, Suite 1800, New York, NY 10005',phone:'+1 (212) 555-0199',email:'hr@cegs.com',website:'cegs.com',taxId:'TX-998877-A'},
  hours:{start:'10:00',end:'19:00',grace:15,days:['Mon','Tue','Wed','Thu','Fri','Sat']},
@@ -163,124 +130,24 @@ export const SEED_DATA = {
  badges: [
  { id: 1, name: 'Best Performer', iconKey: 'award', desc: 'Demonstrates outstanding productivity and results.', points: 100 }
  ],
- userBadges: [
- { id: 1, userId: 3, badgeId: 1, awardedBy: 2, awardedAt: '2026-07-10T12:00:00Z', reason: 'Outstanding delivery of recruitment targets.' }
- ],
- nominations: [
- { id: 1, nominatorId: 3, nomineeId: 5, badgeId: 1, reason: 'Fast delivery of recruitment targets.', status: 'pending', submittedAt: '2026-07-14T09:00:00Z' }
- ],
+ userBadges: [],
+ nominations: [],
  rewardsSettings: {
  peerNominationsEnabled: true,
  requireApproval: true,
  defaultPoints: 50
  },
- jobs: [
- { id: 1, title: 'Recruiter', department: 'Human Resources', type: 'Full-time', salary: '₹50,000 - ₹70,000', reqs: '3+ years recruitment experience', status: 'open' }
- ],
- jobApplications: [
- { id: 1, userId: 3, jobId: 1, type: 'Promotion', reason: 'Applying to transition into lead recruiter role.', status: 'pending', appliedAt: '2026-07-16T10:00:00Z' }
- ],
- meetingRequests: [
- { id: 1, hostRole: 'HR Manager', subject: 'Q3 Appraisal Review Meeting', date: '2026-07-20', timeSlot: '10:00 AM - 10:30 AM', requesterId: 3, status: 'approved', createdAt: '2026-07-17T11:00:00Z' }
- ],
+ jobs: [],
+ jobApplications: [],
+ meetingRequests: [],
  notificationTemplates: [
  { id: 1, name: 'Salary Credited', title: 'Salary Credited ', body: 'Dear {{name}}, your salary has been successfully credited.' }
  ],
- messages: [
- { id: 1, fromId: 1, toId: 2, text: 'Hello Nusrath, welcome to CEGS HRMS! Please ensure employee onboarding and system setup are complete.', time: '2026-07-31T10:00:00Z', read: 1 },
- { id: 2, fromId: 2, toId: 1, text: 'Thank you CEO SuperAdmin! All onboarding files and initial employee accounts are set up and active.', time: '2026-07-31T10:15:00Z', read: 1 },
- { id: 3, fromId: 3, toId: 1, text: 'Hi CEO SuperAdmin! Real-time messaging, employee quick view, and security features have been deployed.', time: '2026-07-31T10:30:00Z', read: 1 }
- ],
- it_tickets: [
- {
- id: 'IT-1042',
- employee_id: 4,
- category: 'Network/VPN',
- priority: 'High',
- status: 'In Progress',
- subject: 'VPN Login Authentication Error on Remote Network',
- description: 'Unable to authenticate into CEGS VPN endpoint from home WiFi network.',
- assignee_id: 3,
- attachment_url: null,
- created_at: '2026-08-02T10:00:00Z',
- updated_at: '2026-08-02T11:30:00Z',
- resolved_at: null,
- sla_due_at: '2026-08-02T18:00:00Z'
- },
- {
- id: 'IT-1043',
- employee_id: 2,
- category: 'Hardware',
- priority: 'Critical',
- status: 'Open',
- subject: 'MacBook Air Monitor Flickering & Battery Warning',
- description: 'Display flickers when connecting to external monitor.',
- assignee_id: null,
- attachment_url: null,
- created_at: '2026-08-03T08:00:00Z',
- updated_at: '2026-08-03T08:00:00Z',
- resolved_at: null,
- sla_due_at: '2026-08-03T12:00:00Z'
- },
- {
- id: 'IT-1044',
- employee_id: 4,
- category: 'Access & Permissions',
- priority: 'Medium',
- status: 'Resolved',
- subject: 'Request for Figma Pro License Access',
- description: 'Need access to design files for HR portal UI enhancement.',
- assignee_id: 3,
- attachment_url: null,
- created_at: '2026-08-01T09:00:00Z',
- updated_at: '2026-08-01T14:00:00Z',
- resolved_at: '2026-08-01T14:00:00Z',
- sla_due_at: '2026-08-02T09:00:00Z'
- }
- ],
- it_messages: [
- {
- id: 1,
- ticket_id: 'IT-1042',
- sender_id: 4,
- sender_role: 'employee',
- body: 'Unable to authenticate into CEGS VPN endpoint from home WiFi network.',
- attachment_url: null,
- visibility: 'public',
- created_at: '2026-08-02T10:00:00Z'
- },
- {
- id: 2,
- ticket_id: 'IT-1042',
- sender_id: 3,
- sender_role: 'super_admin',
- body: 'Investigating firewall logs for gateway IP 192.168.1.1.',
- attachment_url: null,
- visibility: 'internal_note',
- created_at: '2026-08-02T10:45:00Z'
- },
- {
- id: 3,
- ticket_id: 'IT-1042',
- sender_id: 3,
- sender_role: 'super_admin',
- body: 'Please flush DNS and reconnect to vpn.cegs.com:443.',
- attachment_url: null,
- visibility: 'public',
- created_at: '2026-08-02T11:30:00Z'
- }
- ],
- it_assets: [
- { id: 'AST-9021', name: 'MacBook Pro 16" M3', type: 'Laptop', serial_number: 'SN-MAC-998877', assigned_to: 3, issued_on: '2024-01-15', status: 'Active', notes: 'Lead Dev Machine' },
- { id: 'AST-9022', name: 'Dell UltraSharp 32" 4K', type: 'Accessory', serial_number: 'SN-DELL-776655', assigned_to: 2, issued_on: '2024-03-12', status: 'Active', notes: 'HR Desk Display' },
- { id: 'AST-9023', name: 'Microsoft 365 Enterprise E5', type: 'Software License', serial_number: 'LIC-MS-00912', assigned_to: 4, issued_on: '2026-07-31', status: 'Active', notes: 'Billing Suite' },
- { id: 'AST-9024', name: 'Logitech MX Master 3S', type: 'Accessory', serial_number: 'SN-LOGI-443322', assigned_to: null, issued_on: null, status: 'In Stock', notes: 'Available in IT Storage' }
- ],
- it_kb: [
- { id: 1, title: 'How to Connect to CEGS Corporate VPN', category: 'Network/VPN', body: 'Step 1: Download Cisco AnyConnect / OpenVPN client.\nStep 2: Enter server host vpn.cegs.com.\nStep 3: Enter your CEGS email and password.', views: 142, helpful_count: 38 },
- { id: 2, title: 'Requesting Software & License Approvals', category: 'Access & Permissions', body: 'Submit an IT ticket selecting "Access & Permissions" category. HR Manager approval is auto-routed upon ticket filing.', views: 89, helpful_count: 24 },
- { id: 3, title: 'Wi-Fi & Office Network Credentials', category: 'Network/VPN', body: 'Connect to "CEGS_SECURE_WIFI" using your employee EID and system password.', views: 210, helpful_count: 65 }
- ]
+ messages: [],
+ it_tickets: [],
+ it_messages: [],
+ it_assets: [],
+ it_kb: []
 };
 
 // ── Store (v11 key enables IT & Dev Cell support module) ──
@@ -299,6 +166,28 @@ export const Store = {
  init(){
  this.clearOldVersions();
  Object.keys(SEED_DATA).forEach(k=>{ if(!this.get(k)) this.set(k,SEED_DATA[k]); });
+ // One-time wipe before production attendance go-live
+ try {
+   if (typeof localStorage !== 'undefined' && !localStorage.getItem('cegs_attendance_prod_reset_v1')) {
+     this.set('attendance', []);
+     localStorage.setItem('cegs_attendance_prod_reset_v1', '1');
+   }
+ } catch {}
+ // Production: clear cached demo users — directory loads from MongoDB
+ try {
+   if (typeof localStorage !== 'undefined' && !localStorage.getItem('cegs_users_prod_clear_v1')) {
+     this.set('users', []);
+     this.set('onboarding', []);
+     this.set('auditLogs', []);
+     this.set('payroll', []);
+     this.set('timesheets', []);
+     this.set('documents', []);
+     this.set('workTasks', []);
+     this.set('it_tickets', []);
+     this.set('it_messages', []);
+     localStorage.setItem('cegs_users_prod_clear_v1', '1');
+   }
+ } catch {}
  },
  load(){
  this.init();
@@ -454,235 +343,228 @@ export const IC = ({ n, s = 16, c = 'currentColor', strokeWidth = 1.75, style = 
  ROOT APP
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 export function LoginPage({ login, db }) {
- const [mode, setMode] = useState('creds'); // production: credential form only
+ const [selectedPortal, setSelectedPortal] = useState('employee');
  const [email, setEmail] = useState('');
  const [pass, setPass] = useState('');
  const [loading, setLoading] = useState(false);
+ const [formError, setFormError] = useState('');
+ const [formOk, setFormOk] = useState('');
 
- // Work Mode & Geolocation Security State
- const [workMode, setWorkMode] = useState('WFO'); // 'WFO' | 'WFH'
- const [locationVerified, setLocationVerified] = useState(false);
- const [geoStatusMsg, setGeoStatusMsg] = useState(null);
+ const [workMode, setWorkMode] = useState('WFH');
+ const [locationToken, setLocationToken] = useState('');
  const [geoLoading, setGeoLoading] = useState(false);
-
- // Office Location Coordinates (12°57'04.9"N 77°36'29.5"E - Koramangala Office)
- const OFFICE_LAT = 12.951361;
- const OFFICE_LNG = 77.608194;
-
- const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
- const R = 6371000; // Radius of earth in meters
- const dLat = (lat2 - lat1) * Math.PI / 180;
- const dLon = (lon2 - lon1) * Math.PI / 180;
- const a = 
- Math.sin(dLat/2) * Math.sin(dLat/2) +
- Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
- Math.sin(dLon/2) * Math.sin(dLon/2);
- const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
- return Math.round(R * c);
- };
+ const [geoDistance, setGeoDistance] = useState(null);
 
  const handleVerifyLocation = () => {
  if (!navigator.geolocation) {
- setGeoStatusMsg({ success: false, text: 'Browser GPS not supported. Use Dev Verify below.' });
+ setFormError('Browser GPS not supported. Switch to WFH or enable location.');
  return;
  }
  setGeoLoading(true);
- setGeoStatusMsg({ success: false, text: 'Acquiring GPS coordinates...' });
+ setFormError('');
+ setFormOk('');
  navigator.geolocation.getCurrentPosition(
- (pos) => {
+ async (pos) => {
+ try {
+ const res = await fetch('/api/auth/verify-location', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({
+ lat: pos.coords.latitude,
+ lng: pos.coords.longitude,
+ accuracy: pos.coords.accuracy,
+ }),
+ });
+ const data = await res.json().catch(() => ({}));
+ if (!res.ok || !data.token) {
+ setLocationToken('');
+ setGeoDistance(data.distance_m ?? null);
+ setFormError(data.error || 'Location verification failed.');
  setGeoLoading(false);
- const dist = getDistanceFromLatLonInMeters(pos.coords.latitude, pos.coords.longitude, OFFICE_LAT, OFFICE_LNG);
- if (dist <= 100) {
- setLocationVerified(true);
- setGeoStatusMsg({ success: true, text: ` Verified! You are ${dist}m from Novel Office Koramangala (Within 100m limit).` });
- } else {
- setLocationVerified(false);
- setGeoStatusMsg({ success: false, text: ` Access Denied: You are ${dist}m away from Koramangala Office (Required <= 100m).` });
+ return;
  }
+ setLocationToken(data.token);
+ setGeoDistance(data.distance_m);
+ setFormOk(`Verified — ${data.distance_m}m from ${data.office?.name || 'office'}.`);
+ setFormError('');
+ } catch (err) {
+ setLocationToken('');
+ setFormError('Could not reach location verification server.');
+ }
+ setGeoLoading(false);
  },
  (err) => {
  setGeoLoading(false);
- setGeoStatusMsg({ success: false, text: `GPS Error: ${err.message}. Click Dev Confirm button below.` });
+ setLocationToken('');
+ setFormError(`GPS error: ${err.message}`);
  },
- { enableHighAccuracy: true, timeout: 10000 }
+ { enableHighAccuracy: true, timeout: 12000 }
  );
  };
 
- const handleDevTestVerify = () => {
- setLocationVerified(true);
- setGeoStatusMsg({ success: true, text: ' (Dev Verified) 12m from Novel Office Koramangala (57 13th Cross, Baldwins Road).' });
+ const setModeWFO = () => {
+ setWorkMode('WFO');
+ setLocationToken('');
+ setGeoDistance(null);
+ setFormOk('');
+ setFormError('');
  };
 
- const checkWorkModeLocationAccess = () => {
- if (workMode === 'WFO' && !locationVerified) {
- alert('Access Denied!\n\nWork From Office (WFO) login requires confirming your location within 100 meters of Novel Office Koramangala.\n\nPlease click "Verify Office Location" on the login page to confirm your proximity before logging in.');
- return false;
+ const setModeWFH = () => {
+ setWorkMode('WFH');
+ setLocationToken('');
+ setGeoDistance(null);
+ setFormOk('');
+ setFormError('');
+ };
+
+ const handleCreds = async (e) => {
+ e.preventDefault();
+ setFormError('');
+ if (!selectedPortal) {
+ setFormError('Select a portal before signing in.');
+ return;
  }
- return true;
- };
-
- const handleCreds = async e => {
- e.preventDefault(); 
- if (!checkWorkModeLocationAccess()) return;
- setLoading('creds');
- await login(email, pass); 
+ if (workMode === 'WFO' && !locationToken) {
+ setFormError('Verify office location for WFO, or switch to WFH.');
+ return;
+ }
+ setLoading(true);
+ const ok = await login(email, pass, selectedPortal, {
+ workMode,
+ locationToken: workMode === 'WFO' ? locationToken : undefined,
+ });
+ if (!ok) setFormError('Sign-in failed. Check portal, email, password, and location.');
  setLoading(false);
  };
 
- const renderWorkModeSecurityCard = () => (
- <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 20, padding: 18, marginBottom: 20, maxWidth: 640, width: '100%', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', textAlign: 'left' }}>
- <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
- <div style={{ fontSize: 13, fontWeight: 800, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
- <IC n="shield" s={16} /> Location & Work Mode Security
- </div>
- <span style={{ fontSize: 10.5, fontWeight: 800, background: workMode === 'WFO' ? (locationVerified ? '#E6F4EA' : '#FEF3C7') : '#EFF6FF', color: workMode === 'WFO' ? (locationVerified ? '#137333' : '#D97706') : '#3B82F6', borderRadius: 99, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
- {workMode === 'WFO' ? (locationVerified ? <>WFO VERIFIED <IC n="check2" s={12} /></> : <>WFO LOCATION REQUIRED <IC n="map" s={12} /></>) : <>WORK FROM HOME (WFH) <IC n="building" s={12} /></>}
- </span>
- </div>
+ const portals = [
+ { id: 'employee', label: 'Employee' },
+ { id: 'admin', label: 'HR Admin' },
+ { id: 'super_admin', label: 'Super Admin' },
+ ];
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
- <button 
- type="button"
- style={{ 
- background: workMode === 'WFO' ? '#111827' : '#F3F4F6', 
- color: workMode === 'WFO' ? '#FFFFFF' : '#4B5563', 
- border: workMode === 'WFO' ? '1px solid #111827' : '1px solid #E5E7EB', 
- borderRadius: 14, padding: '10px 14px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s ease' 
- }}
- onClick={() => { setWorkMode('WFO'); setLocationVerified(false); setGeoStatusMsg(null); }}
- >
- <IC n="building" s={14} /> Work From Office (WFO)
- </button>
- <button 
- type="button"
- style={{ 
- background: workMode === 'WFH' ? '#111827' : '#F3F4F6', 
- color: workMode === 'WFH' ? '#FFFFFF' : '#4B5563', 
- border: workMode === 'WFH' ? '1px solid #111827' : '1px solid #E5E7EB', 
- borderRadius: 14, padding: '10px 14px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s ease' 
- }}
- onClick={() => { setWorkMode('WFH'); setLocationVerified(true); setGeoStatusMsg(null); }}
- >
- <IC n="building" s={14} /> Work From Home (WFH)
- </button>
- </div>
-
- {workMode === 'WFO' && (
- <div style={{ background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 14, padding: 12 }}>
- <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
- <IC n="building" s={14} /> <span>Office: <strong>Novel Office Koramangala</strong> (57 13th Cross, Baldwins Rd, Bengaluru 560030)</span>
- </div>
- <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 10 }}>
- WFO Login requires GPS confirmation within <strong>100 meters</strong> of Novel Office Koramangala.
- </div>
-
- <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
- <button 
- type="button"
- style={{ background: 'var(--accent)', color: '#FFFFFF', border: 'none', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
- onClick={handleVerifyLocation}
- disabled={geoLoading}
- >
- <IC n="map" s={14} /> {geoLoading ? 'Verifying GPS...' : 'Verify Office Location'}
- </button>
- <button 
- type="button"
- style={{ background: 'var(--accent-soft)', color: 'var(--accent-hover)', border: '1px solid #C7D2FE', borderRadius: 99, padding: '7px 14px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}
- onClick={handleDevTestVerify}
- title="Simulate 100m office proximity for local testing"
- >
- <IC n="check2" s={14} /> Dev Confirm (100m Proximity)
- </button>
- </div>
-
- {geoStatusMsg && (
- <div style={{ marginTop: 8, fontSize: 11.5, fontWeight: 700, color: geoStatusMsg.success ? '#059669' : '#DC2626' }}>
- {geoStatusMsg.text}
- </div>
- )}
- </div>
- )}
-
- {workMode === 'WFH' && (
- <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: 10, fontSize: 11.5, color: '#1E40AF', fontWeight: 600 }}>
- Work From Home selected. Remote session enabled without location restriction.
- </div>
- )}
- </div>
- );
-
- if (mode==='creds') return (
- <div className="login-scene anim-fadein">
- <div className="login-art">
- <div style={{position:'relative',zIndex:1,width:'100%'}}>
- <div style={{fontFamily:'Outfit',fontSize:12,fontWeight:800,textTransform:'uppercase',letterSpacing:'2px',color:'var(--amber)',marginBottom:12}}>CEGS Portal HRMS</div>
- <div className="login-art-title">The Modern<br/>Workforce Platform</div>
- <div className="login-art-sub">Role-based portals, real-time analytics, and complete workforce management in one system.</div>
- <div className="login-art-grid">
- {[['6','Active Portals'],['16','HR Modules'],['100%','Data Integrity'],['24/7','Availability']].map(([v,l])=>(
- <div key={l} className="login-art-stat">
- <div className="login-art-stat-val">{v}</div>
- <div className="login-art-stat-lab">{l}</div>
+ return (
+ <div className="login-pro-scene">
+ <aside className="login-pro-art">
+ <div className="login-pro-art-inner">
+ <div className="login-pro-eyebrow">CEGS PORTAL HRMS</div>
+ <h1 className="login-pro-headline">The Modern<br />Workforce Platform</h1>
+ <p className="login-pro-art-sub">
+ Role-based portals, real-time analytics, and complete workforce management in one system.
+ </p>
+ <div className="login-pro-stats">
+ {[
+ ['6', 'Active Portals'],
+ ['16', 'HR Modules'],
+ ['100%', 'Data Integrity'],
+ ['24/7', 'Availability'],
+ ].map(([v, l]) => (
+ <div key={l} className="login-pro-stat">
+ <div className="login-pro-stat-val">{v}</div>
+ <div className="login-pro-stat-lab">{l}</div>
  </div>
  ))}
  </div>
  </div>
- </div>
- <div className="login-form-side">
- <div className="login-box anim-fadeup">
- <div className="login-brand">
+ </aside>
+
+ <section className="login-pro-form-side">
+ <div className="login-pro-card">
+ <div className="login-pro-brand">
  <div className="login-brand-icon">C</div>
  <span>CEGS<span>Portal</span></span>
  </div>
- <div className="login-h">Welcome back</div>
- <div className="login-p">Sign in to your workspace</div>
+ <h2 className="login-pro-welcome">Welcome back</h2>
+ <p className="login-pro-welcome-sub">Enter your details to sign in</p>
 
- {renderWorkModeSecurityCard()}
+ <div className="login-pro-portal-pills" role="tablist" aria-label="Portal">
+ {portals.map((p) => (
+ <button
+ key={p.id}
+ type="button"
+ role="tab"
+ aria-selected={selectedPortal === p.id}
+ className={`login-pro-pill ${selectedPortal === p.id ? 'active' : ''}`}
+ onClick={() => { setSelectedPortal(p.id); setFormError(''); }}
+ >
+ {p.label}
+ </button>
+ ))}
+ </div>
 
- <form onSubmit={handleCreds}>
+ <div className="login-pro-mode-row" role="group" aria-label="Work mode">
+ <button
+ type="button"
+ className={`login-pro-mode ${workMode === 'WFO' ? 'active' : ''}`}
+ onClick={setModeWFO}
+ >
+ <IC n="building" s={14} /> WFO
+ </button>
+ <button
+ type="button"
+ className={`login-pro-mode ${workMode === 'WFH' ? 'active' : ''}`}
+ onClick={setModeWFH}
+ >
+ <IC n="laptop" s={14} /> WFH
+ </button>
+ </div>
+
+ {workMode === 'WFO' && (
+ <div className="login-pro-wfo-strip">
+ <div className="login-pro-wfo-text">
+ <strong>Office check</strong>
+ <span>GPS within 100m of Novel Office Koramangala required.</span>
+ {geoDistance != null && locationToken && (
+ <span className="login-pro-wfo-ok">Verified · {geoDistance}m away</span>
+ )}
+ </div>
+ <button
+ type="button"
+ className={`login-pro-verify ${locationToken ? 'ok' : ''}`}
+ onClick={handleVerifyLocation}
+ disabled={geoLoading}
+ >
+ {geoLoading ? 'Verifying…' : locationToken ? 'Verified' : 'Verify location'}
+ </button>
+ </div>
+ )}
+
+ <form className="login-pro-form" onSubmit={handleCreds}>
  <div className="form-group">
- <label className="form-label">Email Address</label>
- <input className="form-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@company.com" autoFocus required />
+ <label className="login-pro-label">Email address *</label>
+ <input
+ className="login-pro-input"
+ type="email"
+ value={email}
+ onChange={(e) => setEmail(e.target.value)}
+ placeholder="you@company.com"
+ autoFocus
+ required
+ />
  </div>
  <div className="form-group">
- <label className="form-label">Password</label>
- <PasswordInput value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••••" required />
+ <label className="login-pro-label">Password *</label>
+ <PasswordInput
+ className="login-pro-input"
+ value={pass}
+ onChange={(e) => setPass(e.target.value)}
+ placeholder="••••••••"
+ required
+ />
  </div>
- <button type="submit" className="btn btn-dark" style={{width:'100%',height:46,fontSize:14,marginTop:8}} disabled={loading==='creds'}>
- {loading==='creds' ? 'Signing In...' : 'Access Dashboard'} <IC n="arrow" s={16} />
+ {formError && <div className="login-pro-error" role="alert">{formError}</div>}
+ {formOk && !formError && <div className="login-pro-success" role="status">{formOk}</div>}
+ <button
+ type="submit"
+ className="login-pro-submit"
+ disabled={loading || (workMode === 'WFO' && !locationToken)}
+ >
+ {loading ? 'Signing in…' : 'Sign in'} <IC n="arrow" s={15} />
  </button>
  </form>
- <p style={{ marginTop: 16, fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textAlign: 'center', lineHeight: 1.5 }}>
- Use the email and permanent password issued by HR via <strong>Employee Onboarding</strong>. Old demo passwords no longer work.
- </p>
  </div>
- </div>
- </div>
- );
-
- return (
- <div className="login-scene anim-fadein">
- <div className="login-art">
- <div style={{position:'relative',zIndex:1,width:'100%'}}>
- <div style={{fontFamily:'Outfit',fontSize:12,fontWeight:800,textTransform:'uppercase',letterSpacing:'2px',color:'var(--amber)',marginBottom:12}}>CEGS Portal HRMS</div>
- <div className="login-art-title">The Modern<br/>Workforce Platform</div>
- <div className="login-art-sub">Sign in with credentials generated from HR Employee Onboarding. Contact HR if you need access.</div>
- </div>
- </div>
- <div className="login-form-side">
- <div className="login-box anim-fadeup">
- <div className="login-brand">
- <div className="login-brand-icon">C</div>
- <span>CEGS<span>Portal</span></span>
- </div>
- <div className="login-h">Welcome back</div>
- <div className="login-p">Sign in with your issued credentials</div>
- {renderWorkModeSecurityCard()}
- <button type="button" className="btn btn-dark" style={{width:'100%',height:46,fontSize:14}} onClick={()=>setMode('creds')}>
- Continue to Sign In <IC n="arrow" s={16} />
- </button>
- </div>
- </div>
+ </section>
  </div>
  );
 }
@@ -969,169 +851,8 @@ export function EmployeeQuickViewModal({ targetUser, currentUser, db, onClose, o
  );
 }
 
-/* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
- GLOBAL MESSENGER & LIVE DIRECT CHAT MODAL
-======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
-export function GlobalMessengerModal({ open, onClose, currentUser, targetUser, setTargetUser, db, save }) {
- if (!open) return null;
+/* GlobalMessengerModal moved to src/components/chat/GlobalMessengerModal.jsx */
 
- const [text, setText] = useState('');
- const [search, setSearch] = useState('');
- const messagesEndRef = useRef(null);
-
- const otherUsers = (db.users || []).filter(u => u.id !== currentUser?.id && (u.name.toLowerCase().includes(search.toLowerCase()) || (u.title || '').toLowerCase().includes(search.toLowerCase())));
- const activeChatPartner = targetUser || otherUsers[0] || (db.users || []).find(u => u.id !== currentUser?.id);
-
- const conversation = (db.messages || []).filter(m => 
- (m.fromId === currentUser?.id && m.toId === activeChatPartner?.id) ||
- (m.fromId === activeChatPartner?.id && m.toId === currentUser?.id)
- ).sort((a, b) => new Date(a.time) - new Date(b.time));
-
- useEffect(() => {
- messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
- }, [conversation.length]);
-
- const handleSendMessage = (e) => {
- e.preventDefault();
- if (!text.trim() || !activeChatPartner) return;
-
- const newMsg = {
- id: Date.now(),
- fromId: currentUser.id,
- toId: activeChatPartner.id,
- text: text.trim(),
- time: new Date().toISOString(),
- read: 0
- };
-
- save('messages', [...(db.messages || []), newMsg]);
- setText('');
- };
-
- return (
- <Modal open={open} onClose={onClose} title=" CEGS Team Messenger & Live Chat" subtitle="Instant direct messaging across all team members" maxWidth={940}>
- <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 20, height: 480 }}>
- {/* LEFT USER LIST */}
- <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)', paddingRight: 16 }}>
- <input 
- className="form-input" 
- placeholder=" Search colleague..." 
- value={search} 
- onChange={e => setSearch(e.target.value)} 
- style={{ marginBottom: 12, padding: '8px 12px', fontSize: 12.5 }}
- />
-
- <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, scrollbarWidth: 'thin' }}>
- {otherUsers.map(u => {
- const isSelected = activeChatPartner?.id === u.id;
- const userMsgs = (db.messages || []).filter(m => m.fromId === u.id && m.toId === currentUser?.id && !m.read);
- 
- return (
- <div 
- key={u.id}
- onClick={() => setTargetUser(u)}
- style={{
- display: 'flex',
- alignItems: 'center',
- gap: 12,
- padding: '10px 12px',
- borderRadius: 12,
- cursor: 'pointer',
- background: isSelected ? 'var(--accent)' : 'var(--bg-surface, #F8FAFC)',
- color: isSelected ? '#FFFFFF' : 'var(--text-main, #1E293B)',
- transition: 'all 0.2s'
- }}
- >
- <img src={u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.name}`} alt="" style={{ width: 38, height: 38, borderRadius: '50%', border: isSelected ? '2px solid #FFF' : '2px solid #E2E8F0', flexShrink: 0 }} />
- <div style={{ flex: 1, overflow: 'hidden' }}>
- <div style={{ fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
- <div style={{ fontSize: 11, opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.title || u.designation || u.role}</div>
- </div>
- {userMsgs.length > 0 && (
- <span style={{ background: '#EF4444', color: '#FFF', borderRadius: 99, padding: '2px 6px', fontSize: 10, fontWeight: 900 }}>
- {userMsgs.length}
- </span>
- )}
- </div>
- );
- })}
- </div>
- </div>
-
- {/* RIGHT CHAT THREAD & INPUT */}
- {activeChatPartner ? (
- <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
- {/* Active Partner Header */}
- <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)', marginBottom: 14 }}>
- <img src={activeChatPartner.avatar} alt="" style={{ width: 42, height: 42, borderRadius: '50%', border: '2px solid var(--accent)' }} />
- <div>
- <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)' }}>{activeChatPartner.name}</div>
- <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{activeChatPartner.title || activeChatPartner.designation} · {activeChatPartner.email}</div>
- </div>
- </div>
-
- {/* Conversation Messages */}
- <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8, display: 'flex', flexDirection: 'column', gap: 12, scrollbarWidth: 'thin' }}>
- {conversation.length === 0 ? (
- <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)', fontSize: 13 }}>
- No chat messages yet. Say hello to <strong>{activeChatPartner.name}</strong>!
- </div>
- ) : (
- conversation.map(m => {
- const isMe = m.fromId === currentUser?.id;
- return (
- <div key={m.id} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
- <div 
- style={{
- maxWidth: '75%',
- padding: '12px 16px',
- borderRadius: isMe ? '18px 18px 2px 18px' : '18px 18px 18px 2px',
- background: isMe ? 'var(--accent)' : 'var(--bg-surface, #F1F5F9)',
- color: isMe ? '#FFFFFF' : 'var(--text-main, #0F172A)',
- boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
- fontSize: 13.5,
- lineHeight: 1.4
- }}
- >
- <div>{m.text}</div>
- <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4, textAlign: 'right', fontFamily: 'JetBrains Mono, monospace' }}>
- {new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
- </div>
- </div>
- </div>
- );
- })
- )}
- <div ref={messagesEndRef} />
- </div>
-
- {/* Input Form */}
- <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: 10, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
- <input 
- className="form-input" 
- placeholder={`Type a message to ${activeChatPartner.name.split('')[0]}...`} 
- value={text} 
- onChange={e => setText(e.target.value)}
- style={{ flex: 1, padding: '12px 16px' }}
- autoFocus
- />
- <button type="submit" className="btn btn-dark" style={{ background: 'var(--accent)', padding: '0 20px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
- <span>Send</span> <IC n="send" s={15} />
- </button>
- </form>
- </div>
- ) : (
- <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)' }}>
- Select an employee to start a conversation.
- </div>
- )}
- </div>
- </Modal>
- );
-}
-/* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
- LUNCH BREAK TRACKER STOPWATCH WIDGET
-======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================= */
 export function LunchBreakWidget({ user, db, save }) {
  const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
  const isSA = user?.role === 'super_admin';
@@ -2830,12 +2551,13 @@ export function OrgChartPage({ db }) {
 }
 
 /* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
- LEAVES PAGE
+ LEAVES PAGE — 2 paid days/month + rollover; excess = unpaid (employee & HR)
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 export function LeavesPage({ db, save, user }) {
  const [modal, setModal] = useState(false);
- const [form, setForm] = useState({type:'casual',start:'',end:'',reason:''});
+ const [form, setForm] = useState({ type: 'casual', start: '', end: '', reason: '' });
  const [filter, setFilter] = useState('all');
+
  const getUserPermissionRole = (u) => {
  if (!u) return 'employee';
  if (u.role === 'super_admin') return 'super_admin';
@@ -2847,104 +2569,387 @@ export function LeavesPage({ db, save, user }) {
  return 'employee';
  };
  const currentPermRole = getUserPermissionRole(user);
- const isAdmin = db.permissions?.[currentPermRole]?.approveLeave ?? ['admin','super_admin'].includes(user.role);
+ const isAdmin = db.permissions?.[currentPermRole]?.approveLeave ?? ['admin', 'super_admin'].includes(user.role);
+ const canApply = user?.role === 'employee' || user?.role === 'admin' || user?.role === 'super_admin';
 
- const submit = e => {
+ // One-time clear of demo leave seed rows
+ useEffect(() => {
+ try {
+ if (!localStorage.getItem('cegs_leaves_policy_v2')) {
+ save('leaves', []);
+ localStorage.setItem('cegs_leaves_policy_v2', '1');
+ localStorage.setItem('cegs_leaves_policy_v1', '1');
+ }
+ } catch {}
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, []);
+
+ const balance = calcLeaveBalance(
+ db.leaves || [],
+ user?.id,
+ new Date(),
+ user?.joining_date || user?.joined
+ );
+
+ const previewDays = countLeaveDays(form.start, form.end);
+ const typeLeft = typeRemainingFor(balance, form.type);
+ const previewAlloc = allocateLeavePay(previewDays, balance.available, typeLeft);
+
+ const submit = (e) => {
  e.preventDefault();
- save('leaves',[{id:Date.now(),uid:user.id,...form,status:'pending',applied:new Date().toISOString().split('T')[0]},...db.leaves]);
- setModal(false); setForm({type:'casual',start:'',end:'',reason:''});
- alert('Leave request submitted successfully!');
+ if (!canApply) {
+ alert('Your role cannot apply for leave from this screen.');
+ return;
+ }
+ if (!form.start || !form.end) return;
+ if (previewDays < 1) {
+ alert('End date must be on or after start date.');
+ return;
+ }
+ if (previewDays > typeLeft && typeLeft === 0) {
+ alert(
+ `No ${form.type === 'sick' ? 'Sick' : 'Casual'} leave remaining this year (max ${
+ form.type === 'sick' ? SICK_ANNUAL : CASUAL_ANNUAL
+ } days). Extra days will be unpaid — continue only if intended.`
+ );
+ }
+
+ const entry = {
+ id: Date.now(),
+ uid: user.id,
+ type: form.type,
+ start: form.start,
+ end: form.end,
+ reason: form.reason,
+ status: 'pending',
+ applied: new Date().toISOString().split('T')[0],
+ payType: previewAlloc.payType,
+ paidDays: previewAlloc.paidDays,
+ unpaidDays: previewAlloc.unpaidDays,
+ totalDays: previewAlloc.totalDays,
  };
 
- const decide = (id,status) => {
- const note = status==='rejected' ? prompt('Rejection reason:') : null;
- if(status==='rejected'&&note===null) return;
- save('leaves',db.leaves.map(l=>l.id===id?{...l,status,by:user.id,note}:l));
+ save('leaves', [entry, ...(db.leaves || [])]);
+
+ (async () => {
+ try {
+ await fetch(`${GLOBAL_API_BASE}/leaves`, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({
+ leave_type: form.type,
+ start_date: form.start,
+ end_date: form.end,
+ reason: form.reason,
+ }),
+ });
+ } catch {}
+ })();
+
+ setModal(false);
+ setForm({ type: 'casual', start: '', end: '', reason: '' });
+ const msg =
+ previewAlloc.unpaidDays > 0
+ ? `Leave submitted: ${previewAlloc.paidDays} paid + ${previewAlloc.unpaidDays} unpaid day(s).`
+ : `Leave submitted: ${previewAlloc.paidDays} paid day(s).`;
+ alert(msg);
  };
 
- const myLeaves = db.leaves.filter(l=>l.uid===user.id);
- const sickUsed=myLeaves.filter(l=>(l.type==='sick'||l.type==='vacation')&&l.status==='approved').length;
- const casualUsed=myLeaves.filter(l=>(l.type==='casual'||l.type==='personal')&&l.status==='approved').length;
- const list=(isAdmin?db.leaves:myLeaves).filter(l=>filter==='all'||l.status===filter);
+ const decide = (id, status) => {
+ const note = status === 'rejected' ? prompt('Rejection reason:') : null;
+ if (status === 'rejected' && note === null) return;
+ save(
+ 'leaves',
+ (db.leaves || []).map((l) => (l.id === id ? { ...l, status, by: user.id, note } : l))
+ );
+ };
 
- const balances=[
- {l:'Casual Leave',used:casualUsed,tot:12,c:'#10B981'},
- {l:'Sick Leave',used:sickUsed,tot:12,c:'#3B82F6'}
+ const myLeaves = (db.leaves || []).filter((l) => String(l.uid) === String(user.id));
+ const list = (isAdmin ? db.leaves || [] : myLeaves).filter(
+ (l) => filter === 'all' || l.status === filter
+ );
+
+ const monthName = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+ const balanceCards = [
+ {
+ l: 'Casual Leave',
+ sub: `${CASUAL_ANNUAL} days / year`,
+ value: balance.casualRemaining,
+ hint: `${balance.casualUsed + balance.casualPending} used of ${CASUAL_ANNUAL} · ${balance.casualRemaining} left`,
+ c: '#10B981',
+ tot: CASUAL_ANNUAL,
+ used: balance.casualUsed + balance.casualPending,
+ },
+ {
+ l: 'Sick Leave',
+ sub: `${SICK_ANNUAL} days / year`,
+ value: balance.sickRemaining,
+ hint: `${balance.sickUsed + balance.sickPending} used of ${SICK_ANNUAL} · ${balance.sickRemaining} left`,
+ c: '#3B82F6',
+ tot: SICK_ANNUAL,
+ used: balance.sickUsed + balance.sickPending,
+ },
+ {
+ l: 'Monthly Paid Pool',
+ sub: `${PAID_LEAVES_PER_MONTH}/month + carry · ${monthName}`,
+ value: balance.available,
+ hint: `Carry-in ${balance.carryIn} · accrued ${balance.accrued}/${ANNUAL_TOTAL} · unpaid ${balance.unpaidUsed + balance.pendingUnpaid}`,
+ c: '#F59E0B',
+ tot: null,
+ used: null,
+ },
  ];
 
  return (
  <div className="anim-fadeup">
- <PageHdr title="Leave Management" sub={`${list.length} requests ${filter!=='all'?`(${filter})`:''}`}>
- <button className="btn btn-dark" onClick={()=>setModal(true)}><IC n="plus"/> Apply for Leave</button>
+ <PageHdr
+ title="Leave Management"
+ sub={`24/year (12 Casual + 12 Sick) · ${PAID_LEAVES_PER_MONTH} days/month with carry-forward · ${list.length} requests`}
+ >
+ {canApply && (
+ <button className="btn btn-dark" onClick={() => setModal(true)}>
+ <IC n="plus" /> Apply for Leave
+ </button>
+ )}
  </PageHdr>
 
- <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:16,marginBottom:24}}>
- {balances.map(b=>(
- <div key={b.l} className="card" style={{padding:24}}>
- <div style={{display:'flex',justifyContent:'space-between',marginBottom:12,alignItems:'flex-start'}}>
+ <div
+ style={{
+ background: '#EFF6FF',
+ border: '1px solid #BFDBFE',
+ borderRadius: 14,
+ padding: '12px 16px',
+ marginBottom: 18,
+ fontSize: 13,
+ color: '#1E40AF',
+ fontWeight: 600,
+ }}
+ >
+ Policy: <strong>{ANNUAL_TOTAL} leaves/year</strong> = <strong>{CASUAL_ANNUAL} Casual</strong> +{' '}
+ <strong>{SICK_ANNUAL} Sick</strong>. You get <strong>{PAID_LEAVES_PER_MONTH} paid days each month</strong>;
+ unused days carry to the next month. Beyond your paid pool (or type annual cap), leave is{' '}
+ <strong>Unpaid</strong>.
+ </div>
+
+ <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+ {balanceCards.map((b) => (
+ <div key={b.l} className="card" style={{ padding: 22 }}>
+ <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, alignItems: 'flex-start' }}>
  <div>
- <div style={{fontWeight:800,fontSize:16,color:'var(--text-primary)'}}>{b.l}</div>
- <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>Annual Allowance: {b.tot} Days</div>
+ <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)' }}>{b.l}</div>
+ <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{b.sub}</div>
  </div>
- <div style={{fontFamily:'Outfit',fontSize:28,fontWeight:900,color:b.c}}>{b.tot-b.used}</div>
+ <div style={{ fontFamily: 'Outfit', fontSize: 28, fontWeight: 900, color: b.c }}>{b.value}</div>
  </div>
- <div className="progress-track progress-sm" style={{marginBottom:8,height:8}}><div className="progress-fill" style={{width:`${Math.min(100, (b.used/b.tot)*100)}%`,background:b.c}}/></div>
- <div style={{fontSize:12,color:'var(--text-secondary)',fontWeight:700}}>{b.used} used of {b.tot} days ({b.tot - b.used} remaining)</div>
+ {b.tot != null && (
+ <div className="progress-track progress-sm" style={{ marginBottom: 8, height: 8 }}>
+ <div
+ className="progress-fill"
+ style={{ width: `${Math.min(100, (b.used / b.tot) * 100)}%`, background: b.c }}
+ />
+ </div>
+ )}
+ <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>{b.hint}</div>
  </div>
  ))}
  </div>
 
  <div className="card">
  <div className="tabs-bar">
- {['all','pending','approved','rejected'].map(f=>(
- <button key={f} className={`tab-btn ${filter===f?'active':''}`} onClick={()=>setFilter(f)}>
- {f.charAt(0).toUpperCase()+f.slice(1)} {f!=='all'&&<span style={{fontSize:11,marginLeft:4,opacity:.7}}>({(isAdmin?db.leaves:myLeaves).filter(l=>l.status===f).length})</span>}
+ {['all', 'pending', 'approved', 'rejected'].map((f) => (
+ <button key={f} className={`tab-btn ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+ {f.charAt(0).toUpperCase() + f.slice(1)}{' '}
+ {f !== 'all' && (
+ <span style={{ fontSize: 11, marginLeft: 4, opacity: 0.7 }}>
+ ({(isAdmin ? db.leaves || [] : myLeaves).filter((l) => l.status === f).length})
+ </span>
+ )}
  </button>
  ))}
  </div>
  <div className="tbl-wrap">
  <table className="tbl">
- <thead><tr><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Applied</th><th>Status</th>{isAdmin&&<th>Actions</th>}</tr></thead>
+ <thead>
+ <tr>
+ <th>Employee</th>
+ <th>Type</th>
+ <th>From</th>
+ <th>To</th>
+ <th>Days</th>
+ <th>Pay</th>
+ <th>Reason</th>
+ <th>Applied</th>
+ <th>Status</th>
+ {isAdmin && <th>Actions</th>}
+ </tr>
+ </thead>
  <tbody>
- {list.length===0&&<tr><td colSpan={9}><div className="empty-state"><IC n="calendar" s={48} style={{color:'var(--text-muted)'}}/><h3>No requests</h3><p>No leave requests match this filter</p></div></td></tr>}
- {list.map(l=>{
- const emp=db.users.find(u=>u.id===l.uid);
- const days=Math.ceil((new Date(l.end)-new Date(l.start))/(1000*60*60*24))+1;
- return <tr key={l.id}>
- <td><div className="emp-cell"><img src={emp?.avatar} className="tbl-av" alt=""/><div><div style={{fontWeight:700,fontSize:13}}>{emp?.name}</div><div style={{fontSize:11,color:'var(--text-muted)'}}>{emp?.title}</div></div></div></td>
- <td><span className="badge b-info" style={{textTransform:'capitalize'}}>{l.type === 'vacation' ? 'Sick Leave' : l.type === 'personal' ? 'Casual Leave' : `${l.type} Leave`}</span></td>
- <td style={{fontSize:13,fontWeight:600}}>{l.start}</td>
- <td style={{fontSize:13,fontWeight:600}}>{l.end}</td>
- <td style={{fontFamily:'JetBrains Mono,monospace',fontWeight:700,color:'var(--amber-dark)'}}>{days}d</td>
- <td style={{fontSize:13,maxWidth:220,color:'var(--text-secondary)'}}>{l.reason}</td>
- <td style={{fontSize:12,color:'var(--text-muted)'}}>{l.applied}</td>
- <td><span className={`badge ${l.status==='approved'?'b-success':l.status==='rejected'?'b-error':'b-pending'}`}><span className="badge-dot"/>{l.status}</span></td>
- {isAdmin&&<td>
- {l.status==='pending'
- ?<div style={{display:'flex',gap:5}}><button className="btn btn-xs btn-green" onClick={()=>decide(l.id,'approved')}><IC n="check" s={11}/> Approve</button><button className="btn btn-xs btn-red" onClick={()=>decide(l.id,'rejected')}><IC n="x" s={11}/></button></div>
- :<span style={{fontSize:12,color:'var(--text-muted)'}}>Decided</span>}
- </td>}
- </tr>;
+ {list.length === 0 && (
+ <tr>
+ <td colSpan={isAdmin ? 10 : 9}>
+ <div className="empty-state">
+ <IC n="calendar" s={48} style={{ color: 'var(--text-muted)' }} />
+ <h3>No requests</h3>
+ <p>No leave requests match this filter</p>
+ </div>
+ </td>
+ </tr>
+ )}
+ {list.map((l) => {
+ const emp = db.users.find((u) => String(u.id) === String(l.uid));
+ const days = l.totalDays || countLeaveDays(l.start, l.end);
+ const payBadge =
+ l.payType === 'unpaid'
+ ? 'b-pending'
+ : l.payType === 'mixed'
+ ? 'b-info'
+ : 'b-success';
+ return (
+ <tr key={l.id}>
+ <td>
+ <div className="emp-cell">
+ <img src={emp?.avatar} className="tbl-av" alt="" />
+ <div>
+ <div style={{ fontWeight: 700, fontSize: 13 }}>{emp?.name || '—'}</div>
+ <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{emp?.title}</div>
+ </div>
+ </div>
+ </td>
+ <td>
+ <span className="badge b-info" style={{ textTransform: 'capitalize' }}>
+ {l.type === 'vacation' ? 'Sick Leave' : l.type === 'personal' ? 'Casual Leave' : `${l.type} Leave`}
+ </span>
+ </td>
+ <td style={{ fontSize: 13, fontWeight: 600 }}>{l.start}</td>
+ <td style={{ fontSize: 13, fontWeight: 600 }}>{l.end}</td>
+ <td style={{ fontFamily: 'JetBrains Mono,monospace', fontWeight: 700, color: 'var(--amber-dark)' }}>
+ {days}d
+ </td>
+ <td>
+ <span className={`badge ${payBadge}`} style={{ fontSize: 11 }}>
+ {payTypeLabel(l)}
+ </span>
+ </td>
+ <td style={{ fontSize: 13, maxWidth: 220, color: 'var(--text-secondary)' }}>{l.reason}</td>
+ <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{l.applied}</td>
+ <td>
+ <span
+ className={`badge ${
+ l.status === 'approved' ? 'b-success' : l.status === 'rejected' ? 'b-error' : 'b-pending'
+ }`}
+ >
+ <span className="badge-dot" />
+ {l.status}
+ </span>
+ </td>
+ {isAdmin && (
+ <td>
+ {l.status === 'pending' ? (
+ <div style={{ display: 'flex', gap: 5 }}>
+ <button className="btn btn-xs btn-green" onClick={() => decide(l.id, 'approved')}>
+ <IC n="check" s={11} /> Approve
+ </button>
+ <button className="btn btn-xs btn-red" onClick={() => decide(l.id, 'rejected')}>
+ <IC n="x" s={11} />
+ </button>
+ </div>
+ ) : (
+ <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Decided</span>
+ )}
+ </td>
+ )}
+ </tr>
+ );
  })}
  </tbody>
  </table>
  </div>
  </div>
 
- <Modal open={modal} onClose={()=>setModal(false)} title="Apply for Leave" subtitle="Your request will be sent to HR for review">
+ <Modal
+ open={modal}
+ onClose={() => setModal(false)}
+ title="Apply for Leave"
+ subtitle={`24/year · Casual ${balance.casualRemaining}/${CASUAL_ANNUAL} left · Sick ${balance.sickRemaining}/${SICK_ANNUAL} left · Paid pool ${balance.available}`}
+ >
  <form onSubmit={submit}>
- <div className="form-group"><label className="form-label">Leave Type</label>
- <select className="form-input" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>
- <option value="casual">Casual Leave (12 Days)</option>
- <option value="sick">Sick Leave (12 Days)</option>
+ <div className="form-group">
+ <label className="form-label">Leave Type</label>
+ <select className="form-input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+ <option value="casual">Casual Leave ({balance.casualRemaining} of {CASUAL_ANNUAL} left)</option>
+ <option value="sick">Sick Leave ({balance.sickRemaining} of {SICK_ANNUAL} left)</option>
  </select>
  </div>
  <div className="form-row">
- <div className="form-group"><label className="form-label">Start Date</label><input type="date" className="form-input" value={form.start} onChange={e=>setForm({...form,start:e.target.value})} required/></div>
- <div className="form-group"><label className="form-label">End Date</label><input type="date" className="form-input" value={form.end} onChange={e=>setForm({...form,end:e.target.value})} required/></div>
+ <div className="form-group">
+ <label className="form-label">Start Date</label>
+ <input
+ type="date"
+ className="form-input"
+ value={form.start}
+ onChange={(e) => setForm({ ...form, start: e.target.value })}
+ required
+ />
  </div>
- <div className="form-group"><label className="form-label">Reason</label><textarea className="form-input" rows={3} value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})} placeholder="Briefly describe the reason for your leave..." required/></div>
- <div className="btn-row"><button type="button" className="btn btn-ghost" onClick={()=>setModal(false)}>Cancel</button><button type="submit" className="btn btn-dark"><IC n="send" s={14}/> Submit Request</button></div>
+ <div className="form-group">
+ <label className="form-label">End Date</label>
+ <input
+ type="date"
+ className="form-input"
+ value={form.end}
+ onChange={(e) => setForm({ ...form, end: e.target.value })}
+ required
+ />
+ </div>
+ </div>
+ {previewDays > 0 && (
+ <div
+ style={{
+ marginBottom: 14,
+ padding: '12px 14px',
+ borderRadius: 12,
+ background: previewAlloc.unpaidDays > 0 ? '#FFFBEB' : '#ECFDF5',
+ border: `1px solid ${previewAlloc.unpaidDays > 0 ? '#FDE68A' : '#A7F3D0'}`,
+ fontSize: 13,
+ fontWeight: 650,
+ color: previewAlloc.unpaidDays > 0 ? '#92400E' : '#065F46',
+ }}
+ >
+ {previewDays} day(s) as {form.type === 'sick' ? 'Sick' : 'Casual'} →{' '}
+ <strong>{previewAlloc.paidDays} paid</strong>
+ {previewAlloc.unpaidDays > 0 ? (
+ <>
+ {' '}
+ + <strong>{previewAlloc.unpaidDays} unpaid</strong>
+ {previewAlloc.blockedByTypeCap
+ ? ' (over annual type limit and/or monthly paid pool)'
+ : ' (beyond monthly paid pool / carry)'}
+ </>
+ ) : (
+ ' (covered by paid pool)'
+ )}
+ </div>
+ )}
+ <div className="form-group">
+ <label className="form-label">Reason</label>
+ <textarea
+ className="form-input"
+ rows={3}
+ value={form.reason}
+ onChange={(e) => setForm({ ...form, reason: e.target.value })}
+ placeholder="Briefly describe the reason for your leave..."
+ required
+ />
+ </div>
+ <div className="btn-row">
+ <button type="button" className="btn btn-ghost" onClick={() => setModal(false)}>
+ Cancel
+ </button>
+ <button type="submit" className="btn btn-dark">
+ <IC n="send" s={14} /> Submit Request
+ </button>
+ </div>
  </form>
  </Modal>
  </div>
@@ -2973,13 +2978,74 @@ export function AttendancePage({ db, save, user }) {
  const currentPermRole = getUserPermissionRole(user);
  const isAdmin = db.permissions?.[currentPermRole]?.attendance ?? ['admin','super_admin'].includes(user.role);
  const today = new Date().toISOString().split('T')[0];
- const todayRec = db.attendance.find(a=>a.uid===user.id&&a.date===today);
+ const todayRec = (db.attendance || []).find(a=>a.uid===user.id&&a.date===today);
+ const isSessionActive = !!(todayRec && todayRec.in && !todayRec.out);
 
- useEffect(()=>{
- if(running){ intRef.current=setInterval(()=>setSecs(s=>s+1),1000); }
- else { clearInterval(intRef.current); }
- return()=>clearInterval(intRef.current);
- },[running]);
+ // One-time clear of pre-production attendance logs (shared by HR + employee)
+ useEffect(() => {
+   try {
+     if (!localStorage.getItem('cegs_attendance_ui_cleared_v1')) {
+       save('attendance', []);
+       localStorage.setItem('cegs_attendance_ui_cleared_v1', '1');
+       localStorage.setItem('cegs_attendance_prod_reset_v1', '1');
+     }
+   } catch {}
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, []);
+
+ const parseClockInDate = (rec) => {
+   if (!rec?.date || !rec?.in) return null;
+   const [y, mo, d] = String(rec.date).split('-').map(Number);
+   const parts = String(rec.in).split(':').map(Number);
+   const h = parts[0] || 0;
+   const m = parts[1] || 0;
+   const s = parts[2] || 0;
+   const start = new Date(y, (mo || 1) - 1, d || 1, h, m, s, 0);
+   return Number.isNaN(start.getTime()) ? null : start;
+ };
+
+ // End-of-day boundary: clock-out unlock / session day ends at 6:30 PM
+ const getDayEndBoundary = (recDate) => {
+   const [y, mo, d] = String(recDate || today).split('-').map(Number);
+   return new Date(y, (mo || 1) - 1, d || 1, 18, 30, 0, 0);
+ };
+
+ const calcElapsedSecs = (rec) => {
+   const start = parseClockInDate(rec);
+   if (!start) return 0;
+   const dayEnd = getDayEndBoundary(rec.date);
+   const now = new Date();
+   // Timer runs from clock-in until now, but does not grow past 6:30 PM that day
+   const end = now.getTime() < dayEnd.getTime() ? now : dayEnd;
+   if (rec.out) {
+     const [oh, om] = String(rec.out).split(':').map(Number);
+     const [y, mo, d] = String(rec.date).split('-').map(Number);
+     const outDt = new Date(y, (mo || 1) - 1, d || 1, oh || 0, om || 0, 0, 0);
+     return Math.max(0, Math.floor((Math.min(outDt.getTime(), dayEnd.getTime()) - start.getTime()) / 1000));
+   }
+   return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
+ };
+
+ // Persist timer across navigation: always derive from stored clock-in time
+ useEffect(() => {
+   clearInterval(intRef.current);
+   if (!todayRec?.in) {
+     setRunning(false);
+     setSecs(0);
+     return;
+   }
+   if (todayRec.out) {
+     setRunning(false);
+     setSecs(calcElapsedSecs(todayRec));
+     return;
+   }
+   setRunning(true);
+   const tick = () => setSecs(calcElapsedSecs(todayRec));
+   tick();
+   intRef.current = setInterval(tick, 1000);
+   return () => clearInterval(intRef.current);
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [todayRec?.id, todayRec?.in, todayRec?.out, todayRec?.date]);
 
  const fmt = s=>`${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
@@ -2989,8 +3055,9 @@ export function AttendancePage({ db, save, user }) {
  // Office timings: 10:15 AM to 7:00 PM. Clock In after 10:15 AM is flagged as Late.
  const isLate = now.getHours() > 10 || (now.getHours() === 10 && now.getMinutes() > 15);
  const status = isLate ? 'late' : 'present';
- save('attendance', [{ id: Date.now(), uid: user.id, date: today, in: now.toTimeString().substr(0, 5), out: null, status, hrs: 0 }, ...db.attendance]);
- setRunning(true);
+ const timeStr = now.toTimeString().substr(0, 5);
+ save('attendance', [{ id: Date.now(), uid: user.id, date: today, in: timeStr, out: null, status, hrs: 0 }, ...(db.attendance || [])]);
+ // running/secs resume via effect from saved record
  };
 
  // Clock Out is locked until 6:30 PM (18:30) every working day
@@ -3008,16 +3075,17 @@ export function AttendancePage({ db, save, user }) {
  alert(' Clock Out is locked until 6:30 PM. You can only register your Clock Out starting at 6:30 PM on working days.');
  return;
  }
- const hrs = parseFloat((secs / 3600).toFixed(2)) || 8.0;
- save('attendance', db.attendance.map(a => a.uid === user.id && a.date === today ? { ...a, out: new Date().toTimeString().substr(0, 5), hrs } : a));
+ const elapsed = calcElapsedSecs(todayRec);
+ const hrs = parseFloat((elapsed / 3600).toFixed(2)) || 0;
+ save('attendance', (db.attendance || []).map(a => a.uid === user.id && a.date === today ? { ...a, out: new Date().toTimeString().substr(0, 5), hrs } : a));
  setRunning(false);
- setSecs(0);
+ setSecs(elapsed);
  };
 
- const myLogs = isAdmin ? db.attendance : db.attendance.filter(a => a.uid === user.id);
- const presentDays = db.attendance.filter(a => a.uid === user.id && a.status === 'present').length;
- const lateDays = db.attendance.filter(a => a.uid === user.id && a.status === 'late').length;
- const totalHrs = db.attendance.filter(a => a.uid === user.id).reduce((s, a) => s + a.hrs, 0);
+ const myLogs = isAdmin ? (db.attendance || []) : (db.attendance || []).filter(a => a.uid === user.id);
+ const presentDays = (db.attendance || []).filter(a => a.uid === user.id && a.status === 'present').length;
+ const lateDays = (db.attendance || []).filter(a => a.uid === user.id && a.status === 'late').length;
+ const totalHrs = (db.attendance || []).filter(a => a.uid === user.id).reduce((s, a) => s + (a.hrs || 0), 0);
 
  // Dynamic Live Calendar calculations
  const curYear = nowObj.getFullYear();
@@ -3056,17 +3124,17 @@ export function AttendancePage({ db, save, user }) {
  flex: 1, 
  color: '#fff', 
  borderColor: 'rgba(255,255,255,0.2)', 
- opacity: (!running || !isClockOutUnlocked) ? 0.5 : 1,
- cursor: (!running || !isClockOutUnlocked) ? 'not-allowed' : 'pointer'
+ opacity: (!isSessionActive || !isClockOutUnlocked) ? 0.5 : 1,
+ cursor: (!isSessionActive || !isClockOutUnlocked) ? 'not-allowed' : 'pointer'
  }} 
- disabled={!running || !isClockOutUnlocked}
+ disabled={!isSessionActive || !isClockOutUnlocked}
  title={!isClockOutUnlocked ? 'Clock Out unlocks at 6:30 PM' : 'Click to Clock Out'}
  >
- {!running ? 'Clock Out' : !isClockOutUnlocked ? ' Locked till 6:30 PM' : 'Clock Out'}
+ {!isSessionActive ? 'Clock Out' : !isClockOutUnlocked ? ' Locked till 6:30 PM' : 'Clock Out'}
  </button>
  </div>
  {todayRec && <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono,monospace' }}>
- IN: {todayRec.in} {todayRec.out && ` | OUT: ${todayRec.out}`} {!isClockOutUnlocked && !todayRec.out && ` (Clock Out unlocks at 6:30 PM)`}
+ IN: {todayRec.in} {todayRec.out && ` | OUT: ${todayRec.out}`} {isSessionActive && !isClockOutUnlocked && ` (Clock Out unlocks at 6:30 PM)`}
  </div>}
  </div>
 
@@ -3136,7 +3204,7 @@ export function AttendancePage({ db, save, user }) {
  const monthStr = String(curMonth + 1).padStart(2, '0');
  const dayStr = String(day).padStart(2, '0');
  const ds = `${curYear}-${monthStr}-${dayStr}`;
- const rec = db.attendance.find(a => a.uid === user.id && a.date === ds);
+ const rec = (db.attendance || []).find(a => a.uid === user.id && a.date === ds);
  
  let cls = '';
  if (isSunday) cls = 'sunday-holiday';
@@ -4170,6 +4238,53 @@ export function OnboardingPage({ db, save, user }) {
  const [editForm, setEditForm] = useState(null);
  const [checklistModal, setChecklistModal] = useState(false);
  const [checklistForm, setChecklistForm] = useState({ uid: '', role: '', start: '' });
+
+ // Load real accounts from MongoDB (source of truth for production)
+ useEffect(() => {
+ let cancelled = false;
+ (async () => {
+ try {
+ const res = await fetch(`${GLOBAL_API_BASE}/employees`, {
+ headers: { Authorization: `Bearer ${localStorage.getItem('cegs_token') || ''}` },
+ });
+ if (!res.ok) return;
+ const rows = await res.json();
+ if (cancelled || !Array.isArray(rows)) return;
+ const mapped = rows.map((u) => ({
+ id: u.id,
+ employee_id: u.employee_id,
+ employeeId: u.employee_id,
+ eid: u.employee_id,
+ name: u.name,
+ email: u.email,
+ role: u.role,
+ designation: u.designation,
+ title: u.designation,
+ department_id: u.department_id,
+ department_name: u.department_name,
+ deptName: u.department_name || 'General Operations',
+ joining_date: u.joining_date,
+ joined: u.joining_date,
+ contact: u.contact,
+ phone: u.contact,
+ status: u.status || 'active',
+ avatar: u.avatar_url,
+ avatar_url: u.avatar_url,
+ employment_type: 'full_time',
+ basic_salary: u.basic_salary,
+ bank_name: u.bank_name,
+ account_number: u.account_number,
+ ifsc_code: u.ifsc_code,
+ emergency_contact: u.emergency_contact,
+ must_change_password: u.must_change_password || 0,
+ last_login: u.last_login,
+ }));
+ save('users', mapped);
+ } catch {}
+ })();
+ return () => { cancelled = true; };
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, []);
 
  // Fetch audit logs when audit tab is clicked
  useEffect(() => {
@@ -5320,12 +5435,12 @@ export function UsersPage({ db, save, user }) {
  </div>
  </div>
 
- {/* Employee Details & Account Credentials Table */}
+ {/* Employee Details Table */}
  <div className="card anim-fadeup" style={{ marginBottom: 24, padding: 24, borderRadius: 24, background: '#ffffff', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
  <div>
- <div style={{ fontSize: 18, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>HRMS: Employee's Details & Account Credentials</div>
- <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 2 }}>Credentials are issued only via <strong>Employee Onboarding</strong>. Passwords are never shown here after creation.</div>
+ <div style={{ fontSize: 18, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>HRMS: Employee Details</div>
+ <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 2 }}>Directory of accounts by portal role.</div>
  </div>
  <span style={{ background: '#E6F4EA', color: '#137333', border: '1px solid #CEEAD6', borderRadius: 99, padding: '4px 14px', fontSize: 11, fontWeight: 800 }}>
  {db.users.length} Accounts Active
@@ -5342,7 +5457,6 @@ export function UsersPage({ db, save, user }) {
  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Position</th>
  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>User ID (Email)</th>
  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Portal Access</th>
- <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280', textAlign: 'right' }}>Password</th>
  </tr>
  </thead>
  <tbody>
@@ -5361,9 +5475,6 @@ export function UsersPage({ db, save, user }) {
  <td style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--accent)', fontFamily: 'monospace' }}>{u.email}</td>
  <td style={{ padding: '10px 14px' }}>
  <span className={`badge ${badgeClass}`} style={{ fontWeight: 800, fontSize: 10.5 }}>{portalName}</span>
- </td>
- <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: '#6B7280', fontFamily: 'monospace' }}>
- ••••••••
  </td>
  </tr>
  );
@@ -7217,7 +7328,7 @@ export function TargetMetricCard({ title, icon = 'target', current, target, unit
 }
 
 export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTargetUser, openChatWithUser, initialSheet = 'calls', variant = 'full' }) {
- const isSA = user?.role === 'super_admin';
+ const isSA = isOversightOnly(user);
  const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
  const isEmp = !isSA && !isHR;
 
@@ -7361,6 +7472,22 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const [targetViewMode, setTargetViewMode] = useState(isEmp ? 'employee' : 'hr');
  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(isEmp ? (user?.name || '') : 'ALL');
  const [toastMsg, setToastMsg] = useState(null);
+
+ // Super Admin is always oversight (team) — never personal daily tasks
+ useEffect(() => {
+   if (isSA && targetViewMode !== 'hr') {
+     setTargetViewMode('hr');
+   }
+ }, [isSA, targetViewMode]);
+
+ // Drop stale filters (e.g. SA's own name) that are not real recruiters
+ useEffect(() => {
+   if (!isSA || selectedEmployeeFilter === 'ALL') return;
+   const recruiters = getRecruiters(db, candidates);
+   if (!recruiters.includes(selectedEmployeeFilter)) {
+     setSelectedEmployeeFilter('ALL');
+   }
+ }, [isSA, selectedEmployeeFilter, db, candidates]);
  
  // Inline Excel-style add / edit state (no modal)
  const emptyCandidateForm = {
@@ -7472,6 +7599,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  // No empty-row auto-create — use Add Candidate + Save Candidate (POST)
 
  const handleCleanDuplicates = () => {
+ if (isSA) return;
  const originalCount = candidates.length;
  const cleaned = deduplicateCandidates(candidates);
  const removedCount = originalCount - cleaned.length;
@@ -7480,6 +7608,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  const handleClearAllCandidates = () => {
+ if (isSA) return;
  if (window.confirm('Are you sure you want to clear all candidate entries permanently? You can add new entries manually or upload an Excel file.')) {
  localStorage.setItem('cegs_candidates_cleared', 'true');
  updateCandidatesStore([]);
@@ -7496,10 +7625,9 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return keywords.some(kw => text.includes(kw.toLowerCase()));
  };
 
- const employeeList = Array.from(new Set(candidates.map(c => c.employee).filter(Boolean)));
- if (user?.name && !employeeList.includes(user.name)) {
- employeeList.unshift(user.name);
- }
+ const employeeList = isEmp
+   ? (user?.name ? [user.name] : [])
+   : getRecruiters(db, candidates);
 
  // Strictly enforce user-specific candidate data scoping for employees and HR
  const roleFilteredCandidates = candidates.filter(c => {
@@ -7524,6 +7652,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  const todayTargetCandidates = roleFilteredCandidates.filter(c => isTodayDate(c.date));
+ // SA team metric cards always use all recruiters (filter only affects datasheet / drill-down)
+ const todayTeamCandidates = isSA
+   ? candidates.filter(c => isTodayDate(c.date))
+   : todayTargetCandidates;
+ const metricCandidates = isSA ? todayTeamCandidates : todayTargetCandidates;
 
  const isConnectedCall = (c) => {
  const status = (c.callStatus || '').trim().toLowerCase();
@@ -7531,11 +7664,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  // 5 Tasks (each task is 20% weight, 60% minimum performance required every day)
- const callsMadeCount = todayTargetCandidates.filter(c => isConnectedCall(c)).length;
- const interviewsScheduledTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical', 'itv'])).length;
- const walkinsTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit', 'came'])).length;
- const selectedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['selected', 'selection', 'hired', 'select'])).length;
- const joinedTodayTargetCount = todayTargetCandidates.filter(c => hasKeyword(c, ['joined', 'joining', 'staff', 'join'])).length;
+ const callsMadeCount = metricCandidates.filter(c => isConnectedCall(c)).length;
+ const interviewsScheduledTargetCount = metricCandidates.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical', 'itv'])).length;
+ const walkinsTargetCount = metricCandidates.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit', 'came'])).length;
+ const selectedTodayTargetCount = metricCandidates.filter(c => hasKeyword(c, ['selected', 'selection', 'hired', 'select'])).length;
+ const joinedTodayTargetCount = metricCandidates.filter(c => hasKeyword(c, ['joined', 'joining', 'staff', 'join'])).length;
 
  // Performance calculations (each of the 5 tasks contributes max 20%)
  const callsScore = Math.min(20, Math.round((callsMadeCount / 80) * 20));
@@ -7589,7 +7722,14 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const pct = cS + iS + wS + sS + jS;
 
  return { name: empName, calls, itvs, walks, sels, jnds, pct };
- });
+ }).filter(emp => selectedEmployeeFilter === 'ALL' || emp.name === selectedEmployeeFilter);
+
+ const recruiterCount = employeeList.length;
+ const teamCallsTarget = 80 * recruiterCount;
+ const teamItvTarget = 15 * recruiterCount;
+ const teamWalkTarget = 5 * recruiterCount;
+ const teamSelTarget = 3 * recruiterCount;
+ const teamJoinTarget = 1 * recruiterCount;
 
  const resetAddForm = () => {
  setCandidateForm(emptyCandidateForm);
@@ -7598,6 +7738,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  const startAddCandidate = () => {
+ if (isSA) return;
  setEditingId(null);
  setEditForm(null);
  setFormError('');
@@ -7610,6 +7751,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  const handleAddCandidateSubmit = async (e) => {
  if (e?.preventDefault) e.preventDefault();
+ if (isSA) return;
  setFormError('');
 
  if (!candidateForm.name || /\d/.test(candidateForm.name)) {
@@ -7670,6 +7812,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  const startEditCandidate = (row) => {
+ if (isSA) return;
  setIsAdding(false);
  setFormError('');
  const rid = row.id || row._id;
@@ -7700,6 +7843,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  const handleEditCandidateSave = async () => {
+ if (isSA) return;
  if (!editForm || !editingId) return;
  setFormError('');
 
@@ -7761,6 +7905,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  const handleDeleteCandidate = async (candId) => {
+ if (isSA) return;
  if (window.confirm('Are you sure you want to delete this candidate record?')) {
  const updated = candidates.filter(c => (c.id || c._id) !== candId);
  updateCandidatesStore(updated);
@@ -7777,10 +7922,15 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  // Inline cell auto-save removed — Add Candidate modal POSTs explicitly
 
  const handleTriggerImport = () => {
+ if (isSA) return;
  if (fileInputRef.current) fileInputRef.current.click();
  };
 
  const handleImportFile = async (e) => {
+ if (isSA) {
+ if (e?.target) e.target.value = '';
+ return;
+ }
  const file = e.target.files?.[0];
  if (!file) return;
 
@@ -7882,16 +8032,16 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </div>
  <div>
  <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.3px' }}>Super Admin Governance & Target Monitoring Dashboard</div>
- <div style={{ fontSize: 12.5, opacity: 0.8, marginTop: 2 }}>Read-only system-wide monitoring of all employee and HR daily targets (No personal tasks required)</div>
+ <div style={{ fontSize: 12.5, opacity: 0.8, marginTop: 2 }}>Read-only oversight — view employee recruitment progress only (no adding candidates or making calls)</div>
  </div>
  </div>
  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
  <span style={{ background: 'rgba(16,185,129,0.2)', color: '#34D399', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 800 }}>
  MongoDB Atlas Live
  </span>
- <button className="btn btn-xs" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', borderColor: 'rgba(255,255,255,0.25)', borderRadius: 99, padding: '6px 14px', fontWeight: 700 }} onClick={handleTriggerImport}>
- <IC n="download" s={13} /> Bulk Upload (.xlsx)
- </button>
+ <span style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 800 }}>
+ VIEW ONLY
+ </span>
  </div>
  </div>
  )}
@@ -7913,9 +8063,10 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </p>
  </div>
 
- {/* TOGGLE & SELECTOR CONTROLS: Shown ONLY for HR & Super Admin (NOT for Employee) */}
+ {/* TOGGLE & SELECTOR CONTROLS: HR can switch team/personal; Super Admin oversight filter only */}
  {(isHR || isSA) && (
  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+ {isHR && (
  <div style={{ background: '#1c1e28', padding: 4, borderRadius: 99, display: 'inline-flex', gap: 4, border: '1px solid rgba(0,0,0,0.1)' }}>
  <button 
  style={{ 
@@ -7952,6 +8103,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  My Employee View (My Daily Tasks)
  </button>
  </div>
+ )}
 
  <select 
  style={{ background: '#ffffff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, color: '#111827', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', outline: 'none' }}
@@ -7959,12 +8111,16 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  onChange={e => {
  const val = e.target.value;
  setSelectedEmployeeFilter(val);
+ if (isSA) {
+ setTargetViewMode('hr');
+ } else {
  setTargetViewMode(val === 'ALL' ? 'hr' : 'employee');
+ }
  }}
  >
- <option value="ALL">All Employees (Combined Overview)</option>
+ <option value="ALL">{isSA ? 'All Employees (Team Progress)' : 'All Employees (Combined Overview)'}</option>
  {employeeList.map(emp => (
- <option key={emp} value={emp}>{emp === user?.name ? `${emp} (My Tasks)` : emp}</option>
+ <option key={emp} value={emp}>{!isSA && emp === user?.name ? `${emp} (My Tasks)` : emp}</option>
  ))}
  </select>
  </div>
@@ -7995,23 +8151,31 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  {(isSA || (isHR && targetViewMode === 'hr')) ? (
  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
- <TargetMetricCard title="Calls Made (Total)" icon="phone" current={callsMadeCount} target={80 * employeeList.length} unit="Calls" weight="20%" iconBg="var(--accent-soft)" iconColor="var(--accent)" />
- <TargetMetricCard title="Interviews Scheduled" icon="calendar" current={interviewsScheduledTargetCount} target={15 * employeeList.length} unit="Interviews" weight="20%" iconBg="#EFF6FF" iconColor="#3B82F6" />
- <TargetMetricCard title="Walk-ins Today" icon="walk" current={walkinsTargetCount} target={5 * employeeList.length} unit="Walkins" weight="20%" iconBg="#FEF3C7" iconColor="#D97706" />
- <TargetMetricCard title="Selected Today" icon="trophy" current={selectedTodayTargetCount} target={3 * employeeList.length} unit="Selected" weight="20%" iconBg="#ECFDF5" iconColor="#10B981" />
- <TargetMetricCard title="Joined Today" icon="users" current={joinedTodayTargetCount} target={1 * employeeList.length} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" />
+ <TargetMetricCard title="Calls Made (Total)" icon="phone" current={callsMadeCount} target={teamCallsTarget} unit="Calls" weight="20%" iconBg="var(--accent-soft)" iconColor="var(--accent)" />
+ <TargetMetricCard title="Interviews Scheduled" icon="calendar" current={interviewsScheduledTargetCount} target={teamItvTarget} unit="Interviews" weight="20%" iconBg="#EFF6FF" iconColor="#3B82F6" />
+ <TargetMetricCard title="Walk-ins Today" icon="walk" current={walkinsTargetCount} target={teamWalkTarget} unit="Walkins" weight="20%" iconBg="#FEF3C7" iconColor="#D97706" />
+ <TargetMetricCard title="Selected Today" icon="trophy" current={selectedTodayTargetCount} target={teamSelTarget} unit="Selected" weight="20%" iconBg="#ECFDF5" iconColor="#10B981" />
+ <TargetMetricCard title="Joined Today" icon="users" current={joinedTodayTargetCount} target={teamJoinTarget} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" />
  </div>
 
  {/* RECRUITER PERFORMANCE LIST GRID */}
  <div style={{ marginTop: 8, background: '#F9FAFB', borderRadius: 20, padding: 18, border: '1px solid #F3F4F6' }}>
  <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', marginBottom: 12 }}>Recruiter Daily Performance Breakdown (60% Min Target)</div>
+ {employeePerformanceList.length === 0 ? (
+ <div style={{ padding: '28px 16px', textAlign: 'center', color: '#6B7280', fontSize: 13, fontWeight: 600 }}>
+ No recruiters yet. Onboard employees to see team progress here.
+ </div>
+ ) : (
  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
  {employeePerformanceList.map(emp => (
  <div 
  key={emp.name} 
- style={{ background: '#FFFFFF', borderRadius: 16, padding: 14, border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', cursor: isHR ? 'pointer' : 'default' }}
+ style={{ background: '#FFFFFF', borderRadius: 16, padding: 14, border: selectedEmployeeFilter === emp.name ? '2px solid var(--accent)' : '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', cursor: (isHR || isSA) ? 'pointer' : 'default' }}
  onClick={() => {
- if (isHR) {
+ if (isSA) {
+ setSelectedEmployeeFilter(emp.name);
+ setTargetViewMode('hr');
+ } else if (isHR) {
  setSelectedEmployeeFilter(emp.name);
  setTargetViewMode('employee');
  }
@@ -8036,6 +8200,16 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </div>
  ))}
  </div>
+ )}
+ {isSA && selectedEmployeeFilter !== 'ALL' && (
+ <button
+ type="button"
+ onClick={() => setSelectedEmployeeFilter('ALL')}
+ style={{ marginTop: 12, background: 'transparent', border: 'none', color: 'var(--accent)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+ >
+ Show all recruiters
+ </button>
+ )}
  </div>
  </div>
  ) : (
@@ -8148,6 +8322,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  onChange={e => setSearchQuery(e.target.value)}
  aria-label="Search candidates"
  />
+ {!isSA && (
+ <>
  <button type="button" className="btn btn-secondary" style={{ borderRadius: 99, padding: '8px 14px', fontSize: 12, minHeight: 40 }} onClick={handleTriggerImport}>
  <IC n="upload" s={13} /> Upload File
  </button>
@@ -8160,6 +8336,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <button type="button" className="btn btn-primary" style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, minHeight: 40 }} onClick={startAddCandidate}>
  <IC n="plus" s={13} /> Add Candidate
  </button>
+ </>
+ )}
  </div>
  </div>
 
@@ -8170,13 +8348,16 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <table className="datasheet-table">
  <thead>
  <tr>
- {['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3', 'Action'].map(h => (
+ {(isSA
+   ? ['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3']
+   : ['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3', 'Action']
+ ).map(h => (
  <th key={h} style={{ textAlign: h === 'Action' ? 'center' : 'left' }}>{h}</th>
  ))}
  </tr>
  </thead>
  <tbody>
- {isAdding && (
+ {isAdding && !isSA && (
  <tr className="datasheet-entry-row">
  <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{categoryCandidates.length + 1}</td>
  <td><input className="cell-input" value={new Date().toLocaleDateString('en-GB')} readOnly aria-label="Date" /></td>
@@ -8213,18 +8394,24 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  )}
  {!isAdding && filteredCandidates.length === 0 ? (
  <tr>
- <td colSpan={14} style={{ padding: 28, textAlign: 'center', color: 'var(--text-secondary)' }}>
+ <td colSpan={isSA ? 13 : 14} style={{ padding: 28, textAlign: 'center', color: 'var(--text-secondary)' }}>
  <div style={{ fontWeight: 800, marginBottom: 6, color: 'var(--text-primary)' }}>No candidates in this datasheet yet</div>
+ {isSA ? (
+ <div style={{ fontSize: 13 }}>Employee recruiters will appear here as they log calls.</div>
+ ) : (
+ <>
  <div style={{ fontSize: 13, marginBottom: 14 }}>Add a candidate or upload a .xlsx / .csv file to start tracking.</div>
  <button type="button" className="btn btn-primary" onClick={startAddCandidate}>
  <IC n="plus" s={14} /> Add Candidate
  </button>
+ </>
+ )}
  </td>
  </tr>
  ) : filteredCandidates.map(row => {
  const rid = row.id || row._id;
  const isEditing = editingId === rid;
- if (isEditing && editForm) {
+ if (isEditing && editForm && !isSA) {
  return (
  <tr key={rid} className="datasheet-entry-row datasheet-editing-row">
  <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{row.slNo}</td>
@@ -8262,7 +8449,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  );
  }
  const cell = (v) => (
- <td style={{ padding: '10px 14px', fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{v ?? '—'}</td>
+ <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{v ?? '—'}</td>
  );
  return (
  <tr key={rid}>
@@ -8279,6 +8466,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  {cell(row.followUp1)}
  {cell(row.followUp2)}
  {cell(row.followUp3)}
+ {!isSA && (
  <td style={{ textAlign: 'center' }}>
  <div className="datasheet-row-actions">
  <button
@@ -8299,6 +8487,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </button>
  </div>
  </td>
+ )}
  </tr>
  );
  })}
@@ -8307,28 +8496,37 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </div>
 
  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)', flexWrap: 'wrap', gap: 10 }}>
+ {isSA ? (
+ <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+ Read-only recruiter log — Super Admin can monitor progress only.
+ </span>
+ ) : (
+ <>
  <button type="button" style={{ background: 'transparent', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }} onClick={handleTriggerImport}>
  <IC n="file" s={14} /> Upload File (.csv, .xlsx)
  </button>
  <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
  Use <strong>Add Candidate</strong> for Excel-style entry, then <strong>Save</strong> on the right to sync.
  </span>
+ </>
+ )}
  </div>
  </div>
 
- {/* RIGHT: CANDIDATE STATUS OVERVIEW DONUT CARD */}
- <div className="recruitment-page-card" style={{ background: 'rgba(255, 255, 255, 0.62)', backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)', border: '1px solid rgba(255, 255, 255, 0.75)', borderRadius: 24, padding: 24, boxShadow: '0 8px 32px rgba(120, 100, 80, 0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}>
- <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111827', width: '100%', textAlign: 'left', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>Candidate Status Overview</h3>
+ {/* BELOW: CANDIDATE STATUS OVERVIEW (full width under datasheet) */}
+ <div className="recruitment-page-card" style={{ background: 'rgba(255, 255, 255, 0.62)', backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)', border: '1px solid rgba(255, 255, 255, 0.75)', borderRadius: 24, padding: 24, boxShadow: '0 8px 32px rgba(120, 100, 80, 0.08)' }}>
+ <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111827', width: '100%', textAlign: 'left', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif", marginBottom: 16 }}>Candidate Status Overview</h3>
 
- <div style={{ position: 'relative', width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+ <div className="datasheet-overview-below">
+ <div style={{ position: 'relative', width: 160, height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
  <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: doughnutGradient }} />
- <div style={{ position: 'absolute', inset: 22, background: '#FFFFFF', borderRadius: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.06)' }}>
- <span style={{ fontSize: 28, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{totalCandidatesCount}</span>
+ <div style={{ position: 'absolute', inset: 20, background: '#FFFFFF', borderRadius: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.06)' }}>
+ <span style={{ fontSize: 26, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{totalCandidatesCount}</span>
  <span style={{ fontSize: 9.5, fontWeight: 800, color: '#9CA3AF', letterSpacing: '0.6px' }}>CANDIDATES</span>
  </div>
  </div>
 
- <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11.5, fontWeight: 700, borderTop: '1px solid #F3F4F6', paddingTop: 14 }}>
+ <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12.5, fontWeight: 700 }}>
  <div><span style={{ color: '#10B981' }}>●</span> Selected: <strong style={{ color: '#111827' }}>{selPct}%</strong></div>
  <div><span style={{ color: 'var(--accent)' }}>●</span> Interview: <strong style={{ color: '#111827' }}>{itvPct}%</strong></div>
  <div><span style={{ color: '#F59E0B' }}>●</span> Screening: <strong style={{ color: '#111827' }}>{scrPct}%</strong></div>
@@ -8336,14 +8534,15 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#94A3B8' }}>●</span> Pending: <strong style={{ color: '#111827' }}>{pndPct}%</strong></div>
  </div>
 
- <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, borderTop: '1px solid #F3F4F6', paddingTop: 14, textAlign: 'center' }}>
- <div style={{ background: '#F9FAFB', padding: '10px 8px', borderRadius: 14, border: '1px solid #F3F4F6' }}>
+ <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, textAlign: 'center', minWidth: 220 }}>
+ <div style={{ background: '#F9FAFB', padding: '12px 14px', borderRadius: 14, border: '1px solid #F3F4F6' }}>
  <span style={{ fontSize: 10, color: '#6B7280', fontWeight: 800, letterSpacing: '0.4px' }}>TOTAL CANDIDATES</span>
  <div style={{ fontSize: 18, fontWeight: 900, color: '#111827', marginTop: 2 }}>{totalCandidatesCount}</div>
  </div>
- <div style={{ background: '#F9FAFB', padding: '10px 8px', borderRadius: 14, border: '1px solid #F3F4F6' }}>
+ <div style={{ background: '#F9FAFB', padding: '12px 14px', borderRadius: 14, border: '1px solid #F3F4F6' }}>
  <span style={{ fontSize: 10, color: '#6B7280', fontWeight: 800, letterSpacing: '0.4px' }}>TODAY'S ADDED</span>
  <div style={{ fontSize: 18, fontWeight: 900, color: '#111827', marginTop: 2 }}>{todayAddedCount}</div>
+ </div>
  </div>
  </div>
  </div>

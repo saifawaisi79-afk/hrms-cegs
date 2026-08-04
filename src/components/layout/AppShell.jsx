@@ -4,10 +4,10 @@ import { AppHeader } from './AppHeader';
 import { useApp } from '@/contexts/AppContext';
 import {
   EmployeeQuickViewModal,
-  GlobalMessengerModal,
   Modal,
   IC,
 } from '@/components/hrms/HrmsLegacy';
+import { GlobalMessengerModal } from '@/components/chat/GlobalMessengerModal';
 
 export function AppShell({ children }) {
   const {

@@ -62,11 +62,43 @@ export function pathForView(viewKey) {
   return VIEW_TO_PATH[viewKey] || '/dashboard';
 }
 
+/** Portal selection → required Mongo role + post-login home */
+export const PORTAL_HOME = {
+  employee: { role: 'employee', path: '/dashboard', label: 'Employee Portal' },
+  admin: { role: 'admin', path: '/employees', label: 'HR Admin Panel' },
+  super_admin: { role: 'super_admin', path: '/dashboard', label: 'Super Admin' },
+};
+
+export function portalMatchesRole(portal, role) {
+  if (!portal) return true;
+  const meta = PORTAL_HOME[portal];
+  if (!meta) return false;
+  return meta.role === role;
+}
+
+export function homePathForPortal(portal) {
+  return PORTAL_HOME[portal]?.path || '/dashboard';
+}
+
+export function portalLabel(portal) {
+  return PORTAL_HOME[portal]?.label || 'workspace';
+}
+
+/** Canonical permission defaults when db.permissions is missing a key */
+export const DEFAULT_PERMISSIONS = {
+  super_admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true, onboard: true },
+  admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true, onboard: true },
+  manager: { payroll: true, attendance: true, deleteEmp: false, approveLeave: true, reports: true, onboard: false },
+  employee: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: false, onboard: false },
+  recruiter: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true, onboard: false },
+  finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true, onboard: false },
+};
+
 function getPermissionRole(u) {
   if (!u) return 'employee';
   if (u.role === 'super_admin') return 'super_admin';
   if (u.role === 'admin') return 'admin';
-  const title = (u.title || '').toLowerCase();
+  const title = (u.title || u.designation || '').toLowerCase();
   if (title.includes('manager')) return 'manager';
   if (title.includes('recruiter')) return 'recruiter';
   if (title.includes('billing') || title.includes('finance') || title.includes('accounts')) return 'finance';
@@ -75,15 +107,47 @@ function getPermissionRole(u) {
 
 export function getUserPerms(user, db) {
   const currentPermRole = getPermissionRole(user);
-  return (
-    (db?.permissions && db.permissions[currentPermRole]) || {
-      payroll: !!user,
-      attendance: !!(user && (user.role === 'super_admin' || user.role === 'admin' || user.title?.toLowerCase().includes('manager'))),
-      deleteEmp: !!(user && (user.role === 'super_admin' || user.role === 'admin')),
-      approveLeave: !!(user && (user.role === 'super_admin' || user.role === 'admin' || user.title?.toLowerCase().includes('manager'))),
-      reports: !!(user && (user.role === 'super_admin' || user.role === 'admin' || user.title?.toLowerCase().includes('recruiter') || user.title?.toLowerCase().includes('billing'))),
+  const fromDb = db?.permissions && db.permissions[currentPermRole];
+  const defaults = DEFAULT_PERMISSIONS[currentPermRole] || DEFAULT_PERMISSIONS.employee;
+  return { ...defaults, ...(fromDb || {}) };
+}
+
+/** Super Admin never does personal daily tasks — oversight of all employees only. */
+export function isOversightOnly(user) {
+  return user?.role === 'super_admin';
+}
+
+/**
+ * Active employee recruiters for team progress views.
+ * Prefers db.users with role=employee; merges candidate.employee names that are not admin/SA.
+ */
+export function getRecruiters(db, candidates = []) {
+  const names = new Set();
+  const elevatedNames = new Set();
+
+  (db?.users || []).forEach((u) => {
+    if (!u?.name) return;
+    const name = String(u.name).trim();
+    if (!name) return;
+    const status = String(u.status || 'active').toLowerCase();
+    if (status && status !== 'active') return;
+    if (u.role === 'super_admin' || u.role === 'admin') {
+      elevatedNames.add(name.toLowerCase());
+      return;
     }
-  );
+    if (u.role === 'employee') {
+      names.add(name);
+    }
+  });
+
+  (candidates || []).forEach((c) => {
+    const name = String(c?.employee || '').trim();
+    if (!name) return;
+    if (elevatedNames.has(name.toLowerCase())) return;
+    names.add(name);
+  });
+
+  return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -97,6 +161,7 @@ export function buildNavConfig(user, db) {
   const canAccessReports = perms.reports;
   const canEditAttendance = perms.attendance;
   const canApproveLeaves = perms.approveLeave;
+  const canOnboard = !!perms.onboard;
 
   const main = [];
   const campaign = [];
@@ -112,6 +177,7 @@ export function buildNavConfig(user, db) {
       { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
       { href: '/campaign/targets', label: 'Targets', icon: 'trending' },
       { href: '/campaign/workflows', label: 'Workflows', icon: 'activity' },
+      ...(canOnboard ? [{ href: '/campaign/onboarding', label: 'Onboarding', icon: 'file' }] : []),
       ...(canAccessReports ? [{ href: '/reports', label: 'Reports', icon: 'trending' }] : []),
       { href: '/campaign/rewards', label: 'Rewards & Recognition', icon: 'star' },
       { href: '/campaign/jobs', label: 'Internal Job Portal', icon: 'briefcase' },
@@ -138,7 +204,7 @@ export function buildNavConfig(user, db) {
     campaign.push(
       { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
       { href: '/campaign/targets', label: 'Targets', icon: 'trending' },
-      { href: '/campaign/onboarding', label: 'Onboarding', icon: 'file' },
+      ...(canOnboard ? [{ href: '/campaign/onboarding', label: 'Onboarding', icon: 'file' }] : []),
       { href: '/campaign/performance', label: 'Performance', icon: 'trending' },
       { href: '/campaign/learning', label: 'Training', icon: 'help' },
       { href: '/campaign/rewards', label: 'Rewards & Recognition', icon: 'star' },

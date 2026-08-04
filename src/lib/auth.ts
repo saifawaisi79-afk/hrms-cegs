@@ -29,6 +29,35 @@ export function signToken(payload: object): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
 }
 
+/** Short-lived attestation that GPS was within office geofence (WFO login). */
+export function signLocationToken(payload: {
+  purpose: 'wfo_login';
+  lat: number;
+  lng: number;
+  dist: number;
+}): string {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '5m' });
+}
+
+export type LocationTokenPayload = {
+  purpose: string;
+  lat: number;
+  lng: number;
+  dist: number;
+  iat?: number;
+  exp?: number;
+};
+
+export function verifyLocationToken(token: string): LocationTokenPayload | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as LocationTokenPayload;
+    if (decoded?.purpose !== 'wfo_login') return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 export function verifyToken(token: string): AuthUserPayload | null {
   try {
     return jwt.verify(token, JWT_SECRET) as AuthUserPayload;

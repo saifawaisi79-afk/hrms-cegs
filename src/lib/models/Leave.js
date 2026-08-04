@@ -10,6 +10,11 @@ const LeaveSchema = new mongoose.Schema({
   applied_date:     { type: String, required: true },
   approved_by:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   rejection_reason: { type: String, default: null },
+  /** Monthly policy: paid | unpaid | mixed */
+  pay_type:         { type: String, enum: ['paid', 'unpaid', 'mixed'], default: 'paid' },
+  paid_days:        { type: Number, default: 0 },
+  unpaid_days:      { type: Number, default: 0 },
+  total_days:       { type: Number, default: 0 },
 }, { timestamps: true });
 
 export default mongoose.models.Leave || mongoose.model('Leave', LeaveSchema);
