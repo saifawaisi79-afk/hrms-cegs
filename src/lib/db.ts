@@ -1,11 +1,13 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error(
-    '❌ MONGODB_URI is not defined. Please add it to your .env.local file.'
-  );
+function getMongoUri(): string {
+  const uri = process.env.MONGODB_URI?.trim();
+  if (!uri) {
+    throw new Error(
+      'MONGODB_URI is not defined. Add it in Vercel → Settings → Environment Variables (Production).'
+    );
+  }
+  return uri;
 }
 
 /**
@@ -26,27 +28,28 @@ if (!cached) {
 }
 
 async function connectDB(): Promise<typeof mongoose> {
-  // Already connected — reuse
   if (cached!.conn) return cached!.conn;
 
-  // Connection in progress — wait for it
+  const MONGODB_URI = getMongoUri();
+
   if (!cached!.promise) {
     const opts = {
       bufferCommands: false,
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 10000,
+      maxPoolSize: 5,
+      serverSelectionTimeoutMS: 15000,
       socketTimeoutMS: 45000,
+      family: 4,
     };
 
     cached!.promise = mongoose
-      .connect(MONGODB_URI!, opts)
+      .connect(MONGODB_URI, opts)
       .then((m) => {
-        console.log('✅ MongoDB connected to:', m.connection.host);
+        console.log('MongoDB connected:', m.connection.host);
         return m;
       })
       .catch((err) => {
-        cached!.promise = null; // Reset so next call retries
-        console.error('❌ MongoDB connection error:', err.message);
+        cached!.promise = null;
+        console.error('MongoDB connection error:', err.message);
         throw err;
       });
   }

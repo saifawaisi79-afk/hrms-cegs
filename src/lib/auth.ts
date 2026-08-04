@@ -1,14 +1,18 @@
 import jwt from 'jsonwebtoken';
 
 function resolveJwtSecret(): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret || !String(secret).trim()) {
-    throw new Error('JWT_SECRET environment variable is required. Set it in .env.local (see .env.example).');
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error(
+      'JWT_SECRET is required. Set it in Vercel → Settings → Environment Variables (Production).'
+    );
   }
-  return String(secret);
+  return secret;
 }
 
-export const JWT_SECRET = resolveJwtSecret();
+export function getJwtSecret(): string {
+  return resolveJwtSecret();
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,7 +30,7 @@ export interface AuthUserPayload {
 // ─── JWT Helpers ──────────────────────────────────────────────────────────────
 
 export function signToken(payload: object): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '24h' });
 }
 
 /** Short-lived attestation that GPS was within office geofence (WFO login). */
@@ -36,7 +40,7 @@ export function signLocationToken(payload: {
   lng: number;
   dist: number;
 }): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '5m' });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: '5m' });
 }
 
 export type LocationTokenPayload = {
@@ -50,7 +54,7 @@ export type LocationTokenPayload = {
 
 export function verifyLocationToken(token: string): LocationTokenPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as LocationTokenPayload;
+    const decoded = jwt.verify(token, getJwtSecret()) as LocationTokenPayload;
     if (decoded?.purpose !== 'wfo_login') return null;
     return decoded;
   } catch {
@@ -60,7 +64,7 @@ export function verifyLocationToken(token: string): LocationTokenPayload | null 
 
 export function verifyToken(token: string): AuthUserPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as AuthUserPayload;
+    return jwt.verify(token, getJwtSecret()) as AuthUserPayload;
   } catch {
     return null;
   }

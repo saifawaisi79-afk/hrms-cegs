@@ -6,6 +6,9 @@ import User from '@/lib/models/User';
 import { signToken, getClientIp, checkIpAllowed, verifyLocationToken } from '@/lib/auth';
 import { PORTAL_HOME } from '@/lib/nav';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 const loginSchema = z.object({
   email: z.string().email({ message: 'Invalid email address' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
@@ -119,6 +122,33 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     console.error('Login Error:', error);
+    const msg = String(error?.message || '');
+    if (msg.includes('MONGODB_URI')) {
+      return NextResponse.json(
+        { error: 'Server misconfigured: MONGODB_URI is missing on Vercel. Add it under Environment Variables and redeploy.' },
+        { status: 503 }
+      );
+    }
+    if (msg.includes('JWT_SECRET')) {
+      return NextResponse.json(
+        { error: 'Server misconfigured: JWT_SECRET is missing on Vercel. Add it under Environment Variables and redeploy.' },
+        { status: 503 }
+      );
+    }
+    if (
+      error?.name === 'MongooseServerSelectionError' ||
+      msg.includes('MongoDB') ||
+      msg.includes('ECONNREFUSED') ||
+      msg.includes('timed out')
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Cannot reach the database from Vercel. In MongoDB Atlas → Network Access, allow 0.0.0.0/0, verify MONGODB_URI on Vercel, then redeploy.',
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
