@@ -1,10 +1,42 @@
 import mongoose from 'mongoose';
 
+/** Normalize Vercel / .env paste mistakes (quotes, duplicated key prefix, whitespace). */
+function normalizeMongoUri(raw: string | undefined): string {
+  let uri = String(raw ?? '').trim();
+  if (!uri) return '';
+
+  // Strip wrapping quotes from dashboard paste
+  if (
+    (uri.startsWith('"') && uri.endsWith('"')) ||
+    (uri.startsWith("'") && uri.endsWith("'"))
+  ) {
+    uri = uri.slice(1, -1).trim();
+  }
+
+  // User pasted full .env line into Vercel "Value" field
+  if (uri.toUpperCase().startsWith('MONGODB_URI=')) {
+    uri = uri.slice(uri.indexOf('=') + 1).trim();
+    if (
+      (uri.startsWith('"') && uri.endsWith('"')) ||
+      (uri.startsWith("'") && uri.endsWith("'"))
+    ) {
+      uri = uri.slice(1, -1).trim();
+    }
+  }
+
+  return uri;
+}
+
 function getMongoUri(): string {
-  const uri = process.env.MONGODB_URI?.trim();
+  const uri = normalizeMongoUri(process.env.MONGODB_URI);
   if (!uri) {
     throw new Error(
       'MONGODB_URI is not defined. Add it in Vercel → Settings → Environment Variables (Production).'
+    );
+  }
+  if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+    throw new Error(
+      `Invalid MONGODB_URI scheme. Value must start with mongodb:// or mongodb+srv:// (check Vercel env — no quotes, no "MONGODB_URI=" prefix).`
     );
   }
   return uri;

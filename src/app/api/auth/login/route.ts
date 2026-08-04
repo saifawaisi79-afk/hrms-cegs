@@ -138,13 +138,18 @@ export async function POST(request: Request) {
     if (
       error?.name === 'MongooseServerSelectionError' ||
       msg.includes('MongoDB') ||
+      msg.includes('MONGODB_URI') ||
+      msg.includes('Invalid scheme') ||
+      msg.includes('Invalid MONGODB_URI') ||
       msg.includes('ECONNREFUSED') ||
       msg.includes('timed out')
     ) {
       return NextResponse.json(
         {
           error:
-            'Cannot reach the database from Vercel. In MongoDB Atlas → Network Access, allow 0.0.0.0/0, verify MONGODB_URI on Vercel, then redeploy.',
+            msg.includes('Invalid') || msg.includes('scheme')
+              ? 'MONGODB_URI on Vercel is invalid. Paste ONLY the connection string (starts with mongodb+srv://), no quotes and no MONGODB_URI= prefix.'
+              : 'Cannot reach the database from Vercel. In MongoDB Atlas → Network Access allow 0.0.0.0/0, verify MONGODB_URI on Vercel, then redeploy.',
         },
         { status: 503 }
       );
