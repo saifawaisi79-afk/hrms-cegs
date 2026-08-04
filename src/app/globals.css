@@ -2948,6 +2948,111 @@ input:checked + .switch-slider:before {
   cursor: not-allowed;
 }
 
+.datasheet-entry-row {
+  background: rgba(14, 116, 144, 0.06);
+}
+
+.datasheet-entry-row td {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.datasheet-entry-row .cell-input,
+.datasheet-entry-row .cell-select {
+  background: #fff;
+  border-color: var(--border);
+  min-width: 96px;
+}
+
+.datasheet-editing-row {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.datasheet-form-error {
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  color: #991B1B;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.datasheet-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.datasheet-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.datasheet-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.datasheet-action-save {
+  background: #ECFDF5;
+  border-color: #A7F3D0;
+  color: #065F46;
+}
+
+.datasheet-action-save:hover:not(:disabled) {
+  background: #D1FAE5;
+}
+
+.datasheet-action-edit {
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+  color: #1D4ED8;
+}
+
+.datasheet-action-edit:hover:not(:disabled) {
+  background: #DBEAFE;
+}
+
+.datasheet-action-cancel {
+  background: #F3F4F6;
+  border-color: #E5E7EB;
+  color: #374151;
+  min-width: 34px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.datasheet-action-cancel:hover:not(:disabled) {
+  background: #E5E7EB;
+}
+
+.datasheet-action-delete {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+  color: #991B1B;
+  min-width: 34px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.datasheet-action-delete:hover:not(:disabled) {
+  background: #FECACA;
+}
+
 .recruitment-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);

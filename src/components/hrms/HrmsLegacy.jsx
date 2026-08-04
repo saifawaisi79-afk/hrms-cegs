@@ -79,7 +79,7 @@ export const SEED_DATA = {
  {id:1,eid:'EMP-001',name:'CEO SuperAdmin',email:'superadmin@cegs.com',role:'super_admin',deptId:1,title:'Chief Executive Officer',joined:'2024-01-15',phone:'+1 212 555 0001',emergencyPhone:'+1 212 555 9901',status:'active',salary:95000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=ceo',reportsTo:null,bankName:'CEGS Bank',bankAccount:'3344556677',bankIfsc:'CEGS0000123',taxId:'TX-998877-A'},
  {id:2,eid:'EMP-002',name:'Nusrath Hussain',email:'nusrath@cegs.com',role:'admin',deptId:2,title:'HR Manager',joined:'2024-03-10',phone:'+1 212 555 0002',emergencyPhone:'+1 212 555 9902',status:'active',salary:30000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=nusrath',reportsTo:1,bankName:'CEGS Bank',bankAccount:'8899001122',bankIfsc:'CEGS0000123',taxId:'TX-998877-HR'},
   {id:3,eid:'DEV-001',name:'Saif Awaisi',email:'saifawaisi79@gmail.com',role:'super_admin',deptId:1,title:'Developer & System Architect',joined:'2024-01-01',phone:'+91 99887 76655',emergencyPhone:'+91 99887 76655',status:'active',salary:120000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=saif',reportsTo:null,bankName:'CEGS Bank',bankAccount:'9900112233',bankIfsc:'CEGS0000123',taxId:'TX-998877-DEV'},
- {id:4,eid:'EMP-004',name:'Mohammed Raheel',email:'raheel@careerglobalexpertsolution.com',role:'employee',deptId:3,title:'Billing Specialist',joined:'2026-07-31',phone:'+1 212 555 0004',emergencyPhone:'+1 212 555 9904',status:'active',salary:35000,password:'Raheel@3211',temp_password:'',must_change_password:0,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=raheel',reportsTo:2,bankName:'CEGS Bank',bankAccount:'7788990011',bankIfsc:'CEGS0000123',taxId:'TX-998877-BILL'}
+ {id:4,eid:'EMP-004',name:'Mohammed Raheel',email:'raheel@careerglobalexpertsolution.com',role:'employee',deptId:3,title:'Billing Specialist',joined:'2026-07-31',phone:'+1 212 555 0004',emergencyPhone:'+1 212 555 9904',status:'active',salary:35000,avatar:'https://api.dicebear.com/7.x/avataaars/svg?seed=raheel',reportsTo:2,bankName:'CEGS Bank',bankAccount:'7788990011',bankIfsc:'CEGS0000123',taxId:'TX-998877-BILL'}
  ],
  permissions: {
  super_admin: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true },
@@ -454,7 +454,7 @@ export const IC = ({ n, s = 16, c = 'currentColor', strokeWidth = 1.75, style = 
  ROOT APP
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 export function LoginPage({ login, db }) {
- const [mode, setMode] = useState('portal'); // portal | creds
+ const [mode, setMode] = useState('creds'); // production: credential form only
  const [email, setEmail] = useState('');
  const [pass, setPass] = useState('');
  const [loading, setLoading] = useState(false);
@@ -521,27 +521,11 @@ export function LoginPage({ login, db }) {
  return true;
  };
 
- const quickLogin = async role => {
- if (!checkWorkModeLocationAccess()) return;
- const map = { employee: 'madiha@cegs.com', admin: 'nusrath@cegs.com', super_admin: 'saifawaisi79@gmail.com', it_team: 'saifawaisi79@gmail.com' };
- const emailAddr = map[role] || '';
- setEmail(emailAddr);
- setPass('Password123');
- setLoading(role);
- try {
- const ok = await login(emailAddr, 'Password123');
- if (!ok) setMode('creds');
- } finally {
- setLoading(false);
- }
- };
-
  const handleCreds = async e => {
  e.preventDefault(); 
  if (!checkWorkModeLocationAccess()) return;
  setLoading('creds');
- await new Promise(r=>setTimeout(r,400));
- await login(email,pass); 
+ await login(email, pass); 
  setLoading(false);
  };
 
@@ -668,72 +652,37 @@ export function LoginPage({ login, db }) {
  {loading==='creds' ? 'Signing In...' : 'Access Dashboard'} <IC n="arrow" s={16} />
  </button>
  </form>
- <div className="login-back" onClick={()=>setMode('portal')}>← Back to workspace selection</div>
+ <p style={{ marginTop: 16, fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textAlign: 'center', lineHeight: 1.5 }}>
+ Use the email and permanent password issued by HR via <strong>Employee Onboarding</strong>. Old demo passwords no longer work.
+ </p>
  </div>
  </div>
  </div>
  );
 
  return (
- <div className="ws-root">
- <div className="ws-eyebrow"><span className="ws-eyebrow-dot"/>&nbsp; System Online · All modules operational</div>
- <div className="ws-brand">
- <div className="ws-brand-icon">C</div>
- <div className="ws-brand-name">CEGS<span>Portal</span></div>
+ <div className="login-scene anim-fadein">
+ <div className="login-art">
+ <div style={{position:'relative',zIndex:1,width:'100%'}}>
+ <div style={{fontFamily:'Outfit',fontSize:12,fontWeight:800,textTransform:'uppercase',letterSpacing:'2px',color:'var(--amber)',marginBottom:12}}>CEGS Portal HRMS</div>
+ <div className="login-art-title">The Modern<br/>Workforce Platform</div>
+ <div className="login-art-sub">Sign in with credentials generated from HR Employee Onboarding. Contact HR if you need access.</div>
  </div>
- <h1 className="ws-headline">Choose your <span className="highlight">workspace</span></h1>
- <p className="ws-sub">Select a portal to access your personalised dashboard and tools. Each role provides tailored modules and permissions.</p>
-
+ </div>
+ <div className="login-form-side">
+ <div className="login-box anim-fadeup">
+ <div className="login-brand">
+ <div className="login-brand-icon">C</div>
+ <span>CEGS<span>Portal</span></span>
+ </div>
+ <div className="login-h">Welcome back</div>
+ <div className="login-p">Sign in with your issued credentials</div>
  {renderWorkModeSecurityCard()}
-
- <div className="ws-grid stagger">
- {/* Employee Portal */}
- <div className="pc pc-cream anim-fadeup" onClick={()=>quickLogin('employee')}>
- <div className="pc-top">
- <div className="pc-icon"><IC n="monitor" s={28} /></div>
- <span className="pc-pill pill-blue">Employee Portal</span>
- </div>
- <div className="pc-body">
- <div className="pc-name">CEGS-OS</div>
- <p className="pc-desc">Access attendance tracking, leave requests, timesheet logging, expense claims, asset inventory and download your payslips.</p>
- <button className="pc-cta" disabled={loading==='employee'}>
- {loading==='employee' ? 'Opening...' : <><span>OPEN PORTAL</span> <IC n="arrow" s={15} /></>}
+ <button type="button" className="btn btn-dark" style={{width:'100%',height:46,fontSize:14}} onClick={()=>setMode('creds')}>
+ Continue to Sign In <IC n="arrow" s={16} />
  </button>
  </div>
  </div>
-
- {/* HR Admin */}
- <div className="pc pc-dark anim-fadeup" onClick={()=>quickLogin('admin')}>
- <div className="pc-top">
- <div className="pc-icon"><IC n="settings" s={28} /></div>
- <span className="pc-pill pill-amber">HR Admin Panel</span>
- </div>
- <div className="pc-body">
- <div className="pc-name">CEGS-Core</div>
- <p className="pc-desc">Manage the employee directory, approve leave and expenses, run payroll cycles, onboard new hires and review timesheets.</p>
- <button className="pc-cta" disabled={loading==='admin'}>
- {loading==='admin' ? 'Opening...' : <><span>OPEN PANEL</span> <IC n="arrow" s={15} /></>}
- </button>
- </div>
- </div>
-
- {/* Super Admin */}
- <div className="pc pc-void anim-fadeup" onClick={()=>quickLogin('super_admin')}>
- <div className="pc-top">
- <div className="pc-icon"><IC n="shield" s={28} /></div>
- <span className="pc-pill pill-white">Super Admin</span>
- </div>
- <div className="pc-body">
- <div className="pc-name">CEGS-Shield</div>
- <p className="pc-desc">Full system control. Manage user roles, configure policies, permission matrices, audit logs and all system-wide settings.</p>
- <button className="pc-cta" disabled={loading==='super_admin'}>
- {loading==='super_admin' ? 'Opening...' : <><span>SYSTEM ACCESS</span> <IC n="arrow" s={15} /></>}
- </button>
- </div>
- </div>
- </div>
-
- <span className="ws-footer-link" style={{ marginTop: 24 }} onClick={()=>setMode('creds')}>Sign in with custom credentials instead</span>
  </div>
  );
 }
@@ -4324,21 +4273,15 @@ export function OnboardingPage({ db, save, user }) {
  ifsc_code: form.ifsc_code,
  bankIfsc: form.ifsc_code,
  emergency_contact: form.emergency_contact,
- password: permPassword,
- temp_password: '',
- tempPassword: '',
  must_change_password: 0,
  last_login: null,
  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(form.name)}`
  };
 
- // Save to local store
- save('users', [newEmp, ...db.users]);
-
- // Send to backend API
+ // Persist to Mongo first — login only works with DB credentials
  const API_BASE = GLOBAL_API_BASE;
  try {
- await fetch(`${API_BASE}/admin/employees/onboard`, {
+ const res = await fetch(`${API_BASE}/admin/employees/onboard`, {
  method: 'POST',
  headers: {
  'Content-Type': 'application/json',
@@ -4346,7 +4289,16 @@ export function OnboardingPage({ db, save, user }) {
  },
  body: JSON.stringify({ ...form, password: permPassword, role: form.role })
  });
- } catch (err) {}
+ const data = await res.json().catch(() => ({}));
+ if (!res.ok) {
+ setInlineError(data.error || 'Failed to save employee to the database. Check your session and try again.');
+ return;
+ }
+ save('users', [{ ...newEmp, id: data.id || newEmp.id }, ...db.users]);
+ } catch (err) {
+ setInlineError('Network error while onboarding. Employee was not saved to the database.');
+ return;
+ }
 
  setOnboardModal(false);
  setCredsModal({
@@ -4442,7 +4394,7 @@ export function OnboardingPage({ db, save, user }) {
  const copyCreds = () => {
  if (!credsModal) return;
  const pass = credsModal.password || credsModal.temp_password;
- const text = `CEGS HRMS Employee Portal Permanent Login Credentials:\n----------------------------------------\nEmployee Name: ${credsModal.name}\nEmployee ID: ${credsModal.employee_id}\nLogin Email: ${credsModal.email}\nPermanent Password: ${pass}\nPortal URL: ${window.location.origin}\n----------------------------------------\nDirect login enabled with permanent credentials.`;
+ const text = `CEGS HRMS Employee Portal Login Credentials:\n----------------------------------------\nEmployee Name: ${credsModal.name}\nEmployee ID: ${credsModal.employee_id}\nLogin Email: ${credsModal.email}\nPermanent Password: ${pass}\nPortal URL: ${window.location.origin}\n----------------------------------------\nSign in with these credentials issued by HR Onboarding.`;
  navigator.clipboard.writeText(text);
  alert(' Permanent Credentials copied to clipboard!');
  };
@@ -5373,7 +5325,7 @@ export function UsersPage({ db, save, user }) {
  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
  <div>
  <div style={{ fontSize: 18, fontWeight: 900, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>HRMS: Employee's Details & Account Credentials</div>
- <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 2 }}>Role-based access matrix. Default password for all accounts is <code style={{ background: '#F3E8FF', color: 'var(--accent)', padding: '2px 6px', borderRadius: 6, fontWeight: 800 }}>Password123</code></div>
+ <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600, marginTop: 2 }}>Credentials are issued only via <strong>Employee Onboarding</strong>. Passwords are never shown here after creation.</div>
  </div>
  <span style={{ background: '#E6F4EA', color: '#137333', border: '1px solid #CEEAD6', borderRadius: 99, padding: '4px 14px', fontSize: 11, fontWeight: 800 }}>
  {db.users.length} Accounts Active
@@ -5411,7 +5363,7 @@ export function UsersPage({ db, save, user }) {
  <span className={`badge ${badgeClass}`} style={{ fontWeight: 800, fontSize: 10.5 }}>{portalName}</span>
  </td>
  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: '#6B7280', fontFamily: 'monospace' }}>
- Password123
+ ••••••••
  </td>
  </tr>
  );
@@ -7410,11 +7362,14 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(isEmp ? (user?.name || '') : 'ALL');
  const [toastMsg, setToastMsg] = useState(null);
  
- // Modal Form State
- const [showCandidateModal, setShowCandidateModal] = useState(false);
- const [candidateForm, setCandidateForm] = useState({
+ // Inline Excel-style add / edit state (no modal)
+ const emptyCandidateForm = {
  name: '', number: '', languages: 'English', qualification: '', response: '', callStatus: 'Select Status', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: ''
- });
+ };
+ const [isAdding, setIsAdding] = useState(false);
+ const [editingId, setEditingId] = useState(null);
+ const [candidateForm, setCandidateForm] = useState(emptyCandidateForm);
+ const [editForm, setEditForm] = useState(null);
  const [formError, setFormError] = useState('');
 
  const fileInputRef = useRef(null);
@@ -7477,27 +7432,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return () => { isMounted = false; if (interval) clearInterval(interval); };
  }, []);
 
- // Push locally-saved rows (cand_*) up to MongoDB once a JWT is available
+ // Push locally-saved rows (cand_*) up to MongoDB when a real JWT already exists
  useEffect(() => {
  let cancelled = false;
  (async () => {
- let token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
- if (!token && user?.email) {
- try {
- const loginRes = await fetch(`${API_BASE}/auth/login`, {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({ email: String(user.email).trim().toLowerCase(), password: 'Password123' }),
- });
- if (loginRes.ok) {
- const data = await loginRes.json();
- if (data.token) {
- localStorage.setItem('cegs_token', data.token);
- token = data.token;
- }
- }
- } catch {}
- }
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
  if (!token || cancelled) return;
 
  const localOnly = candidates.filter((c) => String(c.id || c._id || '').startsWith('cand_'));
@@ -7652,11 +7591,27 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return { name: empName, calls, itvs, walks, sels, jnds, pct };
  });
 
+ const resetAddForm = () => {
+ setCandidateForm(emptyCandidateForm);
+ setFormError('');
+ setIsAdding(false);
+ };
+
+ const startAddCandidate = () => {
+ setEditingId(null);
+ setEditForm(null);
+ setFormError('');
+ setCandidateForm(emptyCandidateForm);
+ setIsAdding(true);
+ setTimeout(() => {
+ try { tableScrollRef.current?.scrollTo?.({ left: 0, behavior: 'smooth' }); } catch {}
+ }, 50);
+ };
+
  const handleAddCandidateSubmit = async (e) => {
- e.preventDefault();
+ if (e?.preventDefault) e.preventDefault();
  setFormError('');
 
- // Validations
  if (!candidateForm.name || /\d/.test(candidateForm.name)) {
  setFormError('Name is required and cannot contain numbers.');
  return;
@@ -7667,9 +7622,16 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return;
  }
 
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ if (!token) {
+ setFormError('No API session. Log out and sign in again so candidates can sync to MongoDB.');
+ setSaveStatus('Error — not synced');
+ return;
+ }
+
  setSaveStatus('Saving...');
  const categoryRows = roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === activeTaskCategory);
- 
+
  const draftRow = {
  ...candidateForm,
  slNo: categoryRows.length + 1,
@@ -7681,29 +7643,6 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  try {
- // Mint JWT if missing so POST reaches MongoDB Atlas
- let token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
- if (!token && user?.email) {
- try {
- const loginRes = await fetch(`${API_BASE}/auth/login`, {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({ email: String(user.email).trim().toLowerCase(), password: 'Password123' }),
- });
- if (loginRes.ok) {
- const loginData = await loginRes.json();
- if (loginData.token) {
- localStorage.setItem('cegs_token', loginData.token);
- token = loginData.token;
- }
- }
- } catch {}
- }
- if (!token) {
- setFormError('No API session. Log out and sign in again so candidates can sync to MongoDB.');
- setSaveStatus('Error — not synced');
- return;
- }
  const res = await fetch(`${API_BASE}/candidates`, {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
@@ -7713,8 +7652,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const saved = await res.json();
  updateCandidatesStore([...candidates, { ...draftRow, id: saved.id || saved._id }]);
  setSaveStatus('Synced to MongoDB Atlas');
- setShowCandidateModal(false);
- setCandidateForm({ name: '', number: '', languages: 'English', qualification: '', response: '', callStatus: 'Select Status', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: '' });
+ resetAddForm();
  showToast('Candidate saved to database!', 'success');
  } else if (res.status === 401) {
  try { localStorage.removeItem('cegs_token'); } catch {}
@@ -7725,6 +7663,97 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  setFormError(errBody.error || 'Failed to save to database.');
  setSaveStatus('Error');
  }
+ } catch (err) {
+ setFormError('Network error while saving.');
+ setSaveStatus('Error');
+ }
+ };
+
+ const startEditCandidate = (row) => {
+ setIsAdding(false);
+ setFormError('');
+ const rid = row.id || row._id;
+ setEditingId(rid);
+ setEditForm({
+ name: row.name || '',
+ number: row.number || '',
+ languages: row.languages || 'English',
+ qualification: row.qualification || '',
+ response: row.response || '',
+ callStatus: row.callStatus || 'Select Status',
+ location: row.location || 'Bengaluru',
+ experience: row.experience ?? 0,
+ followUp1: row.followUp1 || '',
+ followUp2: row.followUp2 || '',
+ followUp3: row.followUp3 || '',
+ date: row.date || '',
+ slNo: row.slNo,
+ category: row.category || activeTaskCategory,
+ employee: row.employee || user?.name || 'Recruiter',
+ });
+ };
+
+ const cancelEditCandidate = () => {
+ setEditingId(null);
+ setEditForm(null);
+ setFormError('');
+ };
+
+ const handleEditCandidateSave = async () => {
+ if (!editForm || !editingId) return;
+ setFormError('');
+
+ if (!editForm.name || /\d/.test(editForm.name)) {
+ setFormError('Name is required and cannot contain numbers.');
+ return;
+ }
+ const numClean = (editForm.number || '').replace(/\D/g, '');
+ if (numClean.length < 10 || numClean.length > 12) {
+ setFormError('Contact number must be between 10 and 12 digits.');
+ return;
+ }
+
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ if (!token) {
+ setFormError('No API session. Log out and sign in again so candidates can sync to MongoDB.');
+ setSaveStatus('Error — not synced');
+ return;
+ }
+
+ setSaveStatus('Saving...');
+ const payload = {
+ ...editForm,
+ experience: Number(editForm.experience) || 0,
+ };
+
+ try {
+ const isLocalOnly = String(editingId).startsWith('cand_') || String(editingId).startsWith('imp_');
+ if (!isLocalOnly) {
+ const res = await fetch(`${API_BASE}/candidates/${editingId}`, {
+ method: 'PUT',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify(payload),
+ });
+ if (res.status === 401) {
+ try { localStorage.removeItem('cegs_token'); } catch {}
+ setFormError('Session expired. Log out and sign in again to save to the database.');
+ setSaveStatus('Error');
+ return;
+ }
+ if (!res.ok) {
+ const errBody = await res.json().catch(() => ({}));
+ setFormError(errBody.error || 'Failed to update candidate.');
+ setSaveStatus('Error');
+ return;
+ }
+ }
+ updateCandidatesStore(candidates.map((c) => {
+ const rid = c.id || c._id;
+ return rid === editingId ? { ...c, ...payload, id: rid, _id: rid } : c;
+ }));
+ setSaveStatus(isLocalOnly ? 'Saved locally' : 'Synced to MongoDB Atlas');
+ cancelEditCandidate();
+ showToast('Candidate updated!', 'success');
  } catch (err) {
  setFormError('Network error while saving.');
  setSaveStatus('Error');
@@ -8128,13 +8157,16 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <button type="button" className="btn btn-secondary" style={{ borderRadius: 99, padding: '8px 12px', fontSize: 12, minHeight: 40, background: '#FEE2E2', borderColor: '#FCA5A5', color: '#991B1B' }} onClick={handleClearAllCandidates} title="Clear all candidates">
  Clear
  </button>
- <button type="button" className="btn btn-primary" style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, minHeight: 40 }} onClick={() => setShowCandidateModal(true)}>
+ <button type="button" className="btn btn-primary" style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, minHeight: 40 }} onClick={startAddCandidate}>
  <IC n="plus" s={13} /> Add Candidate
  </button>
  </div>
  </div>
 
  <div ref={tableScrollRef} className="datasheet-scroll">
+ {formError && (
+ <div className="datasheet-form-error" role="alert">{formError}</div>
+ )}
  <table className="datasheet-table">
  <thead>
  <tr>
@@ -8144,18 +8176,91 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </tr>
  </thead>
  <tbody>
- {filteredCandidates.length === 0 ? (
+ {isAdding && (
+ <tr className="datasheet-entry-row">
+ <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{categoryCandidates.length + 1}</td>
+ <td><input className="cell-input" value={new Date().toLocaleDateString('en-GB')} readOnly aria-label="Date" /></td>
+ <td><input className="cell-input" autoFocus value={candidateForm.name} onChange={e => setCandidateForm({ ...candidateForm, name: e.target.value.toUpperCase() })} placeholder="NAME" aria-label="Candidate name" /></td>
+ <td><input className="cell-input" value={candidateForm.number} onChange={e => setCandidateForm({ ...candidateForm, number: e.target.value })} placeholder="Phone" aria-label="Contact number" /></td>
+ <td>
+ <select className="cell-select" value={candidateForm.languages} onChange={e => setCandidateForm({ ...candidateForm, languages: e.target.value })} aria-label="Languages">
+ {LANGUAGE_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
+ </select>
+ </td>
+ <td><input className="cell-input" value={candidateForm.qualification} onChange={e => setCandidateForm({ ...candidateForm, qualification: e.target.value })} placeholder="Qual." aria-label="Qualification" /></td>
+ <td><input className="cell-input" value={candidateForm.response} onChange={e => setCandidateForm({ ...candidateForm, response: e.target.value })} placeholder="Response" aria-label="Response" /></td>
+ <td>
+ <select className="cell-select" value={candidateForm.callStatus} onChange={e => setCandidateForm({ ...candidateForm, callStatus: e.target.value })} aria-label="Call status">
+ {CALL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+ </select>
+ </td>
+ <td><input className="cell-input" value={candidateForm.location} onChange={e => setCandidateForm({ ...candidateForm, location: e.target.value })} placeholder="Location" aria-label="Location" /></td>
+ <td><input type="number" min="0" className="cell-input" value={candidateForm.experience} onChange={e => setCandidateForm({ ...candidateForm, experience: Number(e.target.value) })} aria-label="Experience" /></td>
+ <td><input className="cell-input" value={candidateForm.followUp1} onChange={e => setCandidateForm({ ...candidateForm, followUp1: e.target.value })} placeholder="Note 1" aria-label="Follow up 1" /></td>
+ <td><input className="cell-input" value={candidateForm.followUp2} onChange={e => setCandidateForm({ ...candidateForm, followUp2: e.target.value })} placeholder="Note 2" aria-label="Follow up 2" /></td>
+ <td><input className="cell-input" value={candidateForm.followUp3} onChange={e => setCandidateForm({ ...candidateForm, followUp3: e.target.value })} placeholder="Note 3" aria-label="Follow up 3" /></td>
+ <td style={{ textAlign: 'center' }}>
+ <div className="datasheet-row-actions">
+ <button type="button" className="datasheet-action-btn datasheet-action-save" onClick={handleAddCandidateSubmit} disabled={saveStatus === 'Saving...'} title="Save candidate">
+ <IC n="check" s={13} /> Save
+ </button>
+ <button type="button" className="datasheet-action-btn datasheet-action-cancel" onClick={resetAddForm} title="Cancel">
+ <IC n="x" s={13} />
+ </button>
+ </div>
+ </td>
+ </tr>
+ )}
+ {!isAdding && filteredCandidates.length === 0 ? (
  <tr>
  <td colSpan={14} style={{ padding: 28, textAlign: 'center', color: 'var(--text-secondary)' }}>
  <div style={{ fontWeight: 800, marginBottom: 6, color: 'var(--text-primary)' }}>No candidates in this datasheet yet</div>
  <div style={{ fontSize: 13, marginBottom: 14 }}>Add a candidate or upload a .xlsx / .csv file to start tracking.</div>
- <button type="button" className="btn btn-primary" onClick={() => setShowCandidateModal(true)}>
+ <button type="button" className="btn btn-primary" onClick={startAddCandidate}>
  <IC n="plus" s={14} /> Add Candidate
  </button>
  </td>
  </tr>
  ) : filteredCandidates.map(row => {
  const rid = row.id || row._id;
+ const isEditing = editingId === rid;
+ if (isEditing && editForm) {
+ return (
+ <tr key={rid} className="datasheet-entry-row datasheet-editing-row">
+ <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{row.slNo}</td>
+ <td><input className="cell-input" value={editForm.date || ''} onChange={e => setEditForm({ ...editForm, date: e.target.value })} aria-label="Date" /></td>
+ <td><input className="cell-input" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value.toUpperCase() })} aria-label="Candidate name" /></td>
+ <td><input className="cell-input" value={editForm.number} onChange={e => setEditForm({ ...editForm, number: e.target.value })} aria-label="Contact number" /></td>
+ <td>
+ <select className="cell-select" value={editForm.languages} onChange={e => setEditForm({ ...editForm, languages: e.target.value })} aria-label="Languages">
+ {LANGUAGE_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
+ </select>
+ </td>
+ <td><input className="cell-input" value={editForm.qualification} onChange={e => setEditForm({ ...editForm, qualification: e.target.value })} aria-label="Qualification" /></td>
+ <td><input className="cell-input" value={editForm.response} onChange={e => setEditForm({ ...editForm, response: e.target.value })} aria-label="Response" /></td>
+ <td>
+ <select className="cell-select" value={editForm.callStatus} onChange={e => setEditForm({ ...editForm, callStatus: e.target.value })} aria-label="Call status">
+ {CALL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+ </select>
+ </td>
+ <td><input className="cell-input" value={editForm.location} onChange={e => setEditForm({ ...editForm, location: e.target.value })} aria-label="Location" /></td>
+ <td><input type="number" min="0" className="cell-input" value={editForm.experience} onChange={e => setEditForm({ ...editForm, experience: Number(e.target.value) })} aria-label="Experience" /></td>
+ <td><input className="cell-input" value={editForm.followUp1} onChange={e => setEditForm({ ...editForm, followUp1: e.target.value })} aria-label="Follow up 1" /></td>
+ <td><input className="cell-input" value={editForm.followUp2} onChange={e => setEditForm({ ...editForm, followUp2: e.target.value })} aria-label="Follow up 2" /></td>
+ <td><input className="cell-input" value={editForm.followUp3} onChange={e => setEditForm({ ...editForm, followUp3: e.target.value })} aria-label="Follow up 3" /></td>
+ <td style={{ textAlign: 'center' }}>
+ <div className="datasheet-row-actions">
+ <button type="button" className="datasheet-action-btn datasheet-action-save" onClick={handleEditCandidateSave} disabled={saveStatus === 'Saving...'} title="Save changes">
+ <IC n="check" s={13} /> Save
+ </button>
+ <button type="button" className="datasheet-action-btn datasheet-action-cancel" onClick={cancelEditCandidate} title="Cancel edit">
+ <IC n="x" s={13} />
+ </button>
+ </div>
+ </td>
+ </tr>
+ );
+ }
  const cell = (v) => (
  <td style={{ padding: '10px 14px', fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{v ?? '—'}</td>
  );
@@ -8175,14 +8280,24 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  {cell(row.followUp2)}
  {cell(row.followUp3)}
  <td style={{ textAlign: 'center' }}>
- <button 
+ <div className="datasheet-row-actions">
+ <button
  type="button"
- style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 36 }}
+ className="datasheet-action-btn datasheet-action-edit"
+ onClick={() => startEditCandidate(row)}
+ title="Edit candidate"
+ >
+ <IC n="edit" s={12} /> Edit
+ </button>
+ <button
+ type="button"
+ className="datasheet-action-btn datasheet-action-delete"
  onClick={() => handleDeleteCandidate(rid)}
  title="Delete candidate row"
  >
- <IC n="trash" s={12} /> Delete
+ <IC n="trash" s={12} />
  </button>
+ </div>
  </td>
  </tr>
  );
@@ -8196,7 +8311,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <IC n="file" s={14} /> Upload File (.csv, .xlsx)
  </button>
  <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
- Use <strong>Add Candidate</strong> → <strong>Save Candidate</strong> to POST a new row to the database.
+ Use <strong>Add Candidate</strong> for Excel-style entry, then <strong>Save</strong> on the right to sync.
  </span>
  </div>
  </div>
@@ -8239,65 +8354,6 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  {toastMsg.text}
  </div>
  )}
-
- <Modal open={showCandidateModal} onClose={() => setShowCandidateModal(false)} title="Add New Candidate" subtitle="Please fill out the candidate details carefully." maxWidth={600}>
- <form onSubmit={handleAddCandidateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 20 }}>
- {formError && <div style={{ padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: 8, fontSize: 13, fontWeight: 700 }}>{formError}</div>}
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
- <div className="form-group">
- <label className="form-label" style={{ fontWeight: 800 }}>Candidate Name *</label>
- <input className="form-input" required value={candidateForm.name} onChange={e => setCandidateForm({...candidateForm, name: e.target.value.toUpperCase()})} placeholder="E.g. JOHN DOE" />
- </div>
- <div className="form-group">
- <label className="form-label" style={{ fontWeight: 800 }}>Contact Number *</label>
- <input className="form-input" required value={candidateForm.number} onChange={e => setCandidateForm({...candidateForm, number: e.target.value})} placeholder="10 to 12 digits" />
- </div>
- <div className="form-group">
- <label className="form-label" style={{ fontWeight: 800 }}>Languages</label>
- <select className="form-input" value={candidateForm.languages} onChange={e => setCandidateForm({...candidateForm, languages: e.target.value})}>
- {LANGUAGE_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
- </select>
- </div>
- <div className="form-group">
- <label className="form-label" style={{ fontWeight: 800 }}>Qualification</label>
- <input className="form-input" value={candidateForm.qualification} onChange={e => setCandidateForm({...candidateForm, qualification: e.target.value})} placeholder="E.g. B.Tech" />
- </div>
- <div className="form-group">
- <label className="form-label" style={{ fontWeight: 800 }}>Response</label>
- <input className="form-input" value={candidateForm.response} onChange={e => setCandidateForm({...candidateForm, response: e.target.value})} placeholder="Candidate feedback" />
- </div>
- <div className="form-group">
- <label className="form-label" style={{ fontWeight: 800 }}>Call Status</label>
- <select className="form-input" value={candidateForm.callStatus} onChange={e => setCandidateForm({...candidateForm, callStatus: e.target.value})}>
- <option value="Select Status">Select Status</option>
- {CALL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
- </select>
- </div>
- <div className="form-group">
- <label className="form-label" style={{ fontWeight: 800 }}>Location</label>
- <input className="form-input" value={candidateForm.location} onChange={e => setCandidateForm({...candidateForm, location: e.target.value})} placeholder="E.g. Bengaluru" />
- </div>
- <div className="form-group">
- <label className="form-label" style={{ fontWeight: 800 }}>Experience (Yrs)</label>
- <input type="number" className="form-input" value={candidateForm.experience} onChange={e => setCandidateForm({...candidateForm, experience: Number(e.target.value)})} min="0" />
- </div>
- <div className="form-group" style={{ gridColumn: '1 / -1' }}>
- <label className="form-label" style={{ fontWeight: 800 }}>Follow Up Notes</label>
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
- <input className="form-input" value={candidateForm.followUp1} onChange={e => setCandidateForm({...candidateForm, followUp1: e.target.value})} placeholder="Note 1" />
- <input className="form-input" value={candidateForm.followUp2} onChange={e => setCandidateForm({...candidateForm, followUp2: e.target.value})} placeholder="Note 2" />
- <input className="form-input" value={candidateForm.followUp3} onChange={e => setCandidateForm({...candidateForm, followUp3: e.target.value})} placeholder="Note 3" />
- </div>
- </div>
- </div>
- <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 10, borderTop: '1px solid #E5E7EB', paddingTop: 16 }}>
- <button type="button" className="btn" onClick={() => setShowCandidateModal(false)} style={{ background: '#F3F4F6', color: '#374151', border: '1px solid #E5E7EB' }}>Cancel</button>
- <button type="submit" className="btn btn-dark" disabled={saveStatus === 'Saving...'} style={{ minWidth: 120 }}>
- {saveStatus === 'Saving...' ? 'Saving...' : 'Save Candidate'}
- </button>
- </div>
- </form>
- </Modal>
  </div>
  );
 }

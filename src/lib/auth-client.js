@@ -22,34 +22,8 @@ export function clearAuthStorage() {
 export const API_BASE = '/api';
 
 /**
- * Ensure a JWT exists for API writes (candidates POST, etc.).
- * If missing, attempts seed/API login for the given email.
+ * Fetch API only when a JWT exists — avoids 401 console spam.
  */
-export async function ensureAuthToken(email, password = 'Password123') {
-  if (typeof window === 'undefined') return null;
-  const existing = getAuthToken();
-  if (existing) return existing;
-  const cleanEmail = String(email || '').trim().toLowerCase();
-  if (!cleanEmail) return null;
-  try {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cleanEmail, password }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.token) {
-      setAuthToken(data.token);
-      return data.token;
-    }
-  } catch (err) {
-    console.warn('ensureAuthToken failed:', err);
-  }
-  return null;
-}
-
-/** Fetch API only when a JWT exists — avoids 401 console spam. */
 export async function apiFetch(path, options = {}) {
   const token = getAuthToken();
   if (!token) {

@@ -3,7 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Store } from '@/components/hrms/HrmsLegacy';
-import { API_BASE, AUTH_TOKEN_KEY, clearAuthStorage, ensureAuthToken, getAuthToken, setAuthToken } from '@/lib/auth-client';
+import { API_BASE, AUTH_TOKEN_KEY, clearAuthStorage, getAuthToken, setAuthToken } from '@/lib/auth-client';
 import { buildNavConfig, pathForView } from '@/lib/nav';
 
 const AppContext = createContext(null);
@@ -61,7 +61,7 @@ export function AppProvider({ children }) {
     [router]
   );
 
-  // Validate JWT on boot — remint for active local user if token missing/stale
+  // Validate JWT on boot — no silent remint / auto-login
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -74,35 +74,41 @@ export function AppProvider({ children }) {
         }
       })();
 
+      let hasValidJwt = false;
+
       if (token) {
         try {
           const res = await fetch(`${API_BASE}/auth/session`, {
             headers: { Authorization: `Bearer ${token}` },
           });
-          if (!res.ok) {
+          if (res.ok) {
+            hasValidJwt = true;
+          } else {
             clearAuthStorage();
             try {
               localStorage.removeItem(AUTH_TOKEN_KEY);
             } catch {}
-            if (storedUser?.email) {
-              await ensureAuthToken(storedUser.email);
-            }
           }
         } catch {
-          // offline — keep local session
+          // offline — keep existing JWT session
+          hasValidJwt = true;
         }
-      } else if (storedUser?.email) {
-        await ensureAuthToken(storedUser.email);
       }
 
-      if (storedUser) {
+      if (!hasValidJwt) {
+        clearAuthStorage();
+        Store.set('currentUser', null);
+        if (!cancelled) setUser(null);
+      } else if (storedUser) {
         const fixed = {
           ...storedUser,
           avatar: normalizeAvatar(storedUser.avatar, storedUser.name || storedUser.email),
         };
-        if (fixed.avatar !== storedUser.avatar) {
-          Store.set('currentUser', fixed);
-          if (!cancelled) setUser(fixed);
+        if (!cancelled) {
+          setUser(fixed);
+          if (fixed.avatar !== storedUser.avatar) {
+            Store.set('currentUser', fixed);
+          }
         }
       }
 
@@ -136,8 +142,11 @@ export function AppProvider({ children }) {
       alert('Please enter your official email address.');
       return false;
     }
+    if (!cleanPass || cleanPass.length < 6) {
+      alert('Please enter your password (minimum 6 characters).');
+      return false;
+    }
 
-    // Prefer API login first so we receive a JWT for POST /api/candidates
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
@@ -145,109 +154,54 @@ export function AppProvider({ children }) {
         body: JSON.stringify({ email: cleanEmail, password: cleanPass }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const apiUser = data.user;
-        if (data.token) setAuthToken(data.token);
+      const data = await res.json().catch(() => ({}));
 
-        const existingIdx = db.users.findIndex((x) => String(x.email).toLowerCase() === cleanEmail);
-        let updatedUserList = [...db.users];
-        const formattedUser = {
-          id: apiUser.id || Date.now(),
-          employee_id: apiUser.employee_id || apiUser.employeeId || 'EMP-NEW',
-          name: apiUser.name || cleanEmail.split('@')[0],
-          email: cleanEmail,
-          role: apiUser.role || 'employee',
-          designation: apiUser.designation || 'Team Member',
-          title: apiUser.designation || 'Team Member',
-          status: 'active',
-          must_change_password: apiUser.must_change_password || 0,
-          avatar:
-            apiUser.avatar_url ||
-            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(apiUser.name || cleanEmail)}`,
-        };
-
-        if (existingIdx >= 0) {
-          updatedUserList[existingIdx] = { ...updatedUserList[existingIdx], ...formattedUser };
-        } else {
-          updatedUserList.unshift(formattedUser);
-        }
-
-        save('users', updatedUserList);
-        setUser(formattedUser);
-        Store.set('currentUser', formattedUser);
-        router.push('/dashboard');
-        return true;
+      if (!res.ok) {
+        alert(data.error || 'Invalid email or password. Use credentials from HR Onboarding.');
+        return false;
       }
-    } catch (err) {
-      console.warn('Backend authentication lookup skipped:', err);
-    }
 
-    let u = (db.users || []).find((x) => String(x.email || '').trim().toLowerCase() === cleanEmail);
-
-    if (u) {
-      const isMasterPass = cleanPass === 'Password123' || cleanPass === 'admin123' || cleanPass === 'emp123';
-      const userPass = u.password || u.temp_password || u.tempPassword;
-      const isUserPass = userPass ? cleanPass === String(userPass).trim() : true;
-
-      if (isMasterPass || isUserPass || u.temp_password) {
-        // Mint a real JWT via seed-aware login so /api/candidates works
-        try {
-          const tokenRes = await fetch(`${API_BASE}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: cleanEmail, password: cleanPass }),
-          });
-          if (tokenRes.ok) {
-            const data = await tokenRes.json();
-            if (data.token) setAuthToken(data.token);
-          }
-        } catch {}
-
-        const updatedUser = { ...u, last_login: new Date().toISOString(), lastLogin: new Date().toISOString() };
-        save(
-          'users',
-          db.users.map((x) => (x.id === u.id ? updatedUser : x))
-        );
-        setUser(updatedUser);
-        Store.set('currentUser', updatedUser);
-        router.push('/dashboard');
-        return true;
+      const apiUser = data.user;
+      if (!data.token || !apiUser) {
+        alert('Login failed: no session token returned.');
+        return false;
       }
-    }
 
-    if (cleanEmail.includes('@') && cleanPass.length >= 4) {
-      const nameFromEmail = cleanEmail
-        .split('@')[0]
-        .split('.')
-        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
-        .join(' ');
-      const isTemporaryPassword = cleanPass.startsWith('Cegs#') || cleanPass.startsWith('Temp#');
-      const autoOnboardUser = {
-        id: Date.now(),
-        employee_id: 'EMP-' + Math.floor(100 + Math.random() * 900),
-        name: nameFromEmail,
+      setAuthToken(data.token);
+
+      const existingIdx = db.users.findIndex((x) => String(x.email).toLowerCase() === cleanEmail);
+      let updatedUserList = [...db.users];
+      const formattedUser = {
+        id: apiUser.id || Date.now(),
+        employee_id: apiUser.employee_id || apiUser.employeeId || 'EMP-NEW',
+        name: apiUser.name || cleanEmail.split('@')[0],
         email: cleanEmail,
-        role: 'employee',
-        title: 'Team Member',
-        designation: 'Team Member',
+        role: apiUser.role || 'employee',
+        designation: apiUser.designation || 'Team Member',
+        title: apiUser.designation || 'Team Member',
         status: 'active',
-        password: cleanPass,
-        temp_password: isTemporaryPassword ? cleanPass : '',
-        tempPassword: isTemporaryPassword ? cleanPass : '',
-        must_change_password: 0,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(nameFromEmail)}`,
+        must_change_password: apiUser.must_change_password || 0,
+        avatar:
+          apiUser.avatar_url ||
+          `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(apiUser.name || cleanEmail)}`,
       };
 
-      save('users', [autoOnboardUser, ...db.users]);
-      setUser(autoOnboardUser);
-      Store.set('currentUser', autoOnboardUser);
+      if (existingIdx >= 0) {
+        updatedUserList[existingIdx] = { ...updatedUserList[existingIdx], ...formattedUser };
+      } else {
+        updatedUserList.unshift(formattedUser);
+      }
+
+      save('users', updatedUserList);
+      setUser(formattedUser);
+      Store.set('currentUser', formattedUser);
       router.push('/dashboard');
       return true;
+    } catch (err) {
+      console.warn('Login request failed:', err);
+      alert('Unable to reach the login server. Check your connection and try again.');
+      return false;
     }
-
-    alert(`Invalid credentials.\nPlease verify your login email (${email}) and password.`);
-    return false;
   };
 
   const logout = useCallback(() => {

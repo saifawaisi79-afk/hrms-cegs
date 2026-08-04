@@ -65,19 +65,27 @@ export async function POST(request) {
   }
 
   const body = await request.json();
-  const { name, email, employee_id, role, department_id, reports_to, designation, joining_date, contact, status, basic_salary } = body;
+  const { name, email, employee_id, role, department_id, reports_to, designation, joining_date, contact, status, basic_salary, password } = body;
 
   if (!name || !email || !employee_id || !role) {
     return NextResponse.json({ error: 'Name, email, employee ID and role are required' }, { status: 400 });
   }
 
+  const cleanPass = String(password || '').trim();
+  if (!cleanPass || cleanPass.length < 6) {
+    return NextResponse.json(
+      { error: 'A password (min 6 chars) is required — generate one via HR Onboarding' },
+      { status: 400 }
+    );
+  }
+
   await connectDB();
   try {
-    const passwordHash = await bcrypt.hash('Password123', 10);
+    const passwordHash = await bcrypt.hash(cleanPass, 10);
     const user = await User.create({
       employee_id,
       name,
-      email,
+      email: String(email).trim().toLowerCase(),
       password_hash: passwordHash,
       role,
       department_id: department_id || null,
@@ -88,9 +96,9 @@ export async function POST(request) {
       status: status || 'active',
       basic_salary: basic_salary || 3000,
       avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
-      must_change_password: true,
+      must_change_password: false,
     });
-    return NextResponse.json({ id: user._id.toString(), name, email, employee_id, role }, { status: 201 });
+    return NextResponse.json({ id: user._id.toString(), name, email: user.email, employee_id, role }, { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: 'Employee ID or email already exists' }, { status: 500 });
   }
