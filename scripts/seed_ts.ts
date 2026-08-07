@@ -1,9 +1,9 @@
+// @ts-nocheck — standalone seed script (not part of Next app types)
 /**
- * Bootstrap only: Super Admin + HR Admin (no demo employees).
- * Real staff accounts should be created via HR Onboarding after this.
+ * Bootstrap Super Admin only (does NOT wipe onboarded employees).
+ * Use when you need to restore SA access without deleting real users.
  *
- * Run: npm run seed
- * This WIPES all users and prints fresh one-time passwords — save them securely.
+ * Run: npx tsx scripts/seed_ts.ts
  */
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -40,7 +40,8 @@ const UserSchema = new mongoose.Schema(
 
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
 
-/** Production-style password: Cegs@ + random alphanumerics (matches HR onboarding generator) */
+const SAMPLE_REMOVE_EMAILS = ['nusrath@cegs.com', 'superadmin@cegs.com', 'employee@cegs.com'];
+
 function generatePermanentPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
   const bytes = crypto.randomBytes(8);
@@ -58,27 +59,10 @@ async function seed() {
     await mongoose.connect(MONGODB_URI as string);
     console.log('✅ Connected to', mongoose.connection.host, '/', mongoose.connection.name);
 
-    console.log('Wiping ALL existing users (old credentials removed)...');
-    const deleted = await User.deleteMany({});
-    console.log(`✅ Removed ${deleted.deletedCount} user(s).`);
+    const removed = await User.deleteMany({ email: { $in: SAMPLE_REMOVE_EMAILS } });
+    console.log(`Removed ${removed.deletedCount} sample account(s) (HR demo / CEO demo / employee demo).`);
 
     const bootstrap = [
-      {
-        employee_id: 'EMP-001',
-        name: 'CEO SuperAdmin',
-        email: 'superadmin@cegs.com',
-        role: 'super_admin' as const,
-        designation: 'Chief Executive Officer',
-        password: generatePermanentPassword(),
-      },
-      {
-        employee_id: 'EMP-002',
-        name: 'Nusrath Hussain',
-        email: 'nusrath@cegs.com',
-        role: 'admin' as const,
-        designation: 'HR Manager',
-        password: generatePermanentPassword(),
-      },
       {
         employee_id: 'DEV-001',
         name: 'Saif Awaisi',
@@ -89,11 +73,14 @@ async function seed() {
       },
     ];
 
-    console.log('Seeding fresh bootstrap accounts...');
-    const docs = [];
     for (const u of bootstrap) {
+      const existing = await User.findOne({ email: u.email });
+      if (existing) {
+        console.log(`Super Admin already exists: ${u.email} (password not changed).`);
+        continue;
+      }
       const password_hash = await bcrypt.hash(u.password, 10);
-      docs.push({
+      await User.create({
         employee_id: u.employee_id,
         name: u.name,
         email: u.email,
@@ -104,32 +91,19 @@ async function seed() {
         joining_date: new Date().toISOString().slice(0, 10),
         avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name)}`,
         must_change_password: false,
-        basic_salary: u.role === 'super_admin' ? 95000 : 30000,
+        basic_salary: 95000,
       });
+      console.log(`Created Super Admin: ${u.email} | password: ${u.password}`);
     }
 
-    await User.insertMany(docs);
-
-    console.log('');
-    console.log('================================================');
-    console.log(' FRESH LOGIN CREDENTIALS (save securely once)');
-    console.log('================================================');
-    for (const u of bootstrap) {
-      console.log(`  ${u.role.padEnd(12)} | ${u.email}`);
-      console.log(`               | password: ${u.password}`);
-      console.log('------------------------------------------------');
-    }
-    console.log('HR Admin can onboard more employees from:');
-    console.log('  Campaign / HR → Employee Onboarding & Directory');
-    console.log('================================================');
-    console.log('');
-    console.log('✅ Seed complete. Old passwords no longer work.');
+    const total = await User.countDocuments();
+    console.log(`\n✅ Done. ${total} user(s) in database (includes onboarded employees).`);
+    console.log('Onboard HR Admin with Admin role from Campaign → Onboarding if needed.');
   } catch (error) {
     console.error('❌ Seeding failed:', error);
     process.exitCode = 1;
   } finally {
     await mongoose.disconnect();
-    console.log('Disconnected from MongoDB.');
     process.exit(process.exitCode || 0);
   }
 }

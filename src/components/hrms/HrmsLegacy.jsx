@@ -29,6 +29,17 @@ import {
   SICK_ANNUAL,
   ANNUAL_TOTAL,
 } from '@/lib/leave-policy';
+import {
+  getLunchAllowedMinutes,
+  getLunchWindowLabel,
+  isLateClockIn,
+  isLateLunchReturn,
+  isLunchHeadsUpTime,
+  countMonthlyAttendanceWarnings,
+  calcHalfDayPenalty,
+  halfDaysFromWarnings,
+} from '@/lib/attendance-policy';
+import { pushHrmsNotification, recordAttendanceWarning } from '@/lib/attendance-warnings-ui';
 
 /* ==========================================================================================
  GLOBAL API ENDPOINT CONFIGURATION — Next.js App Router API Routes
@@ -105,6 +116,8 @@ export const SEED_DATA = {
  ],
  leaves:[],
  attendance:[],
+ attendanceWarnings:[],
+ lunchBreaks:[],
  payroll:[],
  timesheets:[],
  assets:[],
@@ -122,7 +135,7 @@ export const SEED_DATA = {
  verihrmAudits:[],
  settings:{
  company:{name:'CEGS Corp.',address:'42 Wall Street, Suite 1800, New York, NY 10005',phone:'+1 (212) 555-0199',email:'hr@cegs.com',website:'cegs.com',taxId:'TX-998877-A'},
- hours:{start:'10:00',end:'19:00',grace:15,days:['Mon','Tue','Wed','Thu','Fri','Sat']},
+ hours:{start:'10:00',end:'19:00',grace:15,days:['Mon','Tue','Wed','Thu','Fri','Sat'],lunchStart:'15:00',employeeLunchMins:30,hrLunchMins:60},
  leave:{vacation:20,sick:15,casual:10,personal:7,carryForward:true},
  payroll:{taxPct:10,pfPct:5,overtimeRate:28,payCycle:'Monthly'},
  security:{sessionTimeout:120,twoFactor:false,minPasswordLen:8},
@@ -186,6 +199,10 @@ export const Store = {
      this.set('it_tickets', []);
      this.set('it_messages', []);
      localStorage.setItem('cegs_users_prod_clear_v1', '1');
+   }
+   if (typeof localStorage !== 'undefined' && !localStorage.getItem('cegs_attendance_warnings_v1')) {
+     this.set('attendanceWarnings', []);
+     localStorage.setItem('cegs_attendance_warnings_v1', '1');
    }
  } catch {}
  },
@@ -854,9 +871,9 @@ export function EmployeeQuickViewModal({ targetUser, currentUser, db, onClose, o
 /* GlobalMessengerModal moved to src/components/chat/GlobalMessengerModal.jsx */
 
 export function LunchBreakWidget({ user, db, save }) {
+ const lunchAllowedMins = getLunchAllowedMinutes(user);
  const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
  const isSA = user?.role === 'super_admin';
- const lunchAllowedMins = (isHR || isSA) ? 60 : 30;
 
  const todayStr = new Date().toLocaleDateString('en-GB');
  const allBreakRecords = db?.lunchBreaks || [];
@@ -876,6 +893,32 @@ export function LunchBreakWidget({ user, db, save }) {
  const [elapsedSecs, setElapsedSecs] = useState(0);
  const [viewTab, setViewTab] = useState('my_break');
  const [isFocusedView, setIsFocusedView] = useState(() => !!activeSession);
+ const lunchEndReminderRef = useRef(false);
+
+ // 2:50 PM — lunch window starts in 10 minutes (employees 3:00–3:30, HR 3:00–4:00)
+ useEffect(() => {
+ if (!user?.id) return undefined;
+ const tick = () => {
+ try {
+ const key = `cegs_lunch_heads_up_${user.id}_${todayStr}`;
+ if (localStorage.getItem(key)) return;
+ if (!isLunchHeadsUpTime()) return;
+ const startedLunch = todayUserRecords.some((r) => (r.breakType || 'lunch') === 'lunch');
+ if (startedLunch) return;
+ localStorage.setItem(key, '1');
+ pushHrmsNotification(save, db, {
+ to: user.id,
+ title: 'Lunch Break Reminder',
+ msg: `Lunch window (${getLunchWindowLabel(user)}) starts in 10 minutes. Punch Lunch Break on the stopwatch when you go.`,
+ type: 'Attendance',
+ });
+ } catch {}
+ };
+ tick();
+ const id = setInterval(tick, 30000);
+ return () => clearInterval(id);
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [user?.id, todayStr, todayUserRecords.length]);
 
  useEffect(() => {
  let timer;
@@ -891,6 +934,27 @@ export function LunchBreakWidget({ user, db, save }) {
  }
  return () => clearInterval(timer);
  }, [activeSession]);
+
+ // 10 minutes before lunch break ends — return reminder
+ useEffect(() => {
+ if (!activeSession || (activeSession.breakType || 'lunch') !== 'lunch') {
+ lunchEndReminderRef.current = false;
+ return;
+ }
+ const allowed = (activeSession.allowedMinutes || lunchAllowedMins) * 60;
+ const remaining = allowed - elapsedSecs;
+ if (remaining > 0 && remaining <= 600 && !lunchEndReminderRef.current) {
+ lunchEndReminderRef.current = true;
+ pushHrmsNotification(save, db, {
+ to: user.id,
+ title: 'Lunch Break Ending Soon',
+ msg: `10 minutes left on your ${lunchAllowedMins}-minute lunch. Please end break and return to work on time to avoid a late-return warning.`,
+ type: 'Attendance',
+ });
+ }
+ if (remaining > 600) lunchEndReminderRef.current = false;
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [activeSession, elapsedSecs, lunchAllowedMins, user?.id]);
 
  const handleStartBreak = (typeToStart) => {
  const targetType = typeToStart || selectedBreakType;
@@ -912,8 +976,8 @@ export function LunchBreakWidget({ user, db, save }) {
  status: 'in_progress'
  };
 
- setActiveSession(newRecord);
  setIsFocusedView(true);
+ lunchEndReminderRef.current = false;
  const updated = [newRecord, ...allBreakRecords.filter(r => !(r.userId === user.id && r.date === todayStr && (r.breakType || 'lunch') === targetType))];
  save('lunchBreaks', updated);
  };
@@ -921,19 +985,40 @@ export function LunchBreakWidget({ user, db, save }) {
  const handleEndBreak = () => {
  if (!activeSession) return;
  const now = Date.now();
+ const endDt = new Date(now);
  const duration = Math.floor((now - activeSession.startTime) / 1000);
- const isExceeded = duration > (activeSession.allowedMinutes || 15) * 60;
+ const allowedMins = activeSession.allowedMinutes || 15;
+ const isExceeded = duration > allowedMins * 60;
+ const breakType = activeSession.breakType || 'lunch';
 
  const completedRecord = {
  ...activeSession,
  endTime: now,
- endFormatted: new Date(now).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+ endFormatted: endDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
  totalDurationSecs: duration,
  status: isExceeded ? 'exceeded' : 'completed'
  };
 
+ if (breakType === 'lunch') {
+ const lateReturn = isLateLunchReturn(user, endDt, duration, allowedMins);
+ if (lateReturn) {
+ pushHrmsNotification(save, db, {
+ to: user.id,
+ title: 'Late Lunch Return Warning',
+ msg: `You returned late from lunch (${getLunchWindowLabel(user)} window). This warning counts toward monthly half-day pay cuts.`,
+ type: 'Attendance',
+ });
+ recordAttendanceWarning(save, db, {
+ uid: user.id,
+ type: 'late_lunch_return',
+ note: `Late lunch return after ${Math.ceil(duration / 60)} min (allowed ${allowedMins} min)`,
+ });
+ }
+ }
+
  setIsFocusedView(false);
- const updated = [completedRecord, ...allBreakRecords.filter(r => !(r.userId === user.id && r.date === todayStr && (r.breakType || 'lunch') === (activeSession.breakType || 'lunch')))];
+ lunchEndReminderRef.current = false;
+ const updated = [completedRecord, ...allBreakRecords.filter(r => !(r.userId === user.id && r.date === todayStr && (r.breakType || 'lunch') === breakType))];
  save('lunchBreaks', updated);
  };
 
@@ -967,7 +1052,7 @@ export function LunchBreakWidget({ user, db, save }) {
  </div>
  <div>
  <div style={{ fontWeight: 800, fontSize: 16, color: '#111827', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Shift & Break Tracker</div>
- <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>Lunch + 2x Flexible 15m Short Breaks</div>
+ <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>Lunch {getLunchWindowLabel(user)} · 2× 15m short breaks</div>
  </div>
  </div>
 
@@ -1268,7 +1353,7 @@ export function LunchBreakWidget({ user, db, save }) {
  if (window.confirm(`Reset today's ${getBreakTitle(currentBreakType)} timer?`)) {
  const updated = allBreakRecords.filter(r => !(r.userId === user.id && r.date === todayStr && (r.breakType || 'lunch') === currentBreakType));
  save('lunchBreaks', updated);
- setActiveSession(null);
+ setIsFocusedView(false);
  }
  }}>Reset Session</button>
  </div>
@@ -3052,11 +3137,24 @@ export function AttendancePage({ db, save, user }) {
  const clockIn = async () => {
  if (todayRec) { alert('Already checked in today!'); return; }
  const now = new Date();
- // Office timings: 10:15 AM to 7:00 PM. Clock In after 10:15 AM is flagged as Late.
- const isLate = now.getHours() > 10 || (now.getHours() === 10 && now.getMinutes() > 15);
+ const settings = db.settings || SEED_DATA.settings;
+ const isLate = isLateClockIn(now, settings);
  const status = isLate ? 'late' : 'present';
  const timeStr = now.toTimeString().substr(0, 5);
  save('attendance', [{ id: Date.now(), uid: user.id, date: today, in: timeStr, out: null, status, hrs: 0 }, ...(db.attendance || [])]);
+ if (isLate) {
+ pushHrmsNotification(save, db, {
+ to: user.id,
+ title: 'Late Clock-In Warning',
+ msg: 'You clocked in after 10:15 AM. This warning counts with late lunch returns toward monthly half-day pay cuts.',
+ type: 'Attendance',
+ });
+ recordAttendanceWarning(save, db, {
+ uid: user.id,
+ type: 'late_clock_in',
+ note: `Clock-in at ${timeStr}`,
+ });
+ }
  // running/secs resume via effect from saved record
  };
 
@@ -3098,7 +3196,7 @@ export function AttendancePage({ db, save, user }) {
 
  return (
  <div className="anim-fadeup">
- <PageHdr title="Attendance" sub="Track daily work hours (10:15 AM – 7:00 PM) · GPS Location Security Active"/>
+ <PageHdr title="Attendance" sub="Track daily work hours (10:15 AM – 7:00 PM) · 3 warnings/month (late + lunch) = half-day pay cut"/>
 
  {/* Location Protection & Clock-Out Policy Badge */}
  <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, flexWrap: 'wrap', gap: 8 }}>
@@ -3254,27 +3352,42 @@ export function PayrollPage({ db, save, user, setView }) {
 
  const runPayroll = () => {
  const active = (db.users || []).filter(u => ['active', 'on_leave'].includes(u.status));
+ const payrollMonth = parseInt(month, 10);
  const recs = active.map((emp, i) => {
- const allowances = Math.round(emp.salary * .12);
- const deductions = Math.round((emp.salary + allowances) * .09);
+ const basic = Number(emp.salary || emp.basic_salary) || 0;
+ const allowances = Math.round(basic * .12);
+ const taxPf = Math.round((basic + allowances) * .09);
+ const warningCount = countMonthlyAttendanceWarnings(
+ db.attendanceWarnings || [],
+ emp.id,
+ payrollMonth,
+ year
+ );
+ const halfDays = halfDaysFromWarnings(warningCount);
+ const attendancePenalty = calcHalfDayPenalty(basic, warningCount);
+ const deductions = taxPf + attendancePenalty;
  return {
  id: Date.now() + i,
  uid: emp.id,
- month: parseInt(month),
+ month: payrollMonth,
  year,
- basic: emp.salary,
+ basic,
  allowances,
  overtime: 0,
  bonus: 0,
  deductions,
- net: emp.salary + allowances - deductions,
+ deductionTaxPf: taxPf,
+ attendancePenalty,
+ attendanceWarnings: warningCount,
+ halfDaysCut: halfDays,
+ net: basic + allowances - deductions,
  status: 'processed',
  date: new Date().toISOString().split('T')[0]
  };
  });
- const old = (db.payroll || []).filter(p => !(p.month === parseInt(month) && p.year === year));
+ const old = (db.payroll || []).filter(p => !(p.month === payrollMonth && p.year === year));
  save('payroll', [...old, ...recs]);
- alert(` Payroll processed for ${recs.length} employees for month ${month}/${year}`);
+ alert(` Payroll processed for ${recs.length} employees for month ${payrollMonth}/${year}`);
  };
 
  // Determine list based on tab or role
@@ -3466,7 +3579,10 @@ export function PayrollPage({ db, save, user, setView }) {
  <div className="payslip-row"><span>Housing & Transport Allowances</span><span style={{color:'var(--green-dark)'}}>+₹{payslip.allowances?.toLocaleString()}</span></div>
  <div className="payslip-row"><span>Overtime</span><span style={{color:'var(--green-dark)'}}>+₹{payslip.overtime||0}</span></div>
  <div className="payslip-row"><span>Performance Bonus</span><span style={{color:'var(--green-dark)'}}>+₹{payslip.bonus||0}</span></div>
- <div className="payslip-row"><span>Tax & Provident Fund Deductions</span><span style={{color:'var(--red-dark)'}}>-₹{payslip.deductions?.toLocaleString()}</span></div>
+ <div className="payslip-row"><span>Tax & Provident Fund Deductions</span><span style={{color:'var(--red-dark)'}}>-₹{(payslip.deductionTaxPf ?? payslip.deductions)?.toLocaleString()}</span></div>
+ {(payslip.attendancePenalty > 0 || payslip.halfDaysCut > 0) && (
+ <div className="payslip-row"><span>Attendance Penalty ({payslip.halfDaysCut || 0} half-day{payslip.halfDaysCut > 1 ? 's' : ''} · {payslip.attendanceWarnings || 0} warnings)</span><span style={{color:'var(--red-dark)'}}>-₹{(payslip.attendancePenalty || 0).toLocaleString()}</span></div>
+ )}
  <div className="payslip-total"><span>Net Salary</span><span style={{color:'var(--green-dark)'}}>₹{payslip.net?.toLocaleString()}</span></div>
  </div>
  <div className="btn-row">
