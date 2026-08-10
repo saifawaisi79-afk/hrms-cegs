@@ -5,7 +5,7 @@ import User from '@/lib/models/User';
 import Department from '@/lib/models/Department';
 import { getAuthUser, requireRole } from '@/lib/auth';
 
-function serializeUser(u, elevated = true) {
+function serializeUser(u, elevated = true, isSelf = false) {
   const obj = u.toObject ? u.toObject() : u;
   const base = {
     id: obj._id?.toString(),
@@ -23,9 +23,14 @@ function serializeUser(u, elevated = true) {
     avatar_url: obj.avatar_url,
     reports_to: obj.reports_to?._id?.toString() || obj.reports_to?.toString() || null,
     reports_to_name: obj.reports_to?.name || null,
+    // Compensation from HR onboarding — needed for profile + payroll for every staff member
+    basic_salary: obj.basic_salary ?? 0,
+    allowances: obj.allowances ?? 0,
+    address: obj.address || '',
+    dob: obj.dob || '',
+    employment_type: obj.employment_type || 'full_time',
   };
-  if (elevated) {
-    base.basic_salary = obj.basic_salary;
+  if (elevated || isSelf) {
     base.bank_name = obj.bank_name;
     base.account_number = obj.account_number;
     base.ifsc_code = obj.ifsc_code;
@@ -49,11 +54,17 @@ export async function GET(request) {
     .populate('reports_to', 'name');
 
   if (!elevated) {
-    query = query.select('employee_id name email role department_id designation joining_date status avatar_url');
+    query = query.select(
+      'employee_id name email role department_id designation joining_date contact status avatar_url basic_salary allowances address dob employment_type emergency_contact bank_name account_number ifsc_code'
+    );
   }
 
   const users = await query.lean();
-  return NextResponse.json(users.map(u => serializeUser(u, elevated)));
+  return NextResponse.json(
+    users.map((u) =>
+      serializeUser(u, elevated, String(u._id) === String(authUser.id))
+    )
+  );
 }
 
 // POST /api/employees

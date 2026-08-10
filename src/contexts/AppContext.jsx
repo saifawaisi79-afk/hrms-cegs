@@ -83,6 +83,49 @@ export function AppProvider({ children }) {
           });
           if (res.ok) {
             hasValidJwt = true;
+            try {
+              const sessionData = await res.json();
+              if (sessionData?.user) {
+                const su = sessionData.user;
+                const refreshed = {
+                  ...(storedUser || {}),
+                  id: su.id || storedUser?.id,
+                  employee_id: su.employee_id || storedUser?.employee_id,
+                  eid: su.employee_id || storedUser?.eid,
+                  name: su.name || storedUser?.name,
+                  email: su.email || storedUser?.email,
+                  role: su.role || storedUser?.role,
+                  designation: su.designation || storedUser?.designation,
+                  title: su.designation || storedUser?.title,
+                  joining_date: su.joining_date || storedUser?.joining_date,
+                  contact: su.contact || storedUser?.contact,
+                  phone: su.contact || storedUser?.phone,
+                  status: su.status || storedUser?.status || 'active',
+                  basic_salary: su.basic_salary ?? storedUser?.basic_salary ?? 0,
+                  salary: su.basic_salary ?? su.salary ?? storedUser?.salary ?? 0,
+                  allowances: su.allowances ?? storedUser?.allowances ?? 0,
+                  address: su.address || storedUser?.address || '',
+                  dob: su.dob || storedUser?.dob || '',
+                  employment_type: su.employment_type || storedUser?.employment_type || 'full_time',
+                  bank_name: su.bank_name || storedUser?.bank_name || '',
+                  bankName: su.bank_name || storedUser?.bankName || '',
+                  account_number: su.account_number || storedUser?.account_number || '',
+                  bankAccount: su.account_number || storedUser?.bankAccount || '',
+                  ifsc_code: su.ifsc_code || storedUser?.ifsc_code || '',
+                  bankIfsc: su.ifsc_code || storedUser?.bankIfsc || '',
+                  emergency_contact: su.emergency_contact || storedUser?.emergency_contact || '',
+                  emergencyPhone: su.emergency_contact || storedUser?.emergencyPhone || '',
+                  avatar: normalizeAvatar(su.avatar_url || storedUser?.avatar, su.name || su.email),
+                  must_change_password: su.must_change_password || 0,
+                };
+                if (!cancelled) {
+                  setUser(refreshed);
+                  Store.set('currentUser', refreshed);
+                }
+                if (!cancelled) setReady(true);
+                return;
+              }
+            } catch {}
           } else {
             clearAuthStorage();
             try {
@@ -199,12 +242,30 @@ export function AppProvider({ children }) {
       const formattedUser = {
         id: apiUser.id || Date.now(),
         employee_id: apiUser.employee_id || apiUser.employeeId || 'EMP-NEW',
+        eid: apiUser.employee_id || apiUser.employeeId || 'EMP-NEW',
         name: apiUser.name || cleanEmail.split('@')[0],
         email: cleanEmail,
         role: accountRole,
         designation: apiUser.designation || 'Team Member',
         title: apiUser.designation || 'Team Member',
-        status: 'active',
+        joining_date: apiUser.joining_date || '',
+        contact: apiUser.contact || '',
+        phone: apiUser.contact || '',
+        status: apiUser.status || 'active',
+        basic_salary: apiUser.basic_salary ?? 0,
+        salary: apiUser.basic_salary ?? apiUser.salary ?? 0,
+        allowances: apiUser.allowances ?? 0,
+        address: apiUser.address || '',
+        dob: apiUser.dob || '',
+        employment_type: apiUser.employment_type || 'full_time',
+        bank_name: apiUser.bank_name || '',
+        bankName: apiUser.bank_name || '',
+        account_number: apiUser.account_number || '',
+        bankAccount: apiUser.account_number || '',
+        ifsc_code: apiUser.ifsc_code || '',
+        bankIfsc: apiUser.ifsc_code || '',
+        emergency_contact: apiUser.emergency_contact || '',
+        emergencyPhone: apiUser.emergency_contact || '',
         must_change_password: apiUser.must_change_password || 0,
         workMode: apiUser.workMode || workMode,
         avatar:
@@ -282,16 +343,42 @@ export function AppProvider({ children }) {
           status: u.status || 'active',
           avatar: u.avatar_url,
           avatar_url: u.avatar_url,
-          employment_type: 'full_time',
-          basic_salary: u.basic_salary,
+          employment_type: u.employment_type || 'full_time',
+          address: u.address || '',
+          dob: u.dob || '',
+          basic_salary: u.basic_salary ?? 0,
+          salary: u.basic_salary ?? 0,
+          allowances: u.allowances ?? 0,
           bank_name: u.bank_name,
+          bankName: u.bank_name,
           account_number: u.account_number,
+          bankAccount: u.account_number,
           ifsc_code: u.ifsc_code,
+          bankIfsc: u.ifsc_code,
           emergency_contact: u.emergency_contact,
+          emergencyPhone: u.emergency_contact,
           must_change_password: u.must_change_password || 0,
           last_login: u.last_login,
         }));
         save('users', mapped);
+
+        // Keep logged-in session user in sync with onboarded Mongo fields
+        const me = mapped.find(
+          (row) =>
+            String(row.id) === String(user.id) ||
+            String(row.email || '').toLowerCase() === String(user.email || '').toLowerCase()
+        );
+        if (me && !cancelled) {
+          const merged = {
+            ...user,
+            ...me,
+            avatar: me.avatar || user.avatar,
+          };
+          setUser(merged);
+          try {
+            Store.set('currentUser', merged);
+          } catch {}
+        }
       } catch {}
     })();
     return () => {

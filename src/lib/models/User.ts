@@ -13,6 +13,10 @@ export interface IUser extends Document {
   contact: string;
   status: 'active' | 'inactive' | 'on_leave';
   basic_salary: number;
+  allowances: number;
+  address: string;
+  dob: string;
+  employment_type: string;
   avatar_url: string;
   last_login?: string | null;
   emergency_contact: string;
@@ -38,7 +42,11 @@ const UserSchema: Schema<IUser> = new mongoose.Schema({
   joining_date:             { type: String, default: '' },
   contact:                  { type: String, default: '' },
   status:                   { type: String, enum: ['active', 'inactive', 'on_leave'], default: 'active' },
-  basic_salary:             { type: Number, default: 3000 },
+  basic_salary:             { type: Number, default: 30000 },
+  allowances:               { type: Number, default: 0 },
+  address:                  { type: String, default: '' },
+  dob:                      { type: String, default: '' },
+  employment_type:          { type: String, default: 'full_time' },
   avatar_url:               { type: String, default: '' },
   last_login:               { type: String, default: null },
   emergency_contact:        { type: String, default: '' },

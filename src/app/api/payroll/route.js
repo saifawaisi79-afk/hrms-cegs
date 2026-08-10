@@ -45,12 +45,14 @@ export async function POST(request) {
   if (!month || !year) return NextResponse.json({ error: 'Month and year are required' }, { status: 400 });
 
   await connectDB();
-  const employees = await User.find({ status: { $in: ['active', 'on_leave'] } }).select('_id basic_salary').lean();
+  const employees = await User.find({ status: { $in: ['active', 'on_leave'] } })
+    .select('_id basic_salary allowances')
+    .lean();
   let count = 0;
 
   for (const emp of employees) {
-    const basic = emp.basic_salary;
-    const allowances = Math.round(basic * 0.15);
+    const basic = Number(emp.basic_salary) || 0;
+    const allowances = Math.max(0, Number(emp.allowances) || 0);
 
     const monthStr = String(month).padStart(2, '0');
     const startStr = `${year}-${monthStr}-01`;
@@ -64,13 +66,27 @@ export async function POST(request) {
     const otHours = Math.max(0, totalHrs - 160);
     const overtime = Math.round(otHours * 25);
     const bonus = 0;
-    const deductions = Math.round((basic + allowances + overtime) * 0.1);
-    const netSalary = (basic + allowances + overtime + bonus) - deductions;
+    // Statutory % removed — deductions come from attendance warnings on the UI payroll run.
+    // API process keeps OT but uses onboarded allowances only (no fake 15%).
+    const deductions = 0;
+    const netSalary = basic + allowances + overtime + bonus - deductions;
     const processedDate = new Date().toISOString().split('T')[0];
 
     await Payroll.findOneAndUpdate(
       { user_id: emp._id, month, year },
-      { user_id: emp._id, month, year, basic_salary: basic, allowances, overtime, bonus, deductions, net_salary: netSalary, status: 'processed', processed_date: processedDate },
+      {
+        user_id: emp._id,
+        month,
+        year,
+        basic_salary: basic,
+        allowances,
+        overtime,
+        bonus,
+        deductions,
+        net_salary: netSalary,
+        status: 'processed',
+        processed_date: processedDate,
+      },
       { upsert: true }
     );
     count++;

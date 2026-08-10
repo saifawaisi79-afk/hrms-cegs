@@ -40,6 +40,12 @@ import {
   halfDaysFromWarnings,
 } from '@/lib/attendance-policy';
 import { pushHrmsNotification, recordAttendanceWarning } from '@/lib/attendance-warnings-ui';
+import {
+  todayIsoDate,
+  normalizeCandidateDate,
+  formatSheetDateDisplay,
+  matchesSheetDate,
+} from '@/lib/candidate-dates';
 
 /* ==========================================================================================
  GLOBAL API ENDPOINT CONFIGURATION — Next.js App Router API Routes
@@ -3339,8 +3345,9 @@ export function AttendancePage({ db, save, user }) {
  PAYROLL PAGE
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 export function PayrollPage({ db, save, user, setView }) {
- const [month, setMonth] = useState(7);
- const [year] = useState(2026);
+ const now = new Date();
+ const [month, setMonth] = useState(now.getMonth() + 1);
+ const [year] = useState(now.getFullYear());
  const [payslip, setPayslip] = useState(null);
  const [payrollTab, setPayrollTab] = useState('all'); // 'all' | 'mine'
  const [search, setSearch] = useState('');
@@ -3350,37 +3357,51 @@ export function PayrollPage({ db, save, user, setView }) {
  const canRunPayroll = isSuperAdmin;
  const canViewAllStaff = isSuperAdmin || isHR;
 
+ const profileUser =
+ (db.users || []).find(
+ (u) =>
+ String(u.id) === String(user?.id) ||
+ String(u.email || '').toLowerCase() === String(user?.email || '').toLowerCase()
+ ) || user;
+
+ const buildPayParts = (emp, payrollMonth, payrollYear) => {
+ const basic = Number(emp?.salary ?? emp?.basic_salary) || 0;
+ const allowances = Math.max(0, Number(emp?.allowances) || 0);
+ const warningCount = countMonthlyAttendanceWarnings(
+ db.attendanceWarnings || [],
+ emp?.id,
+ payrollMonth,
+ payrollYear
+ );
+ const halfDays = halfDaysFromWarnings(warningCount);
+ const attendancePenalty = calcHalfDayPenalty(basic, warningCount);
+ const deductions = attendancePenalty;
+ const net = basic + allowances - deductions;
+ return {
+ basic,
+ allowances,
+ deductions,
+ attendancePenalty,
+ attendanceWarnings: warningCount,
+ halfDaysCut: halfDays,
+ deductionTaxPf: 0,
+ net,
+ };
+ };
+
  const runPayroll = () => {
  const active = (db.users || []).filter(u => ['active', 'on_leave'].includes(u.status));
  const payrollMonth = parseInt(month, 10);
  const recs = active.map((emp, i) => {
- const basic = Number(emp.salary || emp.basic_salary) || 0;
- const allowances = Math.round(basic * .12);
- const taxPf = Math.round((basic + allowances) * .09);
- const warningCount = countMonthlyAttendanceWarnings(
- db.attendanceWarnings || [],
- emp.id,
- payrollMonth,
- year
- );
- const halfDays = halfDaysFromWarnings(warningCount);
- const attendancePenalty = calcHalfDayPenalty(basic, warningCount);
- const deductions = taxPf + attendancePenalty;
+ const parts = buildPayParts(emp, payrollMonth, year);
  return {
  id: Date.now() + i,
  uid: emp.id,
  month: payrollMonth,
  year,
- basic,
- allowances,
+ ...parts,
  overtime: 0,
  bonus: 0,
- deductions,
- deductionTaxPf: taxPf,
- attendancePenalty,
- attendanceWarnings: warningCount,
- halfDaysCut: halfDays,
- net: basic + allowances - deductions,
  status: 'processed',
  date: new Date().toISOString().split('T')[0]
  };
@@ -3391,12 +3412,12 @@ export function PayrollPage({ db, save, user, setView }) {
  };
 
  // Determine list based on tab or role
- const rawList = (canViewAllStaff && payrollTab === 'all') ? (db.payroll || []) : (db.payroll || []).filter(p => p.uid === user.id);
+ const rawList = (canViewAllStaff && payrollTab === 'all') ? (db.payroll || []) : (db.payroll || []).filter(p => String(p.uid) === String(user.id) || String(p.uid) === String(profileUser?.id));
  
  const filteredList = rawList.filter(p => {
- const emp = (db.users || []).find(u => u.id === p.uid);
+ const emp = (db.users || []).find(u => String(u.id) === String(p.uid));
  const empName = emp?.name || '';
- const empEid = emp?.eid || '';
+ const empEid = emp?.eid || emp?.employee_id || '';
  const monthName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(p.month || 7) - 1];
  
  return empName.toLowerCase().includes(search.toLowerCase()) || 
@@ -3405,11 +3426,29 @@ export function PayrollPage({ db, save, user, setView }) {
  });
 
  const totalNet = filteredList.reduce((s, p) => s + (p.net || 0), 0);
- const myRecord = (db.payroll || []).find(p => p.uid === user.id);
+ const myRecord =
+ (db.payroll || []).find(
+ (p) =>
+ (String(p.uid) === String(user?.id) || String(p.uid) === String(profileUser?.id)) &&
+ Number(p.month) === Number(month) &&
+ Number(p.year) === Number(year)
+ ) ||
+ (db.payroll || []).find(
+ (p) => String(p.uid) === String(user?.id) || String(p.uid) === String(profileUser?.id)
+ );
+
+ // Live preview from onboarding compensation + warning deductions when no slip yet
+ const liveMine = buildPayParts(profileUser, Number(month), year);
+ const displayBasic = myRecord?.basic ?? liveMine.basic;
+ const displayAllowances = myRecord?.allowances ?? liveMine.allowances;
+ const displayDeductions = myRecord?.deductions ?? liveMine.deductions;
+ const displayNet = myRecord?.net ?? liveMine.net;
+ const displayWarnings = myRecord?.attendanceWarnings ?? liveMine.attendanceWarnings;
+ const displayHalfDays = myRecord?.halfDaysCut ?? liveMine.halfDaysCut;
 
  return (
  <div className="anim-fadeup">
- <PageHdr title="Payroll & Salary Slips" sub="View monthly salary statements, payslips & disbursement records">
+ <PageHdr title="Payroll & Salary Slips" sub="Salary from HR onboarding · allowances if set · attendance warning deductions · net take-home">
  {canRunPayroll ? (
  <div style={{ display: 'flex', gap: 10 }}>
  <select className="form-input" style={{ width: 130 }} value={month} onChange={e => setMonth(e.target.value)}>
@@ -3421,7 +3460,7 @@ export function PayrollPage({ db, save, user, setView }) {
  </div>
  ) : (
  <div style={{ background: '#ECFDF5', color: '#047857', padding: '6px 14px', borderRadius: 99, fontSize: 12, fontWeight: 800, border: '1px solid #A7F3D0' }}>
- Verified Salary Records & Payslips
+ Onboarded salary · warning deductions applied
  </div>
  )}
  </PageHdr>
@@ -3481,10 +3520,10 @@ export function PayrollPage({ db, save, user, setView }) {
  ))
  ) : (
  [
- { l: 'Basic Monthly Pay', v: `₹${(myRecord?.basic || user.salary || 50000).toLocaleString()}`, bg: '#DBEAFE', ic: '#2563EB', icon: 'card' },
- { l: 'Allowances (+12%)', v: `+₹${(myRecord?.allowances || Math.round((user.salary || 50000) * .12)).toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'trending' },
- { l: 'Deductions (-9%)', v: `-₹${(myRecord?.deductions || Math.round((user.salary || 50000) * 1.12 * .09)).toLocaleString()}`, bg: '#FEE2E2', ic: '#DC2626', icon: 'file' },
- { l: 'Net Take-Home', v: `₹${(myRecord?.net || Math.round((user.salary || 50000) * 1.12 * .91)).toLocaleString()}`, bg: '#F3E8FF', ic: 'var(--accent)', icon: 'card' }
+ { l: 'Basic Monthly Pay', v: `₹${Number(displayBasic).toLocaleString()}`, bg: '#DBEAFE', ic: '#2563EB', icon: 'card' },
+ { l: 'Allowances', v: `+₹${Number(displayAllowances).toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'trending' },
+ { l: displayHalfDays > 0 ? `Warning Deductions (${displayHalfDays} half-day)` : 'Warning Deductions', v: `-₹${Number(displayDeductions).toLocaleString()}`, bg: '#FEE2E2', ic: '#DC2626', icon: 'file' },
+ { l: 'Net Take-Home', v: `₹${Number(displayNet).toLocaleString()}`, bg: '#F3E8FF', ic: 'var(--accent)', icon: 'card' }
  ].map((s, i) => (
  <div key={i} className="stat-c">
  <div className="stat-icon-wrap" style={{ background: s.bg }}><IC n={s.icon} s={20} c={s.ic}/></div>
@@ -3493,6 +3532,17 @@ export function PayrollPage({ db, save, user, setView }) {
  ))
  )}
  </div>
+
+ {!(canViewAllStaff && payrollTab === 'all') && (
+ <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: '10px 14px', marginBottom: 16, fontSize: 12.5, fontWeight: 650, color: '#1E40AF' }}>
+ Based on HR onboarding: basic ₹{Number(displayBasic).toLocaleString()}
+ {Number(displayAllowances) > 0 ? ` + allowances ₹${Number(displayAllowances).toLocaleString()}` : ' (no allowances)'}
+ {'. '}
+ {displayWarnings > 0
+ ? `${displayWarnings} attendance warning(s) this month → ${displayHalfDays} half-day pay cut(s).`
+ : 'No attendance warning deductions this month.'}
+ </div>
+ )}
 
  {/* SEARCH TOOLBAR FOR STAFF LIST */}
  {canViewAllStaff && payrollTab === 'all' && (
@@ -3513,13 +3563,51 @@ export function PayrollPage({ db, save, user, setView }) {
  <table className="tbl">
  <thead><tr><th>Employee</th><th>Period</th><th>Basic</th><th>Allowances</th><th>Deductions</th><th>Net Salary</th><th>Status</th><th>Payslip</th></tr></thead>
  <tbody>
- {filteredList.length === 0 && (
+ {filteredList.length === 0 && !(canViewAllStaff && payrollTab === 'all') && liveMine.basic > 0 && (
+ <tr>
+ <td>
+ <div className="emp-cell">
+ <img src={profileUser?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Staff'} className="tbl-av" alt=""/>
+ <div>
+ <div style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{profileUser?.name || 'You'}</div>
+ <div style={{ fontSize: 11, color: '#6B7280' }}>{profileUser?.eid || profileUser?.employee_id || 'EMP'} • {profileUser?.title || profileUser?.designation || 'Staff'}</div>
+ </div>
+ </div>
+ </td>
+ <td style={{ fontSize: 13, color: '#4B5563', fontWeight: 600 }}>{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(month) - 1]} {year}</td>
+ <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>₹{liveMine.basic.toLocaleString()}</td>
+ <td style={{ color: '#059669', fontWeight: 700, fontSize: 13 }}>+₹{liveMine.allowances.toLocaleString()}</td>
+ <td style={{ color: '#DC2626', fontWeight: 700, fontSize: 13 }}>-₹{liveMine.deductions.toLocaleString()}</td>
+ <td style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 17, color: '#111827' }}>₹{liveMine.net.toLocaleString()}</td>
+ <td><span className="badge b-warning"><span className="badge-dot"/>Live preview</span></td>
+ <td>
+ <button
+ className="btn btn-sm btn-ghost"
+ style={{ borderRadius: 10, fontWeight: 800, fontSize: 11.5, color: 'var(--accent)' }}
+ onClick={() => setPayslip({
+ id: 'live-preview',
+ uid: profileUser?.id || user?.id,
+ month: Number(month),
+ year,
+ ...liveMine,
+ overtime: 0,
+ bonus: 0,
+ status: 'preview',
+ date: new Date().toISOString().split('T')[0],
+ })}
+ >
+ View / Print Slip
+ </button>
+ </td>
+ </tr>
+ )}
+ {filteredList.length === 0 && ((canViewAllStaff && payrollTab === 'all') || liveMine.basic <= 0) && (
  <tr>
  <td colSpan={8}>
  <div className="empty-state" style={{ padding: 30 }}>
  <span className="empty-state-icon"><IC n="card" s={48} style={{ color: 'var(--text-muted)' }}/></span>
  <h3>No payroll records found</h3>
- <p>Payroll records for this period will appear here</p>
+ <p>{canViewAllStaff && payrollTab === 'all' ? 'Super Admin can run payroll for this period' : 'Onboarded salary will appear here once HR sets your basic pay'}</p>
  </div>
  </td>
  </tr>
@@ -3576,13 +3664,13 @@ export function PayrollPage({ db, save, user, setView }) {
  <div><span style={{color:'var(--text-muted)'}}>Pay Date:</span> <strong>{payslip.date}</strong></div>
  </div>
  <div className="payslip-row"><span>Basic Salary</span><span>₹{payslip.basic?.toLocaleString()}</span></div>
- <div className="payslip-row"><span>Housing & Transport Allowances</span><span style={{color:'var(--green-dark)'}}>+₹{payslip.allowances?.toLocaleString()}</span></div>
+ <div className="payslip-row"><span>Allowances</span><span style={{color:'var(--green-dark)'}}>+₹{(payslip.allowances || 0).toLocaleString()}</span></div>
  <div className="payslip-row"><span>Overtime</span><span style={{color:'var(--green-dark)'}}>+₹{payslip.overtime||0}</span></div>
  <div className="payslip-row"><span>Performance Bonus</span><span style={{color:'var(--green-dark)'}}>+₹{payslip.bonus||0}</span></div>
- <div className="payslip-row"><span>Tax & Provident Fund Deductions</span><span style={{color:'var(--red-dark)'}}>-₹{(payslip.deductionTaxPf ?? payslip.deductions)?.toLocaleString()}</span></div>
- {(payslip.attendancePenalty > 0 || payslip.halfDaysCut > 0) && (
- <div className="payslip-row"><span>Attendance Penalty ({payslip.halfDaysCut || 0} half-day{payslip.halfDaysCut > 1 ? 's' : ''} · {payslip.attendanceWarnings || 0} warnings)</span><span style={{color:'var(--red-dark)'}}>-₹{(payslip.attendancePenalty || 0).toLocaleString()}</span></div>
+ {(payslip.deductionTaxPf > 0) && (
+ <div className="payslip-row"><span>Tax & Provident Fund</span><span style={{color:'var(--red-dark)'}}>-₹{payslip.deductionTaxPf.toLocaleString()}</span></div>
  )}
+ <div className="payslip-row"><span>Attendance Warning Deductions{payslip.halfDaysCut ? ` (${payslip.halfDaysCut} half-day)` : ''}{payslip.attendanceWarnings ? ` · ${payslip.attendanceWarnings} warnings` : ''}</span><span style={{color:'var(--red-dark)'}}>-₹{(payslip.attendancePenalty ?? payslip.deductions ?? 0).toLocaleString()}</span></div>
  <div className="payslip-total"><span>Net Salary</span><span style={{color:'var(--green-dark)'}}>₹{payslip.net?.toLocaleString()}</span></div>
  </div>
  <div className="btn-row">
@@ -4344,6 +4432,7 @@ export function OnboardingPage({ db, save, user }) {
  joining_date: new Date().toISOString().slice(0, 10),
  employment_type: 'full_time',
  basic_salary: 30000,
+ allowances: 0,
  bank_name: '',
  account_number: '',
  ifsc_code: '',
@@ -4386,12 +4475,20 @@ export function OnboardingPage({ db, save, user }) {
  status: u.status || 'active',
  avatar: u.avatar_url,
  avatar_url: u.avatar_url,
- employment_type: 'full_time',
- basic_salary: u.basic_salary,
+ employment_type: u.employment_type || 'full_time',
+ address: u.address || '',
+ dob: u.dob || '',
+ basic_salary: u.basic_salary ?? 0,
+ salary: u.basic_salary ?? 0,
+ allowances: u.allowances ?? 0,
  bank_name: u.bank_name,
+ bankName: u.bank_name,
  account_number: u.account_number,
+ bankAccount: u.account_number,
  ifsc_code: u.ifsc_code,
+ bankIfsc: u.ifsc_code,
  emergency_contact: u.emergency_contact,
+ emergencyPhone: u.emergency_contact,
  must_change_password: u.must_change_password || 0,
  last_login: u.last_login,
  }));
@@ -4442,6 +4539,7 @@ export function OnboardingPage({ db, save, user }) {
  joining_date: new Date().toISOString().slice(0, 10),
  employment_type: 'full_time',
  basic_salary: 30000,
+ allowances: 0,
  bank_name: '',
  account_number: '',
  ifsc_code: '',
@@ -4497,6 +4595,8 @@ export function OnboardingPage({ db, save, user }) {
  address: form.address,
  employment_type: form.employment_type,
  basic_salary: parseFloat(form.basic_salary) || 30000,
+ salary: parseFloat(form.basic_salary) || 30000,
+ allowances: Math.max(0, parseFloat(form.allowances) || 0),
  bank_name: form.bank_name,
  bankName: form.bank_name,
  account_number: form.account_number,
@@ -4525,7 +4625,15 @@ export function OnboardingPage({ db, save, user }) {
  setInlineError(data.error || 'Failed to save employee to the database. Check your session and try again.');
  return;
  }
- save('users', [{ ...newEmp, id: data.id || newEmp.id }, ...db.users]);
+ save('users', [{
+ ...newEmp,
+ id: data.id || newEmp.id,
+ basic_salary: data.basic_salary ?? newEmp.basic_salary,
+ salary: data.basic_salary ?? newEmp.salary,
+ allowances: data.allowances ?? newEmp.allowances,
+ address: data.address ?? newEmp.address,
+ dob: data.dob ?? newEmp.dob,
+ }, ...db.users]);
  } catch (err) {
  setInlineError('Network error while onboarding. Employee was not saved to the database.');
  return;
@@ -4994,7 +5102,11 @@ export function OnboardingPage({ db, save, user }) {
  </div>
  <div className="form-group">
  <label className="form-label">Basic Salary (Monthly ₹)</label>
- <input type="number" className="form-input" value={form.basic_salary} onChange={e => setForm({ ...form, basic_salary: e.target.value })} />
+ <input type="number" className="form-input" min={0} value={form.basic_salary} onChange={e => setForm({ ...form, basic_salary: e.target.value })} />
+ </div>
+ <div className="form-group">
+ <label className="form-label">Allowances (Monthly ₹)</label>
+ <input type="number" className="form-input" min={0} value={form.allowances ?? 0} onChange={e => setForm({ ...form, allowances: e.target.value })} placeholder="0 if none" />
  </div>
  <div className="form-group">
  <label className="form-label">Portal Role Access</label>
@@ -5127,7 +5239,11 @@ export function OnboardingPage({ db, save, user }) {
  </div>
  <div className="form-group">
  <label className="form-label">Basic Salary (Monthly ₹)</label>
- <input type="number" className="form-input" value={editForm.basic_salary || 30000} onChange={e => setEditForm({ ...editForm, basic_salary: e.target.value })} />
+ <input type="number" className="form-input" value={editForm.basic_salary || 30000} onChange={e => setEditForm({ ...editForm, basic_salary: e.target.value, salary: e.target.value })} />
+ </div>
+ <div className="form-group">
+ <label className="form-label">Allowances (Monthly ₹)</label>
+ <input type="number" className="form-input" min={0} value={editForm.allowances ?? 0} onChange={e => setEditForm({ ...editForm, allowances: e.target.value })} />
  </div>
  <div className="form-group">
  <label className="form-label">Portal Role</label>
@@ -7506,6 +7622,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  // Central Top-Level Store Candidate List State — starts empty, filled by API on mount
  const [candidates, setCandidates] = useState([]);
  const [candidatesLoading, setCandidatesLoading] = useState(true);
+ const [sheetDate, setSheetDate] = useState(() => todayIsoDate());
+ const skipCloudOverwriteUntilRef = useRef(0);
 
  // INITIAL LOAD: fetch API only when JWT exists (avoids 401 spam without a session)
  useEffect(() => {
@@ -7551,6 +7669,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  // Keep candidates in sync with top-level db.candidates if updated externally
  useEffect(() => {
+ if (Date.now() < skipCloudOverwriteUntilRef.current) return;
  if (db && Array.isArray(db.candidates) && db.candidates.length > 0) {
  const cleaned = deduplicateCandidates(db.candidates);
  setCandidates(prev => {
@@ -7645,6 +7764,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  const syncFromMongoAtlas = async () => {
  if (Date.now() - lastEditedRef.current < 10000) return;
+ if (Date.now() < skipCloudOverwriteUntilRef.current) return;
  try {
  const res = await fetch(`${GLOBAL_API_BASE}/candidates`);
  if (res.status === 401) {
@@ -7654,7 +7774,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  }
  if (res.ok) {
  const cloudData = await res.json();
- if (isMounted && Array.isArray(cloudData) && cloudData.length > 0) {
+ if (isMounted && Array.isArray(cloudData)) {
  setCandidates(prev => {
  const cleaned = deduplicateCandidates(cloudData);
  if (JSON.stringify(prev) !== JSON.stringify(cleaned)) {
@@ -7723,16 +7843,74 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  showToast(` Removed ${removedCount} duplicate candidates! Datasheet is clean.`, 'success');
  };
 
- const handleClearAllCandidates = () => {
+ const handleClearAllCandidates = async () => {
  if (isSA) return;
- if (window.confirm('Are you sure you want to clear all candidate entries permanently? You can add new entries manually or upload an Excel file.')) {
- localStorage.setItem('cegs_candidates_cleared', 'true');
- updateCandidatesStore([]);
- const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
- if (token) {
- fetch(`${API_BASE}/candidates/all`, { method: 'DELETE' }).catch(() => {});
+ const displayDate = formatSheetDateDisplay(sheetDate);
+ const who =
+ isEmp
+ ? 'your'
+ : selectedEmployeeFilter !== 'ALL'
+ ? `${selectedEmployeeFilter}'s`
+ : "all recruiters'";
+ if (
+ !window.confirm(
+ `Delete ${who} entries for ${displayDate} permanently from the database? You can still view other dates with the sheet date picker.`
+ )
+ ) {
+ return;
  }
- showToast('Datasheet cleared completely. Ready for manual entry or file upload.', 'info');
+
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ if (!token) {
+ showToast('No API session. Log in again to clear from the database.', 'error');
+ return;
+ }
+
+ const empQs =
+ isEmp
+ ? `&employee=${encodeURIComponent(user?.name || '')}`
+ : selectedEmployeeFilter !== 'ALL'
+ ? `&employee=${encodeURIComponent(selectedEmployeeFilter)}`
+ : '';
+
+ setSaveStatus('Clearing...');
+ try {
+ const res = await fetch(
+ `${API_BASE}/candidates/all?date=${encodeURIComponent(sheetDate)}${empQs}`,
+ { method: 'DELETE' }
+ );
+ const data = await res.json().catch(() => ({}));
+ if (!res.ok) {
+ setSaveStatus('Error — clear failed');
+ showToast(data.error || 'Failed to clear datasheet from database.', 'error');
+ return;
+ }
+
+ // Remove cleared rows from local store (match selected day + employee scope)
+ const next = (candidates || []).filter((c) => {
+ if (!matchesSheetDate(c, sheetDate)) return true;
+ if (isEmp) {
+ const candEmp = (c.employee || '').trim().toLowerCase();
+ const me = (user?.name || '').trim().toLowerCase();
+ return candEmp && candEmp !== me;
+ }
+ if (selectedEmployeeFilter !== 'ALL') {
+ return (c.employee || '').trim().toLowerCase() !== selectedEmployeeFilter.toLowerCase();
+ }
+ return false;
+ });
+
+ skipCloudOverwriteUntilRef.current = Date.now() + 15000;
+ lastEditedRef.current = Date.now();
+ updateCandidatesStore(next);
+ setSaveStatus('Synced');
+ showToast(
+ `Cleared ${data.deletedCount ?? 0} entries for ${displayDate}.`,
+ 'info'
+ );
+ } catch {
+ setSaveStatus('Error — clear failed');
+ showToast('Network error while clearing. Entries were not deleted.', 'error');
  }
  };
 
@@ -7759,18 +7937,10 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return true;
  });
 
- const isTodayDate = (dateStr) => {
- if (!dateStr) return true;
- const str = String(dateStr).trim();
- if (str === '' || str.toLowerCase() === 'today') return true;
- const todayStr = new Date().toLocaleDateString('en-GB');
- return str === todayStr || str.includes('29/07') || str.includes('28/07') || str.includes('2026') || str.includes('2025') || str.includes('/') || str.includes('-');
- };
-
- const todayTargetCandidates = roleFilteredCandidates.filter(c => isTodayDate(c.date));
+ const todayTargetCandidates = roleFilteredCandidates.filter(c => matchesSheetDate(c, sheetDate));
  // SA team metric cards always use all recruiters (filter only affects datasheet / drill-down)
  const todayTeamCandidates = isSA
-   ? candidates.filter(c => isTodayDate(c.date))
+   ? candidates.filter(c => matchesSheetDate(c, sheetDate))
    : todayTargetCandidates;
  const metricCandidates = isSA ? todayTeamCandidates : todayTargetCandidates;
 
@@ -7780,11 +7950,14 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  // 5 Tasks (each task is 20% weight, 60% minimum performance required every day)
- const callsMadeCount = metricCandidates.filter(c => isConnectedCall(c)).length;
- const interviewsScheduledTargetCount = metricCandidates.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical', 'itv'])).length;
- const walkinsTargetCount = metricCandidates.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit', 'came'])).length;
- const selectedTodayTargetCount = metricCandidates.filter(c => hasKeyword(c, ['selected', 'selection', 'hired', 'select'])).length;
- const joinedTodayTargetCount = metricCandidates.filter(c => hasKeyword(c, ['joined', 'joining', 'staff', 'join'])).length;
+ // Counts align with daily sheet categories for the selected date
+ const callsMadeCount = metricCandidates.filter(
+ c => getCategoryFromCandidate(c) === 'calls' && isConnectedCall(c)
+ ).length;
+ const interviewsScheduledTargetCount = metricCandidates.filter(c => getCategoryFromCandidate(c) === 'interviews').length;
+ const walkinsTargetCount = metricCandidates.filter(c => getCategoryFromCandidate(c) === 'walkins').length;
+ const selectedTodayTargetCount = metricCandidates.filter(c => getCategoryFromCandidate(c) === 'selected').length;
+ const joinedTodayTargetCount = metricCandidates.filter(c => getCategoryFromCandidate(c) === 'joined').length;
 
  // Performance calculations (each of the 5 tasks contributes max 20%)
  const callsScore = Math.min(20, Math.round((callsMadeCount / 80) * 20));
@@ -7822,13 +7995,14 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const employeePerformanceList = employeeList.map(empName => {
  const empCands = candidates.filter(c => {
  const candEmp = (c.employee || '').trim().toLowerCase();
- return candEmp === empName.trim().toLowerCase();
+ if (candEmp !== empName.trim().toLowerCase()) return false;
+ return matchesSheetDate(c, sheetDate);
  });
- const calls = empCands.filter(c => isConnectedCall(c)).length;
- const itvs = empCands.filter(c => hasKeyword(c, ['interview', 'scheduled', 'schedule', 'appointment', 'radical', 'itv'])).length;
- const walks = empCands.filter(c => hasKeyword(c, ['walkin', 'walk-in', 'walked', 'visited', 'visit', 'came'])).length;
- const sels = empCands.filter(c => hasKeyword(c, ['selected', 'selection', 'hired', 'select'])).length;
- const jnds = empCands.filter(c => hasKeyword(c, ['joined', 'joining', 'staff', 'join'])).length;
+ const calls = empCands.filter(c => getCategoryFromCandidate(c) === 'calls' && isConnectedCall(c)).length;
+ const itvs = empCands.filter(c => getCategoryFromCandidate(c) === 'interviews').length;
+ const walks = empCands.filter(c => getCategoryFromCandidate(c) === 'walkins').length;
+ const sels = empCands.filter(c => getCategoryFromCandidate(c) === 'selected').length;
+ const jnds = empCands.filter(c => getCategoryFromCandidate(c) === 'joined').length;
 
  const cS = Math.min(20, Math.round((calls / 80) * 20));
  const iS = Math.min(20, Math.round((itvs / 15) * 20));
@@ -7888,12 +8062,14 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  }
 
  setSaveStatus('Saving...');
- const categoryRows = roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === activeTaskCategory);
+ const categoryRows = roleFilteredCandidates.filter(
+ c => getCategoryFromCandidate(c) === activeTaskCategory && matchesSheetDate(c, sheetDate)
+ );
 
  const draftRow = {
  ...candidateForm,
  slNo: categoryRows.length + 1,
- date: new Date().toLocaleDateString('en-GB'),
+ date: formatSheetDateDisplay(sheetDate),
  category: activeTaskCategory,
  employee: (selectedEmployeeFilter && selectedEmployeeFilter !== 'ALL')
  ? selectedEmployeeFilter
@@ -8065,6 +8241,10 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const workbook = XLSX.read(data, { type: 'array' });
  const sheet = workbook.Sheets[workbook.SheetNames[0]];
  const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+ const sheetDisplay = formatSheetDateDisplay(sheetDate);
+ const baseSl = roleFilteredCandidates.filter(
+ c => getCategoryFromCandidate(c) === activeTaskCategory && matchesSheetDate(c, sheetDate)
+ ).length;
 
  newEntries = rawRows.map((row, idx) => {
  const findVal = (keys) => {
@@ -8075,39 +8255,78 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return '';
  };
 
+ const rawStatus = String(findVal(['callstatus', 'status']) || '').trim();
+ const rawDate = findVal(['date', 'dt']);
+ const normalizedFromFile = normalizeCandidateDate(rawDate);
+
  return {
- slNo: candidates.length + idx + 1,
- date: String(findVal(['date', 'dt']) || new Date().toLocaleDateString('en-GB')),
+ slNo: baseSl + idx + 1,
+ date: sheetDisplay,
+ category: activeTaskCategory,
  name: String(findVal(['name', 'candidate']) || 'IMPORTED CANDIDATE').toUpperCase(),
  number: String(findVal(['number', 'contact', 'phone']) || ''),
  languages: String(findVal(['language', 'lang']) || 'English'),
  qualification: String(findVal(['qualification']) || ''),
  response: String(findVal(['response']) || ''),
- callStatus: String(findVal(['callstatus', 'status']) || 'Connected'),
+ callStatus: rawStatus || 'Connected',
  location: String(findVal(['location']) || 'Bengaluru'),
  experience: Number(findVal(['experience'])) || 0,
  followUp1: String(findVal(['followup1']) || ''),
  followUp2: String(findVal(['followup2']) || ''),
  followUp3: String(findVal(['followup3']) || ''),
- employee: String(findVal(['employee', 'recruiter']) || user?.name || 'Madiha Mehak')
+ employee: String(
+ findVal(['employee', 'recruiter']) ||
+ (selectedEmployeeFilter && selectedEmployeeFilter !== 'ALL' ? selectedEmployeeFilter : '') ||
+ user?.name ||
+ 'Recruiter'
+ ),
+ // keep file date only if it matched selected sheet (ignore otherwise)
+ _fileDateIso: normalizedFromFile || sheetDate,
  };
  });
  }
 
  if (newEntries.length > 0) {
- const formattedNew = newEntries.map((r, i) => ({ ...r, id: 'imp_' + Date.now() + '_' + i }));
+ const formattedNew = newEntries.map((r, i) => {
+ const { _fileDateIso, ...rest } = r;
+ return { ...rest, id: 'imp_' + Date.now() + '_' + i };
+ });
+ lastEditedRef.current = Date.now();
  updateCandidatesStore([...candidates, ...formattedNew]);
 
  const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
  if (token) {
  try {
- await fetch(`${API_BASE}/candidates`, {
+ const res = await fetch(`${API_BASE}/candidates`, {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify(newEntries)
+ body: JSON.stringify(formattedNew.map(({ id, ...row }) => row)),
  });
+ if (res.ok) {
+ const saved = await res.json();
+ const savedArr = Array.isArray(saved) ? saved : [saved];
+ setCandidates((prev) => {
+ const withoutTemp = prev.filter((c) => !String(c.id || '').startsWith('imp_'));
+ const merged = [
+ ...withoutTemp,
+ ...savedArr.map((s, i) => ({
+ ...formattedNew[i],
+ ...s,
+ id: s.id || s._id,
+ _id: s.id || s._id,
+ })),
+ ];
+ const cleaned = deduplicateCandidates(merged);
+ save('candidates', cleaned);
+ return cleaned;
+ });
+ skipCloudOverwriteUntilRef.current = Date.now() + 10000;
  setSaveStatus('Synced to database');
- showToast(`Uploaded ${newEntries.length} candidates to the database.`, 'success');
+ showToast(`Uploaded ${newEntries.length} candidates for ${formatSheetDateDisplay(sheetDate)}.`, 'success');
+ } else {
+ setSaveStatus('Saved locally');
+ showToast(`Uploaded ${newEntries.length} candidates locally (cloud sync failed).`, 'info');
+ }
  } catch {
  setSaveStatus('Saved locally');
  showToast(`Uploaded ${newEntries.length} candidates locally (cloud sync failed).`, 'info');
@@ -8125,7 +8344,12 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  e.target.value = '';
  };
 
- const categoryCandidates = roleFilteredCandidates.filter(cand => getCategoryFromCandidate(cand) === activeTaskCategory);
+ const categoryCandidates = roleFilteredCandidates.filter(
+ cand => getCategoryFromCandidate(cand) === activeTaskCategory && matchesSheetDate(cand, sheetDate)
+ );
+
+ const sheetDayCandidates = roleFilteredCandidates.filter(c => matchesSheetDate(c, sheetDate));
+ const tabCount = (cat) => sheetDayCandidates.filter(c => getCategoryFromCandidate(c) === cat).length;
 
  const filteredCandidates = categoryCandidates.filter(cand => {
  const q = searchQuery.toLowerCase();
@@ -8353,7 +8577,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  transition: 'all 0.2s ease'
  }}
  >
- Calls Made Page ({roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === 'calls').length})
+ Calls Made Page ({tabCount('calls')})
  </button>
 
  <button 
@@ -8367,7 +8591,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  transition: 'all 0.2s ease'
  }}
  >
- Interviews Scheduled Page ({roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === 'interviews').length})
+ Interviews Scheduled Page ({tabCount('interviews')})
  </button>
 
  <button 
@@ -8381,7 +8605,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  transition: 'all 0.2s ease'
  }}
  >
- Walk-ins Today Page ({roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === 'walkins').length})
+ Walk-ins Today Page ({tabCount('walkins')})
  </button>
 
  <button 
@@ -8395,7 +8619,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  transition: 'all 0.2s ease'
  }}
  >
- Selected Today Page ({roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === 'selected').length})
+ Selected Today Page ({tabCount('selected')})
  </button>
 
  <button 
@@ -8409,7 +8633,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  transition: 'all 0.2s ease'
  }}
  >
- Joined Today Page ({roleFilteredCandidates.filter(c => getCategoryFromCandidate(c) === 'joined').length})
+ Joined Today Page ({tabCount('joined')})
  </button>
  </div>
 
@@ -8426,10 +8650,25 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  activeTaskCategory === 'selected' ? 'Selected Today Datasheet' :
  'Joined Today Datasheet'} {isEmp ? `(${user?.name})` : selectedEmployeeFilter !== 'ALL' ? `(${selectedEmployeeFilter})` : '(All Recruiter Log)'}
  </h3>
- <p style={{ fontSize: 12.5, fontWeight: 700, color: saveStatus.includes('Error') || saveStatus.includes('Offline') ? 'var(--amber)' : '#059669', marginTop: 2 }}>{saveStatus}</p>
+ <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)', marginTop: 2 }}>
+ Daily sheet for {formatSheetDateDisplay(sheetDate)}
+ {' · '}
+ <span style={{ fontWeight: 700, color: saveStatus.includes('Error') || saveStatus.includes('Offline') ? 'var(--amber)' : '#059669' }}>{saveStatus}</span>
+ </p>
  </div>
 
  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+ <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: '#64748B' }}>
+ Sheet date
+ <input
+ type="date"
+ className="form-input"
+ style={{ borderRadius: 99, padding: '8px 12px', fontSize: 12, width: 150, minHeight: 40 }}
+ value={sheetDate}
+ onChange={(e) => setSheetDate(e.target.value || todayIsoDate())}
+ aria-label="Sheet date"
+ />
+ </label>
  <input
  className="form-input"
  style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, width: 200, minHeight: 40 }}
@@ -8446,7 +8685,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <button type="button" className="btn btn-secondary" style={{ borderRadius: 99, padding: '8px 14px', fontSize: 12, minHeight: 40, background: '#FEF3C7', borderColor: '#FDE68A', color: '#92400E' }} onClick={handleCleanDuplicates} title="Remove duplicate candidate entries">
  Clean Duplicates
  </button>
- <button type="button" className="btn btn-secondary" style={{ borderRadius: 99, padding: '8px 12px', fontSize: 12, minHeight: 40, background: '#FEE2E2', borderColor: '#FCA5A5', color: '#991B1B' }} onClick={handleClearAllCandidates} title="Clear all candidates">
+ <button type="button" className="btn btn-secondary" style={{ borderRadius: 99, padding: '8px 12px', fontSize: 12, minHeight: 40, background: '#FEE2E2', borderColor: '#FCA5A5', color: '#991B1B' }} onClick={handleClearAllCandidates} title="Clear entries for selected sheet date">
  Clear
  </button>
  <button type="button" className="btn btn-primary" style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, minHeight: 40 }} onClick={startAddCandidate}>
@@ -8476,7 +8715,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  {isAdding && !isSA && (
  <tr className="datasheet-entry-row">
  <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{categoryCandidates.length + 1}</td>
- <td><input className="cell-input" value={new Date().toLocaleDateString('en-GB')} readOnly aria-label="Date" /></td>
+ <td><input className="cell-input" value={formatSheetDateDisplay(sheetDate)} readOnly aria-label="Date" /></td>
  <td><input className="cell-input" autoFocus value={candidateForm.name} onChange={e => setCandidateForm({ ...candidateForm, name: e.target.value.toUpperCase() })} placeholder="NAME" aria-label="Candidate name" /></td>
  <td><input className="cell-input" value={candidateForm.number} onChange={e => setCandidateForm({ ...candidateForm, number: e.target.value })} placeholder="Phone" aria-label="Contact number" /></td>
  <td>
@@ -11476,9 +11715,41 @@ export function RewardsPage({ db, save, user }) {
 }
 
 export function ProfilePage({ db, save, user }) {
- const [formData, setFormData] = useState({ ...user });
+ const profileFromDb =
+ (db.users || []).find(
+ (u) =>
+ String(u.id) === String(user?.id) ||
+ String(u.email || '').toLowerCase() === String(user?.email || '').toLowerCase()
+ ) || {};
+ const mergedUser = {
+ ...user,
+ ...profileFromDb,
+ name: profileFromDb.name || user?.name,
+ email: profileFromDb.email || user?.email,
+ title: profileFromDb.title || profileFromDb.designation || user?.title || user?.designation,
+ phone: profileFromDb.phone || profileFromDb.contact || user?.phone || user?.contact,
+ emergencyPhone: profileFromDb.emergencyPhone || profileFromDb.emergency_contact || user?.emergency_contact,
+ bankName: profileFromDb.bankName || profileFromDb.bank_name || user?.bank_name,
+ bankAccount: profileFromDb.bankAccount || profileFromDb.account_number || user?.account_number,
+ bankIfsc: profileFromDb.bankIfsc || profileFromDb.ifsc_code || user?.ifsc_code,
+ avatar: profileFromDb.avatar || profileFromDb.avatar_url || user?.avatar || user?.avatar_url,
+ basic_salary: profileFromDb.basic_salary ?? profileFromDb.salary ?? user?.basic_salary ?? 0,
+ allowances: profileFromDb.allowances ?? user?.allowances ?? 0,
+ address: profileFromDb.address || user?.address || '',
+ dob: profileFromDb.dob || user?.dob || '',
+ joining_date: profileFromDb.joining_date || profileFromDb.joined || user?.joining_date || '',
+ employee_id: profileFromDb.employee_id || profileFromDb.eid || user?.employee_id || '',
+ employment_type: profileFromDb.employment_type || user?.employment_type || 'full_time',
+ };
+
+ const [formData, setFormData] = useState({ ...mergedUser });
  const [tab, setTab] = useState('personal');
  const avatarFileRef = useRef(null);
+
+ useEffect(() => {
+ setFormData({ ...mergedUser });
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [user?.id, db.users, profileFromDb.basic_salary, profileFromDb.allowances, profileFromDb.address]);
 
  const isAdminOrHR = user?.role === 'super_admin' || user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
 
@@ -11490,7 +11761,7 @@ export function ProfilePage({ db, save, user }) {
  const base64 = evt.target.result;
  const updated = { ...formData, avatar: base64 };
  setFormData(updated);
- save('users', db.users.map(u => u.id === user.id ? { ...u, avatar: base64 } : u));
+ save('users', db.users.map(u => u.id === user.id || String(u.email).toLowerCase() === String(user.email).toLowerCase() ? { ...u, avatar: base64, avatar_url: base64 } : u));
  };
  reader.readAsDataURL(file);
  };
@@ -11498,10 +11769,10 @@ export function ProfilePage({ db, save, user }) {
  const update = e => {
  e.preventDefault();
  if (!isAdminOrHR) {
- alert('ℹ Employee profile details are managed centrally by HR Admin. Only profile photo upload is permitted for employees.');
+ alert('Employee profile details are managed centrally by HR Admin. Only profile photo upload is permitted for employees.');
  return;
  }
- save('users', db.users.map(u => u.id === user.id ? { ...u, ...formData } : u));
+ save('users', db.users.map(u => (u.id === user.id || String(u.email).toLowerCase() === String(user.email).toLowerCase()) ? { ...u, ...formData } : u));
  alert('Profile information successfully saved.');
  };
 
@@ -11513,15 +11784,14 @@ export function ProfilePage({ db, save, user }) {
  <div>
  <div className="section-title">My Profile</div>
  <div className="section-sub">
- {isAdminOrHR ? 'Manage personal details, avatar photo, contact entries, and financial records' : 'View your official employee details and update your profile photo'}
+ {isAdminOrHR ? 'Manage personal details, avatar photo, contact entries, and financial records' : 'Your official details from HR onboarding (photo upload allowed)'}
  </div>
  </div>
  </div>
 
  {!isAdminOrHR && (
  <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', padding: '12px 16px', borderRadius: 14, marginBottom: 18, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10 }}>
- <span>ℹ</span>
- <span>Official employee details are managed centrally by HR Admin. Employees are authorized to update their <strong>Profile Photo</strong>.</span>
+ <span>Official employee details come from HR Onboarding. You can update your Profile Photo only.</span>
  </div>
  )}
 
@@ -11529,7 +11799,7 @@ export function ProfilePage({ db, save, user }) {
  <div style={{ background: 'linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%)', borderRadius: 20, padding: 20, marginBottom: 20, border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
  <div style={{ position: 'relative' }}>
  <img 
- src={formData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name}`} 
+ src={formData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.name || user?.name}`} 
  alt={formData.name} 
  style={{ width: 84, height: 84, borderRadius: '50%', border: '3px solid var(--accent)', objectFit: 'cover', boxShadow: '0 4px 14px rgba(124,92,252,0.25)' }} 
  />
@@ -11537,6 +11807,7 @@ export function ProfilePage({ db, save, user }) {
  <div style={{ flex: 1, minWidth: 220 }}>
  <div style={{ fontSize: 16, fontWeight: 900, color: '#111827' }}>{formData.name}</div>
  <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', marginTop: 2 }}>{formData.title || 'Team Member'} · {formData.email}</div>
+ <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', marginTop: 4 }}>ID: {formData.employee_id || '—'} · Joined: {formData.joining_date || '—'}</div>
  <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
  <button 
  type="button" 
@@ -11563,16 +11834,28 @@ export function ProfilePage({ db, save, user }) {
  <input className="form-input" value={formData.name||''} onChange={e=>setFormData({...formData, name: e.target.value})} disabled={!isAdminOrHR} required />
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
+ <label className="form-label">Official Email</label>
+ <input className="form-input" value={formData.email||''} disabled />
+ </div>
+ <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Contact Phone Number</label>
- <input className="form-input" value={formData.phone||user?.contact||''} onChange={e=>setFormData({...formData, phone: e.target.value})} disabled={!isAdminOrHR} />
+ <input className="form-input" value={formData.phone||''} onChange={e=>setFormData({...formData, phone: e.target.value})} disabled={!isAdminOrHR} />
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Emergency Number</label>
- <input className="form-input" value={formData.emergencyPhone||user?.emergency_contact||''} onChange={e=>setFormData({...formData, emergencyPhone: e.target.value})} placeholder="+91 9876543210" disabled={!isAdminOrHR} />
+ <input className="form-input" value={formData.emergencyPhone||''} onChange={e=>setFormData({...formData, emergencyPhone: e.target.value})} placeholder="+91 9876543210" disabled={!isAdminOrHR} />
+ </div>
+ <div className="form-group" style={{ marginTop: 12 }}>
+ <label className="form-label">Date of Birth</label>
+ <input type="date" className="form-input" value={formData.dob||''} onChange={e=>setFormData({...formData, dob: e.target.value})} disabled={!isAdminOrHR} />
+ </div>
+ <div className="form-group" style={{ marginTop: 12 }}>
+ <label className="form-label">Residential Address</label>
+ <input className="form-input" value={formData.address||''} onChange={e=>setFormData({...formData, address: e.target.value})} disabled={!isAdminOrHR} />
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Role (Designation)</label>
- <input className="form-input" value={formData.title||user?.designation||''} onChange={e=>setFormData({...formData, title: e.target.value})} disabled={!isAdminOrHR} required />
+ <input className="form-input" value={formData.title||''} onChange={e=>setFormData({...formData, title: e.target.value})} disabled={!isAdminOrHR} required />
  </div>
  </>
  )}
@@ -11580,7 +11863,19 @@ export function ProfilePage({ db, save, user }) {
  <>
  <div className="form-group">
  <label className="form-label">Professional Designation Title</label>
- <input className="form-input" value={formData.title||user?.designation||''} onChange={e=>setFormData({...formData, title: e.target.value})} disabled={!isAdminOrHR} />
+ <input className="form-input" value={formData.title||''} onChange={e=>setFormData({...formData, title: e.target.value})} disabled={!isAdminOrHR} />
+ </div>
+ <div className="form-group" style={{ marginTop: 12 }}>
+ <label className="form-label">Employee ID</label>
+ <input className="form-input" value={formData.employee_id||''} disabled />
+ </div>
+ <div className="form-group" style={{ marginTop: 12 }}>
+ <label className="form-label">Date of Joining</label>
+ <input className="form-input" value={formData.joining_date||''} disabled={!isAdminOrHR} onChange={e=>setFormData({...formData, joining_date: e.target.value})} />
+ </div>
+ <div className="form-group" style={{ marginTop: 12 }}>
+ <label className="form-label">Employment Type</label>
+ <input className="form-input" value={formData.employment_type||''} disabled={!isAdminOrHR} onChange={e=>setFormData({...formData, employment_type: e.target.value})} />
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Academic Degrees & Certifications</label>
@@ -11591,16 +11886,27 @@ export function ProfilePage({ db, save, user }) {
  {tab === 'financial' && (
  <>
  <div className="form-group">
+ <label className="form-label">Basic Monthly Salary (₹)</label>
+ <input type="number" className="form-input" value={formData.basic_salary ?? 0} onChange={e=>setFormData({...formData, basic_salary: e.target.value, salary: e.target.value})} disabled={!isAdminOrHR} />
+ </div>
+ <div className="form-group" style={{ marginTop: 12 }}>
+ <label className="form-label">Monthly Allowances (₹)</label>
+ <input type="number" className="form-input" value={formData.allowances ?? 0} onChange={e=>setFormData({...formData, allowances: e.target.value})} disabled={!isAdminOrHR} />
+ </div>
+ <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 12px', marginTop: 12, fontSize: 12.5, fontWeight: 650, color: '#475569' }}>
+ Preview net (before warning cuts): ₹{(Number(formData.basic_salary || 0) + Number(formData.allowances || 0)).toLocaleString()}
+ </div>
+ <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Bank Name</label>
- <input className="form-input" value={formData.bankName||user?.bank_name||''} onChange={e=>setFormData({...formData, bankName: e.target.value})} placeholder="State Bank of India / HDFC" disabled={!isAdminOrHR} />
+ <input className="form-input" value={formData.bankName||''} onChange={e=>setFormData({...formData, bankName: e.target.value})} placeholder="State Bank of India / HDFC" disabled={!isAdminOrHR} />
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Account Number</label>
- <input className="form-input" value={formData.bankAccount||user?.account_number||''} onChange={e=>setFormData({...formData, bankAccount: e.target.value})} placeholder="**** **** **** 8877" disabled={!isAdminOrHR} />
+ <input className="form-input" value={formData.bankAccount||''} onChange={e=>setFormData({...formData, bankAccount: e.target.value})} placeholder="**** **** **** 8877" disabled={!isAdminOrHR} />
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">IFSC Code</label>
- <input className="form-input" value={formData.bankIfsc||user?.ifsc_code||''} onChange={e=>setFormData({...formData, bankIfsc: e.target.value})} placeholder="SBIN0001234" disabled={!isAdminOrHR} />
+ <input className="form-input" value={formData.bankIfsc||''} onChange={e=>setFormData({...formData, bankIfsc: e.target.value})} placeholder="SBIN0001234" disabled={!isAdminOrHR} />
  </div>
  </>
  )}
