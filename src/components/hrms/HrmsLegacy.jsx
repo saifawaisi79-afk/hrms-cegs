@@ -38,6 +38,11 @@ import {
   countMonthlyAttendanceWarnings,
   calcHalfDayPenalty,
   halfDaysFromWarnings,
+  resolveLoginTime,
+  getLateClockDeadline,
+  formatTime12FromHm,
+  DEFAULT_LOGIN_TIME,
+  SPECIAL_LOGIN_TIMES,
 } from '@/lib/attendance-policy';
 import { pushHrmsNotification, recordAttendanceWarning } from '@/lib/attendance-warnings-ui';
 import {
@@ -3144,7 +3149,8 @@ export function AttendancePage({ db, save, user }) {
  if (todayRec) { alert('Already checked in today!'); return; }
  const now = new Date();
  const settings = db.settings || SEED_DATA.settings;
- const isLate = isLateClockIn(now, settings);
+ const isLate = isLateClockIn(now, settings, user);
+ const deadline = getLateClockDeadline(user, settings);
  const status = isLate ? 'late' : 'present';
  const timeStr = now.toTimeString().substr(0, 5);
  save('attendance', [{ id: Date.now(), uid: user.id, date: today, in: timeStr, out: null, status, hrs: 0 }, ...(db.attendance || [])]);
@@ -3152,13 +3158,13 @@ export function AttendancePage({ db, save, user }) {
  pushHrmsNotification(save, db, {
  to: user.id,
  title: 'Late Clock-In Warning',
- msg: 'You clocked in after 10:15 AM. This warning counts with late lunch returns toward monthly half-day pay cuts.',
+ msg: `You clocked in after ${deadline.deadlineLabel} (login ${deadline.startLabel} + ${deadline.grace} min grace). This warning counts with late lunch returns toward monthly half-day pay cuts.`,
  type: 'Attendance',
  });
  recordAttendanceWarning(save, db, {
  uid: user.id,
  type: 'late_clock_in',
- note: `Clock-in at ${timeStr}`,
+ note: `Clock-in at ${timeStr} (deadline ${deadline.deadlineLabel})`,
  });
  }
  // running/secs resume via effect from saved record
@@ -3202,7 +3208,7 @@ export function AttendancePage({ db, save, user }) {
 
  return (
  <div className="anim-fadeup">
- <PageHdr title="Attendance" sub="Track daily work hours (10:15 AM – 7:00 PM) · 3 warnings/month (late + lunch) = half-day pay cut"/>
+ <PageHdr title="Attendance" sub={`Track daily work hours · your login ${formatTime12FromHm(resolveLoginTime(user))} (+15 min grace) · 3 warnings/month = half-day pay cut`}/>
 
  {/* Location Protection & Clock-Out Policy Badge */}
  <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, flexWrap: 'wrap', gap: 8 }}>
@@ -4433,6 +4439,7 @@ export function OnboardingPage({ db, save, user }) {
  employment_type: 'full_time',
  basic_salary: 30000,
  allowances: 0,
+ login_time: DEFAULT_LOGIN_TIME,
  bank_name: '',
  account_number: '',
  ifsc_code: '',
@@ -4481,6 +4488,7 @@ export function OnboardingPage({ db, save, user }) {
  basic_salary: u.basic_salary ?? 0,
  salary: u.basic_salary ?? 0,
  allowances: u.allowances ?? 0,
+ login_time: u.login_time || resolveLoginTime(u),
  bank_name: u.bank_name,
  bankName: u.bank_name,
  account_number: u.account_number,
@@ -4540,6 +4548,7 @@ export function OnboardingPage({ db, save, user }) {
  employment_type: 'full_time',
  basic_salary: 30000,
  allowances: 0,
+ login_time: DEFAULT_LOGIN_TIME,
  bank_name: '',
  account_number: '',
  ifsc_code: '',
@@ -4597,6 +4606,7 @@ export function OnboardingPage({ db, save, user }) {
  basic_salary: parseFloat(form.basic_salary) || 30000,
  salary: parseFloat(form.basic_salary) || 30000,
  allowances: Math.max(0, parseFloat(form.allowances) || 0),
+ login_time: String(form.login_time || resolveLoginTime({ email: emailClean, login_time: form.login_time })).slice(0, 5),
  bank_name: form.bank_name,
  bankName: form.bank_name,
  account_number: form.account_number,
@@ -4631,6 +4641,7 @@ export function OnboardingPage({ db, save, user }) {
  basic_salary: data.basic_salary ?? newEmp.basic_salary,
  salary: data.basic_salary ?? newEmp.salary,
  allowances: data.allowances ?? newEmp.allowances,
+ login_time: data.login_time ?? newEmp.login_time,
  address: data.address ?? newEmp.address,
  dob: data.dob ?? newEmp.dob,
  }, ...db.users]);
@@ -4706,27 +4717,69 @@ export function OnboardingPage({ db, save, user }) {
  });
  };
 
- // Edit Submit
+ // Edit Submit — persist to Mongo so Profile / Payroll stay in sync
  const handleEditSubmit = async (e) => {
  e.preventDefault();
  if (!editForm) return;
 
- save('users', db.users.map(u => u.id === editForm.id ? { ...u, ...editForm } : u));
+ const payload = {
+ name: String(editForm.name || '').trim(),
+ designation: editForm.designation || editForm.title || '',
+ title: editForm.designation || editForm.title || '',
+ contact: editForm.contact || editForm.phone || '',
+ phone: editForm.contact || editForm.phone || '',
+ joining_date: editForm.joining_date || '',
+ basic_salary: Number(editForm.basic_salary ?? editForm.salary) || 0,
+ salary: Number(editForm.basic_salary ?? editForm.salary) || 0,
+ allowances: Math.max(0, Number(editForm.allowances) || 0),
+ role: editForm.role || 'employee',
+ address: editForm.address || '',
+ dob: editForm.dob || '',
+ employment_type: editForm.employment_type || 'full_time',
+ login_time: String(editForm.login_time || resolveLoginTime(editForm)).slice(0, 5),
+ bank_name: editForm.bank_name || editForm.bankName || '',
+ account_number: editForm.account_number || editForm.bankAccount || '',
+ ifsc_code: editForm.ifsc_code || editForm.bankIfsc || '',
+ emergency_contact: editForm.emergency_contact || editForm.emergencyPhone || '',
+ };
 
  const API_BASE = GLOBAL_API_BASE;
  try {
- await fetch(`${API_BASE}/admin/employees/${editForm.id}`, {
+ const res = await fetch(`${API_BASE}/admin/employees/${editForm.id}`, {
  method: 'PUT',
  headers: {
  'Content-Type': 'application/json',
  Authorization: `Bearer ${localStorage.getItem('cegs_token') || ''}`
  },
- body: JSON.stringify(editForm)
+ body: JSON.stringify(payload)
  });
- } catch (err) {}
+ const data = await res.json().catch(() => ({}));
+ if (!res.ok) {
+ alert(data.error || 'Failed to save employee details. Check your session and try again.');
+ return;
+ }
 
+ const merged = {
+ ...editForm,
+ ...payload,
+ basic_salary: data.basic_salary ?? payload.basic_salary,
+ salary: data.basic_salary ?? payload.salary,
+ allowances: data.allowances ?? payload.allowances,
+ login_time: data.login_time || payload.login_time,
+ designation: data.designation || payload.designation,
+ title: data.designation || payload.title,
+ contact: data.contact || payload.contact,
+ phone: data.contact || payload.phone,
+ joining_date: data.joining_date || payload.joining_date,
+ role: data.role || payload.role,
+ };
+ save('users', db.users.map(u => (String(u.id) === String(editForm.id) ? { ...u, ...merged } : u)));
  setEditModal(false);
  setEditForm(null);
+ alert('Employee details saved. Profile and payroll will use the updated values.');
+ } catch (err) {
+ alert('Network error while saving employee details.');
+ }
  };
 
  // Copy Creds
@@ -4892,7 +4945,7 @@ export function OnboardingPage({ db, save, user }) {
  </button>
  <button 
  className="btn btn-sm btn-ghost" 
- onClick={() => { setEditForm({ ...u }); setEditModal(true); }}
+ onClick={() => { setEditForm({ ...u, login_time: resolveLoginTime(u), basic_salary: u.basic_salary ?? u.salary ?? 30000, allowances: u.allowances ?? 0 }); setEditModal(true); }}
  title="Edit Employee Details"
  style={{ padding: '4px 8px', fontSize: 11 }}
  >
@@ -5044,7 +5097,15 @@ export function OnboardingPage({ db, save, user }) {
  </div>
  <div className="form-group">
  <label className="form-label">Official Email Address *</label>
- <input type="email" className="form-input" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="rahul@cegs.com" required />
+ <input type="email" className="form-input" value={form.email} onChange={e => {
+ const email = e.target.value;
+ const emailKey = String(email || '').trim().toLowerCase();
+ setForm({
+ ...form,
+ email,
+ login_time: SPECIAL_LOGIN_TIMES[emailKey] || form.login_time || DEFAULT_LOGIN_TIME,
+ });
+ }} placeholder="rahul@cegs.com" required />
  </div>
  <div className="form-group">
  <label className="form-label">Contact Phone Number</label>
@@ -5107,6 +5168,11 @@ export function OnboardingPage({ db, save, user }) {
  <div className="form-group">
  <label className="form-label">Allowances (Monthly ₹)</label>
  <input type="number" className="form-input" min={0} value={form.allowances ?? 0} onChange={e => setForm({ ...form, allowances: e.target.value })} placeholder="0 if none" />
+ </div>
+ <div className="form-group">
+ <label className="form-label">Official Login Time</label>
+ <input type="time" className="form-input" value={form.login_time || DEFAULT_LOGIN_TIME} onChange={e => setForm({ ...form, login_time: e.target.value })} />
+ <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4, fontWeight: 600 }}>Default 10:00 · special staff (e.g. Raheel) 11:00</div>
  </div>
  <div className="form-group">
  <label className="form-label">Portal Role Access</label>
@@ -5244,6 +5310,11 @@ export function OnboardingPage({ db, save, user }) {
  <div className="form-group">
  <label className="form-label">Allowances (Monthly ₹)</label>
  <input type="number" className="form-input" min={0} value={editForm.allowances ?? 0} onChange={e => setEditForm({ ...editForm, allowances: e.target.value })} />
+ </div>
+ <div className="form-group">
+ <label className="form-label">Official Login Time</label>
+ <input type="time" className="form-input" value={editForm.login_time || resolveLoginTime(editForm)} onChange={e => setEditForm({ ...editForm, login_time: e.target.value })} />
+ <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4, fontWeight: 600 }}>Default 10:00 AM · Raheel uses 11:00 AM</div>
  </div>
  <div className="form-group">
  <label className="form-label">Portal Role</label>
@@ -11740,6 +11811,7 @@ export function ProfilePage({ db, save, user }) {
  joining_date: profileFromDb.joining_date || profileFromDb.joined || user?.joining_date || '',
  employee_id: profileFromDb.employee_id || profileFromDb.eid || user?.employee_id || '',
  employment_type: profileFromDb.employment_type || user?.employment_type || 'full_time',
+ login_time: resolveLoginTime({ ...user, ...profileFromDb }),
  };
 
  const [formData, setFormData] = useState({ ...mergedUser });
@@ -11749,7 +11821,7 @@ export function ProfilePage({ db, save, user }) {
  useEffect(() => {
  setFormData({ ...mergedUser });
  // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [user?.id, db.users, profileFromDb.basic_salary, profileFromDb.allowances, profileFromDb.address]);
+ }, [user?.id, db.users, profileFromDb.basic_salary, profileFromDb.allowances, profileFromDb.address, profileFromDb.login_time]);
 
  const isAdminOrHR = user?.role === 'super_admin' || user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
 
@@ -11766,14 +11838,58 @@ export function ProfilePage({ db, save, user }) {
  reader.readAsDataURL(file);
  };
 
- const update = e => {
+ const update = async (e) => {
  e.preventDefault();
  if (!isAdminOrHR) {
  alert('Employee profile details are managed centrally by HR Admin. Only profile photo upload is permitted for employees.');
  return;
  }
- save('users', db.users.map(u => (u.id === user.id || String(u.email).toLowerCase() === String(user.email).toLowerCase()) ? { ...u, ...formData } : u));
+ const targetId = profileFromDb.id || user?.id;
+ const payload = {
+ name: formData.name,
+ designation: formData.title || formData.designation,
+ title: formData.title || formData.designation,
+ contact: formData.phone || formData.contact,
+ joining_date: formData.joining_date,
+ basic_salary: Number(formData.basic_salary) || 0,
+ allowances: Math.max(0, Number(formData.allowances) || 0),
+ address: formData.address || '',
+ dob: formData.dob || '',
+ employment_type: formData.employment_type || 'full_time',
+ login_time: String(formData.login_time || resolveLoginTime(formData)).slice(0, 5),
+ bank_name: formData.bankName || formData.bank_name || '',
+ account_number: formData.bankAccount || formData.account_number || '',
+ ifsc_code: formData.bankIfsc || formData.ifsc_code || '',
+ emergency_contact: formData.emergencyPhone || formData.emergency_contact || '',
+ };
+ try {
+ const res = await fetch(`${GLOBAL_API_BASE}/admin/employees/${targetId}`, {
+ method: 'PUT',
+ headers: {
+ 'Content-Type': 'application/json',
+ Authorization: `Bearer ${localStorage.getItem('cegs_token') || ''}`,
+ },
+ body: JSON.stringify(payload),
+ });
+ const data = await res.json().catch(() => ({}));
+ if (!res.ok) {
+ alert(data.error || 'Failed to save profile to the database.');
+ return;
+ }
+ const merged = {
+ ...formData,
+ ...payload,
+ basic_salary: data.basic_salary ?? payload.basic_salary,
+ salary: data.basic_salary ?? payload.basic_salary,
+ allowances: data.allowances ?? payload.allowances,
+ login_time: data.login_time || payload.login_time,
+ };
+ save('users', db.users.map(u => (String(u.id) === String(targetId) || String(u.email).toLowerCase() === String(user.email).toLowerCase()) ? { ...u, ...merged } : u));
+ setFormData(merged);
  alert('Profile information successfully saved.');
+ } catch {
+ alert('Network error while saving profile.');
+ }
  };
 
  return (
@@ -11876,6 +11992,13 @@ export function ProfilePage({ db, save, user }) {
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Employment Type</label>
  <input className="form-input" value={formData.employment_type||''} disabled={!isAdminOrHR} onChange={e=>setFormData({...formData, employment_type: e.target.value})} />
+ </div>
+ <div className="form-group" style={{ marginTop: 12 }}>
+ <label className="form-label">Official Login Time</label>
+ <input type="time" className="form-input" value={formData.login_time || resolveLoginTime(formData)} onChange={e=>setFormData({...formData, login_time: e.target.value})} disabled={!isAdminOrHR} />
+ <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4, fontWeight: 600 }}>
+ Late after {formatTime12FromHm(resolveLoginTime(formData))} + 15 min grace · shown for attendance warnings
+ </div>
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Academic Degrees & Certifications</label>

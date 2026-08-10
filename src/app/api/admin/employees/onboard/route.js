@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
 import { getAuthUser, requireRole } from '@/lib/auth';
+import { resolveLoginTime, SPECIAL_LOGIN_TIMES, DEFAULT_LOGIN_TIME } from '@/lib/attendance-policy';
 
 /**
  * POST /api/admin/employees/onboard
@@ -40,6 +41,7 @@ export async function POST(request) {
       address,
       dob,
       employment_type,
+      login_time,
     } = body;
 
     const cleanEmail = String(email || '').trim().toLowerCase();
@@ -103,6 +105,10 @@ export async function POST(request) {
       address: address || '',
       dob: dob || '',
       employment_type: employment_type || 'full_time',
+      login_time:
+        String(login_time || '').trim().slice(0, 5) ||
+        SPECIAL_LOGIN_TIMES[cleanEmail] ||
+        DEFAULT_LOGIN_TIME,
       avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanName)}`,
       must_change_password: false,
       temp_password_expires_at: null,
@@ -122,6 +128,7 @@ export async function POST(request) {
         address: user.address,
         dob: user.dob,
         employment_type: user.employment_type,
+        login_time: resolveLoginTime(user),
         message: 'Employee onboarded. Share the generated credentials securely.',
       },
       { status: 201 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
 import { getAuthUser } from '@/lib/auth';
+import { resolveLoginTime } from '@/lib/attendance-policy';
 
 export async function GET(request) {
   const authUser = getAuthUser(request);
@@ -57,6 +58,7 @@ export async function GET(request) {
         address: user.address || '',
         dob: user.dob || '',
         employment_type: user.employment_type || 'full_time',
+        login_time: resolveLoginTime(user),
         bank_name: user.bank_name || '',
         account_number: user.account_number || '',
         ifsc_code: user.ifsc_code || '',

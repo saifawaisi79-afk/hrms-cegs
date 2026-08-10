@@ -8,6 +8,69 @@ export const EMPLOYEE_LUNCH_MINS = 30;
 export const HR_LUNCH_MINS = 60;
 /** Late clock-in + late lunch return warnings combined per half-day cut */
 export const WARNINGS_PER_HALF_DAY = 3;
+export const DEFAULT_LOGIN_TIME = '10:00';
+/** Per-employee login start overrides (used when login_time is not stored yet). */
+export const SPECIAL_LOGIN_TIMES = {
+  'raheel@careerexpertglobalsolution.com': '11:00',
+};
+
+export function parseHm(hm) {
+  const parts = String(hm || DEFAULT_LOGIN_TIME).split(':').map((n) => parseInt(n, 10));
+  return {
+    h: Number.isFinite(parts[0]) ? parts[0] : 10,
+    m: Number.isFinite(parts[1]) ? parts[1] : 0,
+  };
+}
+
+export function formatTime12FromHm(hm) {
+  const { h, m } = parseHm(hm);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+/** Official login start HH:mm — stored field, then special email map, then 10:00. */
+export function resolveLoginTime(user) {
+  const email = String(user?.email || '').toLowerCase().trim();
+  const stored = String(user?.login_time || user?.loginTime || '').trim().slice(0, 5);
+  const special = SPECIAL_LOGIN_TIMES[email];
+  // Known special staff (e.g. Raheel @ 11:00): ignore schema default 10:00
+  if (special) {
+    if (stored && stored !== DEFAULT_LOGIN_TIME) return stored;
+    return special;
+  }
+  return stored || DEFAULT_LOGIN_TIME;
+}
+
+export function getLateClockDeadline(user, settings) {
+  const grace = Number(settings?.hours?.grace) || 15;
+  let startH;
+  let startM;
+  if (user) {
+    const parsed = parseHm(resolveLoginTime(user));
+    startH = parsed.h;
+    startM = parsed.m;
+  } else if (settings?.hours?.start) {
+    const parsed = parseHm(settings.hours.start);
+    startH = parsed.h;
+    startM = parsed.m;
+  } else {
+    startH = 10;
+    startM = 0;
+  }
+  const deadlineTotal = startH * 60 + startM + grace;
+  return {
+    startH,
+    startM,
+    grace,
+    deadlineH: Math.floor(deadlineTotal / 60) % 24,
+    deadlineMin: deadlineTotal % 60,
+    deadlineLabel: formatTime12FromHm(
+      `${Math.floor(deadlineTotal / 60) % 24}:${String(deadlineTotal % 60).padStart(2, '0')}`
+    ),
+    startLabel: formatTime12FromHm(`${startH}:${String(startM).padStart(2, '0')}`),
+  };
+}
 
 export function isHrOrSuperAdmin(user) {
   if (!user) return false;
@@ -34,20 +97,9 @@ export function getLunchWindowLabel(user) {
   return '3:00 PM – 3:30 PM';
 }
 
-/** Late if after 10:15 AM (10:00 start + 15 min grace from settings). */
-export function isLateClockIn(now = new Date(), settings) {
-  const h = settings?.hours;
-  let startH = 10;
-  let startM = 0;
-  const grace = Number(h?.grace) || 15;
-  if (h?.start) {
-    const parts = String(h.start).split(':').map(Number);
-    startH = parts[0] || 10;
-    startM = parts[1] || 0;
-  }
-  const deadlineM = startM + grace;
-  const deadlineH = startH + Math.floor(deadlineM / 60);
-  const deadlineMin = deadlineM % 60;
+/** Late if after login start + grace (default 10:00 + 15 → 10:15; Raheel 11:00 + 15 → 11:15). */
+export function isLateClockIn(now = new Date(), settings, user) {
+  const { deadlineH, deadlineMin } = getLateClockDeadline(user, settings);
   const curH = now.getHours();
   const curM = now.getMinutes();
   if (curH > deadlineH) return true;

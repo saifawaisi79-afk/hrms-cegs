@@ -17,6 +17,8 @@ export interface IUser extends Document {
   address: string;
   dob: string;
   employment_type: string;
+  /** Official daily login start HH:mm (default 10:00; some staff e.g. Raheel 11:00) */
+  login_time: string;
   avatar_url: string;
   last_login?: string | null;
   emergency_contact: string;
@@ -47,6 +49,7 @@ const UserSchema: Schema<IUser> = new mongoose.Schema({
   address:                  { type: String, default: '' },
   dob:                      { type: String, default: '' },
   employment_type:          { type: String, default: 'full_time' },
+  login_time:               { type: String, default: '10:00' },
   avatar_url:               { type: String, default: '' },
   last_login:               { type: String, default: null },
   emergency_contact:        { type: String, default: '' },

@@ -5,6 +5,7 @@ import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
 import { signToken, getClientIp, checkIpAllowed, verifyLocationToken } from '@/lib/auth';
 import { PORTAL_HOME } from '@/lib/nav';
+import { resolveLoginTime } from '@/lib/attendance-policy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -121,6 +122,7 @@ export async function POST(request: Request) {
         address: user.address || '',
         dob: user.dob || '',
         employment_type: user.employment_type || 'full_time',
+        login_time: resolveLoginTime(user),
         bank_name: user.bank_name || '',
         account_number: user.account_number || '',
         ifsc_code: user.ifsc_code || '',

@@ -4,6 +4,7 @@ import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
 import Department from '@/lib/models/Department';
 import { getAuthUser, requireRole } from '@/lib/auth';
+import { resolveLoginTime, SPECIAL_LOGIN_TIMES, DEFAULT_LOGIN_TIME } from '@/lib/attendance-policy';
 
 function serializeUser(u, elevated = true, isSelf = false) {
   const obj = u.toObject ? u.toObject() : u;
@@ -29,6 +30,7 @@ function serializeUser(u, elevated = true, isSelf = false) {
     address: obj.address || '',
     dob: obj.dob || '',
     employment_type: obj.employment_type || 'full_time',
+    login_time: resolveLoginTime(obj),
   };
   if (elevated || isSelf) {
     base.bank_name = obj.bank_name;
@@ -55,11 +57,25 @@ export async function GET(request) {
 
   if (!elevated) {
     query = query.select(
-      'employee_id name email role department_id designation joining_date contact status avatar_url basic_salary allowances address dob employment_type emergency_contact bank_name account_number ifsc_code'
+      'employee_id name email role department_id designation joining_date contact status avatar_url basic_salary allowances address dob employment_type login_time emergency_contact bank_name account_number ifsc_code'
     );
   }
 
   const users = await query.lean();
+
+  // Persist known special login times (e.g. Raheel @ 11:00) when still on schema default
+  await Promise.all(
+    users.map(async (u) => {
+      const email = String(u.email || '').toLowerCase();
+      const special = SPECIAL_LOGIN_TIMES[email];
+      if (!special) return;
+      if (u.login_time === special) return;
+      if (u.login_time && u.login_time !== DEFAULT_LOGIN_TIME) return;
+      await User.updateOne({ _id: u._id }, { $set: { login_time: special } });
+      u.login_time = special;
+    })
+  );
+
   return NextResponse.json(
     users.map((u) =>
       serializeUser(u, elevated, String(u._id) === String(authUser.id))
