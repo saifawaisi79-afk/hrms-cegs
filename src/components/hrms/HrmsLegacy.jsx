@@ -7811,14 +7811,44 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const saveDebounceRef = useRef(null);
  const API_BASE = GLOBAL_API_BASE;
 
+ const isConnectedCall = (c) => {
+ const status = (c.callStatus || '').trim().toLowerCase();
+ return status === 'connected' || status.includes('connect');
+ };
+
  const getCategoryFromCandidate = (cand) => {
+ // Primary bucket for display when a row must pick one category.
+ // KPIs use candidateMatchesTask so one entry can credit multiple tasks.
+ const text = `${cand.followUp1 || ''} ${cand.followUp2 || ''} ${cand.followUp3 || ''} ${cand.response || ''}`
+ .toLowerCase()
+ .replace(/\s+/g, ' ');
+ if (/\bjoined\b|\bjoining\b/.test(text) || text.includes('joined') || text.includes('joining')) return 'joined';
+ if (/\bselected\b|\bhired\b/.test(text) || text.includes('selected') || text.includes('hired')) return 'selected';
+ if (/walk\s*-?\s*in|walkin|visited/.test(text)) return 'walkins';
+ if (/\binterview\b|\bscheduled\b|\bschedule\b/.test(text) || text.includes('interview')) return 'interviews';
  if (cand.category) return cand.category;
- const text = `${cand.followUp1 || ''} ${cand.followUp2 || ''} ${cand.followUp3 || ''} ${cand.response || ''}`.toLowerCase();
- if (text.includes('joined') || text.includes('joining')) return 'joined';
- if (text.includes('selected') || text.includes('hired')) return 'selected';
- if (text.includes('walkin') || text.includes('walk-in') || text.includes('visited')) return 'walkins';
- if (text.includes('interview') || text.includes('scheduled') || text.includes('schedule')) return 'interviews';
  return 'calls';
+ };
+
+ /** One sheet row can mark multiple daily tasks via Response / Follow-up text. */
+ const candidateMatchesTask = (cand, task) => {
+ if (task === 'calls') return isConnectedCall(cand);
+ const text = `${cand.response || ''} ${cand.followUp1 || ''} ${cand.followUp2 || ''} ${cand.followUp3 || ''}`
+ .toLowerCase()
+ .replace(/\s+/g, ' ');
+ if (task === 'interviews') {
+ return text.includes('interview') || text.includes('scheduled') || /\bschedule\b/.test(text);
+ }
+ if (task === 'walkins') {
+ return /walk\s*-?\s*in/.test(text) || text.includes('walkin') || text.includes('visited');
+ }
+ if (task === 'selected') {
+ return text.includes('selected') || text.includes('hired');
+ }
+ if (task === 'joined') {
+ return text.includes('joined') || text.includes('joining');
+ }
+ return false;
  };
 
  const showToast = (msg, type = 'info') => {
@@ -8015,20 +8045,12 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
    : todayTargetCandidates;
  const metricCandidates = isSA ? todayTeamCandidates : todayTargetCandidates;
 
- const isConnectedCall = (c) => {
- const status = (c.callStatus || '').trim().toLowerCase();
- return status === 'connected' || status.includes('connect');
- };
-
- // 5 Tasks (each task is 20% weight, 60% minimum performance required every day)
- // Counts align with daily sheet categories for the selected date
- const callsMadeCount = metricCandidates.filter(
- c => getCategoryFromCandidate(c) === 'calls' && isConnectedCall(c)
- ).length;
- const interviewsScheduledTargetCount = metricCandidates.filter(c => getCategoryFromCandidate(c) === 'interviews').length;
- const walkinsTargetCount = metricCandidates.filter(c => getCategoryFromCandidate(c) === 'walkins').length;
- const selectedTodayTargetCount = metricCandidates.filter(c => getCategoryFromCandidate(c) === 'selected').length;
- const joinedTodayTargetCount = metricCandidates.filter(c => getCategoryFromCandidate(c) === 'joined').length;
+ // 5 Tasks (each 20%) — one datasheet row can credit multiple tasks via Response / Follow-ups
+ const callsMadeCount = metricCandidates.filter((c) => candidateMatchesTask(c, 'calls')).length;
+ const interviewsScheduledTargetCount = metricCandidates.filter((c) => candidateMatchesTask(c, 'interviews')).length;
+ const walkinsTargetCount = metricCandidates.filter((c) => candidateMatchesTask(c, 'walkins')).length;
+ const selectedTodayTargetCount = metricCandidates.filter((c) => candidateMatchesTask(c, 'selected')).length;
+ const joinedTodayTargetCount = metricCandidates.filter((c) => candidateMatchesTask(c, 'joined')).length;
 
  // Performance calculations (each of the 5 tasks contributes max 20%)
  const callsScore = Math.min(20, Math.round((callsMadeCount / 80) * 20));
@@ -8069,11 +8091,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  if (candEmp !== empName.trim().toLowerCase()) return false;
  return matchesSheetDate(c, sheetDate);
  });
- const calls = empCands.filter(c => getCategoryFromCandidate(c) === 'calls' && isConnectedCall(c)).length;
- const itvs = empCands.filter(c => getCategoryFromCandidate(c) === 'interviews').length;
- const walks = empCands.filter(c => getCategoryFromCandidate(c) === 'walkins').length;
- const sels = empCands.filter(c => getCategoryFromCandidate(c) === 'selected').length;
- const jnds = empCands.filter(c => getCategoryFromCandidate(c) === 'joined').length;
+ const calls = empCands.filter(c => candidateMatchesTask(c, 'calls')).length;
+ const itvs = empCands.filter(c => candidateMatchesTask(c, 'interviews')).length;
+ const walks = empCands.filter(c => candidateMatchesTask(c, 'walkins')).length;
+ const sels = empCands.filter(c => candidateMatchesTask(c, 'selected')).length;
+ const jnds = empCands.filter(c => candidateMatchesTask(c, 'joined')).length;
 
  const cS = Math.min(20, Math.round((calls / 80) * 20));
  const iS = Math.min(20, Math.round((itvs / 15) * 20));
@@ -8133,9 +8155,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  }
 
  setSaveStatus('Saving...');
- const categoryRows = roleFilteredCandidates.filter(
- c => getCategoryFromCandidate(c) === activeTaskCategory && matchesSheetDate(c, sheetDate)
- );
+ const categoryRows = roleFilteredCandidates.filter((c) => {
+ if (!matchesSheetDate(c, sheetDate)) return false;
+ if (activeTaskCategory === 'calls') return true;
+ return candidateMatchesTask(c, activeTaskCategory);
+ });
 
  const draftRow = {
  ...candidateForm,
@@ -8415,12 +8439,15 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  e.target.value = '';
  };
 
- const categoryCandidates = roleFilteredCandidates.filter(
- cand => getCategoryFromCandidate(cand) === activeTaskCategory && matchesSheetDate(cand, sheetDate)
- );
+ const categoryCandidates = roleFilteredCandidates.filter((cand) => {
+ if (!matchesSheetDate(cand, sheetDate)) return false;
+ // Calls Made = full daily working sheet (single entry can mark interview/walk-in/selected/joined)
+ if (activeTaskCategory === 'calls') return true;
+ return candidateMatchesTask(cand, activeTaskCategory);
+ });
 
  const sheetDayCandidates = roleFilteredCandidates.filter(c => matchesSheetDate(c, sheetDate));
- const tabCount = (cat) => sheetDayCandidates.filter(c => getCategoryFromCandidate(c) === cat).length;
+ const tabCount = (cat) => sheetDayCandidates.filter((c) => candidateMatchesTask(c, cat)).length;
 
  const filteredCandidates = categoryCandidates.filter(cand => {
  const q = searchQuery.toLowerCase();
