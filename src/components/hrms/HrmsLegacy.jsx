@@ -8337,9 +8337,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const sheet = workbook.Sheets[workbook.SheetNames[0]];
  const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
  const sheetDisplay = formatSheetDateDisplay(sheetDate);
- const baseSl = roleFilteredCandidates.filter(
- c => getCategoryFromCandidate(c) === activeTaskCategory && matchesSheetDate(c, sheetDate)
- ).length;
+ const baseSl = roleFilteredCandidates.filter((c) => {
+ if (!matchesSheetDate(c, sheetDate)) return false;
+ if (activeTaskCategory === 'calls') return true;
+ return candidateMatchesTask(c, activeTaskCategory);
+ }).length;
 
  newEntries = rawRows.map((row, idx) => {
  const findVal = (keys) => {
@@ -8861,13 +8863,14 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  )}
  </td>
  </tr>
- ) : filteredCandidates.map(row => {
+ ) : filteredCandidates.map((row, idx) => {
  const rid = row.id || row._id;
+ const displaySl = idx + 1;
  const isEditing = editingId === rid;
  if (isEditing && editForm && !isSA) {
  return (
  <tr key={rid} className="datasheet-entry-row datasheet-editing-row">
- <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{row.slNo}</td>
+ <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{displaySl}</td>
  <td><input className="cell-input" value={editForm.date || ''} onChange={e => setEditForm({ ...editForm, date: e.target.value })} aria-label="Date" /></td>
  <td><input className="cell-input" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value.toUpperCase() })} aria-label="Candidate name" /></td>
  <td><input className="cell-input" value={editForm.number} onChange={e => setEditForm({ ...editForm, number: e.target.value })} aria-label="Contact number" /></td>
@@ -8906,7 +8909,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  );
  return (
  <tr key={rid}>
- <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{row.slNo}</td>
+ <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{displaySl}</td>
  {cell(row.date)}
  {cell(row.name)}
  {cell(row.number)}
