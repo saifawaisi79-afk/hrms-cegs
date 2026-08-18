@@ -46,8 +46,9 @@ import {
 } from '@/lib/attendance-policy';
 import { pushHrmsNotification, recordAttendanceWarning } from '@/lib/attendance-warnings-ui';
 import {
-  mergeAutoAbsents,
   buildAbsentCalendarEvents,
+  purgeFalseAutoAbsents,
+  toIsoDate,
 } from '@/lib/auto-absent';
 import {
   todayIsoDate,
@@ -1475,79 +1476,105 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
 
  const eventsList = db.events && db.events.length > 0 ? db.events : defaultEvents;
 
- // Auto-mark staff absent (no login / clock-in) and keep Mongo in sync
+ // Sync attendance from Mongo + fix false auto-absents (sheet work = present). Never wipe data.
  useEffect(() => {
  if (!save || !user?.id) return;
- const { nextAttendance, added } = mergeAutoAbsents(
- db.attendance || [],
- db.users || [],
- db.leaves || [],
- new Date()
- );
- if (added.length) {
- save('attendance', nextAttendance);
- added.forEach((rec) => {
- try {
- const key = `cegs_absent_notif_${rec.uid}_${rec.date}`;
- if (localStorage.getItem(key) === '1') return;
- localStorage.setItem(key, '1');
- } catch {}
- pushHrmsNotification(save, db, {
- to: rec.uid,
- title: 'Marked Absent',
- msg: `You were auto-marked absent on ${rec.date} because there was no login / attendance clock-in. Contact HR if this is incorrect.`,
- type: 'Attendance',
- });
+ let cancelled = false;
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+
+ const rank = (s) => {
+ const v = String(s || '').toLowerCase();
+ if (v === 'present' || v === 'late') return 2;
+ if (v === 'absent') return 0;
+ return 1;
+ };
+
+ const mergeRows = (localRows, serverRows) => {
+ const byKey = new Map();
+ [...(localRows || []), ...(serverRows || [])].forEach((a) => {
+ const uid = String(a.uid || a.user_id || '');
+ const date = String(a.date || '').slice(0, 10);
+ if (!uid || !date) return;
+ const k = `${uid}_${date}`;
+ const prev = byKey.get(k);
+ if (!prev || rank(a.status) >= rank(prev.status)) {
+ byKey.set(k, {
+ id: a.id || a._id || `att_${uid}_${date}`,
+ uid,
+ date,
+ in: a.in || a.check_in_time || null,
+ out: a.out || a.check_out_time || null,
+ status: a.status || 'present',
+ hrs: a.hrs ?? a.work_hours ?? 0,
+ auto: !!(a.auto || (a.status === 'absent' && !(a.in || a.check_in_time))),
+ note: a.note || '',
  });
  }
- const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ });
+ return [...byKey.values()];
+ };
+
+ (async () => {
+ try {
  if (token) {
- fetch(`${GLOBAL_API_BASE}/attendance/mark-absent`, {
+ // 1) Load real attendance from Mongo
+ const attRes = await fetch(`${GLOBAL_API_BASE}/attendance`, {
+ headers: { Authorization: `Bearer ${token}` },
+ });
+ if (attRes.ok) {
+ const rows = await attRes.json();
+ if (!cancelled && Array.isArray(rows)) {
+ const merged = mergeRows(db.attendance || [], rows);
+ const cleaned = purgeFalseAutoAbsents(merged, db.users || [], db.candidates || []);
+ save('attendance', cleaned);
+ }
+ }
+ // 2) Reconcile absents on server (uses sheet work; converts false absents → present)
+ await fetch(`${GLOBAL_API_BASE}/attendance/mark-absent`, {
  method: 'POST',
  headers: { Authorization: `Bearer ${token}` },
- })
- .then((res) => (res.ok ? res.json() : null))
- .then((data) => {
- if (!data?.absentees?.length) return;
- const existingKeys = new Set(
- (db.attendance || []).map((a) => `${a.uid}_${String(a.date).slice(0, 10)}`)
- );
- const fromApi = data.absentees
- .filter((m) => !existingKeys.has(`${m.uid}_${m.date}`))
- .map((m) => ({
- id: `absent_${m.uid}_${m.date}`,
- uid: m.uid,
- date: m.date,
- in: null,
- out: null,
- status: 'absent',
- hrs: 0,
- auto: true,
- note: 'Auto-marked absent — no login / clock-in',
- }));
- if (fromApi.length) {
- save('attendance', [...fromApi, ...(db.attendance || [])]);
+ });
+ // 3) Reload after reconcile
+ const attRes2 = await fetch(`${GLOBAL_API_BASE}/attendance`, {
+ headers: { Authorization: `Bearer ${token}` },
+ });
+ if (attRes2.ok) {
+ const rows2 = await attRes2.json();
+ if (!cancelled && Array.isArray(rows2)) {
+ const merged2 = mergeRows(db.attendance || [], rows2);
+ const cleaned2 = purgeFalseAutoAbsents(merged2, db.users || [], db.candidates || []);
+ save('attendance', cleaned2);
  }
- })
- .catch(() => {});
  }
+ } else {
+ // Offline: only purge false local absents — do not invent absents for whole team
+ const cleaned = purgeFalseAutoAbsents(db.attendance || [], db.users || [], db.candidates || []);
+ if (cleaned.length !== (db.attendance || []).length) save('attendance', cleaned);
+ }
+ } catch {}
+ })();
+
+ return () => { cancelled = true; };
  // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [user?.id, (db.users || []).length, (db.attendance || []).length]);
+ }, [user?.id]);
 
  // Merge approved leaves dynamically from db.leaves
  const approvedLeavesEvents = (db.leaves || []).filter(l => l.status === 'approved').map(l => ({
  id: `leave_${l.id}`,
- title: `Approved Leave - ${l.employee_name || 'Staff Member'}`,
+ title: `Approved Leave - ${l.employee_name || l.person || 'Staff Member'}`,
  type: 'leave',
- date: l.start_date,
+ date: l.start_date || l.start,
  person: l.employee_name || 'Staff Member',
  icon: '',
  badgeColor: '#EF4444',
  badgeBg: '#FEE2E2',
- notes: `${l.leave_type} (${l.start_date} to ${l.end_date})`
+ notes: `${l.type || l.leave_type || 'Leave'} (${l.start || l.start_date} to ${l.end || l.end_date})`
  }));
 
- const absentEvents = buildAbsentCalendarEvents(db.attendance || [], db.users || []);
+ const absentEvents = buildAbsentCalendarEvents(
+ (db.attendance || []).filter((a) => String(a.status).toLowerCase() === 'absent'),
+ db.users || []
+ );
 
  const allEventsCombined = [...eventsList, ...approvedLeavesEvents, ...absentEvents];
 
@@ -2719,32 +2746,76 @@ export function LeavesPage({ db, save, user }) {
  const [modal, setModal] = useState(false);
  const [form, setForm] = useState({ type: 'casual', start: '', end: '', reason: '' });
  const [filter, setFilter] = useState('all');
+ const [leavesLoading, setLeavesLoading] = useState(true);
 
  const getUserPermissionRole = (u) => {
  if (!u) return 'employee';
  if (u.role === 'super_admin') return 'super_admin';
  if (u.role === 'admin') return 'admin';
- const title = (u.title || '').toLowerCase();
+ const title = (u.title || u.designation || '').toLowerCase();
+ if (title.includes('hr')) return 'admin';
  if (title.includes('manager')) return 'manager';
  if (title.includes('recruiter')) return 'recruiter';
  if (title.includes('billing') || title.includes('finance') || title.includes('accounts')) return 'finance';
  return 'employee';
  };
  const currentPermRole = getUserPermissionRole(user);
- const isAdmin = db.permissions?.[currentPermRole]?.approveLeave ?? ['admin', 'super_admin'].includes(user.role);
+ const isAdmin =
+ db.permissions?.[currentPermRole]?.approveLeave ||
+ ['admin', 'super_admin'].includes(user.role) ||
+ String(user.title || user.designation || '').toLowerCase().includes('hr');
  const canApply = user?.role === 'employee' || user?.role === 'admin' || user?.role === 'super_admin';
 
- // One-time clear of demo leave seed rows
+ // Load leaves from Mongo so HR sees every pending request (do not wipe existing data)
  useEffect(() => {
- try {
- if (!localStorage.getItem('cegs_leaves_policy_v2')) {
- save('leaves', []);
- localStorage.setItem('cegs_leaves_policy_v2', '1');
- localStorage.setItem('cegs_leaves_policy_v1', '1');
+ let cancelled = false;
+ (async () => {
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ if (!token) {
+ setLeavesLoading(false);
+ return;
  }
+ try {
+ const res = await fetch(`${GLOBAL_API_BASE}/leaves`, {
+ headers: { Authorization: `Bearer ${token}` },
+ });
+ if (!res.ok) {
+ setLeavesLoading(false);
+ return;
+ }
+ const data = await res.json();
+ const rows = Array.isArray(data) ? data : data.leaves || [];
+ if (cancelled || !Array.isArray(rows)) {
+ setLeavesLoading(false);
+ return;
+ }
+ const mapped = rows.map((l) => ({
+ id: l.id || l._id,
+ uid: l.uid || l.user_id,
+ type: l.type || l.leave_type,
+ start: l.start || l.start_date,
+ end: l.end || l.end_date,
+ reason: l.reason || '',
+ status: l.status || 'pending',
+ applied: l.applied || l.applied_date,
+ payType: l.payType || l.pay_type,
+ paidDays: l.paidDays ?? l.paid_days,
+ unpaidDays: l.unpaidDays ?? l.unpaid_days,
+ totalDays: l.totalDays ?? l.total_days,
+ employee_name: l.employee_name,
+ note: l.rejection_reason || l.note || '',
+ }));
+ // Merge by id — prefer server, keep any local-only pending that failed to sync
+ const byId = new Map();
+ (db.leaves || []).forEach((l) => byId.set(String(l.id), l));
+ mapped.forEach((l) => byId.set(String(l.id), { ...(byId.get(String(l.id)) || {}), ...l }));
+ save('leaves', [...byId.values()]);
  } catch {}
+ setLeavesLoading(false);
+ })();
+ return () => { cancelled = true; };
  // eslint-disable-next-line react-hooks/exhaustive-deps
- }, []);
+ }, [user?.id]);
 
  const balance = calcLeaveBalance(
  db.leaves || [],
@@ -2757,7 +2828,7 @@ export function LeavesPage({ db, save, user }) {
  const typeLeft = typeRemainingFor(balance, form.type);
  const previewAlloc = allocateLeavePay(previewDays, balance.available, typeLeft);
 
- const submit = (e) => {
+ const submit = async (e) => {
  e.preventDefault();
  if (!canApply) {
  alert('Your role cannot apply for leave from this screen.');
@@ -2768,36 +2839,20 @@ export function LeavesPage({ db, save, user }) {
  alert('End date must be on or after start date.');
  return;
  }
- if (previewDays > typeLeft && typeLeft === 0) {
- alert(
- `No ${form.type === 'sick' ? 'Sick' : 'Casual'} leave remaining this year (max ${
- form.type === 'sick' ? SICK_ANNUAL : CASUAL_ANNUAL
- } days). Extra days will be unpaid — continue only if intended.`
- );
+
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ if (!token) {
+ alert('Session expired. Please sign in again to submit leave.');
+ return;
  }
 
- const entry = {
- id: Date.now(),
- uid: user.id,
- type: form.type,
- start: form.start,
- end: form.end,
- reason: form.reason,
- status: 'pending',
- applied: new Date().toISOString().split('T')[0],
- payType: previewAlloc.payType,
- paidDays: previewAlloc.paidDays,
- unpaidDays: previewAlloc.unpaidDays,
- totalDays: previewAlloc.totalDays,
- };
-
- save('leaves', [entry, ...(db.leaves || [])]);
-
- (async () => {
  try {
- await fetch(`${GLOBAL_API_BASE}/leaves`, {
+ const res = await fetch(`${GLOBAL_API_BASE}/leaves`, {
  method: 'POST',
- headers: { 'Content-Type': 'application/json' },
+ headers: {
+ 'Content-Type': 'application/json',
+ Authorization: `Bearer ${token}`,
+ },
  body: JSON.stringify({
  leave_type: form.type,
  start_date: form.start,
@@ -2805,25 +2860,68 @@ export function LeavesPage({ db, save, user }) {
  reason: form.reason,
  }),
  });
- } catch {}
- })();
-
+ const data = await res.json().catch(() => ({}));
+ if (!res.ok) {
+ alert(data.error || 'Failed to submit leave to the server.');
+ return;
+ }
+ const entry = {
+ id: data.id || Date.now(),
+ uid: user.id,
+ type: form.type,
+ start: form.start,
+ end: form.end,
+ reason: form.reason,
+ status: 'pending',
+ applied: new Date().toISOString().split('T')[0],
+ payType: data.pay_type || previewAlloc.payType,
+ paidDays: data.paid_days ?? previewAlloc.paidDays,
+ unpaidDays: data.unpaid_days ?? previewAlloc.unpaidDays,
+ totalDays: data.total_days ?? previewAlloc.totalDays,
+ employee_name: user.name,
+ };
+ save('leaves', [entry, ...(db.leaves || []).filter((l) => String(l.id) !== String(entry.id))]);
  setModal(false);
  setForm({ type: 'casual', start: '', end: '', reason: '' });
  const msg =
- previewAlloc.unpaidDays > 0
- ? `Leave submitted: ${previewAlloc.paidDays} paid + ${previewAlloc.unpaidDays} unpaid day(s).`
- : `Leave submitted: ${previewAlloc.paidDays} paid day(s).`;
+ (entry.unpaidDays || 0) > 0
+ ? `Leave submitted: ${entry.paidDays} paid + ${entry.unpaidDays} unpaid day(s). HR can approve it now.`
+ : `Leave submitted: ${entry.paidDays} paid day(s). HR can approve it now.`;
  alert(msg);
+ } catch {
+ alert('Network error while submitting leave.');
+ }
  };
 
- const decide = (id, status) => {
+ const decide = async (id, status) => {
  const note = status === 'rejected' ? prompt('Rejection reason:') : null;
  if (status === 'rejected' && note === null) return;
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ if (!token) {
+ alert('Session expired. Please sign in again.');
+ return;
+ }
+ try {
+ const res = await fetch(`${GLOBAL_API_BASE}/leaves/${id}/status`, {
+ method: 'PUT',
+ headers: {
+ 'Content-Type': 'application/json',
+ Authorization: `Bearer ${token}`,
+ },
+ body: JSON.stringify({ status, rejection_reason: note || undefined }),
+ });
+ const data = await res.json().catch(() => ({}));
+ if (!res.ok) {
+ alert(data.error || 'Failed to update leave status.');
+ return;
+ }
  save(
  'leaves',
- (db.leaves || []).map((l) => (l.id === id ? { ...l, status, by: user.id, note } : l))
+ (db.leaves || []).map((l) => (String(l.id) === String(id) ? { ...l, status, by: user.id, note } : l))
  );
+ } catch {
+ alert('Network error while updating leave.');
+ }
  };
 
  const myLeaves = (db.leaves || []).filter((l) => String(l.uid) === String(user.id));
@@ -3139,43 +3237,58 @@ export function AttendancePage({ db, save, user }) {
 
  const currentPermRole = getUserPermissionRole(user);
  const isAdmin = db.permissions?.[currentPermRole]?.attendance ?? ['admin','super_admin'].includes(user.role);
- const today = new Date().toISOString().split('T')[0];
- const todayRec = (db.attendance || []).find(a=>a.uid===user.id&&a.date===today);
- const isSessionActive = !!(todayRec && todayRec.in && !todayRec.out);
+ const today = toIsoDate(new Date());
+ const todayRec = (db.attendance || []).find(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today);
+ const isSessionActive = !!(todayRec && todayRec.in && !todayRec.out && todayRec.status !== 'absent');
 
- // Auto-mark absentees (no login / clock-in) for working days
+ // Sync attendance from Mongo; purge false absents when sheet work exists. Do not wipe data.
  useEffect(() => {
  if (!save || !user?.id) return;
- const { nextAttendance, added } = mergeAutoAbsents(
- db.attendance || [],
- db.users || [],
- db.leaves || [],
- new Date()
- );
- if (added.length) {
- save('attendance', nextAttendance);
- }
+ let cancelled = false;
+ (async () => {
  const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ try {
  if (token) {
- fetch(`${GLOBAL_API_BASE}/attendance/mark-absent`, {
+ await fetch(`${GLOBAL_API_BASE}/attendance/mark-absent`, {
  method: 'POST',
  headers: { Authorization: `Bearer ${token}` },
- }).catch(() => {});
+ });
+ const res = await fetch(`${GLOBAL_API_BASE}/attendance`, {
+ headers: { Authorization: `Bearer ${token}` },
+ });
+ if (res.ok) {
+ const rows = await res.json();
+ if (!cancelled && Array.isArray(rows)) {
+ const mapped = rows.map((a) => ({
+ id: a.id || a._id,
+ uid: a.uid || a.user_id,
+ date: a.date,
+ in: a.in || a.check_in_time || null,
+ out: a.out || a.check_out_time || null,
+ status: a.status,
+ hrs: a.hrs ?? a.work_hours ?? 0,
+ auto: !!(a.auto || (a.status === 'absent' && !(a.in || a.check_in_time))),
+ }));
+ const byKey = new Map();
+ [...(db.attendance || []), ...mapped].forEach((row) => {
+ const k = `${row.uid}_${String(row.date).slice(0, 10)}`;
+ const prev = byKey.get(k);
+ const rank = (s) => (['present', 'late'].includes(String(s)) ? 2 : String(s) === 'absent' ? 0 : 1);
+ if (!prev || rank(row.status) >= rank(prev.status)) byKey.set(k, row);
+ });
+ const cleaned = purgeFalseAutoAbsents([...byKey.values()], db.users || [], db.candidates || []);
+ save('attendance', cleaned);
  }
+ }
+ } else {
+ const cleaned = purgeFalseAutoAbsents(db.attendance || [], db.users || [], db.candidates || []);
+ if (cleaned.length !== (db.attendance || []).length) save('attendance', cleaned);
+ }
+ } catch {}
+ })();
+ return () => { cancelled = true; };
  // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [user?.id]);
-
- // One-time clear of pre-production attendance logs (shared by HR + employee)
- useEffect(() => {
-   try {
-     if (!localStorage.getItem('cegs_attendance_ui_cleared_v1')) {
-       save('attendance', []);
-       localStorage.setItem('cegs_attendance_ui_cleared_v1', '1');
-       localStorage.setItem('cegs_attendance_prod_reset_v1', '1');
-     }
-   } catch {}
- // eslint-disable-next-line react-hooks/exhaustive-deps
- }, []);
 
  const parseClockInDate = (rec) => {
    if (!rec?.date || !rec?.in) return null;
@@ -3234,8 +3347,8 @@ export function AttendancePage({ db, save, user }) {
  const fmt = s=>`${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
  const clockIn = async () => {
- const existing = (db.attendance || []).find(a => String(a.uid) === String(user.id) && a.date === today);
- if (existing && existing.status !== 'absent') {
+ const existing = (db.attendance || []).find(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today);
+ if (existing && existing.status !== 'absent' && existing.in) {
  alert('Already checked in today!');
  return;
  }
@@ -3247,10 +3360,24 @@ export function AttendancePage({ db, save, user }) {
  const timeStr = now.toTimeString().substr(0, 5);
  const newRec = { id: existing?.id || Date.now(), uid: user.id, date: today, in: timeStr, out: null, status, hrs: 0, auto: false };
  if (existing && existing.status === 'absent') {
- save('attendance', (db.attendance || []).map(a => (String(a.uid) === String(user.id) && a.date === today ? newRec : a)));
+ save('attendance', (db.attendance || []).map(a => (String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today ? newRec : a)));
  } else {
- save('attendance', [newRec, ...(db.attendance || [])]);
+ save('attendance', [newRec, ...(db.attendance || []).filter(a => !(String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today))]);
  }
+
+ // Persist to Mongo so auto-absent / other devices stay correct
+ try {
+ const token = localStorage.getItem('cegs_token') || '';
+ await fetch(`${GLOBAL_API_BASE}/attendance/check-in`, {
+ method: 'POST',
+ headers: {
+ 'Content-Type': 'application/json',
+ Authorization: `Bearer ${token}`,
+ },
+ body: JSON.stringify({ status }),
+ });
+ } catch {}
+
  if (isLate) {
  pushHrmsNotification(save, db, {
  to: user.id,
@@ -3264,7 +3391,6 @@ export function AttendancePage({ db, save, user }) {
  note: `Clock-in at ${timeStr} (deadline ${deadline.deadlineLabel})`,
  });
  }
- // running/secs resume via effect from saved record
  };
 
  // Clock Out is locked until 6:30 PM (18:30) every working day
@@ -3274,8 +3400,8 @@ export function AttendancePage({ db, save, user }) {
  const isClockOutUnlocked = isAdmin || user?.role === 'super_admin' || curHour > 18 || (curHour === 18 && curMin >= 30);
 
  const clockOut = async () => {
- if (!todayRec || todayRec.out) {
- alert(!todayRec ? 'Clock in first!' : 'Already clocked out.');
+ if (!todayRec || todayRec.out || todayRec.status === 'absent') {
+ alert(!todayRec || todayRec.status === 'absent' ? 'Clock in first!' : 'Already clocked out.');
  return;
  }
  if (!isClockOutUnlocked) {
@@ -3284,9 +3410,20 @@ export function AttendancePage({ db, save, user }) {
  }
  const elapsed = calcElapsedSecs(todayRec);
  const hrs = parseFloat((elapsed / 3600).toFixed(2)) || 0;
- save('attendance', (db.attendance || []).map(a => a.uid === user.id && a.date === today ? { ...a, out: new Date().toTimeString().substr(0, 5), hrs } : a));
+ const outStr = new Date().toTimeString().substr(0, 5);
+ save('attendance', (db.attendance || []).map(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today ? { ...a, out: outStr, hrs } : a));
  setRunning(false);
  setSecs(elapsed);
+ try {
+ const token = localStorage.getItem('cegs_token') || '';
+ await fetch(`${GLOBAL_API_BASE}/attendance/check-out`, {
+ method: 'POST',
+ headers: {
+ 'Content-Type': 'application/json',
+ Authorization: `Bearer ${token}`,
+ },
+ });
+ } catch {}
  };
 
  const myLogs = isAdmin ? (db.attendance || []) : (db.attendance || []).filter(a => a.uid === user.id);
@@ -3321,8 +3458,8 @@ export function AttendancePage({ db, save, user }) {
  <div className="timer-label">LIVE WORK TIMER</div>
  <div className="timer-digits">{fmt(secs)}</div>
  <div className="timer-actions">
- <button className="btn btn-amber" onClick={clockIn} style={{ flex: 1 }} disabled={!!todayRec}>
- {todayRec ? ' Clocked In' : 'Clock In'}
+ <button className="btn btn-amber" onClick={clockIn} style={{ flex: 1 }} disabled={!!(todayRec && todayRec.status !== 'absent' && todayRec.in)}>
+ {todayRec && todayRec.status !== 'absent' && todayRec.in ? ' Clocked In' : 'Clock In'}
  </button>
  <button 
  className="btn btn-ghost" 

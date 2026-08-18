@@ -55,7 +55,8 @@ export async function GET(request) {
 
   await connectDB();
   let leaves;
-  if (authUser.role === 'employee') {
+  const elevated = ['admin', 'super_admin'].includes(authUser.role);
+  if (!elevated) {
     leaves = await Leave.find({ user_id: authUser.id })
       .populate('user_id', 'name employee_id avatar_url')
       .sort({ applied_date: -1 })

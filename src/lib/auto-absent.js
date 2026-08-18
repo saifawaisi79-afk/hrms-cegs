@@ -1,8 +1,11 @@
 /**
- * Auto-mark employees absent when they do not clock in / attend on a working day.
+ * Auto-mark employees absent when they do not clock in AND have no sheet work.
+ * Sheet/targets activity counts as present evidence (shared across devices).
  */
 
-export const TODAY_ABSENT_AFTER_HOUR = 19; // 7:00 PM local — after work day, still no clock-in
+import { matchesSheetDate, normalizeCandidateDate } from '@/lib/candidate-dates';
+
+export const TODAY_ABSENT_AFTER_HOUR = 19; // 7:00 PM local
 export const ABSENT_LOOKBACK_DAYS = 21;
 
 export function toIsoDate(d = new Date()) {
@@ -65,13 +68,56 @@ export function isOnApprovedLeave(leaves, user, isoDate) {
   });
 }
 
-export function hasAttendanceMarked(attendance, userId, isoDate) {
+/** True if employee clocked in (present/late) — not absent. */
+export function hasAttended(attendance, userId, isoDate) {
   return (attendance || []).some(
     (a) =>
       String(a.uid || a.user_id) === String(userId) &&
       String(a.date).slice(0, 10) === isoDate &&
-      ['present', 'late', 'absent'].includes(String(a.status || '').toLowerCase())
+      ['present', 'late'].includes(String(a.status || '').toLowerCase())
   );
+}
+
+/** True if any attendance row exists for that day (including absent). */
+export function hasAttendanceRow(attendance, userId, isoDate) {
+  return (attendance || []).some(
+    (a) =>
+      String(a.uid || a.user_id) === String(userId) &&
+      String(a.date).slice(0, 10) === isoDate
+  );
+}
+
+function namesMatch(a, b) {
+  const x = String(a || '').trim().toLowerCase();
+  const y = String(b || '').trim().toLowerCase();
+  if (!x || !y) return false;
+  if (x === y) return true;
+  if (x.includes(y) || y.includes(x)) return true;
+  const nx = x.replace(/[^a-z]/g, '');
+  const ny = y.replace(/[^a-z]/g, '');
+  if (nx.length >= 3 && ny.length >= 3 && (nx.includes(ny) || ny.includes(nx))) return true;
+  const tokens = (s) =>
+    String(s || '')
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length >= 3);
+  const ta = tokens(a);
+  const tb = tokens(b);
+  return ta.some((t) => tb.some((u) => t === u || t.startsWith(u) || u.startsWith(t)));
+}
+
+/**
+ * Targets/Calls sheet activity for that day = evidence they worked (present).
+ */
+export function hasSheetWork(candidates, user, isoDate) {
+  if (!user) return false;
+  const name = user.name || '';
+  return (candidates || []).some((c) => {
+    const candIso = normalizeCandidateDate(c?.date) || (matchesSheetDate(c, isoDate) ? isoDate : '');
+    if (candIso !== isoDate && !matchesSheetDate(c, isoDate)) return false;
+    return namesMatch(c.employee, name);
+  });
 }
 
 /**
@@ -90,6 +136,7 @@ export function findMissingAbsentees({
   users = [],
   attendance = [],
   leaves = [],
+  candidates = [],
   now = new Date(),
   lookback = ABSENT_LOOKBACK_DAYS,
 } = {}) {
@@ -103,7 +150,10 @@ export function findMissingAbsentees({
       if (!uid) continue;
       if (!joinedOnOrBefore(user, date)) continue;
       if (isOnApprovedLeave(leaves, user, date)) continue;
-      if (hasAttendanceMarked(attendance, uid, date)) continue;
+      if (hasAttended(attendance, uid, date)) continue;
+      if (hasSheetWork(candidates, user, date)) continue;
+      // Already have an absent row — do not duplicate
+      if (hasAttendanceRow(attendance, uid, date)) continue;
       missing.push({
         uid: String(uid),
         date,
@@ -154,17 +204,57 @@ export function buildAbsentCalendarEvents(absentRecords, users = []) {
 }
 
 /**
- * Merge new auto-absent rows into attendance list (does not overwrite present/late).
- * Returns { nextAttendance, added }.
+ * Remove false auto-absents when the person actually attended or did sheet work.
  */
-export function mergeAutoAbsents(attendance, users, leaves, now = new Date()) {
-  const missing = findMissingAbsentees({ users, attendance, leaves, now });
+export function purgeFalseAutoAbsents(attendance = [], users = [], candidates = []) {
+  const presentKeys = new Set(
+    (attendance || [])
+      .filter((a) => ['present', 'late'].includes(String(a.status || '').toLowerCase()))
+      .map((a) => `${a.uid || a.user_id}_${String(a.date).slice(0, 10)}`)
+  );
+
+  return (attendance || []).filter((a) => {
+    if (String(a.status || '').toLowerCase() !== 'absent') return true;
+    const uid = String(a.uid || a.user_id);
+    const date = String(a.date).slice(0, 10);
+    if (presentKeys.has(`${uid}_${date}`)) return false;
+    // Only purge auto-marked absents when sheet work proves they worked
+    if (a.auto) {
+      const user = (users || []).find((u) => String(u.id) === uid || String(u._id) === uid);
+      if (user && hasSheetWork(candidates, user, date)) return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Reconcile: purge false absents, then add genuine missing absents.
+ */
+export function reconcileAutoAbsents(attendance, users, leaves, candidates, now = new Date()) {
+  const cleaned = purgeFalseAutoAbsents(attendance, users, candidates);
+  const missing = findMissingAbsentees({
+    users,
+    attendance: cleaned,
+    leaves,
+    candidates,
+    now,
+  });
   if (!missing.length) {
-    return { nextAttendance: attendance || [], added: [] };
+    return {
+      nextAttendance: cleaned,
+      added: [],
+      removed: (attendance || []).length - cleaned.length,
+    };
   }
   const added = buildAbsentAttendanceRecords(missing);
   return {
-    nextAttendance: [...added, ...(attendance || [])],
+    nextAttendance: [...added, ...cleaned],
     added,
+    removed: (attendance || []).length - cleaned.length,
   };
+}
+
+/** @deprecated use reconcileAutoAbsents */
+export function mergeAutoAbsents(attendance, users, leaves, now = new Date(), candidates = []) {
+  return reconcileAutoAbsents(attendance, users, leaves, candidates, now);
 }

@@ -4,9 +4,11 @@ import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
 import Attendance from '@/lib/models/Attendance';
 import Leave from '@/lib/models/Leave';
+import Candidate from '@/lib/models/Candidate';
 import { getAuthUser } from '@/lib/auth';
 import {
   findMissingAbsentees,
+  hasSheetWork,
   toIsoDate,
 } from '@/lib/auto-absent';
 
@@ -39,16 +41,16 @@ async function markAbsentees(request) {
     joining_date: u.joining_date,
   }));
 
-  const attendanceRows = await Attendance.find({
-    date: { $gte: toIsoDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)) },
-  })
-    .select('user_id date status')
+  const since = toIsoDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+  const attendanceRows = await Attendance.find({ date: { $gte: since } })
+    .select('user_id date status check_in_time')
     .lean();
 
   const attendance = attendanceRows.map((a) => ({
     uid: a.user_id?.toString(),
     date: a.date,
     status: a.status,
+    in: a.check_in_time,
   }));
 
   let leaves = [];
@@ -65,10 +67,82 @@ async function markAbsentees(request) {
     leaves = [];
   }
 
+  let candidates = [];
+  try {
+    const candRows = await Candidate.find({}).select('date employee name').lean();
+    candidates = candRows.map((c) => ({
+      date: c.date,
+      employee: c.employee,
+      name: c.name,
+    }));
+  } catch {
+    candidates = [];
+  }
+
+  // Fix false auto-absents: sheet work → treat as present (do not erase other data)
+  let purged = 0;
+  for (const row of attendanceRows) {
+    if (String(row.status).toLowerCase() !== 'absent') continue;
+    const uid = row.user_id?.toString();
+    const user = mappedUsers.find((u) => u.id === uid);
+    if (!user) continue;
+    if (row.check_in_time || hasSheetWork(candidates, user, row.date)) {
+      await Attendance.updateOne(
+        { _id: row._id },
+        {
+          $set: {
+            status: 'present',
+            check_in_time: row.check_in_time || '10:00:00',
+            work_hours: row.work_hours || 0,
+          },
+        }
+      );
+      purged += 1;
+    }
+  }
+
+  // If staff did Targets sheet work but have no/absent attendance, mark present
+  const today = toIsoDate();
+  for (const user of mappedUsers) {
+    if (!hasSheetWork(candidates, user, today)) continue;
+    if (!mongoose.Types.ObjectId.isValid(user.id)) continue;
+    const existing = await Attendance.findOne({ user_id: user.id, date: today });
+    if (existing && ['present', 'late'].includes(String(existing.status))) continue;
+    if (existing && existing.check_in_time) continue;
+    await Attendance.findOneAndUpdate(
+      { user_id: user.id, date: today },
+      {
+        $set: {
+          status: 'present',
+          check_in_time: existing?.check_in_time || '10:00:00',
+          work_hours: existing?.work_hours || 0,
+          location_verified: false,
+        },
+        $setOnInsert: {
+          user_id: user.id,
+          date: today,
+          check_out_time: null,
+        },
+      },
+      { upsert: true }
+    );
+    purged += 1;
+  }
+
+  // Refresh attendance after corrections
+  const attendanceAfter = (await Attendance.find({ date: { $gte: since } })
+    .select('user_id date status')
+    .lean()).map((a) => ({
+    uid: a.user_id?.toString(),
+    date: a.date,
+    status: a.status,
+  }));
+
   const missing = findMissingAbsentees({
     users: mappedUsers,
-    attendance,
+    attendance: attendanceAfter,
     leaves,
+    candidates,
     now: new Date(),
   });
 
@@ -76,7 +150,12 @@ async function markAbsentees(request) {
   for (const m of missing) {
     if (!mongoose.Types.ObjectId.isValid(m.uid)) continue;
     const existing = await Attendance.findOne({ user_id: m.uid, date: m.date });
-    if (existing) continue;
+    if (existing) {
+      if (['present', 'late'].includes(String(existing.status))) continue;
+      if (existing.check_in_time) continue;
+      // Keep existing absent
+      continue;
+    }
     await Attendance.create({
       user_id: m.uid,
       date: m.date,
@@ -93,6 +172,7 @@ async function markAbsentees(request) {
     ok: true,
     missing: missing.length,
     created,
+    purged,
     date: toIsoDate(),
     absentees: missing,
   });
@@ -108,11 +188,6 @@ export async function GET(request) {
   }
 }
 
-/**
- * POST /api/attendance/mark-absent
- * Marks active staff absent for past working days (and today after cutoff)
- * when they have no clock-in and are not on approved leave.
- */
 export async function POST(request) {
   try {
     return await markAbsentees(request);

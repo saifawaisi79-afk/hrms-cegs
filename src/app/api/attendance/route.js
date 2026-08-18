@@ -5,11 +5,19 @@ import { getAuthUser } from '@/lib/auth';
 
 function flattenAttendance(a) {
   const obj = a.toObject ? a.toObject() : a;
+  const uid = obj.user_id?._id?.toString() || obj.user_id?.toString() || null;
   return {
     ...obj,
     id: obj._id?.toString(),
     _id: obj._id?.toString(),
-    user_id: obj.user_id?._id?.toString() || obj.user_id?.toString() || null,
+    user_id: uid,
+    uid,
+    date: obj.date,
+    in: obj.check_in_time || null,
+    out: obj.check_out_time || null,
+    hrs: obj.work_hours || 0,
+    status: obj.status,
+    auto: obj.status === 'absent' && !obj.check_in_time,
     employee_name: obj.user_id?.name || null,
     employee_id: obj.user_id?.employee_id || null,
     avatar_url: obj.user_id?.avatar_url || null,
@@ -27,7 +35,6 @@ export async function GET(request) {
   let records;
   if (authUser.role === 'employee') {
     records = await Attendance.find({ user_id: authUser.id }).sort({ date: -1 }).lean();
-    return NextResponse.json(records.map(r => ({ ...r, id: r._id?.toString(), _id: r._id?.toString(), user_id: r.user_id?.toString(), location_verified: r.location_verified ? 1 : 0 })));
   } else {
     records = await Attendance.find({})
       .populate({ path: 'user_id', select: 'name employee_id avatar_url department_id', populate: { path: 'department_id', select: 'name' } })

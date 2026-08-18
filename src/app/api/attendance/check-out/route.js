@@ -3,12 +3,14 @@ import connectDB from '@/lib/db';
 import Attendance from '@/lib/models/Attendance';
 import { getAuthUser } from '@/lib/auth';
 
+import { toIsoDate } from '@/lib/auto-absent';
+
 // POST /api/attendance/check-out
 export async function POST(request) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = toIsoDate(new Date());
   const nowTimeStr = new Date().toTimeString().split(' ')[0];
 
   await connectDB();
