@@ -8061,6 +8061,27 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  const totalDayPerformancePct = callsScore + itvScore + walkinScore + selScore + jndScore;
  const isTargetAchieved = totalDayPerformancePct >= 60; // minimum 60% required every day
+ const isHalfDayAbsentRisk = totalDayPerformancePct < 40; // below 40% → half-day absent
+
+ // Warn employee once per day if performance is under 40% (half-day absent risk)
+ useEffect(() => {
+ if (!isEmp || !user?.id || !save) return;
+ if (!isHalfDayAbsentRisk) return;
+ const dayKey = `cegs_perf40_warn_${user.id}_${sheetDate}`;
+ try {
+ if (localStorage.getItem(dayKey) === '1') return;
+ localStorage.setItem(dayKey, '1');
+ } catch {
+ return;
+ }
+ pushHrmsNotification(save, db, {
+ to: user.id,
+ title: 'Half-Day Absent Warning',
+ msg: `Your day performance is ${totalDayPerformancePct}% (below 40%). Failing to reach at least 40% performance will mark you as half-day absent. Minimum daily target remains 60%.`,
+ type: 'Targets',
+ });
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [isEmp, user?.id, isHalfDayAbsentRisk, sheetDate, totalDayPerformancePct]);
 
  const totalCandidatesCount = roleFilteredCandidates.length;
  const todayAddedCount = todayTargetCandidates.length;
@@ -8499,7 +8520,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </span>
  </div>
  <p style={{ fontSize: 13, fontWeight: 500, color: '#6B7280', marginTop: 4 }}>
- {isSA ? "Monitoring all staff recruitment progress. Super admin does not perform personal tasks." : isEmp ? "Track and hit your daily call, interview, walk-in, selection, and joining targets (Min 60% required)." : targetViewMode === 'hr' ? "Oversee real-time call performance, interview targets, and daily progress across all team recruiters." : "Track and update your personal daily recruitment calls, interviews, walk-ins, selections, and joinings."}
+ {isSA ? "Monitoring all staff recruitment progress. Super admin does not perform personal tasks." : isEmp ? "Track and hit your daily call, interview, walk-in, selection, and joining targets (Min 60% required · below 40% = half-day absent)." : targetViewMode === 'hr' ? "Oversee real-time call performance, interview targets, and daily progress across all team recruiters." : "Track and update your personal daily recruitment calls, interviews, walk-ins, selections, and joinings."}
  </p>
  </div>
 
@@ -8567,22 +8588,25 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  )}
  </div>
 
- {/* DAILY PERFORMANCE SCORE BANNER (Each Task 20% Weight - 60% Minimum Required) */}
+ {/* DAILY PERFORMANCE SCORE BANNER (Each Task 20% Weight - 60% Minimum / 40% Half-Day Absent) */}
  {(!isSA && targetViewMode !== 'hr') && (
- <div style={{ background: isTargetAchieved ? 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)' : 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: isTargetAchieved ? '1px solid #A7F3D0' : '1px solid #FDE68A', borderRadius: 16, padding: '12px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+ <div style={{ background: isTargetAchieved ? 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)' : isHalfDayAbsentRisk ? 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)' : 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: isTargetAchieved ? '1px solid #A7F3D0' : isHalfDayAbsentRisk ? '1px solid #FECACA' : '1px solid #FDE68A', borderRadius: 16, padding: '12px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
  <span style={{ fontSize: 24 }}>{isTargetAchieved ? '' : ''}</span>
  <div>
- <div style={{ fontWeight: 900, fontSize: 14, color: isTargetAchieved ? '#065F46' : '#92400E' }}>
+ <div style={{ fontWeight: 900, fontSize: 14, color: isTargetAchieved ? '#065F46' : isHalfDayAbsentRisk ? '#991B1B' : '#92400E' }}>
  Day Performance Score: {totalDayPerformancePct}% / 100% (5 Tasks @ 20% Weight Each)
  </div>
- <div style={{ fontSize: 11.5, color: isTargetAchieved ? '#047857' : '#B45309', marginTop: 1 }}>
+ <div style={{ fontSize: 11.5, color: isTargetAchieved ? '#047857' : isHalfDayAbsentRisk ? '#B91C1C' : '#B45309', marginTop: 1 }}>
  Every employee must reach at least <strong>60% performance</strong> every day
  </div>
+ <div style={{ fontSize: 11.5, color: isHalfDayAbsentRisk ? '#991B1B' : '#B45309', marginTop: 3, fontWeight: 700 }}>
+ Warning: If you fail to reach at least <strong>40% performance</strong>, you will be marked as <strong>half-day absent</strong>
  </div>
  </div>
- <span style={{ background: isTargetAchieved ? '#10B981' : '#F59E0B', color: '#FFFFFF', padding: '4px 14px', borderRadius: 99, fontSize: 11, fontWeight: 900, letterSpacing: '0.3px' }}>
- {isTargetAchieved ? ' TARGET ACHIEVED (60%+ MET)' : ' AT RISK (60% REQUIRED)'}
+ </div>
+ <span style={{ background: isTargetAchieved ? '#10B981' : isHalfDayAbsentRisk ? '#DC2626' : '#F59E0B', color: '#FFFFFF', padding: '4px 14px', borderRadius: 99, fontSize: 11, fontWeight: 900, letterSpacing: '0.3px' }}>
+ {isTargetAchieved ? ' TARGET ACHIEVED (60%+ MET)' : isHalfDayAbsentRisk ? ' HALF-DAY ABSENT RISK (40% MIN)' : ' AT RISK (60% REQUIRED)'}
  </span>
  </div>
  )}
@@ -8600,7 +8624,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  {/* RECRUITER PERFORMANCE LIST GRID */}
  <div style={{ marginTop: 8, background: '#F9FAFB', borderRadius: 20, padding: 18, border: '1px solid #F3F4F6' }}>
- <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', marginBottom: 12 }}>Recruiter Daily Performance Breakdown (60% Min Target)</div>
+ <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', marginBottom: 12 }}>Recruiter Daily Performance Breakdown (60% min · below 40% = half-day absent)</div>
  {employeePerformanceList.length === 0 ? (
  <div style={{ padding: '28px 16px', textAlign: 'center', color: '#6B7280', fontSize: 13, fontWeight: 600 }}>
  No recruiters yet. Onboard employees to see team progress here.
@@ -8623,8 +8647,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  >
  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
  <span style={{ fontWeight: 800, fontSize: 13, color: '#111827' }}>{emp.name}</span>
- <span style={{ background: emp.pct >= 60 ? '#E6F4EA' : '#FEF7E0', color: emp.pct >= 60 ? '#137333' : '#B06000', borderRadius: 99, padding: '2px 8px', fontSize: 10, fontWeight: 800 }}>
- {emp.pct}% Done {emp.pct >= 60 ? '' : ''}
+ <span style={{ background: emp.pct >= 60 ? '#E6F4EA' : emp.pct < 40 ? '#FEE2E2' : '#FEF7E0', color: emp.pct >= 60 ? '#137333' : emp.pct < 40 ? '#991B1B' : '#B06000', borderRadius: 99, padding: '2px 8px', fontSize: 10, fontWeight: 800 }}>
+ {emp.pct}% {emp.pct >= 60 ? 'Done' : emp.pct < 40 ? 'Half-day risk' : 'At risk'}
  </span>
  </div>
  <div style={{ fontSize: 11, color: '#6B7280', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
