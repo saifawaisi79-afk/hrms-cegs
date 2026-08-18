@@ -46,6 +46,10 @@ import {
 } from '@/lib/attendance-policy';
 import { pushHrmsNotification, recordAttendanceWarning } from '@/lib/attendance-warnings-ui';
 import {
+  mergeAutoAbsents,
+  buildAbsentCalendarEvents,
+} from '@/lib/auto-absent';
+import {
   todayIsoDate,
   normalizeCandidateDate,
   formatSheetDateDisplay,
@@ -1448,7 +1452,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  const [activeDay, setActiveDay] = useState(todayIdx >= 0 ? todayIdx : 0);
 
  // ── EVENT CALENDAR STATE & DATA ──
- const [eventCategoryFilter, setEventCategoryFilter] = useState('all'); // 'all' | 'leave' | 'hiring' | 'holiday' | 'birthday' | 'meeting'
+ const [eventCategoryFilter, setEventCategoryFilter] = useState('all'); // 'all' | 'leave' | 'absent' | 'hiring' | 'holiday' | 'birthday' | 'meeting'
  const [showAddEventModal, setShowAddEventModal] = useState(false);
  const [newEventForm, setNewEventForm] = useState({ title: '', type: 'leave', date: new Date().toISOString().split('T')[0], person: user?.name || '', notes: '' });
 
@@ -1471,6 +1475,65 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
 
  const eventsList = db.events && db.events.length > 0 ? db.events : defaultEvents;
 
+ // Auto-mark staff absent (no login / clock-in) and keep Mongo in sync
+ useEffect(() => {
+ if (!save || !user?.id) return;
+ const { nextAttendance, added } = mergeAutoAbsents(
+ db.attendance || [],
+ db.users || [],
+ db.leaves || [],
+ new Date()
+ );
+ if (added.length) {
+ save('attendance', nextAttendance);
+ added.forEach((rec) => {
+ try {
+ const key = `cegs_absent_notif_${rec.uid}_${rec.date}`;
+ if (localStorage.getItem(key) === '1') return;
+ localStorage.setItem(key, '1');
+ } catch {}
+ pushHrmsNotification(save, db, {
+ to: rec.uid,
+ title: 'Marked Absent',
+ msg: `You were auto-marked absent on ${rec.date} because there was no login / attendance clock-in. Contact HR if this is incorrect.`,
+ type: 'Attendance',
+ });
+ });
+ }
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ if (token) {
+ fetch(`${GLOBAL_API_BASE}/attendance/mark-absent`, {
+ method: 'POST',
+ headers: { Authorization: `Bearer ${token}` },
+ })
+ .then((res) => (res.ok ? res.json() : null))
+ .then((data) => {
+ if (!data?.absentees?.length) return;
+ const existingKeys = new Set(
+ (db.attendance || []).map((a) => `${a.uid}_${String(a.date).slice(0, 10)}`)
+ );
+ const fromApi = data.absentees
+ .filter((m) => !existingKeys.has(`${m.uid}_${m.date}`))
+ .map((m) => ({
+ id: `absent_${m.uid}_${m.date}`,
+ uid: m.uid,
+ date: m.date,
+ in: null,
+ out: null,
+ status: 'absent',
+ hrs: 0,
+ auto: true,
+ note: 'Auto-marked absent — no login / clock-in',
+ }));
+ if (fromApi.length) {
+ save('attendance', [...fromApi, ...(db.attendance || [])]);
+ }
+ })
+ .catch(() => {});
+ }
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [user?.id, (db.users || []).length, (db.attendance || []).length]);
+
  // Merge approved leaves dynamically from db.leaves
  const approvedLeavesEvents = (db.leaves || []).filter(l => l.status === 'approved').map(l => ({
  id: `leave_${l.id}`,
@@ -1484,7 +1547,9 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  notes: `${l.leave_type} (${l.start_date} to ${l.end_date})`
  }));
 
- const allEventsCombined = [...eventsList, ...approvedLeavesEvents];
+ const absentEvents = buildAbsentCalendarEvents(db.attendance || [], db.users || []);
+
+ const allEventsCombined = [...eventsList, ...approvedLeavesEvents, ...absentEvents];
 
  const handleAddEventSubmit = (e) => {
  e.preventDefault();
@@ -1652,7 +1717,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  </span>
  </div>
  <p style={{ fontSize: 12.5, color: '#6B7280', marginTop: 3, fontWeight: 500 }}>
- Track staff leaves , new hirings , upcoming holidays , team birthdays , & meetings 
+ Track staff leaves, absents (no login/attendance), new hirings, holidays, birthdays & meetings
  </p>
  </div>
 
@@ -1672,6 +1737,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  {[
  { id: 'all', label: 'All Events', icon: 'calendar' },
  { id: 'leave', label: 'Leaves', icon: 'palm' },
+ { id: 'absent', label: 'Absents', icon: 'clock' },
  { id: 'hiring', label: 'New Hirings', icon: 'rocket' },
  { id: 'holiday', label: 'Holidays', icon: 'palm' },
  { id: 'birthday', label: 'Birthdays', icon: 'cake' },
@@ -3077,6 +3143,28 @@ export function AttendancePage({ db, save, user }) {
  const todayRec = (db.attendance || []).find(a=>a.uid===user.id&&a.date===today);
  const isSessionActive = !!(todayRec && todayRec.in && !todayRec.out);
 
+ // Auto-mark absentees (no login / clock-in) for working days
+ useEffect(() => {
+ if (!save || !user?.id) return;
+ const { nextAttendance, added } = mergeAutoAbsents(
+ db.attendance || [],
+ db.users || [],
+ db.leaves || [],
+ new Date()
+ );
+ if (added.length) {
+ save('attendance', nextAttendance);
+ }
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ if (token) {
+ fetch(`${GLOBAL_API_BASE}/attendance/mark-absent`, {
+ method: 'POST',
+ headers: { Authorization: `Bearer ${token}` },
+ }).catch(() => {});
+ }
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [user?.id]);
+
  // One-time clear of pre-production attendance logs (shared by HR + employee)
  useEffect(() => {
    try {
@@ -3146,14 +3234,23 @@ export function AttendancePage({ db, save, user }) {
  const fmt = s=>`${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
  const clockIn = async () => {
- if (todayRec) { alert('Already checked in today!'); return; }
+ const existing = (db.attendance || []).find(a => String(a.uid) === String(user.id) && a.date === today);
+ if (existing && existing.status !== 'absent') {
+ alert('Already checked in today!');
+ return;
+ }
  const now = new Date();
  const settings = db.settings || SEED_DATA.settings;
  const isLate = isLateClockIn(now, settings, user);
  const deadline = getLateClockDeadline(user, settings);
  const status = isLate ? 'late' : 'present';
  const timeStr = now.toTimeString().substr(0, 5);
- save('attendance', [{ id: Date.now(), uid: user.id, date: today, in: timeStr, out: null, status, hrs: 0 }, ...(db.attendance || [])]);
+ const newRec = { id: existing?.id || Date.now(), uid: user.id, date: today, in: timeStr, out: null, status, hrs: 0, auto: false };
+ if (existing && existing.status === 'absent') {
+ save('attendance', (db.attendance || []).map(a => (String(a.uid) === String(user.id) && a.date === today ? newRec : a)));
+ } else {
+ save('attendance', [newRec, ...(db.attendance || [])]);
+ }
  if (isLate) {
  pushHrmsNotification(save, db, {
  to: user.id,
@@ -3318,7 +3415,12 @@ export function AttendancePage({ db, save, user }) {
  
  let cls = '';
  if (isSunday) cls = 'sunday-holiday';
- else if (rec) cls = rec.status === 'present' ? 'present' : 'late';
+ else if (rec) {
+ if (rec.status === 'present') cls = 'present';
+ else if (rec.status === 'late') cls = 'late';
+ else if (rec.status === 'absent') cls = 'absent';
+ else cls = 'absent';
+ }
  
  const isToday = day === todayNum;
 
@@ -3326,7 +3428,7 @@ export function AttendancePage({ db, save, user }) {
  <div 
  key={day} 
  className={`cal-day ${cls} ${isToday ? 'today' : ''}`} 
- title={isSunday ? 'Sunday Holiday (Office Closed)' : rec ? `In:${rec.in} Out:${rec.out||'ongoing'}` : 'No record'}
+ title={isSunday ? 'Sunday Holiday (Office Closed)' : rec ? (rec.status === 'absent' ? `Absent${rec.auto ? ' (auto)' : ''}` : `In:${rec.in || '—'} Out:${rec.out||'ongoing'}`) : 'No record'}
  >
  {day}
  </div>
@@ -3334,7 +3436,7 @@ export function AttendancePage({ db, save, user }) {
  })}
  </div>
  <div style={{display:'flex',flexWrap:'wrap',gap:10,marginTop:16,fontSize:11.5}}>
- {[{c:'present',label:'Present'},{c:'late',label:'Late'},{c:'sunday-holiday',label:'Sunday (Holiday)'},{c:'empty',label:'No Record'}].map(item=>(
+ {[{c:'present',label:'Present'},{c:'late',label:'Late'},{c:'absent',label:'Absent'},{c:'sunday-holiday',label:'Sunday (Holiday)'},{c:'empty',label:'No Record'}].map(item=>(
  <div key={item.c} style={{display:'flex',alignItems:'center',gap:5}}>
  <div className={`cal-day ${item.c}`} style={{width:14,height:14,borderRadius:4,minWidth:14,fontSize:0}}/>
  <span style={{color:'var(--text-muted)'}}>{item.label}</span>
