@@ -1482,8 +1482,10 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  let cancelled = false;
  const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
 
- const rank = (s) => {
- const v = String(s || '').toLowerCase();
+ const rank = (r) => {
+ const v = String(r?.status || '').toLowerCase();
+ const src = String(r?.source || 'clock');
+ if ((v === 'present' || v === 'late') && r?.in && src === 'clock') return 3;
  if (v === 'present' || v === 'late') return 2;
  if (v === 'absent') return 0;
  return 1;
@@ -1495,21 +1497,22 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  const uid = String(a.uid || a.user_id || '');
  const date = String(a.date || '').slice(0, 10);
  if (!uid || !date) return;
- const k = `${uid}_${date}`;
- const prev = byKey.get(k);
- if (!prev || rank(a.status) >= rank(prev.status)) {
- byKey.set(k, {
+ const source = a.source || (a.status === 'absent' ? 'auto' : 'clock');
+ const isSheet = source === 'sheet';
+ const row = {
  id: a.id || a._id || `att_${uid}_${date}`,
  uid,
  date,
- in: a.in || a.check_in_time || null,
- out: a.out || a.check_out_time || null,
+ in: isSheet ? null : (a.in || a.check_in_time || null),
+ out: isSheet ? null : (a.out || a.check_out_time || null),
  status: a.status || 'present',
- hrs: a.hrs ?? a.work_hours ?? 0,
- auto: !!(a.auto || (a.status === 'absent' && !(a.in || a.check_in_time))),
+ hrs: isSheet ? 0 : (a.hrs ?? a.work_hours ?? 0),
+ auto: source === 'auto' || source === 'sheet',
+ source,
  note: a.note || '',
- });
- }
+ };
+ const prev = byKey.get(`${uid}_${date}`);
+ if (!prev || rank(row) >= rank(prev)) byKey.set(`${uid}_${date}`, row);
  });
  return [...byKey.values()];
  };
@@ -3239,7 +3242,15 @@ export function AttendancePage({ db, save, user }) {
  const isAdmin = db.permissions?.[currentPermRole]?.attendance ?? ['admin','super_admin'].includes(user.role);
  const today = toIsoDate(new Date());
  const todayRec = (db.attendance || []).find(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today);
- const isSessionActive = !!(todayRec && todayRec.in && !todayRec.out && todayRec.status !== 'absent');
+ // Live timer only for a real clock punch (not sheet-inferred / auto present)
+ const isRealClockIn = !!(
+ todayRec &&
+ todayRec.in &&
+ todayRec.status !== 'absent' &&
+ String(todayRec.source || 'clock') !== 'sheet' &&
+ String(todayRec.source || '') !== 'auto'
+ );
+ const isSessionActive = !!(isRealClockIn && !todayRec.out);
 
  // Sync attendance from Mongo; purge false absents when sheet work exists. Do not wipe data.
  useEffect(() => {
@@ -3259,22 +3270,36 @@ export function AttendancePage({ db, save, user }) {
  if (res.ok) {
  const rows = await res.json();
  if (!cancelled && Array.isArray(rows)) {
- const mapped = rows.map((a) => ({
+ const mapped = rows.map((a) => {
+ const source = a.source || (a.status === 'absent' ? 'auto' : 'clock');
+ // Strip invented sheet punches so the live timer does not start
+ const isSheet = source === 'sheet';
+ return {
  id: a.id || a._id,
  uid: a.uid || a.user_id,
  date: a.date,
- in: a.in || a.check_in_time || null,
- out: a.out || a.check_out_time || null,
+ in: isSheet ? null : (a.in || a.check_in_time || null),
+ out: isSheet ? null : (a.out || a.check_out_time || null),
  status: a.status,
- hrs: a.hrs ?? a.work_hours ?? 0,
- auto: !!(a.auto || (a.status === 'absent' && !(a.in || a.check_in_time))),
- }));
+ hrs: isSheet ? 0 : (a.hrs ?? a.work_hours ?? 0),
+ auto: source === 'auto' || source === 'sheet',
+ source,
+ };
+ });
  const byKey = new Map();
  [...(db.attendance || []), ...mapped].forEach((row) => {
  const k = `${row.uid}_${String(row.date).slice(0, 10)}`;
  const prev = byKey.get(k);
- const rank = (s) => (['present', 'late'].includes(String(s)) ? 2 : String(s) === 'absent' ? 0 : 1);
- if (!prev || rank(row.status) >= rank(prev.status)) byKey.set(k, row);
+ // Prefer real clock rows over sheet/auto
+ const rank = (r) => {
+ const s = String(r.status || '');
+ const src = String(r.source || 'clock');
+ if ((s === 'present' || s === 'late') && r.in && src === 'clock') return 3;
+ if (s === 'present' || s === 'late') return 2;
+ if (s === 'absent') return 0;
+ return 1;
+ };
+ if (!prev || rank(row) >= rank(prev)) byKey.set(k, row);
  });
  const cleaned = purgeFalseAutoAbsents([...byKey.values()], db.users || [], db.candidates || []);
  save('attendance', cleaned);
@@ -3323,17 +3348,13 @@ export function AttendancePage({ db, save, user }) {
    return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
  };
 
- // Persist timer across navigation: always derive from stored clock-in time
+ // Persist timer: only for a real open clock session (not sheet-inferred present)
  useEffect(() => {
    clearInterval(intRef.current);
-   if (!todayRec?.in) {
+   if (!isSessionActive) {
      setRunning(false);
-     setSecs(0);
-     return;
-   }
-   if (todayRec.out) {
-     setRunning(false);
-     setSecs(calcElapsedSecs(todayRec));
+     if (isRealClockIn && todayRec?.out) setSecs(calcElapsedSecs(todayRec));
+     else setSecs(0);
      return;
    }
    setRunning(true);
@@ -3342,14 +3363,18 @@ export function AttendancePage({ db, save, user }) {
    intRef.current = setInterval(tick, 1000);
    return () => clearInterval(intRef.current);
  // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [todayRec?.id, todayRec?.in, todayRec?.out, todayRec?.date]);
+ }, [todayRec?.id, todayRec?.in, todayRec?.out, todayRec?.date, todayRec?.source, isSessionActive, isRealClockIn]);
 
  const fmt = s=>`${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
  const clockIn = async () => {
  const existing = (db.attendance || []).find(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today);
- if (existing && existing.status !== 'absent' && existing.in) {
+ if (existing && String(existing.source || 'clock') === 'clock' && existing.in && !existing.out) {
  alert('Already checked in today!');
+ return;
+ }
+ if (existing && String(existing.source || 'clock') === 'clock' && existing.out) {
+ alert('Already completed attendance for today.');
  return;
  }
  const now = new Date();
@@ -3358,14 +3383,27 @@ export function AttendancePage({ db, save, user }) {
  const deadline = getLateClockDeadline(user, settings);
  const status = isLate ? 'late' : 'present';
  const timeStr = now.toTimeString().substr(0, 5);
- const newRec = { id: existing?.id || Date.now(), uid: user.id, date: today, in: timeStr, out: null, status, hrs: 0, auto: false };
- if (existing && existing.status === 'absent') {
- save('attendance', (db.attendance || []).map(a => (String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today ? newRec : a)));
- } else {
- save('attendance', [newRec, ...(db.attendance || []).filter(a => !(String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today))]);
- }
+ const newRec = {
+ id: existing?.id || Date.now(),
+ uid: user.id,
+ date: today,
+ in: timeStr,
+ out: null,
+ status,
+ hrs: 0,
+ auto: false,
+ source: 'clock',
+ };
+ save(
+ 'attendance',
+ [
+ newRec,
+ ...(db.attendance || []).filter(
+ (a) => !(String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today)
+ ),
+ ]
+ );
 
- // Persist to Mongo so auto-absent / other devices stay correct
  try {
  const token = localStorage.getItem('cegs_token') || '';
  await fetch(`${GLOBAL_API_BASE}/attendance/check-in`, {
@@ -3400,8 +3438,8 @@ export function AttendancePage({ db, save, user }) {
  const isClockOutUnlocked = isAdmin || user?.role === 'super_admin' || curHour > 18 || (curHour === 18 && curMin >= 30);
 
  const clockOut = async () => {
- if (!todayRec || todayRec.out || todayRec.status === 'absent') {
- alert(!todayRec || todayRec.status === 'absent' ? 'Clock in first!' : 'Already clocked out.');
+ if (!isSessionActive) {
+ alert(!todayRec || todayRec.status === 'absent' || String(todayRec?.source) === 'sheet' ? 'Clock in first!' : 'Already clocked out.');
  return;
  }
  if (!isClockOutUnlocked) {
@@ -3411,7 +3449,7 @@ export function AttendancePage({ db, save, user }) {
  const elapsed = calcElapsedSecs(todayRec);
  const hrs = parseFloat((elapsed / 3600).toFixed(2)) || 0;
  const outStr = new Date().toTimeString().substr(0, 5);
- save('attendance', (db.attendance || []).map(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today ? { ...a, out: outStr, hrs } : a));
+ save('attendance', (db.attendance || []).map(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today ? { ...a, out: outStr, hrs, source: 'clock' } : a));
  setRunning(false);
  setSecs(elapsed);
  try {
@@ -3426,10 +3464,13 @@ export function AttendancePage({ db, save, user }) {
  } catch {}
  };
 
- const myLogs = isAdmin ? (db.attendance || []) : (db.attendance || []).filter(a => a.uid === user.id);
- const presentDays = (db.attendance || []).filter(a => a.uid === user.id && a.status === 'present').length;
- const lateDays = (db.attendance || []).filter(a => a.uid === user.id && a.status === 'late').length;
- const totalHrs = (db.attendance || []).filter(a => a.uid === user.id).reduce((s, a) => s + (a.hrs || 0), 0);
+ const myAttendance = (db.attendance || []).filter((a) => String(a.uid) === String(user.id));
+ const presentDays = myAttendance.filter((a) => a.status === 'present').length;
+ const lateDays = myAttendance.filter((a) => a.status === 'late').length;
+ const totalHrs = myAttendance
+ .filter((a) => String(a.source || 'clock') === 'clock' && (a.hrs || 0) > 0)
+ .reduce((s, a) => s + (Number(a.hrs) || 0), 0);
+ const myLogs = isAdmin ? (db.attendance || []) : myAttendance;
 
  // Dynamic Live Calendar calculations
  const curYear = nowObj.getFullYear();
@@ -3458,8 +3499,8 @@ export function AttendancePage({ db, save, user }) {
  <div className="timer-label">LIVE WORK TIMER</div>
  <div className="timer-digits">{fmt(secs)}</div>
  <div className="timer-actions">
- <button className="btn btn-amber" onClick={clockIn} style={{ flex: 1 }} disabled={!!(todayRec && todayRec.status !== 'absent' && todayRec.in)}>
- {todayRec && todayRec.status !== 'absent' && todayRec.in ? ' Clocked In' : 'Clock In'}
+ <button className="btn btn-amber" onClick={clockIn} style={{ flex: 1 }} disabled={isSessionActive || (isRealClockIn && !!todayRec?.out)}>
+ {isSessionActive ? ' Clocked In' : isRealClockIn && todayRec?.out ? ' Completed Today' : 'Clock In'}
  </button>
  <button 
  className="btn btn-ghost" 
@@ -3477,9 +3518,26 @@ export function AttendancePage({ db, save, user }) {
  {!isSessionActive ? 'Clock Out' : !isClockOutUnlocked ? ' Locked till 6:30 PM' : 'Clock Out'}
  </button>
  </div>
- {todayRec && <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono,monospace' }}>
- IN: {todayRec.in} {todayRec.out && ` | OUT: ${todayRec.out}`} {isSessionActive && !isClockOutUnlocked && ` (Clock Out unlocks at 6:30 PM)`}
- </div>}
+ {isSessionActive && (
+ <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono,monospace' }}>
+ IN: {todayRec.in}{!isClockOutUnlocked ? ' (Clock Out unlocks at 6:30 PM)' : ''}
+ </div>
+ )}
+ {isRealClockIn && todayRec?.out && (
+ <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono,monospace' }}>
+ IN: {todayRec.in} | OUT: {todayRec.out} · {todayRec.hrs || 0}h
+ </div>
+ )}
+ {todayRec && String(todayRec.source) === 'sheet' && !isRealClockIn && (
+ <div style={{ marginTop: 16, fontSize: 12.5, color: 'rgba(255,255,255,0.55)', fontWeight: 650 }}>
+ Marked present from Targets sheet work — press Clock In to start the live timer.
+ </div>
+ )}
+ {todayRec && todayRec.status === 'absent' && (
+ <div style={{ marginTop: 16, fontSize: 12.5, color: '#FCA5A5', fontWeight: 650 }}>
+ Marked absent — press Clock In if you are working today.
+ </div>
+ )}
  </div>
 
  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>

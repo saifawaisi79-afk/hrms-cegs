@@ -43,7 +43,7 @@ async function markAbsentees(request) {
 
   const since = toIsoDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
   const attendanceRows = await Attendance.find({ date: { $gte: since } })
-    .select('user_id date status check_in_time')
+    .select('user_id date status check_in_time check_out_time work_hours location_verified source')
     .lean();
 
   const attendance = attendanceRows.map((a) => ({
@@ -79,21 +79,32 @@ async function markAbsentees(request) {
     candidates = [];
   }
 
-  // Fix false auto-absents: sheet work → treat as present (do not erase other data)
+  // Fix false auto-absents: sheet work → present WITHOUT fake clock-in times (timer must not start)
   let purged = 0;
   for (const row of attendanceRows) {
     if (String(row.status).toLowerCase() !== 'absent') continue;
     const uid = row.user_id?.toString();
     const user = mappedUsers.find((u) => u.id === uid);
     if (!user) continue;
-    if (row.check_in_time || hasSheetWork(candidates, user, row.date)) {
+    if (row.check_in_time && String(row.source || 'clock') === 'clock') {
+      // Real punch exists — just flip status if needed
+      await Attendance.updateOne(
+        { _id: row._id },
+        { $set: { status: 'present' } }
+      );
+      purged += 1;
+      continue;
+    }
+    if (hasSheetWork(candidates, user, row.date)) {
       await Attendance.updateOne(
         { _id: row._id },
         {
           $set: {
             status: 'present',
-            check_in_time: row.check_in_time || '10:00:00',
-            work_hours: row.work_hours || 0,
+            check_in_time: null,
+            check_out_time: null,
+            work_hours: 0,
+            source: 'sheet',
           },
         }
       );
@@ -101,27 +112,63 @@ async function markAbsentees(request) {
     }
   }
 
-  // If staff did Targets sheet work but have no/absent attendance, mark present
+  // Repair bad rows created earlier: fake 10:00:00 sheet presents that drive the live timer
+  const badFakeIns = await Attendance.find({
+    date: { $gte: since },
+    status: { $in: ['present', 'late'] },
+    check_in_time: { $in: ['10:00:00', '10:00'] },
+    location_verified: { $ne: true },
+  }).lean();
+  for (const row of badFakeIns) {
+    const uid = row.user_id?.toString();
+    const user = mappedUsers.find((u) => u.id === uid);
+    if (!user) continue;
+    // Only rewrite if they have sheet work and never verified location (system-invented punch)
+    if (!hasSheetWork(candidates, user, row.date)) continue;
+    if (String(row.source || '') === 'clock' && row.check_out_time) continue;
+    await Attendance.updateOne(
+      { _id: row._id },
+      {
+        $set: {
+          status: 'present',
+          check_in_time: null,
+          check_out_time: null,
+          work_hours: 0,
+          source: 'sheet',
+        },
+      }
+    );
+    purged += 1;
+  }
+
+  // If staff did Targets sheet work but have no attendance row, mark present (no fake IN/OUT)
   const today = toIsoDate();
   for (const user of mappedUsers) {
     if (!hasSheetWork(candidates, user, today)) continue;
     if (!mongoose.Types.ObjectId.isValid(user.id)) continue;
     const existing = await Attendance.findOne({ user_id: user.id, date: today });
-    if (existing && ['present', 'late'].includes(String(existing.status))) continue;
-    if (existing && existing.check_in_time) continue;
+    if (existing && ['present', 'late'].includes(String(existing.status)) && existing.check_in_time && String(existing.source || 'clock') === 'clock') {
+      continue;
+    }
+    if (existing && existing.check_in_time && String(existing.source || '') === 'clock') continue;
     await Attendance.findOneAndUpdate(
       { user_id: user.id, date: today },
       {
         $set: {
           status: 'present',
-          check_in_time: existing?.check_in_time || '10:00:00',
-          work_hours: existing?.work_hours || 0,
-          location_verified: false,
+          source: existing?.check_in_time && String(existing.source) === 'clock' ? 'clock' : 'sheet',
+          ...(existing?.check_in_time && String(existing.source) === 'clock'
+            ? {}
+            : { check_in_time: null, check_out_time: null, work_hours: 0 }),
         },
         $setOnInsert: {
           user_id: user.id,
           date: today,
+          check_in_time: null,
           check_out_time: null,
+          work_hours: 0,
+          location_verified: false,
+          source: 'sheet',
         },
       },
       { upsert: true }
@@ -164,6 +211,7 @@ async function markAbsentees(request) {
       status: 'absent',
       work_hours: 0,
       location_verified: false,
+      source: 'auto',
     });
     created += 1;
   }

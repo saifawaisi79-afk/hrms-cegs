@@ -18,6 +18,7 @@ function flattenAttendance(a) {
     hrs: obj.work_hours || 0,
     status: obj.status,
     auto: obj.status === 'absent' && !obj.check_in_time,
+    source: obj.source || (obj.status === 'absent' ? 'auto' : 'clock'),
     employee_name: obj.user_id?.name || null,
     employee_id: obj.user_id?.employee_id || null,
     avatar_url: obj.user_id?.avatar_url || null,
