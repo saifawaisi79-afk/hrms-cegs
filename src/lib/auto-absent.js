@@ -4,15 +4,14 @@
  */
 
 import { matchesSheetDate, normalizeCandidateDate } from '@/lib/candidate-dates';
+import { formatInOfficeTz, istIsoDate } from '@/lib/ist-time';
 
-export const TODAY_ABSENT_AFTER_HOUR = 19; // 7:00 PM local
+export const TODAY_ABSENT_AFTER_HOUR = 19; // 7:00 PM IST
 export const ABSENT_LOOKBACK_DAYS = 21;
 
+/** Calendar date in Asia/Kolkata (not server UTC). */
 export function toIsoDate(d = new Date()) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return istIsoDate(d);
 }
 
 export function parseIsoDate(iso) {
@@ -30,7 +29,9 @@ export function isWorkingDay(dateOrIso) {
 
 export function listWorkingDatesBack(now = new Date(), lookback = ABSENT_LOOKBACK_DAYS) {
   const dates = [];
-  const cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const { date: todayIst } = formatInOfficeTz(now);
+  const [y, m, day] = todayIst.split('-').map(Number);
+  const cursor = new Date(y, m - 1, day);
   for (let i = 0; i < lookback; i++) {
     const d = new Date(cursor);
     d.setDate(cursor.getDate() - i);
@@ -129,7 +130,7 @@ export function shouldEvaluateDate(isoDate, now = new Date()) {
   const today = toIsoDate(now);
   if (isoDate < today) return true;
   if (isoDate > today) return false;
-  return now.getHours() >= TODAY_ABSENT_AFTER_HOUR;
+  return formatInOfficeTz(now).hour >= TODAY_ABSENT_AFTER_HOUR;
 }
 
 export function findMissingAbsentees({

@@ -4,6 +4,7 @@ import Attendance from '@/lib/models/Attendance';
 import { getAuthUser } from '@/lib/auth';
 import { toIsoDate } from '@/lib/auto-absent';
 import { isLateClockIn } from '@/lib/attendance-policy';
+import { OFFICE_TZ, istTimeString, normalizePunchTime } from '@/lib/ist-time';
 
 // POST /api/attendance/check-in
 export async function POST(request) {
@@ -11,9 +12,13 @@ export async function POST(request) {
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const { latitude, longitude, status: bodyStatus } = body;
-  const todayStr = toIsoDate(new Date());
-  const nowTimeStr = new Date().toTimeString().slice(0, 8);
+  const { latitude, longitude, status: bodyStatus, check_in_time, date } = body;
+  const todayStr =
+    typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())
+      ? date.trim()
+      : toIsoDate(new Date());
+  const nowTimeStr =
+    normalizePunchTime(check_in_time) || istTimeString(new Date());
 
   await connectDB();
   const existing = await Attendance.findOne({ user_id: authUser.id, date: todayStr });
@@ -41,6 +46,7 @@ export async function POST(request) {
     existing.status = status;
     existing.location_verified = verified;
     existing.source = 'clock';
+    existing.time_zone = OFFICE_TZ;
     existing.check_out_time = null;
     existing.work_hours = 0;
     await existing.save();
@@ -62,6 +68,7 @@ export async function POST(request) {
     location_verified: verified,
     work_hours: 0,
     source: 'clock',
+    time_zone: OFFICE_TZ,
   });
 
   return NextResponse.json({

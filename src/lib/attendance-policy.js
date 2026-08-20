@@ -1,6 +1,9 @@
 /**
  * Attendance & break policy — late warnings, lunch windows, payroll penalties.
+ * Clock comparisons use Asia/Kolkata so Vercel UTC does not skew late checks.
  */
+
+import { formatInOfficeTz } from '@/lib/ist-time';
 
 export const LUNCH_START_HOUR = 15;
 export const LUNCH_START_MIN = 0;
@@ -100,8 +103,7 @@ export function getLunchWindowLabel(user) {
 /** Late if after login start + grace (default 10:00 + 15 → 10:15; Raheel 11:00 + 15 → 11:15). */
 export function isLateClockIn(now = new Date(), settings, user) {
   const { deadlineH, deadlineMin } = getLateClockDeadline(user, settings);
-  const curH = now.getHours();
-  const curM = now.getMinutes();
+  const { hour: curH, minute: curM } = formatInOfficeTz(now);
   if (curH > deadlineH) return true;
   if (curH === deadlineH && curM > deadlineMin) return true;
   return false;

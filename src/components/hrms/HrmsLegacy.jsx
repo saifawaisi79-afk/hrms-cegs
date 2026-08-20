@@ -3382,7 +3382,7 @@ export function AttendancePage({ db, save, user }) {
  const isLate = isLateClockIn(now, settings, user);
  const deadline = getLateClockDeadline(user, settings);
  const status = isLate ? 'late' : 'present';
- const timeStr = now.toTimeString().substr(0, 5);
+ const timeStr = now.toTimeString().substr(0, 8);
  const newRec = {
  id: existing?.id || Date.now(),
  uid: user.id,
@@ -3406,14 +3406,32 @@ export function AttendancePage({ db, save, user }) {
 
  try {
  const token = localStorage.getItem('cegs_token') || '';
- await fetch(`${GLOBAL_API_BASE}/attendance/check-in`, {
+ const res = await fetch(`${GLOBAL_API_BASE}/attendance/check-in`, {
  method: 'POST',
  headers: {
  'Content-Type': 'application/json',
  Authorization: `Bearer ${token}`,
  },
- body: JSON.stringify({ status }),
+ body: JSON.stringify({
+ status,
+ date: today,
+ check_in_time: timeStr,
+ }),
  });
+ if (res.ok) {
+ const data = await res.json().catch(() => ({}));
+ const serverIn = data.check_in_time || timeStr;
+ const serverId = data.id || newRec.id;
+ save(
+ 'attendance',
+ [
+ { ...newRec, id: serverId, in: serverIn, status: data.status || status },
+ ...(db.attendance || []).filter(
+ (a) => !(String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today)
+ ),
+ ]
+ );
+ }
  } catch {}
 
  if (isLate) {
@@ -3448,7 +3466,7 @@ export function AttendancePage({ db, save, user }) {
  }
  const elapsed = calcElapsedSecs(todayRec);
  const hrs = parseFloat((elapsed / 3600).toFixed(2)) || 0;
- const outStr = new Date().toTimeString().substr(0, 5);
+ const outStr = new Date().toTimeString().substr(0, 8);
  save('attendance', (db.attendance || []).map(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today ? { ...a, out: outStr, hrs, source: 'clock' } : a));
  setRunning(false);
  setSecs(elapsed);
@@ -3460,6 +3478,10 @@ export function AttendancePage({ db, save, user }) {
  'Content-Type': 'application/json',
  Authorization: `Bearer ${token}`,
  },
+ body: JSON.stringify({
+ date: today,
+ check_out_time: outStr,
+ }),
  });
  } catch {}
  };
@@ -7932,6 +7954,17 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
  const isEmp = !isSA && !isHR;
 
+ const candidateDupKey = (c) => {
+ const nameKey = (c.name || '').trim().toLowerCase();
+ const numKey = String(c.number || '').replace(/\D/g, '');
+ const empKey = (c.employee || '').trim().toLowerCase();
+ const catKey = (c.category || '').trim().toLowerCase();
+ const dateKey = normalizeCandidateDate(c.date) || '';
+ if (!nameKey && !numKey) return '';
+ // Same person allowed on different days/sheets; block only within date+category+employee
+ return `${dateKey}|${catKey}|${empKey}|${nameKey}|${numKey}`;
+ };
+
  const deduplicateCandidates = (items) => {
  const seen = new Set();
  const result = [];
@@ -7949,10 +7982,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return;
  }
 
- const nameKey = nameVal.toLowerCase();
- const numKey = numVal;
- const empKey = (c.employee || '').trim().toLowerCase();
- const key = (nameKey || numKey) ? `${nameKey}_${numKey}_${empKey}` : `row_${idKey}`;
+ const key = candidateDupKey(c) || `row_${idKey}`;
 
  if (!seen.has(key)) {
  seen.add(key);
@@ -7960,6 +7990,16 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  }
  });
  return result;
+ };
+
+ const isSameSheetDuplicate = (draft, excludeId = null) => {
+ const key = candidateDupKey(draft);
+ if (!key) return false;
+ return (candidates || []).some((c) => {
+ const rid = String(c.id || c._id || '');
+ if (excludeId && rid === String(excludeId)) return false;
+ return candidateDupKey(c) === key;
+ });
  };
 
  // Helper to get candidates directly from top-level db or persistent localStorage
@@ -8489,6 +8529,12 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  : (user?.name || 'Recruiter')
  };
 
+ if (isSameSheetDuplicate(draftRow)) {
+ setFormError('Same name and phone already exist on this sheet/date. You can add them again on a different day.');
+ setSaveStatus('Error');
+ return;
+ }
+
  try {
  const res = await fetch(`${API_BASE}/candidates`, {
  method: 'POST',
@@ -8573,7 +8619,15 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const payload = {
  ...editForm,
  experience: Number(editForm.experience) || 0,
+ category: editForm.category || activeTaskCategory,
+ date: editForm.date || formatSheetDateDisplay(sheetDate),
  };
+
+ if (isSameSheetDuplicate(payload, editingId)) {
+ setFormError('Same name and phone already exist on this sheet/date. You can use them again on a different day.');
+ setSaveStatus('Error');
+ return;
+ }
 
  try {
  const isLocalOnly = String(editingId).startsWith('cand_') || String(editingId).startsWith('imp_');
@@ -8702,10 +8756,24 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  }
 
  if (newEntries.length > 0) {
- const formattedNew = newEntries.map((r, i) => {
+ const seenImport = new Set();
+ const formattedNew = [];
+ newEntries.forEach((r, i) => {
  const { _fileDateIso, ...rest } = r;
- return { ...rest, id: 'imp_' + Date.now() + '_' + i };
+ const row = { ...rest, id: 'imp_' + Date.now() + '_' + i };
+ const key = candidateDupKey(row);
+ if (key) {
+ if (seenImport.has(key) || isSameSheetDuplicate(row)) return;
+ seenImport.add(key);
+ }
+ formattedNew.push(row);
  });
+ if (formattedNew.length === 0) {
+ setSaveStatus('Ready');
+ showToast('No new rows added — duplicates on this sheet were skipped.', 'info');
+ if (e?.target) e.target.value = '';
+ return;
+ }
  lastEditedRef.current = Date.now();
  updateCandidatesStore([...candidates, ...formattedNew]);
 
@@ -8737,7 +8805,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  });
  skipCloudOverwriteUntilRef.current = Date.now() + 10000;
  setSaveStatus('Synced to database');
- showToast(`Uploaded ${newEntries.length} candidates for ${formatSheetDateDisplay(sheetDate)}.`, 'success');
+ showToast(`Uploaded ${formattedNew.length} candidates for ${formatSheetDateDisplay(sheetDate)}.`, 'success');
  } else {
  setSaveStatus('Saved locally');
  showToast(`Uploaded ${newEntries.length} candidates locally (cloud sync failed).`, 'info');
