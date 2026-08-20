@@ -55,7 +55,7 @@ export const TARGET_SHEETS = [
   { slug: 'interviews', label: 'Interviews Scheduled', viewKey: 'interviews' },
   { slug: 'walkins', label: 'Walk-ins Today', viewKey: 'walkins' },
   { slug: 'selected', label: 'Selected Today', viewKey: 'selected' },
-  { slug: 'joined', label: 'Joined Today', viewKey: 'joined' },
+  { slug: 'joined', label: 'Joiner Sheet', viewKey: 'joined' },
 ];
 
 export function pathForView(viewKey) {

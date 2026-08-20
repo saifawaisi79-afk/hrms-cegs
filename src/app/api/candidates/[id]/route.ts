@@ -15,6 +15,7 @@ const updateCandidateSchema = z.object({
   response: z.string().optional(),
   callStatus: z.string().optional(),
   location: z.string().optional(),
+  company: z.string().optional(),
   experience: z.number().optional(),
   followUp1: z.string().optional(),
   followUp2: z.string().optional(),

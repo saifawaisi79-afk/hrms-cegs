@@ -96,7 +96,7 @@ export function metaForPath(pathname) {
       interviews: 'Interviews Scheduled',
       walkins: 'Walk-ins Today',
       selected: 'Selected Today',
-      joined: 'Joined Today',
+      joined: 'Joiner Sheet',
     };
     return {
       title: labels[sheet[1]],

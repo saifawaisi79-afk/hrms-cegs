@@ -7909,6 +7909,16 @@ export const LANGUAGE_OPTIONS = [
  'English', 'Hindi', 'Kannada', 'Telugu', 'Tamil', 'Malayalam', 'Marathi', 'Odisha', 'Bengali', 'English, Hindi', 'English, Kannada', 'English, Telugu', 'English, Tamil', 'Urdu'
 ];
 
+export const COMPANY_OPTIONS = [
+ 'Select Company',
+ 'ALTRUIST',
+ 'ONE POINT ONE',
+ 'STARTEK',
+ 'TRIO',
+ 'ISON',
+ 'RADICAL MINDS',
+];
+
 export const INITIAL_CANDIDATE_DATA = [];
 
 export function TargetMetricCard({ title, icon = 'target', current, target, unit, weight = '20%', iconBg = 'var(--accent-soft)', iconColor = 'var(--accent)', onClick }) {
@@ -8134,7 +8144,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  
  // Inline Excel-style add / edit state (no modal)
  const emptyCandidateForm = {
- name: '', number: '', languages: 'English', qualification: '', response: '', callStatus: 'Select Status', location: 'Bengaluru', experience: 0, followUp1: '', followUp2: '', followUp3: ''
+ name: '', number: '', languages: 'English', qualification: '', response: '', callStatus: 'Select Status', location: 'Bengaluru', company: 'Select Company', experience: 0, followUp1: '', followUp2: '', followUp3: ''
  };
  const [isAdding, setIsAdding] = useState(false);
  const [editingId, setEditingId] = useState(null);
@@ -8183,7 +8193,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return text.includes('selected') || text.includes('hired');
  }
  if (task === 'joined') {
- return text.includes('joined') || text.includes('joining');
+ return text.includes('joined') || text.includes('joining') || String(cand.category || '').toLowerCase() === 'joined';
  }
  return false;
  };
@@ -8524,10 +8534,19 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  slNo: categoryRows.length + 1,
  date: formatSheetDateDisplay(sheetDate),
  category: activeTaskCategory,
+ company: candidateForm.company === 'Select Company' ? '' : candidateForm.company,
  employee: (selectedEmployeeFilter && selectedEmployeeFilter !== 'ALL')
  ? selectedEmployeeFilter
  : (user?.name || 'Recruiter')
  };
+
+ // Joiner Sheet rows must count as joined even if follow-up text was left blank
+ if (activeTaskCategory === 'joined') {
+ const joinedText = `${draftRow.response || ''} ${draftRow.followUp1 || ''} ${draftRow.followUp2 || ''} ${draftRow.followUp3 || ''}`.toLowerCase();
+ if (!joinedText.includes('joined') && !joinedText.includes('joining')) {
+ draftRow.followUp3 = draftRow.followUp3 || 'joined';
+ }
+ }
 
  if (isSameSheetDuplicate(draftRow)) {
  setFormError('Same name and phone already exist on this sheet/date. You can add them again on a different day.');
@@ -8576,6 +8595,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  response: row.response || '',
  callStatus: row.callStatus || 'Select Status',
  location: row.location || 'Bengaluru',
+ company: row.company || 'Select Company',
  experience: row.experience ?? 0,
  followUp1: row.followUp1 || '',
  followUp2: row.followUp2 || '',
@@ -8621,7 +8641,16 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  experience: Number(editForm.experience) || 0,
  category: editForm.category || activeTaskCategory,
  date: editForm.date || formatSheetDateDisplay(sheetDate),
+ company: editForm.company === 'Select Company' ? '' : (editForm.company || ''),
  };
+
+ if (activeTaskCategory === 'joined' || String(payload.category || '').toLowerCase() === 'joined') {
+ const joinedText = `${payload.response || ''} ${payload.followUp1 || ''} ${payload.followUp2 || ''} ${payload.followUp3 || ''}`.toLowerCase();
+ if (!joinedText.includes('joined') && !joinedText.includes('joining')) {
+ payload.followUp3 = payload.followUp3 || 'joined';
+ payload.category = 'joined';
+ }
+ }
 
  if (isSameSheetDuplicate(payload, editingId)) {
  setFormError('Same name and phone already exist on this sheet/date. You can use them again on a different day.');
@@ -8739,6 +8768,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  response: String(findVal(['response']) || ''),
  callStatus: rawStatus || 'Connected',
  location: String(findVal(['location']) || 'Bengaluru'),
+ company: String(findVal(['company', 'client']) || ''),
  experience: Number(findVal(['experience'])) || 0,
  followUp1: String(findVal(['followup1']) || ''),
  followUp2: String(findVal(['followup2']) || ''),
@@ -8828,6 +8858,10 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  const categoryCandidates = roleFilteredCandidates.filter((cand) => {
+ // Joiner Sheet = all joined entries (any date); other sheets stay date-scoped
+ if (activeTaskCategory === 'joined') {
+ return candidateMatchesTask(cand, 'joined');
+ }
  if (!matchesSheetDate(cand, sheetDate)) return false;
  // Calls Made = full daily working sheet (single entry can mark interview/walk-in/selected/joined)
  if (activeTaskCategory === 'calls') return true;
@@ -8835,14 +8869,20 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  });
 
  const sheetDayCandidates = roleFilteredCandidates.filter(c => matchesSheetDate(c, sheetDate));
- const tabCount = (cat) => sheetDayCandidates.filter((c) => candidateMatchesTask(c, cat)).length;
+ const tabCount = (cat) => {
+ if (cat === 'joined') {
+ return roleFilteredCandidates.filter((c) => candidateMatchesTask(c, 'joined')).length;
+ }
+ return sheetDayCandidates.filter((c) => candidateMatchesTask(c, cat)).length;
+ };
 
  const filteredCandidates = categoryCandidates.filter(cand => {
  const q = searchQuery.toLowerCase();
  return (cand.name || '').toLowerCase().includes(q) ||
  (cand.number || '').toLowerCase().includes(q) ||
  (cand.response || '').toLowerCase().includes(q) ||
- (cand.callStatus || '').toLowerCase().includes(q);
+ (cand.callStatus || '').toLowerCase().includes(q) ||
+ (cand.company || '').toLowerCase().includes(q);
  });
 
  return (
@@ -9122,7 +9162,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  transition: 'all 0.2s ease'
  }}
  >
- Joined Today Page ({tabCount('joined')})
+ Joiner Sheet ({tabCount('joined')})
  </button>
  </div>
 
@@ -9137,10 +9177,12 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  activeTaskCategory === 'interviews' ? 'Interviews Scheduled Datasheet' :
  activeTaskCategory === 'walkins' ? 'Walk-ins Today Datasheet' :
  activeTaskCategory === 'selected' ? 'Selected Today Datasheet' :
- 'Joined Today Datasheet'} {isEmp ? `(${user?.name})` : selectedEmployeeFilter !== 'ALL' ? `(${selectedEmployeeFilter})` : '(All Recruiter Log)'}
+ 'Joiner Sheet'} {isEmp ? `(${user?.name})` : selectedEmployeeFilter !== 'ALL' ? `(${selectedEmployeeFilter})` : '(All Recruiter Log)'}
  </h3>
  <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)', marginTop: 2 }}>
- Daily sheet for {formatSheetDateDisplay(sheetDate)}
+ {activeTaskCategory === 'joined'
+ ? 'All joined candidate entries'
+ : `Daily sheet for ${formatSheetDateDisplay(sheetDate)}`}
  {' · '}
  <span style={{ fontWeight: 700, color: saveStatus.includes('Error') || saveStatus.includes('Offline') ? 'var(--amber)' : '#059669' }}>{saveStatus}</span>
  </p>
@@ -9148,14 +9190,14 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: '#64748B' }}>
- Sheet date
+ {activeTaskCategory === 'joined' ? 'Join date' : 'Sheet date'}
  <input
  type="date"
  className="form-input"
  style={{ borderRadius: 99, padding: '8px 12px', fontSize: 12, width: 150, minHeight: 40 }}
  value={sheetDate}
  onChange={(e) => setSheetDate(e.target.value || todayIsoDate())}
- aria-label="Sheet date"
+ aria-label={activeTaskCategory === 'joined' ? 'Join date' : 'Sheet date'}
  />
  </label>
  <input
@@ -9193,8 +9235,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <thead>
  <tr>
  {(isSA
-   ? ['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3']
-   : ['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3', 'Action']
+   ? ['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Company', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3']
+   : ['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Company', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3', 'Action']
  ).map(h => (
  <th key={h} style={{ textAlign: h === 'Action' ? 'center' : 'left' }}>{h}</th>
  ))}
@@ -9220,6 +9262,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </select>
  </td>
  <td><input className="cell-input" value={candidateForm.location} onChange={e => setCandidateForm({ ...candidateForm, location: e.target.value })} placeholder="Location" aria-label="Location" /></td>
+ <td>
+ <select className="cell-select" value={candidateForm.company} onChange={e => setCandidateForm({ ...candidateForm, company: e.target.value })} aria-label="Company">
+ {COMPANY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+ </select>
+ </td>
  <td><input type="number" min="0" className="cell-input" value={candidateForm.experience} onChange={e => setCandidateForm({ ...candidateForm, experience: Number(e.target.value) })} aria-label="Experience" /></td>
  <td><input className="cell-input" value={candidateForm.followUp1} onChange={e => setCandidateForm({ ...candidateForm, followUp1: e.target.value })} placeholder="Note 1" aria-label="Follow up 1" /></td>
  <td><input className="cell-input" value={candidateForm.followUp2} onChange={e => setCandidateForm({ ...candidateForm, followUp2: e.target.value })} placeholder="Note 2" aria-label="Follow up 2" /></td>
@@ -9238,13 +9285,19 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  )}
  {!isAdding && filteredCandidates.length === 0 ? (
  <tr>
- <td colSpan={isSA ? 13 : 14} style={{ padding: 28, textAlign: 'center', color: 'var(--text-secondary)' }}>
- <div style={{ fontWeight: 800, marginBottom: 6, color: 'var(--text-primary)' }}>No candidates in this datasheet yet</div>
+ <td colSpan={isSA ? 14 : 15} style={{ padding: 28, textAlign: 'center', color: 'var(--text-secondary)' }}>
+ <div style={{ fontWeight: 800, marginBottom: 6, color: 'var(--text-primary)' }}>
+ {activeTaskCategory === 'joined' ? 'No joiners yet' : 'No candidates in this datasheet yet'}
+ </div>
  {isSA ? (
  <div style={{ fontSize: 13 }}>Employee recruiters will appear here as they log calls.</div>
  ) : (
  <>
- <div style={{ fontSize: 13, marginBottom: 14 }}>Add a candidate or upload a .xlsx / .csv file to start tracking.</div>
+ <div style={{ fontSize: 13, marginBottom: 14 }}>
+ {activeTaskCategory === 'joined'
+ ? 'Mark Response / Follow-up as joined, or add a candidate on this Joiner Sheet.'
+ : 'Add a candidate or upload a .xlsx / .csv file to start tracking.'}
+ </div>
  <button type="button" className="btn btn-primary" onClick={startAddCandidate}>
  <IC n="plus" s={14} /> Add Candidate
  </button>
@@ -9276,6 +9329,19 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </select>
  </td>
  <td><input className="cell-input" value={editForm.location} onChange={e => setEditForm({ ...editForm, location: e.target.value })} aria-label="Location" /></td>
+ <td>
+ <select
+ className="cell-select"
+ value={COMPANY_OPTIONS.includes(editForm.company) ? editForm.company : (editForm.company || 'Select Company')}
+ onChange={e => setEditForm({ ...editForm, company: e.target.value })}
+ aria-label="Company"
+ >
+ {COMPANY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+ {!COMPANY_OPTIONS.includes(editForm.company) && editForm.company ? (
+ <option value={editForm.company}>{editForm.company}</option>
+ ) : null}
+ </select>
+ </td>
  <td><input type="number" min="0" className="cell-input" value={editForm.experience} onChange={e => setEditForm({ ...editForm, experience: Number(e.target.value) })} aria-label="Experience" /></td>
  <td><input className="cell-input" value={editForm.followUp1} onChange={e => setEditForm({ ...editForm, followUp1: e.target.value })} aria-label="Follow up 1" /></td>
  <td><input className="cell-input" value={editForm.followUp2} onChange={e => setEditForm({ ...editForm, followUp2: e.target.value })} aria-label="Follow up 2" /></td>
@@ -9307,6 +9373,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  {cell(row.response)}
  {cell(row.callStatus)}
  {cell(row.location)}
+ {cell(row.company)}
  {cell(row.experience ?? 0)}
  {cell(row.followUp1)}
  {cell(row.followUp2)}

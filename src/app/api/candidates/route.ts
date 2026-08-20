@@ -14,6 +14,7 @@ const candidateSchema = z.object({
   response: z.string().optional().default(''),
   callStatus: z.string().optional().default(''),
   location: z.string().optional().default(''),
+  company: z.string().optional().default(''),
   experience: z.number().optional().default(0),
   followUp1: z.string().optional().default(''),
   followUp2: z.string().optional().default(''),

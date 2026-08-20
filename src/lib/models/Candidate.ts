@@ -10,6 +10,7 @@ export interface ICandidate extends Document {
   response: string;
   callStatus: string;
   location: string;
+  company: string;
   experience: number;
   followUp1: string;
   followUp2: string;
@@ -30,6 +31,7 @@ const CandidateSchema: Schema<ICandidate> = new mongoose.Schema({
   response:      { type: String, default: '' },
   callStatus:    { type: String, default: '' },
   location:      { type: String, default: '' },
+  company:       { type: String, default: '' },
   experience:    { type: Number, default: 0 },
   followUp1:     { type: String, default: '' },
   followUp2:     { type: String, default: '' },
