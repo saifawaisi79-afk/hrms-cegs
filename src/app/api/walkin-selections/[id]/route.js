@@ -14,6 +14,8 @@ const updateSchema = z.object({
   recruiterName: z.string().optional(),
   rounds: z.string().optional(),
   furtherUpdate: z.string().optional(),
+  hrStatus: z.string().optional(),
+  candidateId: z.string().optional(),
   date: z.string().optional(),
 });
 

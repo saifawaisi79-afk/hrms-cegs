@@ -8938,7 +8938,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </span>
  </div>
  <p style={{ fontSize: 13, fontWeight: 500, color: '#6B7280', marginTop: 4 }}>
- {isSA ? "Monitoring all staff recruitment progress. Super admin does not perform personal tasks." : isEmp ? "Track and hit your daily call, interview, walk-in, selection, and joining targets (Min 60% required · below 40% = half-day absent)." : targetViewMode === 'walkins_selections' ? "Employee Targets walk-in / selected rows appear here automatically. Recruiter is the CEGS user on the sheet." : targetViewMode === 'hr' ? "Oversee real-time call performance, interview targets, and daily progress across all team recruiters." : "Track and update your personal daily recruitment calls, interviews, walk-ins, selections, and joinings."}
+ {isSA ? "Monitoring all staff recruitment progress. Super admin does not perform personal tasks." : isEmp ? "Track and hit your daily call, interview, walk-in, selection, and joining targets (Min 60% required · below 40% = half-day absent)." : targetViewMode === 'walkins_selections' ? "Date-wise Selected / Rejected register. Sheet auto-fills name, number, company, recruiter — HR enters process & rounds." : targetViewMode === 'hr' ? "Oversee real-time call performance, interview targets, and daily progress across all team recruiters." : "Track and update your personal daily recruitment calls, interviews, walk-ins, selections, and joinings."}
  </p>
  </div>
 

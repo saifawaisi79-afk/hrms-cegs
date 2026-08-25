@@ -10,11 +10,17 @@ const WalkinSelectionSchema = new mongoose.Schema(
     recruiterName: { type: String, default: '' },
     rounds: { type: String, default: '' },
     furtherUpdate: { type: String, default: '' },
+    /** selected | rejected — HR classification override */
+    hrStatus: { type: String, default: '' },
+    /** Link to Targets candidate when row comes from employee sheet */
+    candidateId: { type: String, default: '' },
     date: { type: String, default: '' },
     createdBy: { type: String, default: '' },
   },
   { timestamps: true }
 );
+
+WalkinSelectionSchema.index({ candidateId: 1 });
 
 export default mongoose.models.WalkinSelection ||
   mongoose.model('WalkinSelection', WalkinSelectionSchema);

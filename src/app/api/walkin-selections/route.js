@@ -13,6 +13,8 @@ const schema = z.object({
   recruiterName: z.string().min(1, 'Recruiter name is required'),
   rounds: z.string().optional().default(''),
   furtherUpdate: z.string().optional().default(''),
+  hrStatus: z.string().optional().default(''),
+  candidateId: z.string().optional().default(''),
   date: z.string().optional().default(''),
   createdBy: z.string().optional().default(''),
 });
@@ -43,7 +45,7 @@ export async function GET(request) {
   }
 }
 
-// POST /api/walkin-selections
+// POST /api/walkin-selections — create or upsert by candidateId
 export async function POST(request) {
   try {
     const authUser = getAuthUser(request);
@@ -61,18 +63,37 @@ export async function POST(request) {
     }
 
     await connectDB();
-    let slNo = parsed.data.slNo;
+    const data = {
+      ...parsed.data,
+      createdBy: parsed.data.createdBy || authUser.name || authUser.email || '',
+    };
+
+    if (data.candidateId) {
+      const existing = await WalkinSelection.findOne({ candidateId: data.candidateId });
+      if (existing) {
+        Object.assign(existing, {
+          name: data.name,
+          number: data.number,
+          company: data.company,
+          process: data.process,
+          recruiterName: data.recruiterName,
+          rounds: data.rounds,
+          furtherUpdate: data.furtherUpdate,
+          hrStatus: data.hrStatus,
+          date: data.date || existing.date,
+        });
+        await existing.save();
+        return NextResponse.json(flatten(existing));
+      }
+    }
+
+    let slNo = data.slNo;
     if (!slNo) {
       const last = await WalkinSelection.findOne({}).sort({ slNo: -1 }).lean();
       slNo = (last?.slNo || 0) + 1;
     }
 
-    const created = await WalkinSelection.create({
-      ...parsed.data,
-      slNo,
-      createdBy: parsed.data.createdBy || authUser.name || authUser.email || '',
-    });
-
+    const created = await WalkinSelection.create({ ...data, slNo });
     return NextResponse.json(flatten(created), { status: 201 });
   } catch (error) {
     console.error('WalkinSelection POST Error:', error);
