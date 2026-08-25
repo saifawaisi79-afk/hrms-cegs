@@ -18,6 +18,7 @@ import {
   Target, Cake, Palmtree, Rocket, CircleDot, Timer
 } from 'lucide-react';
 import { isOversightOnly, getRecruiters } from '@/lib/nav';
+import { WalkinsSelectionsSection } from '@/components/recruitment/WalkinsSelectionsSection';
 import {
   allocateLeavePay,
   calcLeaveBalance,
@@ -8126,9 +8127,9 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(isEmp ? (user?.name || '') : 'ALL');
  const [toastMsg, setToastMsg] = useState(null);
 
- // Super Admin is always oversight (team) — never personal daily tasks
+ // Super Admin is oversight (team) — never personal daily tasks (walkins register allowed)
  useEffect(() => {
-   if (isSA && targetViewMode !== 'hr') {
+   if (isSA && targetViewMode === 'employee') {
      setTargetViewMode('hr');
    }
  }, [isSA, targetViewMode]);
@@ -8918,14 +8919,26 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <div>
  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
  <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', tracking: '-0.4px', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>
- {isSA ? 'System-Wide Recruiter Target Dashboard' : isHR ? (targetViewMode === 'hr' ? ' Recruiter Team Performance Overview' : ` My Personal Daily Tasks (${selectedEmployeeFilter === user?.name ? 'My Tasks' : selectedEmployeeFilter})`) : `Daily Task Targets (${user?.name || 'Recruiter'})`}
+ {targetViewMode === 'walkins_selections'
+   ? 'Walk-ins & Selections'
+   : isSA
+     ? 'System-Wide Recruiter Target Dashboard'
+     : isHR
+       ? (targetViewMode === 'hr' ? ' Recruiter Team Performance Overview' : ` My Personal Daily Tasks (${selectedEmployeeFilter === user?.name ? 'My Tasks' : selectedEmployeeFilter})`)
+       : `Daily Task Targets (${user?.name || 'Recruiter'})`}
  </h2>
- <span style={{ background: targetViewMode === 'hr' ? 'var(--accent-soft)' : '#F3E8FF', color: targetViewMode === 'hr' ? 'var(--accent-hover)' : 'var(--accent)', borderRadius: 99, padding: '3px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
- {isSA ? 'SUPER ADMIN READ-ONLY' : isHR ? (targetViewMode === 'hr' ? 'TEAM OVERVIEW MODE' : 'MY DAILY TASKS') : 'EMPLOYEE PERSONAL TARGETS'}
+ <span style={{ background: targetViewMode === 'hr' ? 'var(--accent-soft)' : targetViewMode === 'walkins_selections' ? '#FEF3C7' : '#F3E8FF', color: targetViewMode === 'hr' ? 'var(--accent-hover)' : targetViewMode === 'walkins_selections' ? '#B45309' : 'var(--accent)', borderRadius: 99, padding: '3px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+ {targetViewMode === 'walkins_selections'
+   ? 'WALKINS & SELECTIONS'
+   : isSA
+     ? 'SUPER ADMIN READ-ONLY'
+     : isHR
+       ? (targetViewMode === 'hr' ? 'TEAM OVERVIEW MODE' : 'MY DAILY TASKS')
+       : 'EMPLOYEE PERSONAL TARGETS'}
  </span>
  </div>
  <p style={{ fontSize: 13, fontWeight: 500, color: '#6B7280', marginTop: 4 }}>
- {isSA ? "Monitoring all staff recruitment progress. Super admin does not perform personal tasks." : isEmp ? "Track and hit your daily call, interview, walk-in, selection, and joining targets (Min 60% required · below 40% = half-day absent)." : targetViewMode === 'hr' ? "Oversee real-time call performance, interview targets, and daily progress across all team recruiters." : "Track and update your personal daily recruitment calls, interviews, walk-ins, selections, and joinings."}
+ {isSA ? "Monitoring all staff recruitment progress. Super admin does not perform personal tasks." : isEmp ? "Track and hit your daily call, interview, walk-in, selection, and joining targets (Min 60% required · below 40% = half-day absent)." : targetViewMode === 'walkins_selections' ? "Log walk-ins and selection updates — recruiter is the CEGS user who scheduled the walk-in." : targetViewMode === 'hr' ? "Oversee real-time call performance, interview targets, and daily progress across all team recruiters." : "Track and update your personal daily recruitment calls, interviews, walk-ins, selections, and joinings."}
  </p>
  </div>
 
@@ -8972,7 +8985,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  )}
 
  <select 
- style={{ background: '#ffffff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, color: '#111827', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', outline: 'none' }}
+ style={{ background: '#ffffff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, color: '#111827', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', outline: 'none', display: targetViewMode === 'walkins_selections' ? 'none' : undefined }}
  value={selectedEmployeeFilter}
  onChange={e => {
  const val = e.target.value;
@@ -8989,12 +9002,38 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <option key={emp} value={emp}>{!isSA && emp === user?.name ? `${emp} (My Tasks)` : emp}</option>
  ))}
  </select>
+
+ {(isHR || isSA) && (
+ <button
+ type="button"
+ style={{
+ background: targetViewMode === 'walkins_selections' ? '#111827' : '#ffffff',
+ color: targetViewMode === 'walkins_selections' ? '#FFFFFF' : '#111827',
+ border: '1px solid rgba(0,0,0,0.12)',
+ borderRadius: 99,
+ padding: '7px 16px',
+ fontSize: 12,
+ fontWeight: 800,
+ cursor: 'pointer',
+ boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+ }}
+ onClick={() => setTargetViewMode('walkins_selections')}
+ >
+ Walk-ins & Selections
+ </button>
+ )}
  </div>
  )}
  </div>
 
+ {targetViewMode === 'walkins_selections' ? (
+ <p style={{ fontSize: 13, color: '#6B7280', fontWeight: 600, margin: 0 }}>
+ Use the register below to enter walk-ins and selection follow-ups.
+ </p>
+ ) : (
+ <>
  {/* DAILY PERFORMANCE SCORE BANNER (Each Task 20% Weight - 60% Minimum / 40% Half-Day Absent) */}
- {(!isSA && targetViewMode !== 'hr') && (
+ {(!isSA && targetViewMode === 'employee') && (
  <div style={{ background: isTargetAchieved ? 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)' : isHalfDayAbsentRisk ? 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)' : 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: isTargetAchieved ? '1px solid #A7F3D0' : isHalfDayAbsentRisk ? '1px solid #FECACA' : '1px solid #FDE68A', borderRadius: 16, padding: '12px 18px', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
  <span style={{ fontSize: 24 }}>{isTargetAchieved ? '' : ''}</span>
@@ -9091,8 +9130,14 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <TargetMetricCard title="Joined Today" icon="users" current={joinedTodayTargetCount} target={1} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" onClick={() => setActiveTaskCategory('joined')} />
  </div>
  )}
+ </>
+ )}
  </div>
 
+ {targetViewMode === 'walkins_selections' ? (
+ <WalkinsSelectionsSection db={db} user={user} canEdit={isHR || isSA} />
+ ) : (
+ <>
  {/* 5 INDEPENDENT TASK DATASHEET PAGES TAB BAR */}
  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
  <button 
@@ -9459,6 +9504,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </div>
  </div>
  </div>
+ </>
+ )}
 
  {toastMsg && (
  <div style={{ position: 'fixed', bottom: 24, right: 24, background: 'var(--void)', color: '#fff', padding: '14px 22px', borderRadius: 16, fontSize: 12.5, fontWeight: 700, boxShadow: '0 12px 32px rgba(0,0,0,0.3)', zIndex: 999 }}>

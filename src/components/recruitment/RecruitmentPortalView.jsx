@@ -20,7 +20,7 @@ function RecruitmentPortalInner(props) {
       />
       <Card className="mb-4">
         <p className="text-secondary" style={{ marginBottom: 12 }}>
-          Use Targets for KPI tracking and datasheets (Calls, Interviews, Walk-ins, Selected, Joined). This portal keeps the full recruitment workspace available below.
+          Use Targets for KPI tracking and datasheets (Calls, Interviews, Walk-ins, Selected, Joined). On this portal, HR can open <strong>Walk-ins & Selections</strong> to log walk-in / selection entries with recruiter and company.
         </p>
       </Card>
       <RecruitmentPage {...props} />
