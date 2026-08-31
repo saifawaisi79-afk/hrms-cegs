@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { isOversightOnly, getRecruiters } from '@/lib/nav';
 import { WalkinsSelectionsSection } from '@/components/recruitment/WalkinsSelectionsSection';
+import { JoinerSheetSection } from '@/components/recruitment/JoinerSheetSection';
 import {
   allocateLeavePay,
   calcLeaveBalance,
@@ -9247,6 +9248,15 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </button>
  </div>
 
+ {activeTaskCategory === 'joined' ? (
+ <JoinerSheetSection
+ db={db}
+ user={user}
+ canEdit={!isSA}
+ employeeFilter={isEmp ? (user?.name || '') : selectedEmployeeFilter}
+ />
+ ) : (
+ <>
  {/* CANDIDATE DATASHEET TABLE & STATUS OVERVIEW GRID */}
  <div className="recruitment-split">
  {/* LEFT: CANDIDATE TABLE CARD */}
@@ -9261,9 +9271,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  'Joiner Sheet'} {isEmp ? `(${user?.name})` : selectedEmployeeFilter !== 'ALL' ? `(${selectedEmployeeFilter})` : '(All Recruiter Log)'}
  </h3>
  <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)', marginTop: 2 }}>
- {activeTaskCategory === 'joined'
- ? 'All joined candidate entries'
- : `Daily sheet for ${formatSheetDateDisplay(sheetDate)}`}
+ {`Daily sheet for ${formatSheetDateDisplay(sheetDate)}`}
  {' · '}
  <span style={{ fontWeight: 700, color: saveStatus.includes('Error') || saveStatus.includes('Offline') ? 'var(--amber)' : '#059669' }}>{saveStatus}</span>
  </p>
@@ -9271,14 +9279,14 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: '#64748B' }}>
- {activeTaskCategory === 'joined' ? 'Join date' : 'Sheet date'}
+ Sheet date
  <input
  type="date"
  className="form-input"
  style={{ borderRadius: 99, padding: '8px 12px', fontSize: 12, width: 150, minHeight: 40 }}
  value={sheetDate}
  onChange={(e) => setSheetDate(e.target.value || todayIsoDate())}
- aria-label={activeTaskCategory === 'joined' ? 'Join date' : 'Sheet date'}
+ aria-label="Sheet date"
  />
  </label>
  <input
@@ -9540,6 +9548,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </div>
  </div>
  </div>
+ </>
+ )}
  </>
  )}
 
