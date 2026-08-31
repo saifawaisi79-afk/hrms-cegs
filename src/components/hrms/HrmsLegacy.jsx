@@ -4980,23 +4980,59 @@ export function OnboardingPage({ db, save, user }) {
  });
  };
 
- // Status Toggle
+ // Status Toggle — activate login (active) or suspend (inactive)
  const toggleUserStatus = async (targetUser) => {
- const newStatus = targetUser.status === 'active' ? 'inactive' : 'active';
- if (window.confirm(`Are you sure you want to ${newStatus === 'inactive' ? 'deactivate' : 'activate'} login access for ${targetUser.name}?`)) {
- save('users', db.users.map(u => u.id === targetUser.id ? { ...u, status: newStatus } : u));
+ const current = String(targetUser.status || 'active').toLowerCase();
+ const newStatus = current === 'active' ? 'inactive' : 'active';
+ const actionLabel = newStatus === 'inactive' ? 'deactivate' : 'activate';
+ if (!window.confirm(`Are you sure you want to ${actionLabel} login access for ${targetUser.name}?`)) {
+ return;
+ }
 
  const API_BASE = GLOBAL_API_BASE;
+ const token = localStorage.getItem('cegs_token') || '';
+ const uid = targetUser.id || targetUser._id;
+
  try {
- await fetch(`${API_BASE}/admin/users/${targetUser.id}/status`, {
+ let res = await fetch(`${API_BASE}/admin/users/${uid}/status`, {
  method: 'PUT',
  headers: {
  'Content-Type': 'application/json',
- Authorization: `Bearer ${localStorage.getItem('cegs_token') || ''}`
+ Authorization: `Bearer ${token}`,
  },
- body: JSON.stringify({ status: newStatus })
+ body: JSON.stringify({ status: newStatus }),
  });
- } catch (err) {}
+
+ // Fallback: admin employees profile update (same status field)
+ if (!res.ok) {
+ res = await fetch(`${API_BASE}/admin/employees/${uid}`, {
+ method: 'PUT',
+ headers: {
+ 'Content-Type': 'application/json',
+ Authorization: `Bearer ${token}`,
+ },
+ body: JSON.stringify({ status: newStatus }),
+ });
+ }
+
+ if (!res.ok) {
+ const err = await res.json().catch(() => ({}));
+ alert(err.error || `Failed to ${actionLabel} account. Try again or use Super Admin.`);
+ return;
+ }
+
+ save('users', db.users.map(u =>
+ String(u.id) === String(uid) || String(u._id) === String(uid)
+ ? { ...u, status: newStatus }
+ : u
+ ));
+ alert(
+ newStatus === 'active'
+ ? `${targetUser.name} can log in again (status: ACTIVE).`
+ : `${targetUser.name} login has been suspended.`
+ );
+ } catch (err) {
+ alert(`Network error while trying to ${actionLabel} account.`);
  }
  };
 
@@ -5249,8 +5285,8 @@ export function OnboardingPage({ db, save, user }) {
  </span>
  </td>
  <td>
- <span className={`badge ${u.status === 'active' ? 'b-success' : 'b-error'}`}>
- <span className="badge-dot" />{u.status || 'active'}
+ <span className={`badge ${u.status === 'active' ? 'b-success' : u.status === 'on_leave' ? 'b-pending' : 'b-error'}`}>
+ <span className="badge-dot" />{(u.status || 'active').replace('_', ' ')}
  </span>
  </td>
  <td style={{ textAlign: 'right' }}>
@@ -5274,7 +5310,7 @@ export function OnboardingPage({ db, save, user }) {
  <button 
  className={`btn btn-sm ${u.status === 'active' ? 'btn-ghost' : 'btn-dark'}`}
  onClick={() => toggleUserStatus(u)}
- title={u.status === 'active' ? 'Deactivate Login' : 'Activate Login'}
+ title={u.status === 'active' ? 'Deactivate Login' : 'Activate Login (sets status to ACTIVE)'}
  style={{ padding: '4px 8px', fontSize: 11 }}
  >
  {u.status === 'active' ? ' Suspend' : '▶ Activate'}

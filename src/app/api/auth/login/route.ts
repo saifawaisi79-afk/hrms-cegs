@@ -65,12 +65,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    if (user.status !== 'active') {
+    if (user.status === 'inactive') {
       return NextResponse.json(
         { error: 'Account is deactivated. Contact administrator.' },
         { status: 403 }
       );
     }
+    // active and on_leave may log in; inactive is blocked above
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
