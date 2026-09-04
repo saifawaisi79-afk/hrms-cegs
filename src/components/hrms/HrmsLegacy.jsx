@@ -63,6 +63,7 @@ import {
  GLOBAL API ENDPOINT CONFIGURATION — Next.js App Router API Routes
  ========================================================================================== */
 export const GLOBAL_API_BASE = '/api';
+export const SAIF_AVATAR_URL = '/images/saif-awaisi.png';
 
 /* ==========================================================================================
  GLOBAL FETCH INTERCEPTOR (INJECT JWT TOKEN)
@@ -2296,10 +2297,9 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
  <div style={{ position: 'relative', display: 'inline-block', flexShrink: 0 }}>
  <img 
- src="https://api.dicebear.com/7.x/avataaars/svg?seed=saif" 
+ src={SAIF_AVATAR_URL} 
  alt="Saif Awaisi - Developer & System Architect" 
- onError={(e) => { e.target.onerror = null; e.target.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=SaifAwaisi'; }}
- style={{ width: 90, height: 90, borderRadius: 18, border: '3px solid var(--accent)', background: '#F3E8FF', objectFit: 'cover', boxShadow: '0 6px 20px rgba(124,92,252,0.25)' }} 
+ style={{ width: 90, height: 90, borderRadius: 18, border: '3px solid var(--accent)', background: '#F3E8FF', objectFit: 'cover', objectPosition: 'center top', boxShadow: '0 6px 20px rgba(124,92,252,0.25)' }} 
  />
  <span style={{ position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, background: '#10B981', border: '2px solid #FFFFFF', borderRadius: '50%' }} />
  </div>
@@ -2341,7 +2341,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  name: 'Saif Awaisi',
  title: 'Developer & System Architect',
  email: 'saifawaisi79@gmail.com',
- avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=saif'
+ avatar: SAIF_AVATAR_URL
  };
  setChatTargetUser && setChatTargetUser(saifUser);
  }}
@@ -2357,10 +2357,9 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  <div style={{ padding: '8px 6px', textAlign: 'center' }}>
  <div style={{ position: 'relative', width: 160, height: 160, margin: '0 auto 16px' }}>
  <img 
- src="https://api.dicebear.com/7.x/avataaars/svg?seed=saif" 
+ src={SAIF_AVATAR_URL} 
  alt="Saif Awaisi" 
- onError={(e) => { e.target.onerror = null; e.target.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=SaifAwaisi'; }}
- style={{ width: 160, height: 160, borderRadius: 24, border: '4px solid var(--accent)', objectFit: 'cover', boxShadow: '0 8px 30px rgba(124,92,252,0.3)' }} 
+ style={{ width: 160, height: 160, borderRadius: 24, border: '4px solid var(--accent)', objectFit: 'cover', objectPosition: 'center top', boxShadow: '0 8px 30px rgba(124,92,252,0.3)' }} 
  />
  <span style={{ position: 'absolute', bottom: 6, right: 6, width: 18, height: 18, background: '#10B981', border: '3px solid #FFFFFF', borderRadius: '50%' }} />
  </div>
@@ -2393,7 +2392,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  name: 'Saif Awaisi',
  title: 'Developer & System Architect',
  email: 'saifawaisi79@gmail.com',
- avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=saif'
+ avatar: SAIF_AVATAR_URL
  };
  if (openChatWithUser) {
  openChatWithUser(saifUser);
