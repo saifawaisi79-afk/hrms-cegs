@@ -58,3 +58,6 @@ uploads/
 logs/
 blocked_attempts.log
 
+# Local forensic recovery dumps (PII — never commit)
+recovery-sep9/
+
