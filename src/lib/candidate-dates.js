@@ -23,6 +23,12 @@ export function normalizeCandidateDate(dateStr) {
   const str = String(dateStr).trim();
   if (!str || str.toLowerCase() === 'today') return todayIsoDate();
 
+  // Excel serial stored as string (typically 5 digits, e.g. "46244") — not a 4-digit year
+  if (/^\d{5}$/.test(str)) {
+    const serial = Number(str);
+    if (serial >= 20000 && serial <= 60000) return normalizeCandidateDate(serial);
+  }
+
   // Already ISO YYYY-MM-DD
   const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;

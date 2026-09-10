@@ -8012,6 +8012,88 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return `${dateKey}|${catKey}|${empKey}|${nameKey}|${numKey}`;
  };
 
+ const mergeCandidateLists = (cloud, local) => {
+ const byId = new Map();
+ const extras = [];
+ const add = (c, preferExisting) => {
+ if (!c) return;
+ const id = String(c.id || c._id || '').trim();
+ const isTemp = !id || id.startsWith('cand_') || id.startsWith('imp_');
+ if (!isTemp) {
+ if (!byId.has(id) || !preferExisting) byId.set(id, { ...c, id, _id: id });
+ return;
+ }
+ extras.push(c);
+ };
+ (cloud || []).forEach((c) => add(c, false));
+ (local || []).forEach((c) => add(c, true));
+ return deduplicateCandidates([...byId.values(), ...extras]);
+ };
+
+ const CANDIDATE_LS_KEYS = [
+ 'vp_hrms_v10_candidates',
+ 'vp_hrms_v4_candidates',
+ 'cegs_db_v4_candidates',
+ 'cegs_db_candidates',
+ ];
+
+ const readLocalCandidateCache = () => {
+ for (const key of CANDIDATE_LS_KEYS) {
+ try {
+ const raw = localStorage.getItem(key);
+ if (!raw) continue;
+ const parsed = JSON.parse(raw);
+ if (Array.isArray(parsed) && parsed.length) return parsed;
+ } catch {}
+ }
+ return [];
+ };
+
+ const persistLocalCandidateCache = (list) => {
+ try {
+ const json = JSON.stringify(list);
+ CANDIDATE_LS_KEYS.forEach((k) => localStorage.setItem(k, json));
+ localStorage.removeItem('cegs_candidates_cleared');
+ } catch {}
+ };
+
+ const restoreMissingCandidatesToMongo = async (cloudList, mergedList) => {
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ if (!token) return;
+ const cloudIds = new Set((cloudList || []).map((c) => String(c.id || c._id || '')).filter(Boolean));
+ const missing = (mergedList || []).filter((c) => {
+ const hasData = Boolean(String(c.name || '').trim() || String(c.number || '').trim());
+ if (!hasData) return false;
+ const id = String(c.id || c._id || '');
+ if (!id || id.startsWith('cand_') || id.startsWith('imp_')) return true;
+ return !cloudIds.has(id);
+ }).slice(0, 250);
+ if (missing.length === 0) return;
+ for (const row of missing) {
+ try {
+ const { id, _id, ...rest } = row;
+ const res = await fetch(`${GLOBAL_API_BASE}/candidates`, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify(rest),
+ });
+ if (res.ok) {
+ const saved = await res.json();
+ const newId = saved.id || saved._id;
+ setCandidates((prev) => {
+ const next = prev.map((c) =>
+ (c.id || c._id) === (row.id || row._id) ? { ...c, id: newId, _id: newId } : c
+ );
+ save('candidates', next);
+ persistLocalCandidateCache(next);
+ return next;
+ });
+ }
+ } catch {}
+ }
+ };
+
+
  const deduplicateCandidates = (items) => {
  const seen = new Set();
  const result = [];
@@ -8051,26 +8133,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  // Helper to get candidates directly from top-level db or persistent localStorage
  const getStoredCandidates = () => {
- if (localStorage.getItem('cegs_candidates_cleared') === 'true') {
- try {
- const local = localStorage.getItem('vp_hrms_v4_candidates') || localStorage.getItem('cegs_db_v4_candidates') || localStorage.getItem('cegs_db_candidates');
- if (local) {
- const parsed = JSON.parse(local);
- if (Array.isArray(parsed)) return deduplicateCandidates(parsed);
- }
- } catch {}
- return [];
- }
+ const cached = readLocalCandidateCache();
+ if (cached.length) return deduplicateCandidates(cached);
  if (db && Array.isArray(db.candidates) && db.candidates.length > 0) {
  return deduplicateCandidates(db.candidates);
  }
- try {
- const local = localStorage.getItem('vp_hrms_v4_candidates') || localStorage.getItem('cegs_db_v4_candidates') || localStorage.getItem('cegs_db_candidates');
- if (local) {
- const parsed = JSON.parse(local);
- if (Array.isArray(parsed)) return deduplicateCandidates(parsed);
- }
- } catch {}
  return [];
  };
 
@@ -8080,9 +8147,10 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const [sheetDate, setSheetDate] = useState(() => todayIsoDate());
  const skipCloudOverwriteUntilRef = useRef(0);
 
- // INITIAL LOAD: fetch API only when JWT exists (avoids 401 spam without a session)
+ // INITIAL LOAD: Mongo + any leftover browser cache (so a wipe cannot drop unsynced rows)
  useEffect(() => {
  const loadInitialCandidates = async () => {
+ const localCache = getStoredCandidates();
  const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
  if (token) {
  try {
@@ -8092,13 +8160,13 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  } else if (res.ok) {
  const apiData = await res.json();
  if (Array.isArray(apiData)) {
- const cleaned = deduplicateCandidates(apiData);
+ const merged = mergeCandidateLists(apiData, localCache);
+ const cleaned = deduplicateCandidates(merged);
  setCandidates(cleaned);
- try {
- localStorage.setItem('vp_hrms_v10_candidates', JSON.stringify(cleaned));
- localStorage.removeItem('cegs_candidates_cleared');
- } catch {}
+ persistLocalCandidateCache(cleaned);
+ save('candidates', cleaned);
  setCandidatesLoading(false);
+ restoreMissingCandidatesToMongo(apiData, cleaned);
  return;
  }
  }
@@ -8106,19 +8174,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  console.warn('[Init] API unavailable, falling back to localStorage:', err.message);
  }
  }
- const stored = getStoredCandidates();
+ const stored = localCache.length ? localCache : getStoredCandidates();
  setCandidates(stored);
  setCandidatesLoading(false);
  };
  loadInitialCandidates();
- // Clear all old localStorage cache keys to prevent stale data
- ['v1','v2','v3','v4','v5','v6','v7','v8','v9'].forEach(ver => {
- try { localStorage.removeItem(`vp_hrms_${ver}_candidates`); } catch {}
- });
- try {
- localStorage.removeItem('cegs_db_v4_candidates');
- localStorage.removeItem('cegs_db_candidates');
- } catch {}
  }, []);
 
 
@@ -8148,11 +8208,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return prev;
  });
  save('candidates', cleaned);
- try {
- localStorage.setItem('vp_hrms_v4_candidates', JSON.stringify(cleaned));
- localStorage.setItem('cegs_db_v4_candidates', JSON.stringify(cleaned));
- localStorage.setItem('cegs_db_candidates', JSON.stringify(cleaned));
- } catch {}
+ persistLocalCandidateCache(cleaned);
  };
 
  const [activeTaskCategory, setActiveTaskCategory] = useState(initialSheet || 'calls');
@@ -8261,9 +8317,10 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const cloudData = await res.json();
  if (isMounted && Array.isArray(cloudData)) {
  setCandidates(prev => {
- const cleaned = deduplicateCandidates(cloudData);
+ const cleaned = mergeCandidateLists(cloudData, prev);
  if (JSON.stringify(prev) !== JSON.stringify(cleaned)) {
  save('candidates', cleaned);
+ persistLocalCandidateCache(cleaned);
  return cleaned;
  }
  return prev;
@@ -8343,6 +8400,12 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  )
  ) {
  return;
+ }
+ if (!isEmp && selectedEmployeeFilter === 'ALL') {
+ const typed = window.prompt(
+ 'This permanently deletes EVERY recruiter’s rows for this date from the database.\n\nType DELETE to confirm.'
+ );
+ if (typed !== 'DELETE') return;
  }
 
  const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;

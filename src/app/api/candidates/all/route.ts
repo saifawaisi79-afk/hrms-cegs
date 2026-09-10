@@ -57,8 +57,8 @@ export async function DELETE(request: Request) {
     const idsToDelete = all
       .filter((c) => {
         const candDate = normalizeCandidateDate(c.date);
-        const dateOk = candDate === sheetDate || (!candDate && sheetDate === todayIsoDate());
-        if (!dateOk) return false;
+        // Never treat blank dates as "today" — that accidentally wipes legacy rows
+        if (!candDate || candDate !== sheetDate) return false;
         if (!targetEmployee) return true;
         return String(c.employee || '').trim().toLowerCase() === targetEmployee.toLowerCase();
       })
