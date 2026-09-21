@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Candidate from '@/lib/models/Candidate';
 import { getAuthUser, requireRole } from '@/lib/auth';
-import { normalizeCandidateDate, todayIsoDate } from '@/lib/candidate-dates';
+import { candidateDateMongoQuery, normalizeCandidateDate, todayIsoDate } from '@/lib/candidate-dates';
 
 /**
  * DELETE /api/candidates/all?date=YYYY-MM-DD&employee=Name
@@ -42,8 +42,6 @@ export async function DELETE(request: Request) {
       });
     }
 
-    // Load candidates and filter by normalized date (dates stored as DD/MM/YYYY or ISO)
-    const all = await Candidate.find({}).lean();
     const targetEmployee = isAdmin
       ? employeeParam && employeeParam.toUpperCase() !== 'ALL'
         ? employeeParam
@@ -54,26 +52,20 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Cannot clear: missing user name on session.' }, { status: 400 });
     }
 
-    const idsToDelete = all
-      .filter((c) => {
-        const candDate = normalizeCandidateDate(c.date);
-        // Never treat blank dates as "today" — that accidentally wipes legacy rows
-        if (!candDate || candDate !== sheetDate) return false;
-        if (!targetEmployee) return true;
-        return String(c.employee || '').trim().toLowerCase() === targetEmployee.toLowerCase();
-      })
-      .map((c) => c._id);
-
-    if (idsToDelete.length === 0) {
-      return NextResponse.json({
-        message: 'No matching entries for that date',
-        deletedCount: 0,
-        date: sheetDate,
-        employee: targetEmployee,
-      });
+    const dateQuery = candidateDateMongoQuery(sheetDate);
+    if (!dateQuery) {
+      return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
     }
 
-    const result = await Candidate.deleteMany({ _id: { $in: idsToDelete } });
+    const filter: Record<string, unknown> = { ...dateQuery };
+    if (targetEmployee) {
+      filter.employee = new RegExp(
+        `^${targetEmployee.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+        'i'
+      );
+    }
+
+    const result = await Candidate.deleteMany(filter);
 
     return NextResponse.json({
       message: 'Daily sheet cleared successfully',

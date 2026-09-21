@@ -69,7 +69,11 @@ async function markAbsentees(request) {
 
   let candidates = [];
   try {
-    const candRows = await Candidate.find({}).select('date employee name').lean();
+    const candRows = await Candidate.find({
+      createdAt: { $gte: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000) },
+    })
+      .select('date employee name')
+      .lean();
     candidates = candRows.map((c) => ({
       date: c.date,
       employee: c.employee,

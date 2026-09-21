@@ -3,6 +3,7 @@ import { z } from 'zod';
 import connectDB from '@/lib/db';
 import Candidate from '@/lib/models/Candidate';
 import { getAuthUser } from '@/lib/auth';
+import { candidateDateMongoQuery } from '@/lib/candidate-dates';
 
 const candidateSchema = z.object({
   slNo: z.number().optional().default(0),
@@ -23,6 +24,8 @@ const candidateSchema = z.object({
   employee: z.string().optional().default(''),
 });
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/candidates
 export async function GET(request: Request) {
   try {
@@ -32,8 +35,31 @@ export async function GET(request: Request) {
     }
 
     await connectDB();
-    const candidates = await Candidate.find({}).sort({ slNo: 1 }).lean();
-    
+    const url = new URL(request.url);
+    const dateParam = url.searchParams.get('date') || '';
+    const joinedOnly = url.searchParams.get('joined') === '1';
+    const clauses: Record<string, unknown>[] = [];
+
+    const dateQuery = dateParam ? candidateDateMongoQuery(dateParam) : null;
+    if (dateQuery) clauses.push(dateQuery);
+
+    if (joinedOnly) {
+      clauses.push({
+        $or: [
+          { category: { $regex: '^joined$', $options: 'i' } },
+          { response: { $regex: 'join', $options: 'i' } },
+          { followUp1: { $regex: 'join', $options: 'i' } },
+          { followUp2: { $regex: 'join', $options: 'i' } },
+          { followUp3: { $regex: 'join', $options: 'i' } },
+        ],
+      });
+    }
+
+    const filter =
+      clauses.length === 0 ? {} : clauses.length === 1 ? clauses[0] : { $and: clauses };
+
+    const candidates = await Candidate.find(filter).sort({ slNo: 1, createdAt: 1 }).lean();
+
     return NextResponse.json(candidates.map(c => ({
       ...c,
       id: c._id?.toString(),

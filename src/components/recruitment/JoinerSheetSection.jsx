@@ -100,7 +100,7 @@ export function JoinerSheetSection({ db, user, canEdit = true, employeeFilter = 
         fetch(`${GLOBAL_API_BASE}/joiners`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`${GLOBAL_API_BASE}/candidates`, {
+        fetch(`${GLOBAL_API_BASE}/candidates?joined=1`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -113,36 +113,16 @@ export function JoinerSheetSection({ db, user, canEdit = true, employeeFilter = 
         const data = await cRes.json();
         fromApi = Array.isArray(data) ? data : [];
       }
-      const fromDb = Array.isArray(db?.candidates) ? db.candidates : [];
-      const byId = new Map();
-      [...fromDb, ...fromApi].forEach((c) => {
-        const id = String(c.id || c._id || '');
-        if (id) byId.set(id, c);
-      });
-      setCandidates([...byId.values()]);
+      setCandidates(fromApi);
       setStatus('Synced');
     } catch {
-      setCandidates(Array.isArray(db?.candidates) ? db.candidates : []);
       setStatus('Offline');
     }
-  }, [db?.candidates]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    if (Array.isArray(db?.candidates)) {
-      setCandidates((prev) => {
-        const byId = new Map();
-        [...prev, ...db.candidates].forEach((c) => {
-          const id = String(c.id || c._id || '');
-          if (id) byId.set(id, c);
-        });
-        return [...byId.values()];
-      });
-    }
-  }, [db?.candidates]);
 
   const overlayByCand = useMemo(() => {
     const m = new Map();

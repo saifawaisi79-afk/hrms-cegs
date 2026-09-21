@@ -40,6 +40,10 @@ const CandidateSchema: Schema<ICandidate> = new mongoose.Schema({
   employee:      { type: String, default: '' },
 }, { timestamps: true });
 
+CandidateSchema.index({ date: 1 });
+CandidateSchema.index({ date: 1, employee: 1 });
+CandidateSchema.index({ createdAt: -1 });
+
 const Candidate: Model<ICandidate> = mongoose.models.Candidate || mongoose.model<ICandidate>('Candidate', CandidateSchema);
 
 export default Candidate;

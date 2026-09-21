@@ -139,7 +139,7 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
         fetch(`${GLOBAL_API_BASE}/walkin-selections`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`${GLOBAL_API_BASE}/candidates`, {
+        fetch(`${GLOBAL_API_BASE}/candidates?date=${encodeURIComponent(sheetDate)}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -160,36 +160,16 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
         const data = await candRes.json();
         fromApi = Array.isArray(data) ? data : [];
       }
-      const fromDb = Array.isArray(db?.candidates) ? db.candidates : [];
-      const byId = new Map();
-      [...fromDb, ...fromApi].forEach((c) => {
-        const id = String(c.id || c._id || '');
-        if (id) byId.set(id, c);
-      });
-      setSheetCandidates([...byId.values()]);
+      setSheetCandidates(fromApi);
       setStatus('Synced');
     } catch {
-      setSheetCandidates(Array.isArray(db?.candidates) ? db.candidates : []);
       setStatus('Offline');
     }
-  }, [db?.candidates]);
+  }, [sheetDate]);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    if (Array.isArray(db?.candidates) && db.candidates.length > 0) {
-      setSheetCandidates((prev) => {
-        const byId = new Map();
-        [...prev, ...db.candidates].forEach((c) => {
-          const id = String(c.id || c._id || '');
-          if (id) byId.set(id, c);
-        });
-        return [...byId.values()];
-      });
-    }
-  }, [db?.candidates]);
 
   const overlayByCandidate = useMemo(() => {
     const map = new Map();

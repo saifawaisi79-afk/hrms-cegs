@@ -68,3 +68,13 @@ export function matchesSheetDate(cand, sheetDateIso) {
   if (!candDate) return target === todayIsoDate();
   return candDate === target;
 }
+
+/** Mongo filter for a sheet day (stored as DD/MM/YYYY or YYYY-MM-DD). */
+export function candidateDateMongoQuery(sheetDateIso) {
+  const iso = normalizeCandidateDate(sheetDateIso);
+  if (!iso) return null;
+  const display = formatSheetDateDisplay(iso);
+  const variants = [...new Set([iso, display].filter(Boolean))];
+  if (variants.length === 1) return { date: variants[0] };
+  return { $or: variants.map((date) => ({ date })) };
+}

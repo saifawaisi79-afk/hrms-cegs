@@ -8038,6 +8038,13 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  ];
 
  const readLocalCandidateCache = () => {
+ try {
+ const day = localStorage.getItem('vp_hrms_v11_candidates_day');
+ if (day) {
+ const parsed = JSON.parse(day);
+ if (Array.isArray(parsed)) return parsed;
+ }
+ } catch {}
  for (const key of CANDIDATE_LS_KEYS) {
  try {
  const raw = localStorage.getItem(key);
@@ -8051,48 +8058,10 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  const persistLocalCandidateCache = (list) => {
  try {
- const json = JSON.stringify(list);
- CANDIDATE_LS_KEYS.forEach((k) => localStorage.setItem(k, json));
+ localStorage.setItem('vp_hrms_v11_candidates_day', JSON.stringify(list || []));
  localStorage.removeItem('cegs_candidates_cleared');
  } catch {}
  };
-
- const restoreMissingCandidatesToMongo = async (cloudList, mergedList) => {
- const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
- if (!token) return;
- const cloudIds = new Set((cloudList || []).map((c) => String(c.id || c._id || '')).filter(Boolean));
- const missing = (mergedList || []).filter((c) => {
- const hasData = Boolean(String(c.name || '').trim() || String(c.number || '').trim());
- if (!hasData) return false;
- const id = String(c.id || c._id || '');
- if (!id || id.startsWith('cand_') || id.startsWith('imp_')) return true;
- return !cloudIds.has(id);
- }).slice(0, 250);
- if (missing.length === 0) return;
- for (const row of missing) {
- try {
- const { id, _id, ...rest } = row;
- const res = await fetch(`${GLOBAL_API_BASE}/candidates`, {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify(rest),
- });
- if (res.ok) {
- const saved = await res.json();
- const newId = saved.id || saved._id;
- setCandidates((prev) => {
- const next = prev.map((c) =>
- (c.id || c._id) === (row.id || row._id) ? { ...c, id: newId, _id: newId } : c
- );
- save('candidates', next);
- persistLocalCandidateCache(next);
- return next;
- });
- }
- } catch {}
- }
- };
-
 
  const deduplicateCandidates = (items) => {
  const seen = new Set();
@@ -8132,13 +8101,13 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  };
 
  // Helper to get candidates directly from top-level db or persistent localStorage
- const getStoredCandidates = () => {
+ const getStoredCandidates = (forDate) => {
  const cached = readLocalCandidateCache();
- if (cached.length) return deduplicateCandidates(cached);
- if (db && Array.isArray(db.candidates) && db.candidates.length > 0) {
- return deduplicateCandidates(db.candidates);
- }
- return [];
+ const list = cached.length
+ ? cached
+ : (db && Array.isArray(db.candidates) ? db.candidates : []);
+ if (!forDate) return deduplicateCandidates(list);
+ return deduplicateCandidates(list.filter((c) => matchesSheetDate(c, forDate)));
  };
 
  // Central Top-Level Store Candidate List State — starts empty, filled by API on mount
@@ -8147,26 +8116,30 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const [sheetDate, setSheetDate] = useState(() => todayIsoDate());
  const skipCloudOverwriteUntilRef = useRef(0);
 
- // INITIAL LOAD: Mongo + any leftover browser cache (so a wipe cannot drop unsynced rows)
+ // Load only the selected sheet date from Mongo (full collection download was freezing the app)
  useEffect(() => {
+ let cancelled = false;
  const loadInitialCandidates = async () => {
- const localCache = getStoredCandidates();
+ setCandidatesLoading(true);
+ const localCache = getStoredCandidates(sheetDate);
  const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
  if (token) {
  try {
- const res = await fetch(`${GLOBAL_API_BASE}/candidates`);
+ const res = await fetch(`${GLOBAL_API_BASE}/candidates?date=${encodeURIComponent(sheetDate)}`);
+ if (cancelled) return;
  if (res.status === 401) {
  try { localStorage.removeItem('cegs_token'); } catch {}
  } else if (res.ok) {
  const apiData = await res.json();
  if (Array.isArray(apiData)) {
- const merged = mergeCandidateLists(apiData, localCache);
- const cleaned = deduplicateCandidates(merged);
+ const dayLocal = localCache.filter((c) => {
+ const id = String(c.id || c._id || '');
+ return id.startsWith('cand_') || id.startsWith('imp_');
+ });
+ const cleaned = deduplicateCandidates(mergeCandidateLists(apiData, dayLocal));
  setCandidates(cleaned);
  persistLocalCandidateCache(cleaned);
- save('candidates', cleaned);
  setCandidatesLoading(false);
- restoreMissingCandidatesToMongo(apiData, cleaned);
  return;
  }
  }
@@ -8174,40 +8147,21 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  console.warn('[Init] API unavailable, falling back to localStorage:', err.message);
  }
  }
- const stored = localCache.length ? localCache : getStoredCandidates();
- setCandidates(stored);
+ if (!cancelled) {
+ setCandidates(localCache);
  setCandidatesLoading(false);
+ }
  };
  loadInitialCandidates();
- }, []);
-
-
- // Keep candidates in sync with top-level db.candidates if updated externally
- useEffect(() => {
- if (Date.now() < skipCloudOverwriteUntilRef.current) return;
- if (db && Array.isArray(db.candidates) && db.candidates.length > 0) {
- const cleaned = deduplicateCandidates(db.candidates);
- setCandidates(prev => {
- if (JSON.stringify(prev) !== JSON.stringify(cleaned)) {
- return cleaned;
- }
- return prev;
- });
- }
- }, [db?.candidates]);
+ return () => { cancelled = true; };
+ }, [sheetDate]);
 
  const updateCandidatesStore = (newList) => {
  const cleaned = deduplicateCandidates(newList);
  if (cleaned.length === 0) {
- localStorage.setItem('cegs_candidates_cleared', 'true');
+ try { localStorage.setItem('cegs_candidates_cleared', 'true'); } catch {}
  }
- setCandidates(prev => {
- if (JSON.stringify(prev) !== JSON.stringify(cleaned)) {
- return cleaned;
- }
- return prev;
- });
- save('candidates', cleaned);
+ setCandidates(cleaned);
  persistLocalCandidateCache(cleaned);
  };
 
@@ -8307,7 +8261,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  if (Date.now() - lastEditedRef.current < 10000) return;
  if (Date.now() < skipCloudOverwriteUntilRef.current) return;
  try {
- const res = await fetch(`${GLOBAL_API_BASE}/candidates`);
+ const res = await fetch(`${GLOBAL_API_BASE}/candidates?date=${encodeURIComponent(sheetDate)}`);
  if (res.status === 401) {
  if (interval) clearInterval(interval);
  interval = null;
@@ -8316,14 +8270,15 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  if (res.ok) {
  const cloudData = await res.json();
  if (isMounted && Array.isArray(cloudData)) {
- setCandidates(prev => {
- const cleaned = mergeCandidateLists(cloudData, prev);
- if (JSON.stringify(prev) !== JSON.stringify(cleaned)) {
- save('candidates', cleaned);
+ setCandidates((prev) => {
+ const locals = prev.filter((c) => {
+ const id = String(c.id || c._id || '');
+ return id.startsWith('cand_') || id.startsWith('imp_');
+ });
+ const cleaned = mergeCandidateLists(cloudData, locals);
+ if (cleaned.length === prev.length && cleaned[0]?.id === prev[0]?.id) return prev;
  persistLocalCandidateCache(cleaned);
  return cleaned;
- }
- return prev;
  });
  }
  }
@@ -8332,10 +8287,9 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  }
  };
 
- syncFromMongoAtlas();
- interval = setInterval(syncFromMongoAtlas, 30000);
+ interval = setInterval(syncFromMongoAtlas, 120000);
  return () => { isMounted = false; if (interval) clearInterval(interval); };
- }, []);
+ }, [sheetDate]);
 
  // Push locally-saved rows (cand_*) up to MongoDB when a real JWT already exists
  useEffect(() => {
@@ -8362,7 +8316,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const next = prev.map((c) =>
  (c.id || c._id) === (row.id || row._id) ? { ...c, id: newId, _id: newId } : c
  );
- save('candidates', next);
+ persistLocalCandidateCache(next);
  return next;
  });
  }
@@ -8655,6 +8609,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  }
 
  try {
+ lastEditedRef.current = Date.now();
+ skipCloudOverwriteUntilRef.current = Date.now() + 15000;
  const res = await fetch(`${API_BASE}/candidates`, {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
@@ -8930,7 +8886,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  })),
  ];
  const cleaned = deduplicateCandidates(merged);
- save('candidates', cleaned);
+ persistLocalCandidateCache(cleaned);
  return cleaned;
  });
  skipCloudOverwriteUntilRef.current = Date.now() + 10000;
