@@ -8,6 +8,10 @@ const NotificationSchema = new mongoose.Schema({
   message:      { type: String, required: true },
   is_read:      { type: Boolean, default: false },
   created_at:   { type: String, required: true },
+  /** Campaign Hub idempotency — one notice per recipient per award event */
+  dedupeKey:    { type: String, default: null },
 }, { timestamps: true });
+
+NotificationSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true });
 
 export default mongoose.models.Notification || mongoose.model('Notification', NotificationSchema);

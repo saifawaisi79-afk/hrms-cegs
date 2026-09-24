@@ -17,6 +17,7 @@ export const VIEW_TO_PATH = {
   exit: '/exit',
   notifications: '/notifications',
   recruitment: '/campaign/recruitment',
+  campaignHub: '/campaign/hub',
   targets: '/campaign/targets',
   workflows: '/campaign/workflows',
   rewards: '/campaign/rewards',
@@ -175,6 +176,7 @@ export function buildNavConfig(user, db) {
     );
     campaign.push(
       { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
+      { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Targets', icon: 'trending' },
       { href: '/campaign/workflows', label: 'Workflows', icon: 'activity' },
       ...(canOnboard ? [{ href: '/campaign/onboarding', label: 'Onboarding', icon: 'file' }] : []),
@@ -203,6 +205,7 @@ export function buildNavConfig(user, db) {
     );
     campaign.push(
       { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
+      { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Targets', icon: 'trending' },
       ...(canOnboard ? [{ href: '/campaign/onboarding', label: 'Onboarding', icon: 'file' }] : []),
       { href: '/campaign/performance', label: 'Performance', icon: 'trending' },
@@ -230,6 +233,7 @@ export function buildNavConfig(user, db) {
       { href: '/exit', label: 'Exit', icon: 'logout' },
     );
     campaign.push(
+      { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Recruitment Targets', icon: 'adduser' },
       { href: '/campaign/performance', label: 'Performance', icon: 'trending' },
       { href: '/campaign/learning', label: 'Learning', icon: 'help' },

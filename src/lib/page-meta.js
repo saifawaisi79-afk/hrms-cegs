@@ -48,6 +48,10 @@ export const PAGE_META = {
     title: 'Recruitment Portal',
     purpose: 'Hiring workspace entry — intake candidates and open daily targets.',
   },
+  '/campaign/hub': {
+    title: 'Recruitment Performance',
+    purpose: 'Team monthly joiner target, weekly achievement, and recruitment bonuses.',
+  },
   '/campaign/targets': {
     title: 'Recruitment Targets',
     purpose: 'Track daily KPIs and open datasheet tabs for each target type.',

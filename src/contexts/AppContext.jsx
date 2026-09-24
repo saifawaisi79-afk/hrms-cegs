@@ -389,6 +389,45 @@ export function AppProvider({ children }) {
     };
   }, [user?.id, save]);
 
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const token = getAuthToken();
+    if (!token) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/notifications`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const rows = await res.json();
+        if (!Array.isArray(rows) || cancelled) return;
+        const mapped = rows.map((n) => ({
+          id: n.id || n._id,
+          to: n.recipient_id || n.to,
+          title: n.title,
+          msg: n.message || n.msg,
+          type: n.type || 'Campaign',
+          read: n.is_read || n.read ? 1 : 0,
+          at: n.created_at || n.at,
+        }));
+        setDb((prev) => {
+          const existing = prev.notifications || [];
+          const byId = new Map(existing.map((x) => [String(x.id), x]));
+          mapped.forEach((n) => {
+            if (!byId.has(String(n.id))) byId.set(String(n.id), n);
+          });
+          const next = [...byId.values()];
+          Store.set('notifications', next);
+          return { ...prev, notifications: next };
+        });
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   // Sync live chat from Mongo so both parties share the same inbox
   useEffect(() => {
     if (!user?.id) return undefined;
