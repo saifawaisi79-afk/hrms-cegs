@@ -58,6 +58,7 @@ import {
   formatSheetDateDisplay,
   matchesSheetDate,
 } from '@/lib/candidate-dates';
+import { formatInOfficeTz } from '@/lib/ist-time';
 
 /* ==========================================================================================
  GLOBAL API ENDPOINT CONFIGURATION — Next.js App Router API Routes
@@ -1407,8 +1408,16 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  const currentPermRole = getUserPermissionRole(user);
  const userPerms = db.permissions?.[currentPermRole] || {};
  const isAdmin = userPerms.reports || userPerms.payroll || userPerms.approveLeave || ['admin', 'super_admin'].includes(user.role);
- const hour = new Date().getHours();
- const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+ const officeHour = formatInOfficeTz().hour;
+ const greeting = officeHour < 12 ? 'Good Morning' : officeHour < 17 ? 'Good Afternoon' : 'Good Evening';
+ const firstName = String(user.name || '').trim().split(/\s+/)[0] || 'there';
+ const designation = user.title || user.designation || '';
+ const employeeId = user.employee_id || '';
+ const statusRaw = String(user.status || '').trim();
+ const statusLabel = statusRaw
+  ? statusRaw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  : '';
+ const phoneDisplay = user.phone || user.contact || '';
 
  // Developer Quick View Modal State
  const [showDevQuickView, setShowDevQuickView] = useState(false);
@@ -1418,7 +1427,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  const [profileForm, setProfileForm] = useState({
  email: user.email || '',
  phone: user.phone || '',
- bio: user.bio || 'UI/UX Designer & Fullstack Engineer'
+ bio: user.bio || ''
  });
 
  const saveProfile = () => {
@@ -1672,6 +1681,23 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  const progressTasks = userTasks.filter(t => t.status === 'in_progress');
  const completedTasks = userTasks.filter(t => t.status === 'completed');
  const incompleteTasks = userTasks.filter(t => t.status === 'incomplete');
+ const taskTotal = userTasks.length;
+ const taskDone = completedTasks.length;
+ const taskPct = taskTotal ? Math.round((taskDone / taskTotal) * 100) : 0;
+ const ordinalSuffix = (n) => {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return 'th';
+  if (v % 10 === 1) return 'st';
+  if (v % 10 === 2) return 'nd';
+  if (v % 10 === 3) return 'rd';
+  return 'th';
+ };
+ const currentTaskNum = Math.min(taskDone + 1, taskTotal || 1);
+ const progressLine = !taskTotal
+  ? 'No tasks assigned'
+  : taskDone === taskTotal
+  ? 'All tasks complete'
+  : `On ${currentTaskNum}${ordinalSuffix(currentTaskNum)} task`;
 
  const moveTask = (id, newStatus) => {
  save('workTasks', db.workTasks.map(t => t.id === id ? { ...t, status: newStatus } : t));
@@ -1685,13 +1711,33 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  <div className="dash-row-1">
  {/* Welcome Greeting widget */}
  <div className="welcome-widget">
- <div className="welcome-title">{user.name.split('')[0]}, today you have to work</div>
- <div className="welcome-sub" style={{ display: 'flex', alignItems: 'center' }}>
- On 3rd task 
- <div className="welcome-progress-bar">
- <div className="welcome-progress-fill" style={{ width: '25%' }}></div>
+ <div className="welcome-head">
+ {user.avatar ? <img src={user.avatar} className="welcome-avatar" alt="" /> : null}
+ <div className="welcome-head-text">
+ <div className="welcome-title">{greeting}, {firstName}</div>
+ {(designation || employeeId || statusLabel) ? (
+ <div className="welcome-meta">
+ {designation ? <span>{designation}</span> : null}
+ {employeeId ? <span>ID {employeeId}</span> : null}
+ {statusLabel ? (
+ <span className={`welcome-status-badge welcome-status-${statusRaw.toLowerCase().replace(/\s+/g, '_')}`}>
+ {statusLabel}
+ </span>
+ ) : null}
  </div>
- <span style={{ marginLeft: 8, fontWeight: 700, color: 'var(--purple)', fontSize: 13 }}>25%</span>
+ ) : null}
+ </div>
+ </div>
+ <div className="welcome-sub" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+ {progressLine}
+ {taskTotal ? (
+ <>
+ <div className="welcome-progress-bar">
+ <div className="welcome-progress-fill" style={{ width: `${taskPct}%` }}></div>
+ </div>
+ <span style={{ marginLeft: 8, fontWeight: 700, color: 'var(--purple)', fontSize: 13 }}>{taskPct}%</span>
+ </>
+ ) : null}
  </div>
  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.4 }}>
  Maintain operational velocity. Check your assigned board items below to transition statuses.
@@ -1704,7 +1750,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  <img src={user.avatar} className="profile-card-avatar" alt="" />
  <div>
  <div className="profile-card-name">{user.name}</div>
- <div className="profile-card-title">{user.title || 'CEGS Associate'}</div>
+ <div className="profile-card-title">{user.title || user.designation || 'CEGS Associate'}</div>
  </div>
  </div>
  {isEditing ? (
@@ -1724,12 +1770,12 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  </div>
  <div className="profile-card-detail-item">
  <span className="profile-card-detail-label">Phone</span>
- <span className="profile-card-detail-value">{user.phone || '+1 212 555 0000'}</span>
+ <span className="profile-card-detail-value">{phoneDisplay || '—'}</span>
  </div>
  </div>
  <div className="profile-card-bio">
  <span className="profile-card-detail-label" style={{ display: 'block', marginBottom: 4 }}>Bio / Focus Area</span>
- {user.bio || 'UI/UX Designer & Enterprise Infrastructure Developer.'}
+ {user.bio || designation || '—'}
  </div>
  </>
  )}
