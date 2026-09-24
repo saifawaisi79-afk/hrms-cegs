@@ -1512,13 +1512,8 @@ textarea.form-input { resize:vertical; min-height:88px; line-height:1.6; }
 /* Row 1 Content styling */
 .dash-row-1 {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
+  grid-template-columns: 1fr;
   gap: 24px;
-}
-@media (max-width: 768px) {
-  .dash-row-1 {
-    grid-template-columns: 1fr;
-  }
 }
 
 .welcome-widget {
@@ -1534,8 +1529,27 @@ textarea.form-input { resize:vertical; min-height:88px; line-height:1.6; }
 .welcome-head {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  margin-bottom: 6px;
+  gap: 18px;
+}
+
+.welcome-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 12px 0 14px;
+}
+
+.welcome-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+
+@media (max-width: 768px) {
+  .welcome-facts {
+    grid-template-columns: 1fr;
+  }
 }
 
 .welcome-head-text {
@@ -1544,12 +1558,13 @@ textarea.form-input { resize:vertical; min-height:88px; line-height:1.6; }
 }
 
 .welcome-avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-  border: 1px solid var(--border);
+  border: 2px solid var(--purple);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
 }
 
 .welcome-title {

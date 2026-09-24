@@ -1707,9 +1707,8 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  <div className="modern-dash-layout anim-fadeup">
  {/* LEFT MAIN AREA */}
  <div className="modern-dash-main">
- {/* ROW 1: Greeting banner & Profile details */}
+ {/* ROW 1: Combined greeting + profile banner */}
  <div className="dash-row-1">
- {/* Welcome Greeting widget */}
  <div className="welcome-widget">
  <div className="welcome-head">
  {user.avatar ? <img src={user.avatar} className="welcome-avatar" alt="" /> : null}
@@ -1726,9 +1725,31 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  ) : null}
  </div>
  ) : null}
+ {isEditing ? (
+ <div className="welcome-edit-form">
+ <input className="form-input" style={{ padding: '6px 10px', fontSize: 12.5 }} value={profileForm.avatar || ''} onChange={e => setProfileForm({ ...profileForm, avatar: e.target.value })} placeholder="Profile Image URL" />
+ <input className="form-input" style={{ padding: '6px 10px', fontSize: 12.5 }} value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} placeholder="Email address" />
+ <input className="form-input" style={{ padding: '6px 10px', fontSize: 12.5 }} value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} placeholder="Phone Number" />
+ <textarea className="form-input" style={{ padding: '6px 10px', fontSize: 12.5, minHeight: 48 }} value={profileForm.bio} onChange={e => setProfileForm({ ...profileForm, bio: e.target.value })} placeholder="Short bio..." />
+ <button className="btn btn-sm btn-dark" style={{ alignSelf: 'flex-start' }} onClick={saveProfile}>Save</button>
+ </div>
+ ) : (
+ <div className="welcome-facts">
+ <div className="profile-card-detail-item">
+ <span className="profile-card-detail-label">Email</span>
+ <span className="profile-card-detail-value" style={{ fontSize: 12, wordBreak: 'break-all' }}>{user.email || '—'}</span>
+ </div>
+ <div className="profile-card-detail-item">
+ <span className="profile-card-detail-label">Phone</span>
+ <span className="profile-card-detail-value">{phoneDisplay || '—'}</span>
+ </div>
+ <div className="profile-card-detail-item">
+ <span className="profile-card-detail-label">Bio / Focus Area</span>
+ <span className="profile-card-detail-value">{user.bio || designation || '—'}</span>
  </div>
  </div>
- <div className="welcome-sub" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+ )}
+ <div className="welcome-sub" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
  {progressLine}
  {taskTotal ? (
  <>
@@ -1739,46 +1760,11 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  </>
  ) : null}
  </div>
- <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+ <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.4, margin: 0 }}>
  Maintain operational velocity. Check your assigned board items below to transition statuses.
  </p>
  </div>
-
- {/* Personal profile details widget */}
- <div className="personal-profile-card">
- <div className="profile-card-header">
- <img src={user.avatar} className="profile-card-avatar" alt="" />
- <div>
- <div className="profile-card-name">{user.name}</div>
- <div className="profile-card-title">{user.title || user.designation || 'CEGS Associate'}</div>
  </div>
- </div>
- {isEditing ? (
- <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
- <input className="form-input" style={{ padding: '6px 10px', fontSize: 12.5 }} value={profileForm.avatar} onChange={e => setProfileForm({ ...profileForm, avatar: e.target.value })} placeholder="Profile Image URL" />
- <input className="form-input" style={{ padding: '6px 10px', fontSize: 12.5 }} value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} placeholder="Email address" />
- <input className="form-input" style={{ padding: '6px 10px', fontSize: 12.5 }} value={profileForm.phone} onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })} placeholder="Phone Number" />
- <textarea className="form-input" style={{ padding: '6px 10px', fontSize: 12.5, minHeight: 48 }} value={profileForm.bio} onChange={e => setProfileForm({ ...profileForm, bio: e.target.value })} placeholder="Short bio..." />
- <button className="btn btn-sm btn-dark" style={{ alignSelf: 'flex-start' }} onClick={saveProfile}>Save</button>
- </div>
- ) : (
- <>
- <div className="profile-card-details">
- <div className="profile-card-detail-item">
- <span className="profile-card-detail-label">Email</span>
- <span className="profile-card-detail-value" style={{ fontSize: 12, wordBreak: 'break-all' }}>{user.email}</span>
- </div>
- <div className="profile-card-detail-item">
- <span className="profile-card-detail-label">Phone</span>
- <span className="profile-card-detail-value">{phoneDisplay || '—'}</span>
- </div>
- </div>
- <div className="profile-card-bio">
- <span className="profile-card-detail-label" style={{ display: 'block', marginBottom: 4 }}>Bio / Focus Area</span>
- {user.bio || designation || '—'}
- </div>
- </>
- )}
  </div>
  </div>
 
