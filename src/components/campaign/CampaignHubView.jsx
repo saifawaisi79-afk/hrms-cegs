@@ -83,6 +83,8 @@ function CampaignHubInner({ user }) {
     return d;
   }, [monthlyTeamTarget, weeksForMonth.length, selectedIds.length]);
 
+  const selectable = data?.selectable || [];
+
   const toggleId = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
