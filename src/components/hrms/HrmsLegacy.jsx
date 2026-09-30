@@ -1022,15 +1022,18 @@ export function LunchBreakWidget({ user, db, save }) {
  if (breakType === 'lunch') {
  const lateReturn = isLateLunchReturn(user, endDt, duration, allowedMins);
  if (lateReturn) {
+ const lunchDate = todayStr;
  pushHrmsNotification(save, db, {
  to: user.id,
  title: 'Late Lunch Return Warning',
- msg: `You returned late from lunch (${getLunchWindowLabel(user)} window). This warning counts toward monthly half-day pay cuts.`,
+ msg: `You returned late from lunch (${getLunchWindowLabel(user)} window). This warning counts toward monthly half-day pay cuts (2 warnings = 1 half-day).`,
  type: 'Attendance',
+ dedupeKey: `att-warn:${user.id}:${lunchDate}:late_lunch_return`,
  });
  recordAttendanceWarning(save, db, {
  uid: user.id,
  type: 'late_lunch_return',
+ date: lunchDate,
  note: `Late lunch return after ${Math.ceil(duration / 60)} min (allowed ${allowedMins} min)`,
  });
  }
@@ -3471,12 +3474,14 @@ export function AttendancePage({ db, save, user }) {
  pushHrmsNotification(save, db, {
  to: user.id,
  title: 'Late Clock-In Warning',
- msg: `You clocked in after ${deadline.deadlineLabel} (login ${deadline.startLabel} + ${deadline.grace} min grace). This warning counts with late lunch returns toward monthly half-day pay cuts.`,
+ msg: `You clocked in after ${deadline.deadlineLabel} (login ${deadline.startLabel} + ${deadline.grace} min grace). This warning counts with late lunch returns toward monthly half-day pay cuts (2 warnings = 1 half-day).`,
  type: 'Attendance',
+ dedupeKey: `att-warn:${user.id}:${today}:late_clock_in`,
  });
  recordAttendanceWarning(save, db, {
  uid: user.id,
  type: 'late_clock_in',
+ date: today,
  note: `Clock-in at ${timeStr} (deadline ${deadline.deadlineLabel})`,
  });
  }
@@ -3538,7 +3543,7 @@ export function AttendancePage({ db, save, user }) {
 
  return (
  <div className="anim-fadeup">
- <PageHdr title="Attendance" sub={`Track daily work hours · your login ${formatTime12FromHm(resolveLoginTime(user))} (+15 min grace) · 3 warnings/month = half-day pay cut`}/>
+ <PageHdr title="Attendance" sub={`Track daily work hours · your login ${formatTime12FromHm(resolveLoginTime(user))} (+15 min grace) · 2 warnings/month = half-day pay cut`}/>
 
  {/* Location Protection & Clock-Out Policy Badge */}
  <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, flexWrap: 'wrap', gap: 8 }}>
@@ -3747,9 +3752,35 @@ export function PayrollPage({ db, save, user, setView }) {
  };
  };
 
- const runPayroll = () => {
- const active = (db.users || []).filter(u => ['active', 'on_leave'].includes(u.status));
+ const runPayroll = async () => {
  const payrollMonth = parseInt(month, 10);
+ try {
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : '';
+ const res = await fetch(`${GLOBAL_API_BASE}/payroll`, {
+ method: 'POST',
+ headers: {
+ 'Content-Type': 'application/json',
+ ...(token ? { Authorization: `Bearer ${token}` } : {}),
+ },
+ body: JSON.stringify({ month: payrollMonth, year }),
+ });
+ const data = await res.json().catch(() => ({}));
+ if (res.ok && Array.isArray(data.slips)) {
+ const mapped = data.slips.map((p) => ({
+ ...p,
+ uid: p.uid || p.user_id,
+ basic: p.basic ?? p.basic_salary,
+ net: p.net ?? p.net_salary,
+ }));
+ save('payroll', [
+ ...(db.payroll || []).filter((p) => !(Number(p.month) === payrollMonth && Number(p.year) === year)),
+ ...mapped,
+ ]);
+ alert(`Payroll processed for ${data.processed_count || mapped.length} employees for month ${payrollMonth}/${year}`);
+ return;
+ }
+ } catch {}
+ const active = (db.users || []).filter(u => ['active', 'on_leave'].includes(u.status));
  const recs = active.map((emp, i) => {
  const parts = buildPayParts(emp, payrollMonth, year);
  return {
@@ -3797,12 +3828,13 @@ export function PayrollPage({ db, save, user, setView }) {
 
  // Live preview from onboarding compensation + warning deductions when no slip yet
  const liveMine = buildPayParts(profileUser, Number(month), year);
- const displayBasic = myRecord?.basic ?? liveMine.basic;
+ const displayBasic = myRecord?.basic ?? myRecord?.basic_salary ?? liveMine.basic;
  const displayAllowances = myRecord?.allowances ?? liveMine.allowances;
- const displayDeductions = myRecord?.deductions ?? liveMine.deductions;
- const displayNet = myRecord?.net ?? liveMine.net;
- const displayWarnings = myRecord?.attendanceWarnings ?? liveMine.attendanceWarnings;
- const displayHalfDays = myRecord?.halfDaysCut ?? liveMine.halfDaysCut;
+ const savedDeduct = Number(myRecord?.attendancePenalty ?? myRecord?.deductions) || 0;
+ const displayDeductions = Math.max(savedDeduct, liveMine.deductions);
+ const displayNet = (Number(displayBasic) || 0) + (Number(displayAllowances) || 0) - displayDeductions;
+ const displayWarnings = Math.max(Number(myRecord?.attendanceWarnings) || 0, liveMine.attendanceWarnings);
+ const displayHalfDays = Math.max(Number(myRecord?.halfDaysCut) || 0, liveMine.halfDaysCut);
 
  return (
  <div className="anim-fadeup">

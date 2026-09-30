@@ -6,6 +6,7 @@ const NotificationSchema = new mongoose.Schema({
   department_id:{ type: mongoose.Schema.Types.ObjectId, ref: 'Department', default: null },
   title:        { type: String, required: true },
   message:      { type: String, required: true },
+  type:         { type: String, default: null },
   is_read:      { type: Boolean, default: false },
   created_at:   { type: String, required: true },
   /** Campaign Hub idempotency — one notice per recipient per award event */

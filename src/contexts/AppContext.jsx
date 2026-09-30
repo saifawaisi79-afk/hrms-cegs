@@ -410,19 +410,94 @@ export function AppProvider({ children }) {
           type: n.type || 'Campaign',
           read: n.is_read || n.read ? 1 : 0,
           at: n.created_at || n.at,
+          dedupeKey: n.dedupeKey || null,
         }));
         setDb((prev) => {
           const existing = prev.notifications || [];
-          const byId = new Map(existing.map((x) => [String(x.id), x]));
-          mapped.forEach((n) => {
-            if (!byId.has(String(n.id))) byId.set(String(n.id), n);
+          const byKey = new Map();
+          existing.forEach((x) => {
+            const k = x.dedupeKey ? `d:${x.dedupeKey}` : `i:${x.id}`;
+            byKey.set(k, x);
           });
-          const next = [...byId.values()];
+          mapped.forEach((n) => {
+            const k = n.dedupeKey ? `d:${n.dedupeKey}` : `i:${n.id}`;
+            byKey.set(k, { ...(byKey.get(k) || {}), ...n });
+          });
+          const next = [...byKey.values()];
           Store.set('notifications', next);
           return { ...prev, notifications: next };
         });
       } catch {}
     })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Persist attendance warnings + payroll deductions from Mongo (not localStorage-only)
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const token = getAuthToken();
+    if (!token) return undefined;
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const [warnRes, payRes] = await Promise.all([
+          fetch(`${API_BASE}/attendance-warnings`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_BASE}/payroll`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+        if (cancelled) return;
+        if (warnRes.ok) {
+          const rows = await warnRes.json();
+          if (Array.isArray(rows) && !cancelled) {
+            setDb((prev) => {
+              const byKey = new Map();
+              (prev.attendanceWarnings || []).forEach((w) => {
+                byKey.set(`${String(w.uid)}|${String(w.date || '').slice(0, 10)}|${w.type}`, w);
+              });
+              rows.forEach((w) => {
+                byKey.set(`${String(w.uid)}|${String(w.date || '').slice(0, 10)}|${w.type}`, w);
+              });
+              const next = [...byKey.values()];
+              Store.set('attendanceWarnings', next);
+              return { ...prev, attendanceWarnings: next };
+            });
+          }
+        }
+        if (payRes.ok) {
+          const rows = await payRes.json();
+          if (Array.isArray(rows) && !cancelled) {
+            const mapped = rows.map((p) => ({
+              ...p,
+              uid: p.uid || p.user_id,
+              basic: p.basic ?? p.basic_salary,
+              net: p.net ?? p.net_salary,
+              deductions: p.deductions ?? 0,
+              attendanceWarnings: p.attendanceWarnings ?? p.attendance_warnings ?? 0,
+              halfDaysCut: p.halfDaysCut ?? p.half_days_cut ?? 0,
+              attendancePenalty: p.attendancePenalty ?? p.attendance_penalty ?? p.deductions ?? 0,
+            }));
+            setDb((prev) => {
+              const byKey = new Map();
+              (prev.payroll || []).forEach((p) => {
+                byKey.set(`${String(p.uid)}|${p.month}|${p.year}`, p);
+              });
+              mapped.forEach((p) => {
+                byKey.set(`${String(p.uid)}|${p.month}|${p.year}`, p);
+              });
+              const next = [...byKey.values()];
+              Store.set('payroll', next);
+              return { ...prev, payroll: next };
+            });
+          }
+        }
+      } catch {}
+    };
+    pull();
     return () => {
       cancelled = true;
     };

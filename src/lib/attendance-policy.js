@@ -10,7 +10,7 @@ export const LUNCH_START_MIN = 0;
 export const EMPLOYEE_LUNCH_MINS = 30;
 export const HR_LUNCH_MINS = 60;
 /** Late clock-in + late lunch return warnings combined per half-day cut */
-export const WARNINGS_PER_HALF_DAY = 3;
+export const WARNINGS_PER_HALF_DAY = 2;
 export const DEFAULT_LOGIN_TIME = '10:00';
 /** Per-employee login start overrides (used when login_time is not stored yet). */
 export const SPECIAL_LOGIN_TIMES = {
@@ -110,7 +110,9 @@ export function isLateClockIn(now = new Date(), settings, user) {
 }
 
 export function monthYearFromDate(d = new Date()) {
-  return { month: d.getMonth() + 1, year: d.getFullYear() };
+  const office = formatInOfficeTz(d);
+  const [year, month] = office.date.split('-').map((n) => parseInt(n, 10));
+  return { month, year };
 }
 
 export function countMonthlyAttendanceWarnings(warnings, uid, month, year) {

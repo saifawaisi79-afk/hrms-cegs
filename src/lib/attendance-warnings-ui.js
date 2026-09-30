@@ -1,15 +1,26 @@
 /**
- * Client-side helpers for attendance warnings + notifications (localStorage via save()).
+ * Client-side helpers for attendance warnings + notifications.
+ * Warnings are saved locally for instant UI and POSTed to Mongo for payroll.
  */
 import {
   WARNINGS_PER_HALF_DAY,
-  monthYearFromDate,
   countMonthlyAttendanceWarnings,
   halfDaysFromWarnings,
 } from './attendance-policy';
+import { istIsoDate } from './ist-time';
 
-export function pushHrmsNotification(save, db, { to, title, msg, type = 'Attendance' }) {
+function authHeaders() {
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('cegs_token') : '';
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+export function pushHrmsNotification(save, db, { to, title, msg, type = 'Attendance', dedupeKey = null }) {
   if (!save || !to) return;
+  const existing = db?.notifications || [];
+  if (dedupeKey && existing.some((n) => n.dedupeKey && n.dedupeKey === dedupeKey)) return;
   save('notifications', [
     {
       id: Date.now() + Math.random(),
@@ -20,19 +31,49 @@ export function pushHrmsNotification(save, db, { to, title, msg, type = 'Attenda
       type,
       read: 0,
       at: new Date().toISOString(),
+      dedupeKey,
     },
-    ...(db?.notifications || []),
+    ...existing,
   ]);
 }
 
-export function recordAttendanceWarning(save, db, { uid, type, note }) {
-  const { month, year } = monthYearFromDate();
-  const date = new Date().toISOString().split('T')[0];
+export function hasAttendanceWarning(warnings, uid, type, date) {
+  return (warnings || []).some(
+    (w) =>
+      String(w.uid) === String(uid) &&
+      w.type === type &&
+      String(w.date).slice(0, 10) === String(date).slice(0, 10)
+  );
+}
+
+export async function persistAttendanceWarningRemote({ type, note, date, uid }) {
+  try {
+    const res = await fetch('/api/attendance-warnings', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ type, note, date, user_id: uid }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export function recordAttendanceWarning(save, db, { uid, type, note, date }) {
+  const isoDate = date || istIsoDate();
+  const [yearStr, monthStr] = String(isoDate).split('-');
+  const month = parseInt(monthStr, 10);
+  const year = parseInt(yearStr, 10);
+  if (hasAttendanceWarning(db?.attendanceWarnings, uid, type, isoDate)) {
+    return countMonthlyAttendanceWarnings(db?.attendanceWarnings || [], uid, month, year);
+  }
+
   const entry = {
     id: Date.now() + Math.random(),
     uid,
     type,
-    date,
+    date: isoDate,
     month,
     year,
     note: note || '',
@@ -47,9 +88,13 @@ export function recordAttendanceWarning(save, db, { uid, type, note }) {
     pushHrmsNotification(save, db, {
       to: uid,
       title: 'Half-Day Pay Cut Notice',
-      msg: `You have ${count} attendance warnings this month (${halfDays} half-day pay cut${halfDays > 1 ? 's' : ''} will apply on payroll). Late clock-in and late lunch return are counted together.`,
+      msg: `You have ${count} attendance warnings this month (${halfDays} half-day pay cut${halfDays > 1 ? 's' : ''} will apply on payroll). Late clock-in and late lunch return are counted together (2 warnings = 1 half-day).`,
       type: 'Attendance',
+      dedupeKey: `att-halfday:${uid}:${year}-${String(month).padStart(2, '0')}:${count}`,
     });
   }
+
+  persistAttendanceWarningRemote({ type, note, date: isoDate, uid });
+
   return count;
 }
