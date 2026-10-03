@@ -175,7 +175,7 @@ export function buildNavConfig(user, db) {
       { href: '/settings', label: 'System Settings', icon: 'settings' },
     );
     campaign.push(
-      { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
+      { href: '/campaign/recruitment', label: 'Finance & Invoices', icon: 'adduser' },
       { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Targets', icon: 'trending' },
       { href: '/campaign/workflows', label: 'Workflows', icon: 'activity' },
@@ -204,7 +204,7 @@ export function buildNavConfig(user, db) {
       { href: '/helpdesk', label: 'Help Desk', icon: 'help' },
     );
     campaign.push(
-      { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
+      { href: '/campaign/recruitment', label: 'Finance & Invoices', icon: 'adduser' },
       { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Targets', icon: 'trending' },
       ...(canOnboard ? [{ href: '/campaign/onboarding', label: 'Onboarding', icon: 'file' }] : []),
