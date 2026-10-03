@@ -5,7 +5,7 @@ export interface IUser extends Document {
   name: string;
   email: string;
   password_hash: string;
-  role: 'employee' | 'admin' | 'super_admin';
+  role: 'employee' | 'admin' | 'super_admin' | 'finance';
   department_id?: mongoose.Types.ObjectId | null;
   reports_to?: mongoose.Types.ObjectId | null;
   designation: string;
@@ -37,7 +37,7 @@ const UserSchema: Schema<IUser> = new mongoose.Schema({
   name:                     { type: String, required: true },
   email:                    { type: String, required: true, unique: true },
   password_hash:            { type: String, required: true },
-  role:                     { type: String, enum: ['employee', 'admin', 'super_admin'], required: true },
+  role:                     { type: String, enum: ['employee', 'admin', 'super_admin', 'finance'], required: true },
   department_id:            { type: mongoose.Schema.Types.ObjectId, ref: 'Department', default: null },
   reports_to:               { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   designation:              { type: String, default: '' },

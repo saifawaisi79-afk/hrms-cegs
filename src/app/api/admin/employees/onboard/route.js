@@ -59,7 +59,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
 
-    const allowedRoles = ['employee', 'admin', 'super_admin'];
+    const allowedRoles = ['employee', 'admin', 'super_admin', 'finance'];
     const safeRole = allowedRoles.includes(role) ? role : 'employee';
 
     await connectDB();

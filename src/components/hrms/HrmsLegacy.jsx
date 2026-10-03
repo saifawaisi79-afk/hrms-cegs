@@ -479,6 +479,7 @@ export function LoginPage({ login, db }) {
  { id: 'employee', label: 'Employee' },
  { id: 'admin', label: 'HR Admin' },
  { id: 'super_admin', label: 'Super Admin' },
+ { id: 'finance', label: 'Finance & Invoices' },
  ];
 
  return (
@@ -2639,7 +2640,7 @@ export function EmployeesPage({ db, save, user, setView, setQuickViewUser, setCh
  <div className="form-group"><label className="form-label">Email Address</label><input type="email" className="form-input" value={form.email||''} onChange={e=>setForm({...form,email:e.target.value})} required /></div>
  </div>
  <div className="form-row">
- <div className="form-group"><label className="form-label">Role</label><select className="form-input" value={form.role||'employee'} onChange={e=>setForm({...form,role:e.target.value})}><option value="employee">Employee</option><option value="admin">Admin (HR)</option><option value="super_admin">Super Admin</option></select></div>
+ <div className="form-group"><label className="form-label">Role</label><select className="form-input" value={form.role||'employee'} onChange={e=>setForm({...form,role:e.target.value})}><option value="employee">Employee</option><option value="admin">Admin (HR)</option><option value="super_admin">Super Admin</option><option value="finance">Finance & Invoices</option></select></div>
  <div className="form-group"><label className="form-label">Department</label><select className="form-input" value={form.deptId||1} onChange={e=>setForm({...form,deptId:parseInt(e.target.value)})}>{db.departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
  </div>
  <div className="form-group"><label className="form-label">Job Title</label><input className="form-input" value={form.title||''} onChange={e=>setForm({...form,title:e.target.value})} placeholder="e.g. Senior Software Engineer" required /></div>
@@ -5600,6 +5601,7 @@ export function OnboardingPage({ db, save, user }) {
  <option value="employee">Employee Portal</option>
  <option value="admin">Admin (HR) Portal</option>
  <option value="super_admin">Super Admin Portal</option>
+ <option value="finance">Finance & Invoices</option>
  </select>
  </div>
  </div>
@@ -5742,6 +5744,7 @@ export function OnboardingPage({ db, save, user }) {
  <option value="employee">Employee Portal</option>
  <option value="admin">Admin (HR) Portal</option>
  <option value="super_admin">Super Admin Portal</option>
+ <option value="finance">Finance & Invoices</option>
  </select>
  </div>
  </div>
@@ -6223,7 +6226,7 @@ export function UsersPage({ db, save, user }) {
  <td style={{fontSize:12,color:'var(--text-muted)',fontFamily:'JetBrains Mono,monospace'}}>{u.lastLogin?new Date(u.lastLogin).toLocaleDateString():'-'}</td>
  <td>
  <select className="form-input" style={{width:140,fontSize:12}} value={u.role} onChange={e=>changeRole(u.id,e.target.value)} disabled={u.id===user.id}>
- <option value="employee">Employee</option><option value="admin">Admin</option><option value="super_admin">Super Admin</option>
+ <option value="employee">Employee</option><option value="admin">Admin</option><option value="super_admin">Super Admin</option><option value="finance">Finance & Invoices</option>
  </select>
  </td>
  <td>

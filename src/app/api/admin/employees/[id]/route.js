@@ -52,7 +52,7 @@ export async function PUT(request, { params }) {
       status,
     } = body;
 
-    const allowedRoles = ['employee', 'admin', 'super_admin'];
+    const allowedRoles = ['employee', 'admin', 'super_admin', 'finance'];
     const updates = {};
 
     if (name != null && String(name).trim()) updates.name = String(name).trim();

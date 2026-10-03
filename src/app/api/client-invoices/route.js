@@ -10,7 +10,7 @@ import { todayIsoDate } from '@/lib/candidate-dates';
 export const dynamic = 'force-dynamic';
 
 function canFinance(user) {
-  return requireRole(user, ['admin', 'super_admin']);
+  return requireRole(user, ['admin', 'super_admin', 'finance']);
 }
 
 function flatten(doc) {
