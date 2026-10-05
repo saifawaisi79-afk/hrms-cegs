@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Clock, CheckCircle2 } from 'lucide-react';
+import { Clock, CheckCircle2, Play, LogIn } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { toIsoDate } from '@/lib/auto-absent';
 import { getAuthToken, API_BASE } from '@/lib/auth-client';
@@ -62,6 +62,7 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
   const [mounted, setMounted] = useState(false);
   const [liveNow, setLiveNow] = useState(() => new Date());
   const [hasCelebrated, setHasCelebrated] = useState(false);
+  const [isClockingIn, setIsClockingIn] = useState(false);
 
   // Position state (persisted to localStorage)
   const [position, setPosition] = useState({ x: -1, y: -1 });
@@ -72,11 +73,11 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
   // Today in Asia/Kolkata ISO format
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
 
-  // Sync attendance record on boot if db.attendance lacks today's punch
+  // Sync attendance record on boot across all portals
   useEffect(() => {
     setMounted(true);
 
-    // Load saved position or default to down right corner
+    // Load saved position or default to down-right corner
     try {
       const savedPos = localStorage.getItem('cegs_shift_timer_pos_cyl');
       if (savedPos) {
@@ -89,7 +90,7 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
 
     // Fetch fresh attendance if user is logged in
     const token = getAuthToken();
-    if (token && currentUser?.id) {
+    if (token && currentUser) {
       fetch(`${API_BASE}/attendance`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -101,13 +102,13 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
         })
         .catch(() => {});
     }
-  }, [currentUser?.id, save, todayIso]);
+  }, [currentUser, save, todayIso]);
 
-  // Set default initial position in DOWN RIGHT CORNER once mounted
+  // Set default initial position in DOWN-RIGHT CORNER once mounted
   useEffect(() => {
     if (!mounted || typeof window === 'undefined') return;
     if (position.x === -1 || position.y === -1) {
-      const w = 275;
+      const w = 285;
       const h = 50;
       const initialX = Math.max(16, window.innerWidth - w - 24);
       const initialY = Math.max(16, window.innerHeight - h - 24);
@@ -127,16 +128,31 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
     };
   }, []);
 
-  // Today's attendance record for current user
+  // Today's attendance record for current user (matching across all roles: HR Admin, Finance, Employee, Super Admin)
   const todayRec = useMemo(() => {
-    if (!currentUser?.id) return null;
+    if (!currentUser) return null;
+    const currentIds = [
+      currentUser.id,
+      currentUser._id,
+      currentUser.employee_id,
+      currentUser.eid,
+      currentUser.email?.toLowerCase(),
+    ].filter(Boolean).map(String);
+
     return (db?.attendance || []).find((a) => {
-      const uid = a.uid || a.user_id || (typeof a.user_id === 'object' ? a.user_id?._id : null);
-      const matchUser = String(uid) === String(currentUser.id);
+      const aUid = a.uid || a.user_id || (typeof a.user_id === 'object' ? a.user_id?._id : null);
+      const aEmail = a.email || a.user_id?.email || a.employee_email;
+      const aEmpId = a.employee_id || a.user_id?.employee_id;
+
+      const matchUser =
+        currentIds.includes(String(aUid)) ||
+        (aEmail && currentIds.includes(String(aEmail).toLowerCase())) ||
+        (aEmpId && currentIds.includes(String(aEmpId)));
+
       const matchDate = String(a.date || '').slice(0, 10) === todayIso;
       return matchUser && matchDate;
     });
-  }, [db?.attendance, currentUser?.id, todayIso]);
+  }, [db?.attendance, currentUser, todayIso]);
 
   // Is user clocked in?
   const isClockedIn = Boolean(
@@ -220,7 +236,94 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
     }
   }, [calculation.isCompleted, hasCelebrated, isClockedIn]);
 
-  // Dragging logic (whole cylinder is moveable by cursor)
+  // Direct 1-Click Clock-In from within the cylinder (for HR Admin, Finance, and Employee portals)
+  const handleDirectClockIn = useCallback(
+    async (e) => {
+      e?.stopPropagation();
+      if (isClockingIn || !currentUser) return;
+      setIsClockingIn(true);
+
+      const now = new Date();
+      const timeStr = now.toTimeString().substr(0, 8);
+      const userId = currentUser.id || currentUser._id;
+
+      const newRec = {
+        id: Date.now().toString(),
+        uid: userId,
+        user_id: userId,
+        date: todayIso,
+        in: timeStr,
+        check_in_time: timeStr,
+        out: null,
+        status: 'present',
+        hrs: 0,
+        auto: false,
+        source: 'clock',
+      };
+
+      // Optimistically save into React db state
+      if (typeof save === 'function') {
+        const remaining = (db?.attendance || []).filter((a) => {
+          const uid = a.uid || a.user_id || (typeof a.user_id === 'object' ? a.user_id?._id : null);
+          const matchUser = String(uid) === String(userId);
+          const matchDate = String(a.date || '').slice(0, 10) === todayIso;
+          return !(matchUser && matchDate);
+        });
+        save('attendance', [newRec, ...remaining]);
+      }
+
+      // Notify global event listeners
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('hrms:attendance-update', {
+            detail: { action: 'clock-in', record: newRec },
+          })
+        );
+      }
+
+      // Persist to backend server API
+      try {
+        const token = getAuthToken();
+        if (token) {
+          const res = await fetch(`${API_BASE}/attendance/check-in`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              status: 'present',
+              date: todayIso,
+              check_in_time: timeStr,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            if (data?.check_in_time && typeof save === 'function') {
+              save('attendance', [
+                { ...newRec, id: data.id || newRec.id, in: data.check_in_time },
+                ...(db?.attendance || []).filter(
+                  (a) =>
+                    !(
+                      String(a.uid || a.user_id) === String(userId) &&
+                      String(a.date || '').slice(0, 10) === todayIso
+                    )
+                ),
+              ]);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Direct clock-in error:', err);
+      } finally {
+        setIsClockingIn(false);
+        setLiveNow(new Date());
+      }
+    },
+    [isClockingIn, currentUser, todayIso, save, db?.attendance]
+  );
+
+  // Dragging logic (moveable by cursor anywhere)
   const handleStartDrag = useCallback(
     (clientX, clientY) => {
       setIsDragging(true);
@@ -235,12 +338,13 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
   );
 
   const handleMouseDown = (e) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || e.target.closest('button')) return;
     e.preventDefault();
     handleStartDrag(e.clientX, e.clientY);
   };
 
   const handleTouchStart = (e) => {
+    if (e.target.closest('button')) return;
     const touch = e.touches[0];
     if (touch) {
       handleStartDrag(touch.clientX, touch.clientY);
@@ -253,7 +357,7 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
     const handleMouseMove = (e) => {
       const dx = e.clientX - dragRef.current.startX;
       const dy = e.clientY - dragRef.current.startY;
-      const widgetWidth = widgetRef.current?.offsetWidth || 275;
+      const widgetWidth = widgetRef.current?.offsetWidth || 285;
       const widgetHeight = widgetRef.current?.offsetHeight || 50;
 
       const maxX = Math.max(0, window.innerWidth - widgetWidth - 10);
@@ -270,7 +374,7 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
       if (!touch) return;
       const dx = touch.clientX - dragRef.current.startX;
       const dy = touch.clientY - dragRef.current.startY;
-      const widgetWidth = widgetRef.current?.offsetWidth || 275;
+      const widgetWidth = widgetRef.current?.offsetWidth || 285;
       const widgetHeight = widgetRef.current?.offsetHeight || 50;
 
       const maxX = Math.max(0, window.innerWidth - widgetWidth - 10);
@@ -305,9 +409,6 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
   // If component isn't mounted or user isn't logged in, don't render
   if (!mounted || !currentUser) return null;
 
-  // If user hasn't clocked in today yet, keep hidden until clock-in
-  if (!isClockedIn) return null;
-
   // Formatting hours, minutes, seconds for countdown display
   const remSecs = calculation.remainingSecs;
   const remH = Math.floor(remSecs / 3600);
@@ -321,10 +422,20 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
   const clockInDisplay = formatTime12(clockInDt);
   const targetEndDisplay = formatTime12(targetEndDt);
 
+  // Portal label for contextual tooltip
+  const portalLabelText =
+    currentUser.role === 'admin'
+      ? 'HR Admin Panel'
+      : currentUser.role === 'finance'
+      ? 'Finance & Invoices'
+      : currentUser.role === 'super_admin'
+      ? 'Super Admin'
+      : 'Employee Portal';
+
   return (
     <aside
       ref={widgetRef}
-      className={`shift-cylinder-stopwatch ${isDragging ? 'dragging' : ''} ${calculation.isCompleted ? 'completed' : ''}`}
+      className={`shift-cylinder-stopwatch ${isDragging ? 'dragging' : ''} ${calculation.isCompleted ? 'completed' : ''} ${!isClockedIn ? 'ready-to-clock' : ''}`}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
       style={{
@@ -333,12 +444,18 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
         right: position.x < 0 ? '24px' : 'auto',
         bottom: position.y < 0 ? '24px' : 'auto',
       }}
-      title={`Clocked In: ${clockInDisplay} • Target Out: ${targetEndDisplay} (9h Shift)\nDrag to move anywhere`}
+      title={
+        isClockedIn
+          ? `${portalLabelText} • Clocked In: ${clockInDisplay} • Target Out: ${targetEndDisplay} (9h Shift)\nDrag to move anywhere`
+          : `${portalLabelText} • Click Clock In to start your 9-hour shift timer\nDrag to move anywhere`
+      }
     >
       {/* Left indicator: live pulse & clock icon */}
       <div className="cylinder-left">
-        <span className={`cylinder-status-dot ${isClockedOut ? 'paused' : 'live'}`} />
-        <Clock size={15} className="cylinder-clock-icon" />
+        <span
+          className={`cylinder-status-dot ${!isClockedIn ? 'waiting' : isClockedOut ? 'paused' : 'live'}`}
+        />
+        <Clock size={15} className={`cylinder-clock-icon ${!isClockedIn ? 'waiting' : ''}`} />
       </div>
 
       {/* Center: Clean 9h reverse countdown digits */}
@@ -359,9 +476,20 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
         </span>
       </div>
 
-      {/* Right side status / target badge */}
+      {/* Right side: Direct Clock-In button if not clocked in, or status badge if active */}
       <div className="cylinder-right">
-        {calculation.isCompleted ? (
+        {!isClockedIn ? (
+          <button
+            type="button"
+            className="cylinder-clockin-btn"
+            onClick={handleDirectClockIn}
+            disabled={isClockingIn}
+            title={`Click to Clock In on ${portalLabelText}`}
+          >
+            <Play size={11} fill="currentColor" />
+            <span>{isClockingIn ? 'Clocking in…' : 'Clock In'}</span>
+          </button>
+        ) : calculation.isCompleted ? (
           <span className="cylinder-badge completed">
             <CheckCircle2 size={12} />
             <span>9h Done</span>
@@ -377,11 +505,11 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
         )}
       </div>
 
-      {/* Inset Bottom Progress Bar Curve */}
+      {/* Inset Bottom Progress Bar Curve (shows progress when active) */}
       <div className="cylinder-progress-track">
         <div
-          className={`cylinder-progress-fill ${calculation.isCompleted ? 'completed' : ''}`}
-          style={{ width: `${calculation.progressPct}%` }}
+          className={`cylinder-progress-fill ${calculation.isCompleted ? 'completed' : ''} ${!isClockedIn ? 'zero' : ''}`}
+          style={{ width: `${isClockedIn ? calculation.progressPct : 0}%` }}
         />
       </div>
     </aside>

@@ -4337,3 +4337,56 @@ body {
 .cylinder-progress-fill.completed {
   background: #10b981;
 }
+
+.cylinder-progress-fill.zero {
+  width: 0% !important;
+}
+
+/* Direct Clock-In button inside cylinder (for HR Admin / Finance / Employee) */
+.cylinder-clockin-btn {
+  background: linear-gradient(135deg, #0e7490 0%, #0891b2 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 3px 9px 3.5px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(14, 116, 144, 0.45);
+  transition: all 0.15s ease;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+
+.cylinder-clockin-btn:hover {
+  background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.5);
+}
+
+.cylinder-clockin-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.cylinder-status-dot.waiting {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+  animation: cylinderDotPulse 2s infinite ease-in-out;
+}
+
+.cylinder-clock-icon.waiting {
+  color: #f59e0b;
+}
+
+.shift-cylinder-stopwatch.ready-to-clock {
+  border-color: rgba(245, 158, 11, 0.35);
+  box-shadow:
+    0 14px 34px -6px rgba(15, 23, 42, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 18px rgba(245, 158, 11, 0.2);
+}
