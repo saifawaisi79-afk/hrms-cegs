@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { formatSheetDateDisplay } from '@/lib/candidate-dates';
 import { gstBreakdown } from '@/lib/client-invoice-rules';
@@ -21,6 +22,77 @@ function authHeaders() {
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+function pickCell(row, aliases) {
+  const entries = Object.entries(row || {});
+  for (const alias of aliases) {
+    const hit = entries.find(([key]) => key.toLowerCase().replace(/[^a-z0-9]/g, '') === alias);
+    if (hit && hit[1] != null && String(hit[1]).trim() !== '') return hit[1];
+  }
+  return '';
+}
+
+function mapSheetRow(row, stage) {
+  const shared = {
+    candidateName: pickCell(row, ['candidatename', 'name']),
+    phone: pickCell(row, ['phnumber', 'phonenumber', 'phone']),
+    client: pickCell(row, ['clientname', 'client']),
+    joiningDate: pickCell(row, ['joiningdate']),
+    billingDate: pickCell(row, ['billingdate']),
+    recruiter: pickCell(row, ['recruiter']),
+    bi: pickCell(row, ['bi']),
+    ai: pickCell(row, ['ai']),
+    status: pickCell(row, ['status']),
+    candidateCount: pickCell(row, ['noofcandidates']),
+    invoiceDate: pickCell(row, ['dateofinvoice']),
+    revisedRequested: pickCell(row, ['revisedinvoicerequested']),
+    revisedSent: pickCell(row, ['revisedinvoicesent']),
+    invoiceNo: pickCell(row, ['invoiceno']),
+    gstStatus: pickCell(row, ['gststatus']),
+    gstAmtStatus: pickCell(row, ['gstamtstatus']),
+    gstNumber: pickCell(row, ['gstnumber']),
+    basicAmount: pickCell(row, ['basicamount']),
+    moneyReceived: pickCell(row, ['moneyreceivedfromclient', 'moneyreceived']),
+    remark: pickCell(row, ['remark']),
+  };
+  if (stage === 'to_raise') {
+    return {
+      candidateName: shared.candidateName,
+      phone: shared.phone,
+      client: shared.client,
+      joiningDate: shared.joiningDate,
+      billingDate: shared.billingDate,
+      recruiter: shared.recruiter,
+      bi: shared.bi,
+      ai: shared.ai,
+      status: shared.status,
+    };
+  }
+  if (stage === 'gst') {
+    return {
+      invoiceNo: shared.invoiceNo,
+      invoiceDate: shared.invoiceDate,
+      gstNumber: shared.gstNumber,
+      client: shared.client,
+      basicAmount: shared.basicAmount,
+      moneyReceived: shared.moneyReceived,
+      remark: shared.remark,
+    };
+  }
+  return {
+    candidateCount: shared.candidateCount,
+    invoiceDate: shared.invoiceDate,
+    revisedRequested: shared.revisedRequested,
+    revisedSent: shared.revisedSent,
+    invoiceNo: shared.invoiceNo,
+    client: shared.client,
+    bi: shared.bi,
+    ai: shared.ai,
+    status: shared.status,
+    gstStatus: shared.gstStatus,
+    gstAmtStatus: shared.gstAmtStatus,
   };
 }
 
@@ -49,6 +121,7 @@ export function FinanceInvoicesView() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const fileRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,6 +209,41 @@ export function FinanceInvoicesView() {
     await load();
   };
 
+  const uploadExcel = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setError('');
+    try {
+      const data = new Uint8Array(await file.arrayBuffer());
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const mapped = rawRows.map((row) => mapSheetRow(row, tab)).filter((row) => {
+        if (tab === 'to_raise') return String(row.candidateName || '').trim();
+        if (tab === 'gst') return String(row.invoiceNo || '').trim();
+        return String(row.client || '').trim() || String(row.invoiceNo || '').trim();
+      });
+      if (!mapped.length) {
+        setError('No matching rows in that sheet. Use the column names from this tab.');
+        return;
+      }
+      const res = await fetch('/api/client-invoices', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ action: 'import', stage: tab, monthKey: month, rows: mapped }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(payload.error || 'Upload failed');
+        return;
+      }
+      await load();
+    } catch {
+      setError('Could not read that Excel file');
+    }
+  };
+
   const removeInvoice = async (id) => {
     if (!window.confirm('Remove this invoice? The joiner rows return to To be raised.')) return;
     const res = await fetch(`/api/client-invoices/${id}`, { method: 'DELETE', headers: authHeaders() });
@@ -152,6 +260,14 @@ export function FinanceInvoicesView() {
       <PageHeader
         title="Finance & Invoices"
         purpose="Candidates who stay 8 weeks move here from the Joiner Sheet. Raise the client bill, then mark it cleared."
+        actions={
+          <>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={uploadExcel} />
+            <button type="button" className="btn btn-primary" onClick={() => fileRef.current?.click()}>
+              Upload Excel
+            </button>
+          </>
+        }
       />
       {error ? <p className="finance-error">{error}</p> : null}
       <div className="finance-tabs">

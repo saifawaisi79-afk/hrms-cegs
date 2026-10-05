@@ -228,28 +228,30 @@ export function buildNavConfig(user, db) {
   } else if (user?.role === 'finance') {
     main.push(
       { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-      { href: '/employees', label: 'Employees', icon: 'users' },
-      ...(canAccessReports ? [{ href: '/reports', label: 'Reports', icon: 'trending' }] : []),
+      { href: '/profile', label: 'My Profile', icon: 'users' },
+      { href: '/directory', label: 'Directory', icon: 'users' },
+      { href: '/announcements', label: 'Announcements', icon: 'bell' },
       { href: '/helpdesk', label: 'Help Desk', icon: 'help' },
+      { href: '/exit', label: 'Exit', icon: 'logout' },
     );
     campaign.push(
       { href: '/finance/invoices', label: 'Finance & Invoices', icon: 'adduser' },
       { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
-      { href: '/campaign/targets', label: 'Targets', icon: 'trending' },
+      { href: '/campaign/targets', label: 'Recruitment Targets', icon: 'adduser' },
       { href: '/campaign/performance', label: 'Performance', icon: 'trending' },
-      { href: '/campaign/learning', label: 'Training', icon: 'help' },
+      { href: '/campaign/learning', label: 'Learning', icon: 'help' },
+      { href: '/campaign/timesheets', label: 'Timesheets', icon: 'file' },
       { href: '/campaign/rewards', label: 'Rewards & Recognition', icon: 'star' },
       { href: '/campaign/jobs', label: 'Internal Job Portal', icon: 'briefcase' },
       { href: '/campaign/meetings', label: 'Meeting Scheduler', icon: 'video' },
     );
     billing.push(
-      { href: '/billing/workstation', label: 'IT Support & Assets', icon: 'help' },
-      { href: '/billing/payroll', label: 'Payroll & Salary Slips', icon: 'card' },
-      ...(canEditAttendance ? [{ href: '/billing/attendance', label: 'Attendance', icon: 'clock' }] : []),
-      ...(canApproveLeaves ? [{ href: '/billing/leaves', label: 'Leave', icon: 'calendar' }] : []),
+      { href: '/it/support', label: 'IT & Dev Support', icon: 'help' },
+      { href: '/billing/payroll', label: 'My Payroll & Payslips', icon: 'card' },
+      { href: '/billing/attendance', label: 'Attendance', icon: 'clock' },
+      { href: '/billing/leaves', label: 'Leave', icon: 'calendar' },
       { href: '/billing/documents', label: 'Documents', icon: 'file' },
       { href: '/billing/assets', label: 'Assets', icon: 'monitor' },
-      { href: '/billing/auditor', label: 'Compliance', icon: 'shield' },
     );
   } else if (isEmp) {
     main.push(

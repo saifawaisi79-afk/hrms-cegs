@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Expense from '@/lib/models/Expense';
-import { getAuthUser } from '@/lib/auth';
+import { getAuthUser, isSelfServiceRole } from '@/lib/auth';
 
 function flattenExpense(e) {
   const obj = e.toObject ? e.toObject() : e;
@@ -22,14 +22,15 @@ export async function GET(request) {
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
   await connectDB();
-  const filter = authUser.role === 'employee' ? { user_id: authUser.id } : {};
-  const expenses = authUser.role === 'employee'
+  const own = isSelfServiceRole(authUser.role);
+  const filter = own ? { user_id: authUser.id } : {};
+  const expenses = own
     ? await Expense.find(filter).sort({ date: -1 }).lean()
     : await Expense.find(filter)
         .populate({ path: 'user_id', select: 'name employee_id department_id', populate: { path: 'department_id', select: 'name' } })
         .sort({ date: -1 }).lean();
 
-  return NextResponse.json(expenses.map(e => authUser.role === 'employee'
+  return NextResponse.json(expenses.map(e => own
     ? { ...e, id: e._id?.toString(), _id: e._id?.toString(), user_id: e.user_id?.toString() }
     : flattenExpense(e)));
 }

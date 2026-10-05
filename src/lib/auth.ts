@@ -149,3 +149,8 @@ export function requireRole(user: AuthUserPayload | null, allowedRoles: string[]
   if (!user) return false;
   return allowedRoles.includes(user.role);
 }
+
+/** Employee and Finance portals see only their own attendance, leave, pay, and assets. */
+export function isSelfServiceRole(role: string | undefined | null): boolean {
+  return role === 'employee' || role === 'finance';
+}

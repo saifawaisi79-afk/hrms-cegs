@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Attendance from '@/lib/models/Attendance';
-import { getAuthUser } from '@/lib/auth';
+import { getAuthUser, isSelfServiceRole } from '@/lib/auth';
 import { OFFICE_TZ, calcWorkHours, normalizePunchTime, utcWallClockToIst } from '@/lib/ist-time';
 
 function flattenAttendance(a) {
@@ -95,7 +95,7 @@ export async function GET(request) {
 
   await connectDB();
   let records;
-  if (authUser.role === 'employee') {
+  if (isSelfServiceRole(authUser.role)) {
     records = await Attendance.find({ user_id: authUser.id }).sort({ date: -1 }).lean();
   } else {
     records = await Attendance.find({})

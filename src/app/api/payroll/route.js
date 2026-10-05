@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Payroll from '@/lib/models/Payroll';
-import { getAuthUser, requireRole } from '@/lib/auth';
+import { getAuthUser, requireRole, isSelfServiceRole } from '@/lib/auth';
 import { flattenPayrollSlip, processMonthlyPayroll } from '@/lib/attendance-deductions';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +11,7 @@ export async function GET(request) {
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
   await connectDB();
-  const filter = authUser.role === 'employee' ? { user_id: authUser.id } : {};
+  const filter = isSelfServiceRole(authUser.role) ? { user_id: authUser.id } : {};
   const slips = await Payroll.find(filter)
     .populate({ path: 'user_id', select: 'name employee_id avatar_url designation department_id', populate: { path: 'department_id', select: 'name' } })
     .sort({ year: -1, month: -1 })

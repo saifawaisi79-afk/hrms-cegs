@@ -5,7 +5,7 @@ import ClientInvoice from '@/lib/models/ClientInvoice';
 import JoinerEntry from '@/lib/models/JoinerEntry';
 import { getAuthUser, requireRole } from '@/lib/auth';
 import { joinerBillEligible } from '@/lib/client-invoice-rules';
-import { todayIsoDate } from '@/lib/candidate-dates';
+import { todayIsoDate, normalizeCandidateDate } from '@/lib/candidate-dates';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,6 +98,71 @@ export async function POST(request) {
   if (!canFinance(authUser)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json().catch(() => ({}));
+  if (body.action === 'import') {
+    await connectDB();
+    const stage = ['to_raise', 'raised', 'cleared', 'gst'].includes(body.stage) ? body.stage : 'to_raise';
+    const incoming = Array.isArray(body.rows) ? body.rows.slice(0, 500) : [];
+    let saved = 0;
+    for (const row of incoming) {
+      if (stage === 'gst') {
+        const invoiceNo = String(row.invoiceNo || '').trim();
+        if (!invoiceNo) continue;
+        const existing = await ClientInvoice.findOne({ invoiceNo, stage: { $in: ['raised', 'cleared'] } });
+        if (existing) {
+          if (row.gstNumber) existing.gstNumber = String(row.gstNumber);
+          if (row.basicAmount != null && row.basicAmount !== '') existing.basicAmount = Number(row.basicAmount) || 0;
+          if (row.moneyReceived != null && row.moneyReceived !== '') existing.moneyReceived = Number(row.moneyReceived) || 0;
+          if (row.remark) existing.remark = String(row.remark);
+          if (row.client) existing.client = String(row.client);
+          await existing.save();
+        } else {
+          await ClientInvoice.create({
+            stage: 'raised',
+            invoiceNo,
+            client: row.client || '',
+            invoiceDate: row.invoiceDate || '',
+            gstNumber: row.gstNumber || '',
+            basicAmount: Number(row.basicAmount) || 0,
+            moneyReceived: Number(row.moneyReceived) || 0,
+            remark: row.remark || '',
+          });
+        }
+        saved += 1;
+        continue;
+      }
+      const stageName = stage === 'cleared' || stage === 'raised' ? stage : 'to_raise';
+      const candidateName = String(row.candidateName || '').trim();
+      const client = String(row.client || '').trim();
+      if (/^total$/i.test(candidateName) || /^total$/i.test(client)) continue;
+      if (stageName === 'to_raise' && !candidateName) continue;
+      if (stageName !== 'to_raise' && !client && !String(row.invoiceNo || '').trim()) continue;
+      const billing = normalizeCandidateDate(row.billingDate) || '';
+      await ClientInvoice.create({
+        stage: stageName,
+        monthKey: billing ? billing.slice(0, 7) : (body.monthKey || todayIsoDate().slice(0, 7)),
+        invoiceId: '',
+        candidateName,
+        phone: String(row.phone || ''),
+        client,
+        joiningDate: normalizeCandidateDate(row.joiningDate) || '',
+        billingDate: billing,
+        recruiter: String(row.recruiter || ''),
+        bi: Number(row.bi) || 0,
+        ai: Number(row.ai) || 0,
+        status: String(row.status || ''),
+        candidateCount: Number(row.candidateCount) || (stageName === 'to_raise' ? 0 : 1),
+        invoiceDate: String(row.invoiceDate || ''),
+        revisedRequested: String(row.revisedRequested || ''),
+        revisedSent: String(row.revisedSent || ''),
+        invoiceNo: String(row.invoiceNo || ''),
+        gstStatus: String(row.gstStatus || ''),
+        gstAmtStatus: String(row.gstAmtStatus || ''),
+      });
+      saved += 1;
+    }
+    return NextResponse.json({ saved });
+  }
+
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Validation failed', details: parsed.error.issues }, { status: 400 });

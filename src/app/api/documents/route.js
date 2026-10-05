@@ -3,7 +3,7 @@ import connectDB from '@/lib/db';
 import HRMSDocument from '@/lib/models/Document';
 import DocumentTemplate from '@/lib/models/DocumentTemplate';
 import User from '@/lib/models/User';
-import { getAuthUser, requireRole } from '@/lib/auth';
+import { getAuthUser, requireRole, isSelfServiceRole } from '@/lib/auth';
 
 // GET /api/documents
 export async function GET(request) {
@@ -11,7 +11,7 @@ export async function GET(request) {
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
   await connectDB();
-  const filter = authUser.role === 'employee' ? { user_id: authUser.id } : {};
+  const filter = isSelfServiceRole(authUser.role) ? { user_id: authUser.id } : {};
   const docs = await HRMSDocument.find(filter).sort({ created_at: -1 }).lean();
   return NextResponse.json(docs.map(d => ({ ...d, id: d._id?.toString(), _id: d._id?.toString(), user_id: d.user_id?.toString() })));
 }

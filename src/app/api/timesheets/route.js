@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Timesheet from '@/lib/models/Timesheet';
-import { getAuthUser } from '@/lib/auth';
+import { getAuthUser, isSelfServiceRole } from '@/lib/auth';
 
 function flattenTS(t) {
   const obj = t.toObject ? t.toObject() : t;
@@ -23,14 +23,15 @@ export async function GET(request) {
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
   await connectDB();
-  const filter = authUser.role === 'employee' ? { user_id: authUser.id } : {};
-  const pop = authUser.role !== 'employee'
-    ? [{ path: 'user_id', select: 'name employee_id avatar_url department_id', populate: { path: 'department_id', select: 'name' } }]
-    : [];
+  const own = isSelfServiceRole(authUser.role);
+  const filter = own ? { user_id: authUser.id } : {};
+  const pop = own
+    ? []
+    : [{ path: 'user_id', select: 'name employee_id avatar_url department_id', populate: { path: 'department_id', select: 'name' } }];
   let q = Timesheet.find(filter).sort({ date: -1 });
   for (const p of pop) q = q.populate(p);
   const timesheets = await q.lean();
-  return NextResponse.json(timesheets.map(t => authUser.role === 'employee'
+  return NextResponse.json(timesheets.map(t => own
     ? { ...t, id: t._id?.toString(), _id: t._id?.toString(), user_id: t.user_id?.toString() }
     : flattenTS(t)));
 }

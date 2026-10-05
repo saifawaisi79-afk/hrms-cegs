@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Asset from '@/lib/models/Asset';
-import { getAuthUser, requireRole } from '@/lib/auth';
+import { getAuthUser, requireRole, isSelfServiceRole } from '@/lib/auth';
 
 function flattenAsset(a) {
   const obj = a.toObject ? a.toObject() : a;
@@ -20,7 +20,7 @@ export async function GET(request) {
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
   await connectDB();
-  const filter = authUser.role === 'employee' ? { assigned_to: authUser.id } : {};
+  const filter = isSelfServiceRole(authUser.role) ? { assigned_to: authUser.id } : {};
   const assets = await Asset.find(filter).populate('assigned_to', 'name employee_id').lean();
   return NextResponse.json(assets.map(flattenAsset));
 }
