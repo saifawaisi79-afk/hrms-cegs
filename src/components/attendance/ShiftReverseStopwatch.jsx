@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Clock, CheckCircle2, Play, LogIn } from 'lucide-react';
+import { Clock, CheckCircle2, Play, LogIn, AlertTriangle, LogOut } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { toIsoDate } from '@/lib/auto-absent';
 import { getAuthToken, API_BASE } from '@/lib/auth-client';
+import { countMonthlyEarlyLogoutWarnings } from '@/lib/attendance-policy';
 
 const SHIFT_HOURS = 9;
 const SHIFT_MS = SHIFT_HOURS * 60 * 60 * 1000; // 32,400,000 ms
@@ -63,6 +64,8 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
   const [liveNow, setLiveNow] = useState(() => new Date());
   const [hasCelebrated, setHasCelebrated] = useState(false);
   const [isClockingIn, setIsClockingIn] = useState(false);
+  const [showEarlyModal, setShowEarlyModal] = useState(false);
+  const [isClockingOut, setIsClockingOut] = useState(false);
 
   // Position state (persisted to localStorage)
   const [position, setPosition] = useState({ x: -1, y: -1 });
@@ -323,6 +326,124 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
     [isClockingIn, currentUser, todayIso, save, db?.attendance]
   );
 
+  // Monthly early logout warnings count for current user
+  const curMonth = liveNow.getMonth() + 1;
+  const curYear = liveNow.getFullYear();
+  const earlyWarningsCount = useMemo(() => {
+    if (!currentUser) return 0;
+    return countMonthlyEarlyLogoutWarnings(
+      db?.attendanceWarnings,
+      currentUser.id || currentUser._id,
+      curMonth,
+      curYear
+    );
+  }, [db?.attendanceWarnings, currentUser, curMonth, curYear]);
+
+  const isPenaltyWarning = earlyWarningsCount >= 2;
+  const nextWarningNum = earlyWarningsCount + 1;
+
+  const executeClockOut = useCallback(async () => {
+    if (isClockingOut || !currentUser) return;
+    setIsClockingOut(true);
+
+    const now = new Date();
+    const timeStr = now.toTimeString().substr(0, 8);
+    const userId = currentUser.id || currentUser._id;
+
+    try {
+      const token = getAuthToken();
+      if (token) {
+        const res = await fetch(`${API_BASE}/attendance/check-out`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            date: todayIso,
+            check_out_time: timeStr,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        const finalStatus = data?.status || (data?.is_half_day ? 'half_day' : todayRec?.status || 'present');
+        const workHours = typeof data?.work_hours === 'number' ? data.work_hours : Math.max(0, Math.round((calculation.elapsedSecs / 3600) * 100) / 100);
+
+        if (typeof save === 'function') {
+          save(
+            'attendance',
+            (db?.attendance || []).map((a) => {
+              const uid = a.uid || a.user_id || (typeof a.user_id === 'object' ? a.user_id?._id : null);
+              const matchUser = String(uid) === String(userId);
+              const matchDate = String(a.date || '').slice(0, 10) === todayIso;
+              if (matchUser && matchDate) {
+                return {
+                  ...a,
+                  out: timeStr,
+                  check_out_time: timeStr,
+                  hrs: workHours,
+                  work_hours: workHours,
+                  status: finalStatus,
+                };
+              }
+              return a;
+            })
+          );
+
+          if (data?.warning) {
+            save('attendanceWarnings', [
+              data.warning,
+              ...(db?.attendanceWarnings || []).filter((w) => w.id !== data.warning.id),
+            ]);
+          }
+
+          if (data?.payroll) {
+            save('payroll', [
+              data.payroll,
+              ...(db?.payroll || []).filter((p) => p.id !== data.payroll.id && p._id !== data.payroll._id),
+            ]);
+          }
+        }
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('hrms:attendance-update', {
+              detail: { action: 'clock-out', record: { ...todayRec, out: timeStr, status: finalStatus, hrs: workHours } },
+            })
+          );
+        }
+
+        if (data?.is_early) {
+          if (data?.is_half_day) {
+            alert(`🚨 Half-Day Absent Penalty Applied!\nYou have ${data.early_warnings} early logout warnings this month. You have been marked Half-Day Absent and an automatic half-day deduction has been applied to your payroll.`);
+          } else {
+            alert(`⚠️ Early Logout Warning (${data.early_warnings} of 2)\nYou clocked out before completing 9 hours. Note: after 2 warnings, from your 3rd warning onward you will be marked as Half-Day Absent with a payroll deduction.`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Execute clock-out error:', err);
+    } finally {
+      setIsClockingOut(false);
+      setShowEarlyModal(false);
+      setLiveNow(new Date());
+    }
+  }, [isClockingOut, currentUser, todayIso, calculation.elapsedSecs, save, db?.attendance, db?.attendanceWarnings, db?.payroll, todayRec]);
+
+  const handleClockOutClick = useCallback(
+    (e) => {
+      e?.stopPropagation();
+      if (!isClockedIn || isClockedOut) return;
+      if (calculation.remainingSecs > 0) {
+        setShowEarlyModal(true);
+      } else {
+        executeClockOut();
+      }
+    },
+    [isClockedIn, isClockedOut, calculation.remainingSecs, executeClockOut]
+  );
+
+
   // Dragging logic (moveable by cursor anywhere)
   const handleStartDrag = useCallback(
     (clientX, clientY) => {
@@ -433,7 +554,8 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
       : 'Employee Portal';
 
   return (
-    <aside
+    <>
+      <aside
       ref={widgetRef}
       className={`shift-cylinder-stopwatch ${isDragging ? 'dragging' : ''} ${calculation.isCompleted ? 'completed' : ''} ${!isClockedIn ? 'ready-to-clock' : ''}`}
       onMouseDown={handleMouseDown}
@@ -476,7 +598,7 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
         </span>
       </div>
 
-      {/* Right side: Direct Clock-In button if not clocked in, or status badge if active */}
+      {/* Right side: Direct Clock-In button if not clocked in, or Clock Out actions when active */}
       <div className="cylinder-right">
         {!isClockedIn ? (
           <button
@@ -489,19 +611,31 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
             <Play size={11} fill="currentColor" />
             <span>{isClockingIn ? 'Clocking in…' : 'Clock In'}</span>
           </button>
-        ) : calculation.isCompleted ? (
-          <span className="cylinder-badge completed">
-            <CheckCircle2 size={12} />
-            <span>9h Done</span>
-          </span>
         ) : isClockedOut ? (
           <span className="cylinder-badge out">
             <span>Out</span>
           </span>
+        ) : calculation.isCompleted ? (
+          <button
+            type="button"
+            className="cylinder-clockout-btn completed"
+            onClick={handleClockOutClick}
+            disabled={isClockingOut}
+            title="9h shift complete! Click to Clock Out"
+          >
+            <CheckCircle2 size={12} />
+            <span>Clock Out</span>
+          </button>
         ) : (
-          <span className="cylinder-badge active">
-            <span>🎯 {targetEndDisplay}</span>
-          </span>
+          <button
+            type="button"
+            className="cylinder-clockout-btn"
+            onClick={handleClockOutClick}
+            disabled={isClockingOut}
+            title={`Target: ${targetEndDisplay} • Click to Clock Out early`}
+          >
+            <span>Clock Out</span>
+          </button>
         )}
       </div>
 
@@ -513,6 +647,180 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
         />
       </div>
     </aside>
+
+    {/* Early Clock-Out Warning & Half-Day Absent Deduction Modal */}
+    {showEarlyModal && (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 999999,
+          background: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16,
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget && !isClockingOut) setShowEarlyModal(false);
+        }}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          style={{
+            background: '#0f172a',
+            border: `1px solid ${isPenaltyWarning ? 'rgba(239, 68, 68, 0.45)' : 'rgba(245, 158, 11, 0.45)'}`,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.75)',
+            borderRadius: 16,
+            maxWidth: 460,
+            width: '100%',
+            padding: 24,
+            color: '#f8fafc',
+            fontFamily: 'inherit',
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                background: isPenaltyWarning ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: isPenaltyWarning ? '#ef4444' : '#f59e0b',
+                flexShrink: 0,
+              }}
+            >
+              <AlertTriangle size={22} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#f8fafc' }}>
+                {isPenaltyWarning ? '🚨 Critical: Half-Day Absent Deduction' : '⚠️ Early Clock-Out Warning'}
+              </h3>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                {isPenaltyWarning
+                  ? `Warning #${nextWarningNum} • Marks Half-Day Absent`
+                  : `Incomplete Shift (${nextWarningNum} of 2 Warnings)`}
+              </div>
+            </div>
+          </div>
+
+          {/* Shift Time Badge */}
+          <div
+            style={{
+              background: 'rgba(30, 41, 59, 0.7)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: 12,
+              padding: '12px 16px',
+              marginBottom: 16,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                Remaining Shift Time
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc', fontVariantNumeric: 'tabular-nums' }}>
+                {hStr}h {mStr}m {sStr}s
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                9-Hour Shift Cycle
+              </div>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#38bdf8' }}>
+                In: {clockInDisplay} • Target: {targetEndDisplay}
+              </div>
+            </div>
+          </div>
+
+          {/* Explanatory text */}
+          <div
+            style={{
+              background: isPenaltyWarning ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+              border: `1px solid ${isPenaltyWarning ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+              borderRadius: 10,
+              padding: '12px 14px',
+              marginBottom: 18,
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            {isPenaltyWarning ? (
+              <>
+                <p style={{ margin: '0 0 6px 0', color: '#fca5a5', fontWeight: 800 }}>
+                  ⚠️ You already have {earlyWarningsCount} early logout warning{earlyWarningsCount > 1 ? 's' : ''} this month!
+                </p>
+                <p style={{ margin: 0, color: '#e2e8f0' }}>
+                  Clocking out before completing your 9 hours will trigger your <strong>{nextWarningNum}th early departure</strong>.
+                  You will be marked as <strong>Half-Day Absent</strong> and an automatic <strong>half-day salary deduction will be applied to your monthly payroll</strong>!
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: '0 0 6px 0', color: '#fde68a', fontWeight: 700 }}>
+                  You have not completed your required 9-hour cycle.
+                </p>
+                <p style={{ margin: 0, color: '#cbd5e1' }}>
+                  Clocking out early will record an <strong>Early Logout Warning ({nextWarningNum} of 2)</strong>.
+                  From the <strong>3rd warning onward</strong>, early departures mark you as <strong>Half-Day Absent</strong> with payroll deduction.
+                </p>
+              </>
+            )}
+          </div>
+
+          <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 20px 0' }}>
+            {isPenaltyWarning
+              ? 'Are you sure you want to clock out? It will mark you half-day absent with salary deduction.'
+              : 'Are you sure you want to clock out early, or would you like to continue working?'}
+          </p>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowEarlyModal(false)}
+              disabled={isClockingOut}
+              style={{ fontWeight: 600, padding: '7px 14px' }}
+            >
+              Continue Working
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={executeClockOut}
+              disabled={isClockingOut}
+              style={{
+                background: isPenaltyWarning ? '#dc2626' : '#ea580c',
+                color: '#ffffff',
+                borderColor: isPenaltyWarning ? '#b91c1c' : '#c2410c',
+                fontWeight: 700,
+                padding: '7px 14px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <LogOut size={14} />
+              {isClockingOut
+                ? 'Clocking out…'
+                : isPenaltyWarning
+                ? 'Clock Out (Accept Half-Day Penalty)'
+                : 'Confirm Early Clock Out'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 }
 

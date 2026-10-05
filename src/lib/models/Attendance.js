@@ -7,7 +7,7 @@ const AttendanceSchema = new mongoose.Schema({
   check_out_time:    { type: String, default: null },
   check_in_lat:      { type: Number, default: null },
   check_in_lng:      { type: Number, default: null },
-  status:            { type: String, enum: ['present', 'late', 'absent'], default: 'present' },
+  status:            { type: String, enum: ['present', 'late', 'absent', 'half_day'], default: 'present' },
   /** clock = real punch · sheet = inferred from Targets work · auto = system absent */
   source:            { type: String, enum: ['clock', 'sheet', 'auto'], default: 'clock' },
   location_verified: { type: Boolean, default: false },

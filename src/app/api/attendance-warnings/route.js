@@ -40,7 +40,7 @@ export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const type = String(body.type || '');
   if (!ATTENDANCE_WARNING_TYPES.includes(type)) {
-    return NextResponse.json({ error: 'type must be late_clock_in or late_lunch_return' }, { status: 400 });
+    return NextResponse.json({ error: 'type must be late_clock_in, late_lunch_return, or early_clock_out' }, { status: 400 });
   }
 
   let userId = authUser.id;

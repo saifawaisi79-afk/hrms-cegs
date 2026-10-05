@@ -4390,3 +4390,45 @@ body {
     0 0 0 1px rgba(255, 255, 255, 0.08),
     0 0 18px rgba(245, 158, 11, 0.2);
 }
+
+/* Clock Out button inside cylinder */
+.cylinder-clockout-btn {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  padding: 3px 9px 3.5px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+  transition: all 0.15s ease;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+
+.cylinder-clockout-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ffffff;
+  border-color: rgba(239, 68, 68, 0.65);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+.cylinder-clockout-btn.completed {
+  background: rgba(16, 185, 129, 0.22);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+}
+
+.cylinder-clockout-btn.completed:hover {
+  background: rgba(16, 185, 129, 0.38);
+  color: #ffffff;
+  border-color: rgba(52, 211, 153, 0.7);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+

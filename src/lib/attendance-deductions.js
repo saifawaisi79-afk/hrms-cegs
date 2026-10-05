@@ -11,12 +11,16 @@ import {
   WARNINGS_PER_HALF_DAY,
   monthYearFromDate,
   countMonthlyAttendanceWarnings,
+  countMonthlyEarlyLogoutWarnings,
   halfDaysFromWarnings,
+  halfDaysFromEarlyLogouts,
+  calcTotalHalfDaysCut,
+  calcCombinedAttendancePenalty,
   calcHalfDayPenalty,
 } from '@/lib/attendance-policy';
 import { istIsoDate } from '@/lib/ist-time';
 
-export const ATTENDANCE_WARNING_TYPES = ['late_clock_in', 'late_lunch_return'];
+export const ATTENDANCE_WARNING_TYPES = ['late_clock_in', 'late_lunch_return', 'early_clock_out'];
 
 export function flattenAttendanceWarning(w) {
   const o = w.toObject ? w.toObject() : w;
@@ -82,23 +86,27 @@ async function notifyOnce({ recipientId, title, message, dedupeKey, type = 'Atte
 
 export async function countSavedMonthlyWarnings(userId, month, year) {
   const rows = await AttendanceWarning.find({ user_id: userId, month, year }).lean();
-  return countMonthlyAttendanceWarnings(
-    rows.map((w) => ({ ...w, uid: w.user_id.toString() })),
-    userId,
-    month,
-    year
-  );
+  const mapped = rows.map((w) => ({ ...w, uid: w.user_id.toString() }));
+  const lateCount = countMonthlyAttendanceWarnings(mapped, userId, month, year);
+  const earlyCount = countMonthlyEarlyLogoutWarnings(mapped, userId, month, year);
+  return {
+    lateCount,
+    earlyCount,
+    totalCount: lateCount + earlyCount,
+  };
 }
 
-export async function syncPayrollAttendanceDeduction(userId, month, year, warningCount) {
+export async function syncPayrollAttendanceDeduction(userId, month, year) {
   const user = await User.findById(userId).select('basic_salary allowances').lean();
   const existing = await Payroll.findOne({ user_id: userId, month, year });
   const basic = Number(existing?.basic_salary ?? user?.basic_salary) || 0;
   const allowances = Math.max(0, Number(existing?.allowances ?? user?.allowances) || 0);
   const overtime = Number(existing?.overtime) || 0;
   const bonus = Number(existing?.bonus) || 0;
-  const attendancePenalty = calcHalfDayPenalty(basic, warningCount);
-  const halfDaysCut = halfDaysFromWarnings(warningCount);
+
+  const { lateCount, earlyCount, totalCount } = await countSavedMonthlyWarnings(userId, month, year);
+  const attendancePenalty = calcCombinedAttendancePenalty(basic, lateCount, earlyCount);
+  const halfDaysCut = calcTotalHalfDaysCut(lateCount, earlyCount);
   const deductions = attendancePenalty;
   const netSalary = basic + allowances + overtime + bonus - deductions;
 
@@ -112,7 +120,7 @@ export async function syncPayrollAttendanceDeduction(userId, month, year, warnin
         bonus,
         deductions,
         net_salary: netSalary,
-        attendance_warnings: warningCount,
+        attendance_warnings: totalCount,
         half_days_cut: halfDaysCut,
         attendance_penalty: attendancePenalty,
       },
@@ -132,6 +140,7 @@ export async function syncPayrollAttendanceDeduction(userId, month, year, warnin
 const WARNING_TITLES = {
   late_clock_in: 'Late Clock-In Warning',
   late_lunch_return: 'Late Lunch Return Warning',
+  early_clock_out: 'Early Logout Warning',
 };
 
 const WARNING_MSGS = {
@@ -139,6 +148,8 @@ const WARNING_MSGS = {
     'You clocked in after your login grace period. This warning counts with late lunch returns toward monthly half-day pay cuts (2 warnings = 1 half-day).',
   late_lunch_return:
     'You returned late from lunch. This warning counts toward monthly half-day pay cuts (2 warnings = 1 half-day).',
+  early_clock_out:
+    'You clocked out before completing your 9-hour shift cycle.',
 };
 
 /**
@@ -172,36 +183,60 @@ export async function persistAttendanceWarning({ userId, type, note, date }) {
     doc = await AttendanceWarning.findOne({ user_id: userId, date: isoDate, type });
   }
 
-  const count = await countSavedMonthlyWarnings(userId, month, year);
-  const payroll = await syncPayrollAttendanceDeduction(userId, month, year, count);
+  const { lateCount, earlyCount, totalCount } = await countSavedMonthlyWarnings(userId, month, year);
+  const payroll = await syncPayrollAttendanceDeduction(userId, month, year);
 
   if (created) {
+    let warningMsg = note || WARNING_MSGS[type] || 'Attendance warning recorded.';
+    if (type === 'early_clock_out') {
+      if (earlyCount === 1) {
+        warningMsg = 'Early Logout Warning (1 of 2): You clocked out early before completing your 9-hour cycle.';
+      } else if (earlyCount === 2) {
+        warningMsg = 'Early Logout Warning (2 of 2): You clocked out early. CAUTION: Next early departure will mark you as Half-Day Absent with a salary deduction!';
+      } else {
+        warningMsg = `Half-Day Absent Penalty: This is your ${earlyCount}th early departure this month. Marked as Half-Day Absent with salary deduction on your payroll.`;
+      }
+    }
+
     await notifyOnce({
       recipientId: userId,
-      title: WARNING_TITLES[type],
-      message: note || WARNING_MSGS[type],
+      title: WARNING_TITLES[type] || 'Attendance Warning',
+      message: warningMsg,
       dedupeKey: `att-warn:${userId}:${isoDate}:${type}`,
       type: 'Attendance',
     });
-    if (count > 0 && count % WARNINGS_PER_HALF_DAY === 0) {
-      const halfDays = halfDaysFromWarnings(count);
+
+    if (type === 'early_clock_out' && earlyCount >= 3) {
+      await notifyOnce({
+        recipientId: userId,
+        title: 'Half-Day Absent Deduction Notice',
+        message: `You have ${earlyCount} early logout warnings this month. A half-day absent deduction has been applied to your monthly payroll.`,
+        dedupeKey: `att-early-halfday:${userId}:${year}-${String(month).padStart(2, '0')}:${earlyCount}`,
+        type: 'Attendance',
+      });
+    } else if (type !== 'early_clock_out' && lateCount > 0 && lateCount % WARNINGS_PER_HALF_DAY === 0) {
+      const halfDays = halfDaysFromWarnings(lateCount);
       await notifyOnce({
         recipientId: userId,
         title: 'Half-Day Pay Cut Notice',
-        message: `You have ${count} attendance warnings this month (${halfDays} half-day pay cut${halfDays > 1 ? 's' : ''} will apply on payroll). Late clock-in and late lunch return are counted together (2 warnings = 1 half-day).`,
-        dedupeKey: `att-halfday:${userId}:${year}-${String(month).padStart(2, '0')}:${count}`,
+        message: `You have ${lateCount} late clock-in/lunch warnings this month (${halfDays} half-day pay cut${halfDays > 1 ? 's' : ''} applied).`,
+        dedupeKey: `att-halfday:${userId}:${year}-${String(month).padStart(2, '0')}:${lateCount}`,
         type: 'Attendance',
       });
     }
   }
 
+  const totalHalfDaysCut = calcTotalHalfDaysCut(lateCount, earlyCount);
+
   return {
     created,
     duplicate: !created,
     warning: flattenAttendanceWarning(doc),
-    count,
-    halfDaysCut: halfDaysFromWarnings(count),
-    attendancePenalty: calcHalfDayPenalty(Number(payroll?.basic_salary) || 0, count),
+    lateCount,
+    earlyCount,
+    totalCount,
+    halfDaysCut: totalHalfDaysCut,
+    attendancePenalty: calcCombinedAttendancePenalty(Number(payroll?.basic_salary) || 0, lateCount, earlyCount),
     payroll: payroll ? flattenPayrollSlip(payroll) : null,
   };
 }

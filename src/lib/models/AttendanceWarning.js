@@ -5,7 +5,7 @@ const AttendanceWarningSchema = new mongoose.Schema(
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     type: {
       type: String,
-      enum: ['late_clock_in', 'late_lunch_return'],
+      enum: ['late_clock_in', 'late_lunch_return', 'early_clock_out'],
       required: true,
     },
     date: { type: String, required: true },

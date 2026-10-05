@@ -38,8 +38,12 @@ import {
   isLateLunchReturn,
   isLunchHeadsUpTime,
   countMonthlyAttendanceWarnings,
+  countMonthlyEarlyLogoutWarnings,
   calcHalfDayPenalty,
+  calcCombinedAttendancePenalty,
+  calcTotalHalfDaysCut,
   halfDaysFromWarnings,
+  halfDaysFromEarlyLogouts,
   resolveLoginTime,
   getLateClockDeadline,
   formatTime12FromHm,
@@ -3490,30 +3494,49 @@ export function AttendancePage({ db, save, user }) {
  }
  };
 
- // Clock Out is locked until 6:30 PM (18:30) every working day
  const nowObj = new Date();
  const curHour = nowObj.getHours();
  const curMin = nowObj.getMinutes();
- const isClockOutUnlocked = isAdmin || user?.role === 'super_admin' || curHour > 18 || (curHour === 18 && curMin >= 30);
 
  const clockOut = async () => {
  if (!isSessionActive) {
  alert(!todayRec || todayRec.status === 'absent' || String(todayRec?.source) === 'sheet' ? 'Clock in first!' : 'Already clocked out.');
  return;
  }
- if (!isClockOutUnlocked) {
- alert(' Clock Out is locked until 6:30 PM. You can only register your Clock Out starting at 6:30 PM on working days.');
- return;
- }
+
  const elapsed = calcElapsedSecs(todayRec);
  const hrs = parseFloat((elapsed / 3600).toFixed(2)) || 0;
+ const isUnder9Hours = elapsed < 9 * 3600;
+
+ if (isUnder9Hours) {
+ const curMo = nowObj.getMonth() + 1;
+ const curYr = nowObj.getFullYear();
+ const earlyCount = countMonthlyEarlyLogoutWarnings(db?.attendanceWarnings, user?.id, curMo, curYr);
+ const nextEarly = earlyCount + 1;
+ const remSecs = 9 * 3600 - elapsed;
+ const remH = Math.floor(remSecs / 3600);
+ const remM = Math.floor((remSecs % 3600) / 60);
+ const remStr = `${remH}h ${remM}m`;
+
+ let confirmMsg = '';
+ if (earlyCount >= 2) {
+ confirmMsg = `🚨 CRITICAL: Half-Day Absent Deduction Warning!\n\nYou have not completed your 9-hour shift cycle (${remStr} remaining)!\nYou already have ${earlyCount} early logout warning(s) this month.\n\nAre you sure you want to clock out? This will be your ${nextEarly}th early departure and you will be marked as HALF-DAY ABSENT with a salary deduction on your monthly payroll!`;
+ } else {
+ confirmMsg = `⚠️ Early Clock-Out Warning (${nextEarly} of 2):\n\nYou have not completed your 9-hour shift cycle (${remStr} remaining).\n\nAre you sure you want to clock out?\nThis will record an Early Logout Warning (${nextEarly} of 2).\n\nPolicy: After the first 2 warnings, from your 3rd warning onward you will be marked as Half-Day Absent with a payroll salary deduction.`;
+ }
+
+ if (!window.confirm(confirmMsg)) {
+ return;
+ }
+ }
+
  const outStr = new Date().toTimeString().substr(0, 8);
- save('attendance', (db.attendance || []).map(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today ? { ...a, out: outStr, hrs, source: 'clock' } : a));
  setRunning(false);
  setSecs(elapsed);
+
  try {
  const token = localStorage.getItem('cegs_token') || '';
- await fetch(`${GLOBAL_API_BASE}/attendance/check-out`, {
+ const res = await fetch(`${GLOBAL_API_BASE}/attendance/check-out`, {
  method: 'POST',
  headers: {
  'Content-Type': 'application/json',
@@ -3524,7 +3547,49 @@ export function AttendancePage({ db, save, user }) {
  check_out_time: outStr,
  }),
  });
- } catch {}
+
+ const data = await res.json().catch(() => ({}));
+ const finalStatus = data?.status || (data?.is_half_day ? 'half_day' : todayRec?.status || 'present');
+ const workHours = typeof data?.work_hours === 'number' ? data.work_hours : hrs;
+
+ save('attendance', (db.attendance || []).map(a => 
+ String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today 
+ ? { ...a, out: outStr, check_out_time: outStr, hrs: workHours, work_hours: workHours, status: finalStatus, source: 'clock' } 
+ : a
+ ));
+
+ if (data?.warning) {
+ save('attendanceWarnings', [
+ data.warning,
+ ...(db?.attendanceWarnings || []).filter((w) => w.id !== data.warning.id),
+ ]);
+ }
+
+ if (data?.payroll) {
+ save('payroll', [
+ data.payroll,
+ ...(db?.payroll || []).filter((p) => p.id !== data.payroll.id && p._id !== data.payroll._id),
+ ]);
+ }
+
+ if (typeof window !== 'undefined') {
+ window.dispatchEvent(
+ new CustomEvent('hrms:attendance-update', {
+ detail: { action: 'clock-out', record: { ...todayRec, out: outStr, status: finalStatus } },
+ })
+ );
+ }
+
+ if (data?.is_early) {
+ if (data?.is_half_day) {
+ alert(`🚨 Half-Day Absent Penalty Applied!\nYou have ${data.early_warnings} early departures this month. Marked as Half-Day Absent with payroll deduction.`);
+ } else {
+ alert(`⚠️ Early Logout Warning (${data.early_warnings} of 2)\nWarning recorded. Note: from your 3rd warning onward, you will be marked as Half-Day Absent with payroll deduction.`);
+ }
+ }
+ } catch (err) {
+ console.error('AttendancePage clockOut error:', err);
+ }
  };
 
  const myAttendance = (db.attendance || []).filter((a) => String(a.uid) === String(user.id));
@@ -3546,13 +3611,13 @@ export function AttendancePage({ db, save, user }) {
 
  return (
  <div className="anim-fadeup">
- <PageHdr title="Attendance" sub={`Track daily work hours · your login ${formatTime12FromHm(resolveLoginTime(user))} (+15 min grace) · 2 warnings/month = half-day pay cut`}/>
+ <PageHdr title="Attendance" sub={`Track daily work hours · 9-hour shift cycle · 3rd early logout = half-day absent deduction · login ${formatTime12FromHm(resolveLoginTime(user))}`}/>
 
  {/* Location Protection & Clock-Out Policy Badge */}
  <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, flexWrap: 'wrap', gap: 8 }}>
  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#065F46', fontWeight: 700 }}>
- <span style={{ fontSize: 16 }}></span>
- <span>GPS Location Security Active — Office Verified (Novel Office Koramangala) | <strong>Clock Out unlocks daily at 6:30 PM</strong></span>
+ <span style={{ fontSize: 16 }}>🎯</span>
+ <span>GPS Location Security Active — Office Verified (Novel Office Koramangala) | <strong>9-Hour Shift Cycle Active</strong> (Early departures &lt;9h trigger warning; 3rd departure = half-day absent deduction)</span>
  </div>
  <span style={{ background: '#10B981', color: '#fff', padding: '2px 8px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>LOCATION VERIFIED</span>
  </div>
@@ -3572,18 +3637,18 @@ export function AttendancePage({ db, save, user }) {
  flex: 1, 
  color: '#fff', 
  borderColor: 'rgba(255,255,255,0.2)', 
- opacity: (!isSessionActive || !isClockOutUnlocked) ? 0.5 : 1,
- cursor: (!isSessionActive || !isClockOutUnlocked) ? 'not-allowed' : 'pointer'
+ opacity: !isSessionActive ? 0.5 : 1,
+ cursor: !isSessionActive ? 'not-allowed' : 'pointer'
  }} 
- disabled={!isSessionActive || !isClockOutUnlocked}
- title={!isClockOutUnlocked ? 'Clock Out unlocks at 6:30 PM' : 'Click to Clock Out'}
+ disabled={!isSessionActive}
+ title={!isSessionActive ? 'Clock in first' : 'Click to Clock Out'}
  >
- {!isSessionActive ? 'Clock Out' : !isClockOutUnlocked ? ' Locked till 6:30 PM' : 'Clock Out'}
+ {!isSessionActive ? 'Clock Out' : 'Clock Out'}
  </button>
  </div>
  {isSessionActive && (
  <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono,monospace' }}>
- IN: {todayRec.in}{!isClockOutUnlocked ? ' (Clock Out unlocks at 6:30 PM)' : ''}
+ IN: {todayRec.in} · 9h Shift Target
  </div>
  )}
  {isRealClockIn && todayRec?.out && (
@@ -3644,7 +3709,15 @@ export function AttendancePage({ db, save, user }) {
  <td style={{fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.in}</td>
  <td style={{fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.out||<span style={{color:'var(--amber)',fontWeight:700}}>Active</span>}</td>
  <td style={{fontWeight:700}}>{a.hrs||'-'}h</td>
- <td><span className={`badge ${a.status==='present'?'b-success':a.status==='late'?'b-pending':'b-error'}`}><span className="badge-dot"/>{a.status}</span></td>
+ <td>
+ {a.status === 'half_day' ? (
+ <span className="badge b-error" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.35)', fontWeight: 700 }}>
+ <span className="badge-dot" style={{ background: '#ef4444' }}/>half day
+ </span>
+ ) : (
+ <span className={`badge ${a.status==='present'?'b-success':a.status==='late'?'b-pending':'b-error'}`}><span className="badge-dot"/>{a.status}</span>
+ )}
+ </td>
  </tr>;
  })
  )}
@@ -3676,6 +3749,7 @@ export function AttendancePage({ db, save, user }) {
  else if (rec) {
  if (rec.status === 'present') cls = 'present';
  else if (rec.status === 'late') cls = 'late';
+ else if (rec.status === 'half_day') cls = 'late';
  else if (rec.status === 'absent') cls = 'absent';
  else cls = 'absent';
  }
@@ -3686,7 +3760,7 @@ export function AttendancePage({ db, save, user }) {
  <div 
  key={day} 
  className={`cal-day ${cls} ${isToday ? 'today' : ''}`} 
- title={isSunday ? 'Sunday Holiday (Office Closed)' : rec ? (rec.status === 'absent' ? `Absent${rec.auto ? ' (auto)' : ''}` : `In:${rec.in || '—'} Out:${rec.out||'ongoing'}`) : 'No record'}
+ title={isSunday ? 'Sunday Holiday (Office Closed)' : rec ? (rec.status === 'half_day' ? `Half-Day Absent (Early departure cut) | In:${rec.in||'—'} Out:${rec.out||'—'}` : rec.status === 'absent' ? `Absent${rec.auto ? ' (auto)' : ''}` : `In:${rec.in || '—'} Out:${rec.out||'ongoing'}`) : 'No record'}
  >
  {day}
  </div>
@@ -3739,8 +3813,14 @@ export function PayrollPage({ db, save, user, setView }) {
  payrollMonth,
  payrollYear
  );
- const halfDays = halfDaysFromWarnings(warningCount);
- const attendancePenalty = calcHalfDayPenalty(basic, warningCount);
+ const earlyWarningCount = countMonthlyEarlyLogoutWarnings(
+ db.attendanceWarnings || [],
+ emp?.id,
+ payrollMonth,
+ payrollYear
+ );
+ const halfDays = calcTotalHalfDaysCut(warningCount, earlyWarningCount);
+ const attendancePenalty = calcCombinedAttendancePenalty(basic, warningCount, earlyWarningCount);
  const deductions = attendancePenalty;
  const net = basic + allowances - deductions;
  return {
@@ -3748,7 +3828,9 @@ export function PayrollPage({ db, save, user, setView }) {
  allowances,
  deductions,
  attendancePenalty,
- attendanceWarnings: warningCount,
+ attendanceWarnings: warningCount + earlyWarningCount,
+ earlyWarnings: earlyWarningCount,
+ lateWarnings: warningCount,
  halfDaysCut: halfDays,
  deductionTaxPf: 0,
  net,

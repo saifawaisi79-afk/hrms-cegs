@@ -5,7 +5,9 @@
 import {
   WARNINGS_PER_HALF_DAY,
   countMonthlyAttendanceWarnings,
+  countMonthlyEarlyLogoutWarnings,
   halfDaysFromWarnings,
+  halfDaysFromEarlyLogouts,
 } from './attendance-policy';
 import { istIsoDate } from './ist-time';
 
@@ -98,3 +100,60 @@ export function recordAttendanceWarning(save, db, { uid, type, note, date }) {
 
   return count;
 }
+
+export function recordEarlyLogoutWarning(save, db, { uid, note, date }) {
+  const isoDate = date || istIsoDate();
+  const [yearStr, monthStr] = String(isoDate).split('-');
+  const month = parseInt(monthStr, 10);
+  const year = parseInt(yearStr, 10);
+  const type = 'early_clock_out';
+
+  if (hasAttendanceWarning(db?.attendanceWarnings, uid, type, isoDate)) {
+    return countMonthlyEarlyLogoutWarnings(db?.attendanceWarnings || [], uid, month, year);
+  }
+
+  const entry = {
+    id: Date.now() + Math.random(),
+    uid,
+    type,
+    date: isoDate,
+    month,
+    year,
+    note: note || '',
+    at: new Date().toISOString(),
+  };
+  const all = [...(db?.attendanceWarnings || []), entry];
+  if (save) save('attendanceWarnings', all);
+
+  const earlyCount = countMonthlyEarlyLogoutWarnings(all, uid, month, year);
+
+  if (earlyCount === 1) {
+    pushHrmsNotification(save, db, {
+      to: uid,
+      title: 'Early Logout Warning (1 of 2)',
+      msg: 'You clocked out/logged out before completing your 9-hour cycle.',
+      type: 'Attendance',
+      dedupeKey: `att-early-warn-1:${uid}:${isoDate}`,
+    });
+  } else if (earlyCount === 2) {
+    pushHrmsNotification(save, db, {
+      to: uid,
+      title: 'Early Logout Warning (2 of 2)',
+      msg: 'Caution: Next early departure will mark you as Half-Day Absent with a salary deduction!',
+      type: 'Attendance',
+      dedupeKey: `att-early-warn-2:${uid}:${isoDate}`,
+    });
+  } else {
+    pushHrmsNotification(save, db, {
+      to: uid,
+      title: 'Half-Day Absent (Early Logout)',
+      msg: `Early departure #${earlyCount} this month. You have been marked Half-Day Absent with payroll deduction.`,
+      type: 'Attendance',
+      dedupeKey: `att-early-halfday:${uid}:${isoDate}:${earlyCount}`,
+    });
+  }
+
+  persistAttendanceWarningRemote({ type, note, date: isoDate, uid });
+  return earlyCount;
+}
+

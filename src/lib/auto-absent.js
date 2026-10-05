@@ -75,7 +75,7 @@ export function hasAttended(attendance, userId, isoDate) {
     (a) =>
       String(a.uid || a.user_id) === String(userId) &&
       String(a.date).slice(0, 10) === isoDate &&
-      ['present', 'late'].includes(String(a.status || '').toLowerCase())
+      ['present', 'late', 'half_day'].includes(String(a.status || '').toLowerCase())
   );
 }
 
@@ -210,7 +210,7 @@ export function buildAbsentCalendarEvents(absentRecords, users = []) {
 export function purgeFalseAutoAbsents(attendance = [], users = [], candidates = []) {
   const presentKeys = new Set(
     (attendance || [])
-      .filter((a) => ['present', 'late'].includes(String(a.status || '').toLowerCase()))
+      .filter((a) => ['present', 'late', 'half_day'].includes(String(a.status || '').toLowerCase()))
       .map((a) => `${a.uid || a.user_id}_${String(a.date).slice(0, 10)}`)
   );
 
