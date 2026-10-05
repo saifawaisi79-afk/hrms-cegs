@@ -4141,3 +4141,199 @@ body {
     display: block;
   }
 }
+
+/* ========================================
+   CYLINDER SHAPE REVERSE STOPWATCH (9H WORK TIMER)
+   Down Right Corner • Cursor Moveable • CEGS Theme
+======================================== */
+.shift-cylinder-stopwatch {
+  position: fixed;
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px 9px 13px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fafc;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 14px 34px -6px rgba(15, 23, 42, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 0 18px rgba(16, 185, 129, 0.16);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+}
+
+.shift-cylinder-stopwatch:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+  box-shadow:
+    0 18px 40px -6px rgba(15, 23, 42, 0.55),
+    0 0 0 1px rgba(56, 189, 248, 0.2),
+    0 0 22px rgba(16, 185, 129, 0.25);
+}
+
+.shift-cylinder-stopwatch.dragging {
+  cursor: grabbing;
+  transform: scale(1.04);
+  box-shadow:
+    0 24px 50px -8px rgba(15, 23, 42, 0.65),
+    0 0 0 1px rgba(56, 189, 248, 0.4),
+    0 0 30px rgba(16, 185, 129, 0.35);
+}
+
+.shift-cylinder-stopwatch.completed {
+  border-color: rgba(16, 185, 129, 0.55);
+  box-shadow:
+    0 14px 34px -6px rgba(15, 23, 42, 0.45),
+    0 0 24px rgba(16, 185, 129, 0.4);
+}
+
+/* Left: Pulsing status dot & clock icon */
+.cylinder-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.cylinder-status-dot {
+  width: 7.5px;
+  height: 7.5px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  flex-shrink: 0;
+}
+
+.cylinder-status-dot.live {
+  animation: cylinderDotPulse 2s infinite ease-in-out;
+}
+
+.cylinder-status-dot.paused {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
+  animation: none;
+}
+
+@keyframes cylinderDotPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.55;
+  }
+}
+
+.cylinder-clock-icon {
+  color: #38bdf8;
+  opacity: 0.9;
+}
+
+/* Center: Big 9h reverse countdown digits */
+.cylinder-digits {
+  display: flex;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  font-family: 'Plus Jakarta Sans', ui-monospace, SFMono-Regular, monospace;
+}
+
+.cyl-num {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.cyl-unit {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-left: 1.5px;
+}
+
+.cyl-bright .cyl-num {
+  color: #f8fafc;
+}
+
+.cyl-dim .cyl-num {
+  color: #64748b;
+  opacity: 0.65;
+}
+
+.cyl-dim .cyl-unit {
+  color: #64748b;
+  opacity: 0.55;
+}
+
+.cyl-gap {
+  display: inline-block;
+  width: 5px;
+}
+
+/* Right: Minimal target badge */
+.cylinder-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.cylinder-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2.5px 8.5px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.02em;
+}
+
+.cylinder-badge.active {
+  background: rgba(30, 41, 59, 0.85);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+}
+
+.cylinder-badge.completed {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
+.cylinder-badge.out {
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* Inset Bottom Progress Bar Curve */
+.cylinder-progress-track {
+  position: absolute;
+  bottom: 0;
+  left: 14px;
+  right: 14px;
+  height: 2.5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.cylinder-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #38bdf8 100%);
+  transition: width 0.9s linear;
+  border-radius: 9999px;
+}
+
+.cylinder-progress-fill.completed {
+  background: #10b981;
+}

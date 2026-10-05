@@ -8,6 +8,7 @@ import {
   IC,
 } from '@/components/hrms/HrmsLegacy';
 import { GlobalMessengerModal } from '@/components/chat/GlobalMessengerModal';
+import { ShiftReverseStopwatch } from '@/components/attendance/ShiftReverseStopwatch';
 
 export function AppShell({ children }) {
   const {
@@ -66,6 +67,13 @@ export function AppShell({ children }) {
         currentUser={user}
         targetUser={chatTargetUser}
         setTargetUser={setChatTargetUser}
+        db={db}
+        save={save}
+      />
+
+      {/* Global 9-Hour Shift Countdown Timer */}
+      <ShiftReverseStopwatch
+        currentUser={user}
         db={db}
         save={save}
       />

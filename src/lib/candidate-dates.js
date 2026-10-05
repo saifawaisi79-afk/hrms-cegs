@@ -61,20 +61,45 @@ export function formatSheetDateDisplay(iso) {
   return `${d}/${m}/${y}`;
 }
 
+/** Every way a sheet day is stored on candidate.date (padded / unpadded). */
+export function sheetDateStorageVariants(sheetDateIso) {
+  const iso = normalizeCandidateDate(sheetDateIso);
+  if (!iso) return [];
+  const [y, mo, da] = iso.split('-');
+  const m = parseInt(mo, 10);
+  const d = parseInt(da, 10);
+  const mm = String(m).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+  return [...new Set([
+    iso,
+    `${dd}/${mm}/${y}`,
+    `${d}/${m}/${y}`,
+    `${d}/${mm}/${y}`,
+    `${dd}/${m}/${y}`,
+    `${dd}-${mm}-${y}`,
+    `${d}-${m}-${y}`,
+    `${dd}.${mm}.${y}`,
+    `${d}.${m}.${y}`,
+  ])];
+}
+
 export function matchesSheetDate(cand, sheetDateIso) {
   const target = normalizeCandidateDate(sheetDateIso) || todayIsoDate();
   const candDate = normalizeCandidateDate(cand?.date);
-  // Empty date on legacy rows: treat as belonging to selected sheet only when sheet is today
   if (!candDate) return target === todayIsoDate();
   return candDate === target;
 }
 
-/** Mongo filter for a sheet day (stored as DD/MM/YYYY or YYYY-MM-DD). */
+/** Mongo filter for a sheet day (stored as DD/MM/YYYY, D/M/YYYY, or YYYY-MM-DD). */
 export function candidateDateMongoQuery(sheetDateIso) {
   const iso = normalizeCandidateDate(sheetDateIso);
   if (!iso) return null;
-  const display = formatSheetDateDisplay(iso);
-  const variants = [...new Set([iso, display].filter(Boolean))];
-  if (variants.length === 1) return { date: variants[0] };
-  return { $or: variants.map((date) => ({ date })) };
+  const variants = sheetDateStorageVariants(iso);
+  const [y, mo, da] = iso.split('-');
+  const d = parseInt(da, 10);
+  const m = parseInt(mo, 10);
+  const flex = new RegExp(`^0?${d}[\\/\\-.]0?${m}[\\/\\-.]${y}$`);
+  return {
+    $or: [...variants.map((date) => ({ date })), { date: { $regex: flex } }],
+  };
 }

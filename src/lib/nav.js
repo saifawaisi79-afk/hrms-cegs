@@ -120,13 +120,22 @@ export function isOversightOnly(user) {
   return user?.role === 'super_admin';
 }
 
+import { employeeNamesMatch, canonicalRecruiterName } from '@/lib/recruiter-names';
+
 /**
  * Active employee recruiters for team progress views.
  * Prefers db.users with role=employee; merges candidate.employee names that are not admin/SA.
  */
 export function getRecruiters(db, candidates = []) {
-  const names = new Set();
-  const elevatedNames = new Set();
+  const names = [];
+  const elevatedNames = [];
+
+  const pushUnique = (list, name) => {
+    const raw = String(name || '').trim();
+    if (!raw) return;
+    if (list.some((n) => employeeNamesMatch(n, raw))) return;
+    list.push(raw);
+  };
 
   (db?.users || []).forEach((u) => {
     if (!u?.name) return;
@@ -135,22 +144,22 @@ export function getRecruiters(db, candidates = []) {
     const status = String(u.status || 'active').toLowerCase();
     if (status && status !== 'active') return;
     if (u.role === 'super_admin' || u.role === 'admin') {
-      elevatedNames.add(name.toLowerCase());
+      pushUnique(elevatedNames, name);
       return;
     }
-    if (u.role === 'employee') {
-      names.add(name);
+    if (u.role === 'employee' || u.role === 'finance') {
+      pushUnique(names, name);
     }
   });
 
   (candidates || []).forEach((c) => {
     const name = String(c?.employee || '').trim();
     if (!name) return;
-    if (elevatedNames.has(name.toLowerCase())) return;
-    names.add(name);
+    if (elevatedNames.some((n) => employeeNamesMatch(n, name))) return;
+    pushUnique(names, canonicalRecruiterName(name, names));
   });
 
-  return Array.from(names).sort((a, b) => a.localeCompare(b));
+  return names.sort((a, b) => a.localeCompare(b));
 }
 
 /**
