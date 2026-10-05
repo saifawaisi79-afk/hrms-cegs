@@ -2800,11 +2800,13 @@ export function LeavesPage({ db, save, user }) {
  return 'employee';
  };
  const currentPermRole = getUserPermissionRole(user);
+ const isFinancePortal = user?.role === 'finance';
  const isAdmin =
- db.permissions?.[currentPermRole]?.approveLeave ||
+ !isFinancePortal &&
+ (db.permissions?.[currentPermRole]?.approveLeave ||
  ['admin', 'super_admin'].includes(user.role) ||
- String(user.title || user.designation || '').toLowerCase().includes('hr');
- const canApply = user?.role === 'employee' || user?.role === 'admin' || user?.role === 'super_admin';
+ String(user.title || user.designation || '').toLowerCase().includes('hr'));
+ const canApply = isFinancePortal || user?.role === 'employee' || user?.role === 'admin' || user?.role === 'super_admin';
 
  // Load leaves from Mongo so HR sees every pending request (do not wipe existing data)
  useEffect(() => {
