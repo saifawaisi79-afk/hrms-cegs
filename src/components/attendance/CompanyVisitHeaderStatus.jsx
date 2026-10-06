@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Building2,
   Car,
@@ -19,10 +20,15 @@ import { getAuthToken, API_BASE } from '@/lib/auth-client';
 import { parseClockInTime, formatTime12 } from './ShiftReverseStopwatch';
 
 export function CompanyVisitHeaderStatus({ currentUser, db, save }) {
+  const [mounted, setMounted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [remarks, setRemarks] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
 
@@ -222,16 +228,17 @@ export function CompanyVisitHeaderStatus({ currentUser, db, save }) {
       </button>
 
       {/* Modern High-End Popup Modal: Today's Status > Company Visit > Back to Office */}
-      {modalOpen && (
-        <div
-          className="visit-modal-backdrop"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !isSubmitting) setModalOpen(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="visit-modal-container">
+      {modalOpen && mounted && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              className="visit-modal-backdrop"
+              onClick={(e) => {
+                if (e.target === e.currentTarget && !isSubmitting) setModalOpen(false);
+              }}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="visit-modal-container" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="visit-modal-header">
               <div className="visit-modal-title-wrap">
@@ -430,8 +437,10 @@ export function CompanyVisitHeaderStatus({ currentUser, db, save }) {
               )}
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+    : null}
     </>
   );
 }
