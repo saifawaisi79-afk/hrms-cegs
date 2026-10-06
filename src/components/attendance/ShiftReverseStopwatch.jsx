@@ -568,14 +568,14 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
       }}
       title={
         isClockedIn
-          ? `${portalLabelText} • Clocked In: ${clockInDisplay} • Target Out: ${targetEndDisplay} (9h Shift)\nDrag to move anywhere`
+          ? `${portalLabelText} • Clocked In: ${clockInDisplay} • Target Out: ${targetEndDisplay}${todayRec?.visit_status === 'company_visit' ? ' • 🚗 On Company Visit (Attendance Running)' : ''} (9h Shift)\nDrag to move anywhere`
           : `${portalLabelText} • Click Clock In to start your 9-hour shift timer\nDrag to move anywhere`
       }
     >
       {/* Left indicator: live pulse & clock icon */}
       <div className="cylinder-left">
         <span
-          className={`cylinder-status-dot ${!isClockedIn ? 'waiting' : isClockedOut ? 'paused' : 'live'}`}
+          className={`cylinder-status-dot ${!isClockedIn ? 'waiting' : isClockedOut ? 'paused' : todayRec?.visit_status === 'company_visit' ? 'on-visit' : 'live'}`}
         />
         <Clock size={15} className={`cylinder-clock-icon ${!isClockedIn ? 'waiting' : ''}`} />
       </div>

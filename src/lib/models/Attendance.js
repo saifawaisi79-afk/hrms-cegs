@@ -12,6 +12,18 @@ const AttendanceSchema = new mongoose.Schema({
   source:            { type: String, enum: ['clock', 'sheet', 'auto'], default: 'clock' },
   location_verified: { type: Boolean, default: false },
   work_hours:        { type: Number, default: 0 },
+  /** Official company visit presence state (attendance timer continues ticking) */
+  visit_status:      { type: String, enum: ['in_office', 'company_visit'], default: 'in_office' },
+  company_visit_out_time: { type: String, default: null },
+  company_visit_in_time:  { type: String, default: null },
+  visit_logs: [
+    {
+      action:   { type: String, enum: ['company_visit', 'back_to_office'], required: true },
+      time:     { type: String, required: true },
+      remarks:  { type: String, default: '' },
+      at:       { type: Date, default: Date.now },
+    }
+  ],
   /** Wall-clock timezone for check_in/out strings — Asia/Kolkata once set (legacy rows lack this) */
   time_zone:         { type: String, default: null },
 }, { timestamps: true });

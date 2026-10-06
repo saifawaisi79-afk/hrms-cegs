@@ -3647,8 +3647,17 @@ export function AttendancePage({ db, save, user }) {
  </button>
  </div>
  {isSessionActive && (
- <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono,monospace' }}>
- IN: {todayRec.in} · 9h Shift Target
+ <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: 'JetBrains Mono,monospace', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+ <span>IN: {todayRec.in} · 9h Shift Target</span>
+ {todayRec.visit_status === 'company_visit' ? (
+ <span style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+ <span>🚗 On Company Visit</span>
+ </span>
+ ) : (
+ <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+ <span>🏢 In Office</span>
+ </span>
+ )}
  </div>
  )}
  {isRealClockIn && todayRec?.out && (
@@ -3710,6 +3719,7 @@ export function AttendancePage({ db, save, user }) {
  <td style={{fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.out||<span style={{color:'var(--amber)',fontWeight:700}}>Active</span>}</td>
  <td style={{fontWeight:700}}>{a.hrs||'-'}h</td>
  <td>
+ <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
  {a.status === 'half_day' ? (
  <span className="badge b-error" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.35)', fontWeight: 700 }}>
  <span className="badge-dot" style={{ background: '#ef4444' }}/>half day
@@ -3717,6 +3727,17 @@ export function AttendancePage({ db, save, user }) {
  ) : (
  <span className={`badge ${a.status==='present'?'b-success':a.status==='late'?'b-pending':'b-error'}`}><span className="badge-dot"/>{a.status}</span>
  )}
+ {a.visit_status === 'company_visit' && (
+ <span style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)', padding: '1px 6px', borderRadius: 99, fontSize: 10, fontWeight: 700 }}>
+ 🚗 Visit
+ </span>
+ )}
+ {Array.isArray(a.visit_logs) && a.visit_logs.length > 0 && a.visit_status !== 'company_visit' && (
+ <span title={`${a.visit_logs.length} official company visits`} style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '1px 6px', borderRadius: 99, fontSize: 10, fontWeight: 700 }}>
+ 🏢 {a.visit_logs.length} visit{a.visit_logs.length > 1 ? 's' : ''}
+ </span>
+ )}
+ </div>
  </td>
  </tr>;
  })

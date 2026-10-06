@@ -8,6 +8,7 @@ import { useApp } from '@/contexts/AppContext';
 import { IC } from '@/components/hrms/HrmsLegacy';
 import { isNavGroupActive } from '@/lib/nav';
 import { NavDropdown } from './NavDropdown';
+import { CompanyVisitHeaderStatus } from '@/components/attendance/CompanyVisitHeaderStatus';
 
 function MobileNavSection({ title, items, onNavigate }) {
   const [open, setOpen] = useState(true);
@@ -48,6 +49,8 @@ function MobileNavSection({ title, items, onNavigate }) {
 export function AppHeader() {
   const {
     user,
+    db,
+    save,
     nav,
     unread,
     unreadMsgCount,
@@ -173,6 +176,9 @@ export function AppHeader() {
         </div>
 
         <div className="header-right">
+          {/* Today's Status: Company Visit > Back to Office */}
+          <CompanyVisitHeaderStatus currentUser={user} db={db} save={save} />
+
           <button
             type="button"
             className="hdr-icon-btn hdr-settings-btn"

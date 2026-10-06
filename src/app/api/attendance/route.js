@@ -26,6 +26,10 @@ function flattenAttendance(a) {
     avatar_url: obj.user_id?.avatar_url || null,
     department_name: obj.user_id?.department_id?.name || null,
     location_verified: obj.location_verified ? 1 : 0,
+    visit_status: obj.visit_status || 'in_office',
+    company_visit_out_time: obj.company_visit_out_time || null,
+    company_visit_in_time: obj.company_visit_in_time || null,
+    visit_logs: Array.isArray(obj.visit_logs) ? obj.visit_logs : [],
   };
 }
 
