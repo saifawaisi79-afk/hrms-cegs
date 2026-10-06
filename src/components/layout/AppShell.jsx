@@ -182,25 +182,39 @@ export function AppShell({ children }) {
           <div>
             <div
               style={{
-                background: isPenaltyWarning ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                border: `1px solid ${isPenaltyWarning ? 'rgba(239, 68, 68, 0.35)' : 'rgba(245, 158, 11, 0.35)'}`,
-                borderRadius: 12,
-                padding: '14px 16px',
+                background: isPenaltyWarning ? '#fef2f2' : '#fffbeb',
+                border: `1px solid ${isPenaltyWarning ? '#fecaca' : '#fde68a'}`,
+                borderRadius: 14,
+                padding: '16px 18px',
                 marginBottom: 16,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <AlertTriangle size={18} color={isPenaltyWarning ? '#ef4444' : '#f59e0b'} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: isPenaltyWarning ? '#fee2e2' : '#fef3c7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: isPenaltyWarning ? '#dc2626' : '#d97706',
+                    flexShrink: 0,
+                  }}
+                >
+                  <AlertTriangle size={18} />
+                </div>
                 <span
                   style={{
                     fontWeight: 800,
-                    fontSize: 13.5,
-                    color: isPenaltyWarning ? '#ef4444' : '#f59e0b',
+                    fontSize: 14,
+                    color: isPenaltyWarning ? '#dc2626' : '#b45309',
                     letterSpacing: '-0.01em',
                   }}
                 >
                   {isPenaltyWarning
-                    ? `Warning #${nextWarningNum}: MARKS HALF-DAY ABSENT`
+                    ? `Warning #${nextWarningNum}: Marks Half-Day Absent`
                     : `Early Departure Warning (${nextWarningNum} of 2)`}
                 </span>
               </div>
@@ -210,56 +224,58 @@ export function AppShell({ children }) {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  background: 'rgba(0, 0, 0, 0.28)',
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  marginBottom: 12,
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  padding: '12px 16px',
+                  borderRadius: 12,
+                  marginBottom: 14,
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  <div style={{ fontSize: 10.5, color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em' }}>
                     Remaining Shift Time
                   </div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: '#f8fafc', fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
                     {remFormatted}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  <div style={{ fontSize: 10.5, color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.02em' }}>
                     Shift Cycle (9 Hours)
                   </div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0284c7', marginTop: 2 }}>
                     In: {formatTime12(clockInDt)} • Out: {formatTime12(targetEndDt)}
                   </div>
                 </div>
               </div>
 
-              <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary)' }}>
+              <div style={{ fontSize: 13, lineHeight: 1.5 }}>
                 {isPenaltyWarning ? (
                   <>
-                    <p style={{ margin: '0 0 6px 0', color: '#fca5a5', fontWeight: 700 }}>
+                    <p style={{ margin: '0 0 6px 0', color: '#dc2626', fontWeight: 800 }}>
                       ⚠️ You currently have {earlyCount} early logout warning{earlyCount > 1 ? 's' : ''} this month.
                     </p>
-                    <p style={{ margin: 0 }}>
+                    <p style={{ margin: 0, color: '#7f1d1d' }}>
                       Logging out before completing your 9 hours will trigger your <strong>{nextWarningNum}th early departure</strong>.
                       You will be marked as <strong>Half-Day Absent</strong> and a <strong>half-day salary deduction will be applied to your monthly payroll</strong>!
                     </p>
                   </>
                 ) : (
                   <>
-                    <p style={{ margin: '0 0 6px 0' }}>
-                      You have not completed your 9-hour shift cycle. Logging out now will record an{' '}
-                      <strong>Early Logout Warning ({nextWarningNum} of 2)</strong>.
+                    <p style={{ margin: '0 0 6px 0', color: '#b45309', fontWeight: 800 }}>
+                      You have not completed your 9-hour shift cycle.
                     </p>
-                    <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-                      Policy: First 2 early logouts are warning notices. From the <strong>3rd warning onward</strong>, you are marked as <strong>Half-Day Absent</strong> with payroll salary deduction.
+                    <p style={{ margin: 0, color: '#78350f' }}>
+                      Logging out now will record an <strong>Early Logout Warning ({nextWarningNum} of 2)</strong>.
+                      From the <strong>3rd warning onward</strong>, you are marked as <strong>Half-Day Absent</strong> with payroll salary deduction.
                     </p>
                   </>
                 )}
               </div>
             </div>
 
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13.5, marginBottom: 18 }}>
+            <p style={{ color: '#475569', fontSize: 13.5, marginBottom: 18, lineHeight: 1.5 }}>
               {isPenaltyWarning
                 ? 'Are you sure you want to log out? It will mark you half day absent with a deduction.'
                 : 'Are you sure you want to log out now, or stay signed in to finish your 9 hours?'}
@@ -268,26 +284,43 @@ export function AppShell({ children }) {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                className="btn btn-secondary"
                 onClick={() => setShowLogoutModal(false)}
                 disabled={isLoggingOut}
-                style={{ fontWeight: 600 }}
+                style={{
+                  background: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  color: '#334155',
+                  fontWeight: 700,
+                  padding: '9px 16px',
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  fontSize: 13.5,
+                }}
               >
                 Stay signed in
               </button>
               <button
                 type="button"
-                className="btn"
                 onClick={handleConfirmLogout}
                 disabled={isLoggingOut}
                 style={{
-                  background: isPenaltyWarning ? '#dc2626' : '#ea580c',
+                  background: isPenaltyWarning
+                    ? 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+                    : 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
                   color: '#ffffff',
-                  borderColor: isPenaltyWarning ? '#b91c1c' : '#c2410c',
+                  border: 'none',
                   fontWeight: 700,
+                  padding: '9px 16px',
+                  borderRadius: 10,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
+                  cursor: isLoggingOut ? 'not-allowed' : 'pointer',
+                  opacity: isLoggingOut ? 0.7 : 1,
+                  boxShadow: isPenaltyWarning
+                    ? '0 4px 14px rgba(220, 38, 38, 0.35)'
+                    : '0 4px 14px rgba(234, 88, 12, 0.35)',
+                  fontSize: 13.5,
                 }}
               >
                 <LogOut size={14} />
