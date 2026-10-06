@@ -242,7 +242,7 @@ export function CompanyVisitHeaderStatus({ currentUser, db, save }) {
             {/* Modal Header */}
             <div className="visit-modal-header">
               <div className="visit-modal-title-wrap">
-                <div className="visit-modal-icon-badge">
+                <div className={`visit-modal-icon-badge ${isOnVisit ? 'on-visit' : 'in-office'}`}>
                   {isOnVisit ? <Car size={20} /> : <Building2 size={20} />}
                 </div>
                 <div>
