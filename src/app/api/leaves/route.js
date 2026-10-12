@@ -29,6 +29,8 @@ function flattenLeave(l) {
     employee_name: obj.user_id?.name || null,
     employee_id: obj.user_id?.employee_id || null,
     avatar_url: obj.user_id?.avatar_url || null,
+    designation: obj.user_id?.designation || null,
+    employee_title: obj.user_id?.designation || (obj.user_id?.role === 'admin' ? 'HR Manager' : obj.user_id?.role === 'finance' ? 'Finance' : 'Recruiter'),
     department_name: obj.user_id?.department_id?.name || null,
     approved_by: obj.approved_by?.toString() || null,
   };
@@ -55,17 +57,17 @@ export async function GET(request) {
 
   await connectDB();
   let leaves;
-  const elevated = ['admin', 'super_admin'].includes(authUser.role);
+  const elevated = ['admin', 'super_admin', 'finance'].includes(authUser.role);
   if (!elevated) {
     leaves = await Leave.find({ user_id: authUser.id })
-      .populate('user_id', 'name employee_id avatar_url')
+      .populate('user_id', 'name employee_id avatar_url designation role')
       .sort({ applied_date: -1 })
       .lean();
   } else {
     leaves = await Leave.find({})
       .populate({
         path: 'user_id',
-        select: 'name employee_id avatar_url department_id joining_date',
+        select: 'name employee_id avatar_url department_id joining_date designation role',
         populate: { path: 'department_id', select: 'name' },
       })
       .sort({ applied_date: -1 })

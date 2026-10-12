@@ -130,7 +130,7 @@ export const SEED_DATA = {
  manager: { payroll: true, attendance: true, deleteEmp: false, approveLeave: true, reports: true, onboard: false },
  employee: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: false, onboard: false },
  recruiter: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true, onboard: false },
- finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true, onboard: false },
+ finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: true, reports: true, onboard: false },
  },
  departments:[
  {id:1,name:'Executive',code:'EXEC',managerId:null,budget:1000000,color:'var(--accent)'},
@@ -2804,13 +2804,13 @@ export function LeavesPage({ db, save, user }) {
  return 'employee';
  };
  const currentPermRole = getUserPermissionRole(user);
- const isFinancePortal = user?.role === 'finance';
+ const isFinancePortal = user?.role === 'finance' || currentPermRole === 'finance';
  const isAdmin =
- !isFinancePortal &&
- (db.permissions?.[currentPermRole]?.approveLeave ||
- ['admin', 'super_admin'].includes(user.role) ||
- String(user.title || user.designation || '').toLowerCase().includes('hr'));
- const canApply = isFinancePortal || user?.role === 'employee' || user?.role === 'admin' || user?.role === 'super_admin';
+ isFinancePortal ||
+ ['admin', 'super_admin', 'finance'].includes(user?.role) ||
+ Boolean(db.permissions?.[currentPermRole]?.approveLeave) ||
+ String(user?.title || user?.designation || '').toLowerCase().includes('hr');
+ const canApply = true;
 
  // Load leaves from Mongo so HR sees every pending request (do not wipe existing data)
  useEffect(() => {
@@ -2849,6 +2849,8 @@ export function LeavesPage({ db, save, user }) {
  unpaidDays: l.unpaidDays ?? l.unpaid_days,
  totalDays: l.totalDays ?? l.total_days,
  employee_name: l.employee_name,
+ employee_title: l.employee_title || l.designation,
+ avatar_url: l.avatar_url,
  note: l.rejection_reason || l.note || '',
  }));
  // Merge by id — prefer server, keep any local-only pending that failed to sync
@@ -3111,14 +3113,17 @@ export function LeavesPage({ db, save, user }) {
  : l.payType === 'mixed'
  ? 'b-info'
  : 'b-success';
+ const empName = emp?.name || l.employee_name || '—';
+ const empTitle = emp?.title || emp?.designation || l.employee_title || 'Recruiter';
+ const empAvatar = emp?.avatar || emp?.avatar_url || l.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(empName)}`;
  return (
  <tr key={l.id}>
  <td>
  <div className="emp-cell">
- <img src={emp?.avatar} className="tbl-av" alt="" />
+ <img src={empAvatar} className="tbl-av" alt="" />
  <div>
- <div style={{ fontWeight: 700, fontSize: 13 }}>{emp?.name || '—'}</div>
- <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{emp?.title}</div>
+ <div style={{ fontWeight: 700, fontSize: 13 }}>{empName}</div>
+ <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{empTitle}</div>
  </div>
  </div>
  </td>
@@ -7750,7 +7755,7 @@ export function PermissionsPage({ db, save, user }) {
  manager: { payroll: false, attendance: true, deleteEmp: false, approveLeave: true, reports: true },
  employee: { payroll: false, attendance: false, deleteEmp: false, approveLeave: false, reports: false },
  recruiter: { payroll: false, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
- finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true },
+ finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: true, reports: true },
  });
 
  const toggle = (role, key) => {
@@ -8167,6 +8172,59 @@ export function TargetMetricCard({ title, icon = 'target', current, target, unit
     </button>
   );
 }
+
+export const isFinanceUserOrEmployee = (target, dbUsers = []) => {
+  if (!target) return false;
+  if (typeof target === 'object') {
+    if (target.role === 'finance') return true;
+    const t = String(target.title || target.designation || '').toLowerCase();
+    const d = String(target.department || target.department_name || target.dept || '').toLowerCase();
+    if (
+      t.includes('finance') ||
+      t.includes('invoice') ||
+      t.includes('billing') ||
+      t.includes('accounts') ||
+      d.includes('finance') ||
+      d.includes('invoice') ||
+      d.includes('billing') ||
+      d.includes('accounts')
+    ) {
+      return true;
+    }
+    if (target.name) {
+      const match = (dbUsers || []).find(
+        (u) => u && u !== target && String(u.name || '').trim().toLowerCase() === String(target.name).trim().toLowerCase()
+      );
+      if (match && match !== target) return isFinanceUserOrEmployee(match, []);
+    }
+    return false;
+  }
+  const nameStr = String(target).trim().toLowerCase();
+  const matchedUser = (dbUsers || []).find((u) => (u?.name || '').trim().toLowerCase() === nameStr);
+  if (matchedUser) {
+    return isFinanceUserOrEmployee(matchedUser, []);
+  }
+  return false;
+};
+
+export const getRecruitmentTargets = (isFinance) => {
+  if (isFinance) {
+    return {
+      calls: 40,
+      itvs: 7,
+      walks: 2,
+      sels: 1,
+      jnds: 1,
+    };
+  }
+  return {
+    calls: 80,
+    itvs: 15,
+    walks: 5,
+    sels: 3,
+    jnds: 1,
+  };
+};
 
 export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTargetUser, openChatWithUser, initialSheet = 'calls', variant = 'full' }) {
  const isSA = isOversightOnly(user);
@@ -8625,12 +8683,21 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const selectedTodayTargetCount = metricCandidates.filter((c) => candidateMatchesTask(c, 'selected')).length;
  const joinedTodayTargetCount = metricCandidates.filter((c) => candidateMatchesTask(c, 'joined')).length;
 
+ // Target determination: finance & invoice (40, 7, 2, 1, 1) vs standard recruiter (80, 15, 5, 3, 1)
+ const isTargetForFinance = isFinanceUserOrEmployee(
+ (selectedEmployeeFilter && selectedEmployeeFilter !== 'ALL')
+ ? (db?.users || []).find((u) => (u?.name || '').trim().toLowerCase() === selectedEmployeeFilter.trim().toLowerCase()) || selectedEmployeeFilter
+ : user,
+ db?.users
+ );
+ const currentTargets = getRecruitmentTargets(isTargetForFinance);
+
  // Performance calculations (each of the 5 tasks contributes max 20%)
- const callsScore = Math.min(20, Math.round((callsMadeCount / 80) * 20));
- const itvScore = Math.min(20, Math.round((interviewsScheduledTargetCount / 15) * 20));
- const walkinScore = Math.min(20, Math.round((walkinsTargetCount / 5) * 20));
- const selScore = Math.min(20, Math.round((selectedTodayTargetCount / 3) * 20));
- const jndScore = Math.min(20, Math.round((joinedTodayTargetCount / 1) * 20));
+ const callsScore = Math.min(20, Math.round((callsMadeCount / currentTargets.calls) * 20));
+ const itvScore = Math.min(20, Math.round((interviewsScheduledTargetCount / currentTargets.itvs) * 20));
+ const walkinScore = Math.min(20, Math.round((walkinsTargetCount / currentTargets.walks) * 20));
+ const selScore = Math.min(20, Math.round((selectedTodayTargetCount / currentTargets.sels) * 20));
+ const jndScore = Math.min(20, Math.round((joinedTodayTargetCount / currentTargets.jnds) * 20));
 
  const totalDayPerformancePct = callsScore + itvScore + walkinScore + selScore + jndScore;
  const isTargetAchieved = totalDayPerformancePct >= 60; // minimum 60% required every day
@@ -8680,6 +8747,12 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  // Calculate per-employee progress for HR & Super Admin aggregated overview
  const employeePerformanceList = employeeList.map(empName => {
+ const isFin = isFinanceUserOrEmployee(
+ (db?.users || []).find(u => (u?.name || '').trim().toLowerCase() === empName.trim().toLowerCase()) || empName,
+ db?.users
+ );
+ const empTargets = getRecruitmentTargets(isFin);
+
  const empCands = candidates.filter(c => {
  const candEmp = (c.employee || '').trim().toLowerCase();
  if (candEmp !== empName.trim().toLowerCase()) return false;
@@ -8691,22 +8764,40 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const sels = empCands.filter(c => candidateMatchesTask(c, 'selected')).length;
  const jnds = empCands.filter(c => candidateMatchesTask(c, 'joined')).length;
 
- const cS = Math.min(20, Math.round((calls / 80) * 20));
- const iS = Math.min(20, Math.round((itvs / 15) * 20));
- const wS = Math.min(20, Math.round((walks / 5) * 20));
- const sS = Math.min(20, Math.round((sels / 3) * 20));
- const jS = Math.min(20, Math.round((jnds / 1) * 20));
+ const cS = Math.min(20, Math.round((calls / empTargets.calls) * 20));
+ const iS = Math.min(20, Math.round((itvs / empTargets.itvs) * 20));
+ const wS = Math.min(20, Math.round((walks / empTargets.walks) * 20));
+ const sS = Math.min(20, Math.round((sels / empTargets.sels) * 20));
+ const jS = Math.min(20, Math.round((jnds / empTargets.jnds) * 20));
  const pct = cS + iS + wS + sS + jS;
 
- return { name: empName, calls, itvs, walks, sels, jnds, pct };
+ return { name: empName, isFinance: isFin, calls, itvs, walks, sels, jnds, targets: empTargets, pct };
  }).filter(emp => selectedEmployeeFilter === 'ALL' || emp.name === selectedEmployeeFilter);
 
- const recruiterCount = employeeList.length;
- const teamCallsTarget = 80 * recruiterCount;
- const teamItvTarget = 15 * recruiterCount;
- const teamWalkTarget = 5 * recruiterCount;
- const teamSelTarget = 3 * recruiterCount;
- const teamJoinTarget = 1 * recruiterCount;
+ let teamCallsTarget = 0;
+ let teamItvTarget = 0;
+ let teamWalkTarget = 0;
+ let teamSelTarget = 0;
+ let teamJoinTarget = 0;
+ employeeList.forEach(empName => {
+ const isFin = isFinanceUserOrEmployee(
+ (db?.users || []).find(u => (u?.name || '').trim().toLowerCase() === empName.trim().toLowerCase()) || empName,
+ db?.users
+ );
+ const t = getRecruitmentTargets(isFin);
+ teamCallsTarget += t.calls;
+ teamItvTarget += t.itvs;
+ teamWalkTarget += t.walks;
+ teamSelTarget += t.sels;
+ teamJoinTarget += t.jnds;
+ });
+ if (employeeList.length === 0) {
+ teamCallsTarget = currentTargets.calls;
+ teamItvTarget = currentTargets.itvs;
+ teamWalkTarget = currentTargets.walks;
+ teamSelTarget = currentTargets.sels;
+ teamJoinTarget = currentTargets.jnds;
+ }
 
  const resetAddForm = () => {
  setCandidateForm(emptyCandidateForm);
@@ -9152,7 +9243,9 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
      ? 'System-Wide Recruiter Target Dashboard'
      : isHR
        ? (targetViewMode === 'hr' ? ' Recruiter Team Performance Overview' : ` My Personal Daily Tasks (${selectedEmployeeFilter === user?.name ? 'My Tasks' : selectedEmployeeFilter})`)
-       : `Daily Task Targets (${user?.name || 'Recruiter'})`}
+       : isTargetForFinance
+         ? `Daily Finance & Invoice Targets (${(selectedEmployeeFilter && selectedEmployeeFilter !== 'ALL') ? selectedEmployeeFilter : (user?.name || 'Finance & Invoices')})`
+         : `Daily Task Targets (${user?.name || 'Recruiter'})`}
  </h2>
  <span style={{ background: targetViewMode === 'hr' ? 'var(--accent-soft)' : targetViewMode === 'walkins_selections' ? '#FEF3C7' : '#F3E8FF', color: targetViewMode === 'hr' ? 'var(--accent-hover)' : targetViewMode === 'walkins_selections' ? '#B45309' : 'var(--accent)', borderRadius: 99, padding: '3px 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
  {targetViewMode === 'walkins_selections'
@@ -9161,7 +9254,9 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
      ? 'SUPER ADMIN READ-ONLY'
      : isHR
        ? (targetViewMode === 'hr' ? 'TEAM OVERVIEW MODE' : 'MY DAILY TASKS')
-       : 'EMPLOYEE PERSONAL TARGETS'}
+       : isTargetForFinance
+         ? 'FINANCE & INVOICE TARGETS'
+         : 'EMPLOYEE PERSONAL TARGETS'}
  </span>
  </div>
  <p style={{ fontSize: 13, fontWeight: 500, color: '#6B7280', marginTop: 4 }}>
@@ -9323,11 +9418,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </span>
  </div>
  <div style={{ fontSize: 11, color: '#6B7280', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
- <span> {emp.calls}/80</span>
- <span> {emp.itvs}/15</span>
- <span> {emp.walks}/5</span>
- <span> {emp.sels}/3</span>
- <span> {emp.jnds}/1</span>
+ <span> {emp.calls}/{emp.targets?.calls ?? 80}</span>
+ <span> {emp.itvs}/{emp.targets?.itvs ?? 15}</span>
+ <span> {emp.walks}/{emp.targets?.walks ?? 5}</span>
+ <span> {emp.sels}/{emp.targets?.sels ?? 3}</span>
+ <span> {emp.jnds}/{emp.targets?.jnds ?? 1}</span>
  </div>
  <div style={{ background: '#E5E7EB', height: 6, borderRadius: 99, overflow: 'hidden' }}>
  <div style={{ width: `${emp.pct}%`, height: '100%', background: emp.pct >= 60 ? 'linear-gradient(90deg, #10B981 0%, #34D399 100%)' : 'linear-gradient(90deg, #F59E0B 0%, #EF4444 100%)', borderRadius: 99 }} />
@@ -9350,11 +9445,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  ) : (
  /* FOR EMPLOYEE & INDIVIDUAL HR VIEW: ALL 5 TARGET METRIC CARDS */
  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
- <TargetMetricCard title="Calls Made" icon="phone" current={callsMadeCount} target={80} unit="Calls" weight="20%" iconBg="var(--accent-soft)" iconColor="var(--accent)" onClick={() => setActiveTaskCategory('calls')} />
- <TargetMetricCard title="Interviews Scheduled" icon="calendar" current={interviewsScheduledTargetCount} target={15} unit="Interviews" weight="20%" iconBg="#EFF6FF" iconColor="#3B82F6" onClick={() => setActiveTaskCategory('interviews')} />
- <TargetMetricCard title="Walk-ins Today" icon="walk" current={walkinsTargetCount} target={5} unit="Walkins" weight="20%" iconBg="#FEF3C7" iconColor="#D97706" onClick={() => setActiveTaskCategory('walkins')} />
- <TargetMetricCard title="Selected Today" icon="trophy" current={selectedTodayTargetCount} target={3} unit="Selected" weight="20%" iconBg="#ECFDF5" iconColor="#10B981" onClick={() => setActiveTaskCategory('selected')} />
- <TargetMetricCard title="Joined Today" icon="users" current={joinedTodayTargetCount} target={1} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" onClick={() => setActiveTaskCategory('joined')} />
+ <TargetMetricCard title="Calls Made" icon="phone" current={callsMadeCount} target={currentTargets.calls} unit="Calls" weight="20%" iconBg="var(--accent-soft)" iconColor="var(--accent)" onClick={() => setActiveTaskCategory('calls')} />
+ <TargetMetricCard title="Interviews Scheduled" icon="calendar" current={interviewsScheduledTargetCount} target={currentTargets.itvs} unit="Interviews" weight="20%" iconBg="#EFF6FF" iconColor="#3B82F6" onClick={() => setActiveTaskCategory('interviews')} />
+ <TargetMetricCard title="Walk-ins Today" icon="walk" current={walkinsTargetCount} target={currentTargets.walks} unit="Walkins" weight="20%" iconBg="#FEF3C7" iconColor="#D97706" onClick={() => setActiveTaskCategory('walkins')} />
+ <TargetMetricCard title="Selected Today" icon="trophy" current={selectedTodayTargetCount} target={currentTargets.sels} unit="Selected" weight="20%" iconBg="#ECFDF5" iconColor="#10B981" onClick={() => setActiveTaskCategory('selected')} />
+ <TargetMetricCard title="Joined Today" icon="users" current={joinedTodayTargetCount} target={currentTargets.jnds} unit="Joined" weight="20%" iconBg="#FFF7ED" iconColor="#F97316" onClick={() => setActiveTaskCategory('joined')} />
  </div>
  )}
  </>

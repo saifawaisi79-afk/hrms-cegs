@@ -8,7 +8,7 @@ import { getAuthUser, requireRole } from '@/lib/auth';
 export async function PUT(request, { params }) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
-  if (!requireRole(authUser, ['admin', 'super_admin'])) {
+  if (!requireRole(authUser, ['admin', 'super_admin', 'finance'])) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

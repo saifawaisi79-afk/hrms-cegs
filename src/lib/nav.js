@@ -93,7 +93,7 @@ export const DEFAULT_PERMISSIONS = {
   manager: { payroll: true, attendance: true, deleteEmp: false, approveLeave: true, reports: true, onboard: false },
   employee: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: false, onboard: false },
   recruiter: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true, onboard: false },
-  finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true, onboard: false },
+  finance: { payroll: true, attendance: false, deleteEmp: false, approveLeave: true, reports: true, onboard: false },
 };
 
 function getPermissionRole(u) {
@@ -245,6 +245,7 @@ export function buildNavConfig(user, db) {
     );
     campaign.push(
       { href: '/finance/invoices', label: 'Finance & Invoices', icon: 'adduser' },
+      { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
       { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Recruitment Targets', icon: 'adduser' },
       { href: '/campaign/performance', label: 'Performance', icon: 'trending' },
