@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, IC } from '@/components/hrms/HrmsLegacy';
 import { apiFetch, API_BASE } from '@/lib/auth-client';
 import { canCreateMessengerGroup, isGroupAdmin } from '@/lib/messenger-auth';
+import { ModernWhatsAppEmojiPicker } from '@/components/chat/ModernWhatsAppEmojiPicker';
 
 // WhatsApp-style distinct colors for group participant names
 const NAME_COLORS = [
@@ -30,51 +31,6 @@ const COLOR_PRESETS = [
   { name: 'Sunset Amber', color: '#F59E0B' },
   { name: 'Rose Quartz', color: '#F43F5E' },
   { name: 'Ocean Cyan', color: '#06B6D4' },
-];
-
-// Curated WhatsApp-style Emoji Sets
-const EMOJI_CATEGORIES = [
-  {
-    name: 'Smileys',
-    icon: '😃',
-    emojis: [
-      '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
-      '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😋', '😛',
-      '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨',
-      '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔',
-      '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵',
-      '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓', '🧐', '🤝'
-    ],
-  },
-  {
-    name: 'Gestures',
-    icon: '👍',
-    emojis: [
-      '👍', '👎', '👏', '🙌', '👐', '🤲', '🙏', '✍️', '💅', '🤳',
-      '💪', '👈', '👉', '👆', '👇', '☝️', '🖐️', '✋', '👌', '🤌',
-      '🤏', '✌️', '🤞', '🫰', '🤟', '🤘', '🤙', '👊', '✊', '🤛',
-      '🤜', '👋', '🤚', '🙋‍♂️', '🙋‍♀️', '🙇‍♂️', '🙇‍♀️', '🤷‍♂️', '🤷‍♀️'
-    ],
-  },
-  {
-    name: 'Reactions',
-    icon: '❤️',
-    emojis: [
-      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
-      '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '✨', '🌟',
-      '⭐', '🔥', '💥', '💯', '💢', '💨', '💫', '💬', '💭', '🗯️'
-    ],
-  },
-  {
-    name: 'Work',
-    icon: '💼',
-    emojis: [
-      '💼', '📊', '📈', '📉', '📁', '📂', '💻', '🖥️', '⌨️', '📱',
-      '⏳', '⏰', '⏱️', '🎯', '📌', '📍', '📝', '📅', '🗓️', '📋',
-      '💡', '⚡', '🚀', '🏆', '🥇', '🥈', '🥉', '🔔', '📢', '✅',
-      '❌', '⚠️', '🎉', '🎊', '🎁', '☕', '🏢', '🔑', '🏷️', '💰'
-    ],
-  },
 ];
 
 // Compress high-res photos to high quality lightweight JPEG data URL
@@ -192,7 +148,6 @@ export function GlobalMessengerModal({
   // Image upload and emoji picker states
   const [selectedImage, setSelectedImage] = useState(null); // { dataUrl, name }
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [activeEmojiCategory, setActiveEmojiCategory] = useState(0);
   const [previewImage, setPreviewImage] = useState(null); // For fullscreen lightbox preview
 
   // Modals
@@ -1641,194 +1596,158 @@ export function GlobalMessengerModal({
               </div>
             )}
 
-            {/* EMOJI PICKER POPUP (WhatsApp Style) */}
+            {/* MODERN WHATSAPP EMOJI PICKER POPUP */}
             {showEmojiPicker && (
               <div
                 ref={emojiPickerRef}
                 style={{
                   position: 'absolute',
-                  bottom: selectedImage ? '135px' : '72px',
-                  left: 12,
+                  bottom: selectedImage ? '135px' : '65px',
+                  left: 8,
                   zIndex: 1000,
-                  background: '#FFFFFF',
-                  borderRadius: 16,
-                  border: '1px solid #E2E8F0',
-                  boxShadow: '0 14px 38px rgba(15, 23, 42, 0.18)',
-                  width: 320,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                  animation: 'fadeIn 0.15s ease-out',
+                  maxWidth: 'calc(100% - 16px)',
                 }}
               >
-                {/* Category Header */}
-                <div
-                  style={{
-                    display: 'flex',
-                    background: '#F8FAFC',
-                    borderBottom: '1px solid #E2E8F0',
-                    padding: '6px 8px',
-                    gap: 4,
-                  }}
-                >
-                  {EMOJI_CATEGORIES.map((cat, idx) => (
-                    <button
-                      key={cat.name}
-                      type="button"
-                      onClick={() => setActiveEmojiCategory(idx)}
-                      style={{
-                        flex: 1,
-                        padding: '6px 4px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: activeEmojiCategory === idx ? '#FFFFFF' : 'transparent',
-                        boxShadow: activeEmojiCategory === idx ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
-                        cursor: 'pointer',
-                        fontSize: 16,
-                      }}
-                      title={cat.name}
-                    >
-                      {cat.icon}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Emoji Grid */}
-                <div
-                  style={{
-                    maxHeight: 190,
-                    overflowY: 'auto',
-                    padding: 8,
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(7, 1fr)',
-                    gap: 4,
-                    scrollbarWidth: 'thin',
-                  }}
-                >
-                  {EMOJI_CATEGORIES[activeEmojiCategory].emojis.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => handleEmojiSelect(emoji)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        fontSize: 22,
-                        padding: '4px 0',
-                        cursor: 'pointer',
-                        borderRadius: 6,
-                        transition: 'transform 0.1s',
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.25)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
+                <ModernWhatsAppEmojiPicker
+                  onSelectEmoji={handleEmojiSelect}
+                  onClose={() => setShowEmojiPicker(false)}
+                />
               </div>
             )}
 
-            {/* WHATSAPP-STYLE INPUT BAR (Attachment + Emoji + Input + Send) */}
+            {/* WHATSAPP-STYLE INPUT BAR (Attachment + Emoji + Input + Send - IMAGE 2 STYLE) */}
             <form
+              className="wa-input-capsule-form"
               onSubmit={handleSendMessage}
               style={{
                 display: 'flex',
+                flexDirection: 'row',
                 alignItems: 'center',
                 gap: 8,
-                marginTop: selectedImage ? 0 : 12,
-                paddingTop: selectedImage ? 8 : 12,
+                marginTop: selectedImage ? 0 : 10,
+                paddingTop: selectedImage ? 6 : 10,
                 borderTop: selectedImage ? 'none' : '1px solid var(--border)',
                 background: '#FFFFFF',
+                position: 'relative',
+                width: '100%',
+                boxSizing: 'border-box',
               }}
             >
-              {/* ATTACHMENT / PAPERCLIP ICON */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                title="Attach photo / image"
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: '50%',
-                  border: 'none',
-                  background: '#F1F5F9',
-                  color: '#475569',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'background 0.15s',
-                  flexShrink: 0,
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
-              </button>
+              {/* UNIFIED WHATSAPP INPUT CAPSULE (IMAGE 2 STYLE) */}
+              <div className="wa-chat-capsule-pill">
+                {/* ATTACHMENT / PAPERCLIP ICON */}
+                <button
+                  type="button"
+                  className="wa-chat-icon-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach photo or image"
+                >
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
 
-              {/* EMOJI ICON */}
-              <button
-                id="emoji-toggle-btn"
-                type="button"
-                onClick={() => setShowEmojiPicker((prev) => !prev)}
-                title="Insert emoji"
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: '50%',
-                  border: 'none',
-                  background: showEmojiPicker ? '#ECFDF5' : '#F1F5F9',
-                  color: showEmojiPicker ? '#10B981' : '#475569',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 19,
-                  transition: 'background 0.15s',
-                  flexShrink: 0,
-                }}
-              >
-                😊
-              </button>
+                {/* EMOJI ICON (WHATSAPP OUTLINE SMILEY MATCHING IMAGE 2) */}
+                <button
+                  id="emoji-toggle-btn"
+                  type="button"
+                  className={`wa-chat-icon-btn ${showEmojiPicker ? 'active' : ''}`}
+                  onClick={() => setShowEmojiPicker((prev) => !prev)}
+                  title="Insert modern emoji & reactions"
+                >
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="9.5" />
+                    <path d="M8 14.3c.9 1.6 2.4 2.4 4 2.4s3.1-.8 4-2.4" />
+                    <circle cx="9" cy="9.5" r="1.25" fill="currentColor" stroke="none" />
+                    <circle cx="15" cy="9.5" r="1.25" fill="currentColor" stroke="none" />
+                  </svg>
+                </button>
 
-              {/* TEXT INPUT */}
-              <input
-                ref={textInputRef}
-                className="form-input"
-                placeholder={
-                  selectedImage
-                    ? 'Add a caption...'
-                    : activeTab === 'groups'
-                    ? `Message #${activeGroup?.name || 'group'}...`
-                    : `Type a message to ${activeChatPartner?.name?.split(' ')[0] || 'colleague'}...`
-                }
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                style={{ flex: 1, padding: '11px 16px', borderRadius: 99, fontSize: 13.5 }}
-                autoFocus
-                disabled={sending}
-              />
+                {/* TEXT INPUT */}
+                <input
+                  ref={textInputRef}
+                  placeholder={
+                    selectedImage
+                      ? 'Add a caption...'
+                      : activeTab === 'groups'
+                      ? `Type a message (#${activeGroup?.name || 'group'})...`
+                      : 'Type a message'
+                  }
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    fontSize: 14,
+                    color: '#0F172A',
+                    fontWeight: 450,
+                    padding: '8px 4px',
+                    minWidth: 0,
+                  }}
+                  autoFocus
+                  disabled={sending}
+                />
+              </div>
 
               {/* SEND BUTTON */}
               <button
                 type="submit"
-                className="btn btn-dark"
                 disabled={sending || (!text.trim() && !selectedImage)}
+                title="Send message"
                 style={{
-                  background: 'var(--accent, #7C3AED)',
-                  height: 42,
-                  padding: '0 20px',
-                  fontWeight: 800,
-                  borderRadius: 99,
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  background:
+                    sending || (!text.trim() && !selectedImage)
+                      ? '#CBD5E1'
+                      : 'var(--accent, #7C3AED)',
+                  color: '#FFFFFF',
+                  border: 'none',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 6,
-                  opacity: sending || (!text.trim() && !selectedImage) ? 0.6 : 1,
+                  justifyContent: 'center',
+                  cursor: sending || (!text.trim() && !selectedImage) ? 'not-allowed' : 'pointer',
                   flexShrink: 0,
+                  boxShadow:
+                    sending || (!text.trim() && !selectedImage)
+                      ? 'none'
+                      : '0 4px 12px rgba(124, 58, 237, 0.35)',
+                  transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                  transform: 'scale(1)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!sending && (text.trim() || selectedImage)) {
+                    e.currentTarget.style.transform = 'scale(1.08)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
                 }}
               >
-                <span>{sending ? 'Sending…' : 'Send'}</span> <IC n="send" s={14} />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: 2 }}>
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
               </button>
             </form>
           </div>

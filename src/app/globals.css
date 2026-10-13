@@ -1273,6 +1273,73 @@ textarea.form-input { resize:vertical; min-height:88px; line-height:1.6; }
 .modal-body-scroll form {
   display: flex; flex-direction: column; min-height: 0;
 }
+.modal-body-scroll form.wa-input-capsule-form,
+form.wa-input-capsule-form {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  min-height: 48px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@keyframes waPickerPop {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.wa-chat-capsule-pill {
+  flex: 1;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  background: #F0F2F5;
+  border-radius: 26px;
+  padding: 4px 12px;
+  gap: 6px;
+  border: 1px solid #E2E8F0;
+  min-height: 46px;
+  box-sizing: border-box;
+  transition: all 0.18s ease;
+}
+
+.wa-chat-capsule-pill:focus-within {
+  border-color: #CBD5E1;
+  background: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.wa-chat-icon-btn {
+  background: transparent;
+  border: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748B;
+  flex-shrink: 0;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.wa-chat-icon-btn:hover {
+  color: #10B981;
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.wa-chat-icon-btn.active {
+  color: #10B981;
+  background: rgba(16, 185, 129, 0.14);
+}
 .modal-close {
   background: none; border: none; cursor: pointer;
   width: 32px; height: 32px; border-radius: 8px;
