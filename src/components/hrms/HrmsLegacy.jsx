@@ -1402,7 +1402,7 @@ export function LunchBreakWidget({ user, db, save }) {
  );
 }
 
-export function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTargetUser, openChatWithUser }) {
+export function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTargetUser, openChatWithUser, openChatWithGroup, setChatTargetGroup, setShowMessengerInbox }) {
  const getUserPermissionRole = (u) => {
  if (!u) return 'employee';
  if (u.role === 'super_admin') return 'super_admin';
@@ -1632,6 +1632,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
 
  // ── LIVE CHAT SIDEBAR SEARCH STATE ──
  const [chatWidgetSearch, setChatWidgetSearch] = useState('');
+ const [chatWidgetTab, setChatWidgetTab] = useState('direct'); // 'direct' | 'groups'
 
  // Team Slider scrolling Ref
  const teamSliderRef = useRef(null);
@@ -2157,21 +2158,40 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  </span>
  </div>
 
- {/* SEARCH TEAM INPUT */}
+ {/* MINI TABS: DIRECT VS GROUPS */}
+ <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: '#F3F4F6', padding: 3, borderRadius: 12, marginBottom: 10 }}>
+ <button
+ type="button"
+ onClick={() => setChatWidgetTab('direct')}
+ style={{ padding: '6px 8px', borderRadius: 9, fontSize: 11, fontWeight: 800, border: 'none', cursor: 'pointer', background: chatWidgetTab === 'direct' ? '#FFFFFF' : 'transparent', color: chatWidgetTab === 'direct' ? 'var(--accent)' : '#6B7280', boxShadow: chatWidgetTab === 'direct' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none' }}
+ >
+ Colleagues ({db.users?.length || 0})
+ </button>
+ <button
+ type="button"
+ onClick={() => setChatWidgetTab('groups')}
+ style={{ padding: '6px 8px', borderRadius: 9, fontSize: 11, fontWeight: 800, border: 'none', cursor: 'pointer', background: chatWidgetTab === 'groups' ? '#FFFFFF' : 'transparent', color: chatWidgetTab === 'groups' ? '#059669' : '#6B7280', boxShadow: chatWidgetTab === 'groups' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none' }}
+ >
+ Groups ({(db.chatGroups || []).length})
+ </button>
+ </div>
+
+ {/* SEARCH INPUT */}
  <input 
  style={{ width: '100%', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 99, padding: '7px 14px', fontSize: 12, fontWeight: 600, outline: 'none', marginBottom: 12 }}
- placeholder=" Search colleague..."
+ placeholder={chatWidgetTab === 'direct' ? ' Search colleague...' : ' Search group...'}
  value={chatWidgetSearch}
  onChange={e => setChatWidgetSearch(e.target.value)}
  />
 
- {/* TEAM CHAT CARDS LIST */}
+ {/* CHAT CARDS LIST */}
  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 260, overflowY: 'auto', paddingRight: 2 }}>
- {(db.users || [])
+ {chatWidgetTab === 'direct' ? (
+ (db.users || [])
  .filter(u => u.id !== user?.id && (u.name.toLowerCase().includes(chatWidgetSearch.toLowerCase()) || (u.title || '').toLowerCase().includes(chatWidgetSearch.toLowerCase())))
  .slice(0, 5)
  .map(u => {
- const unreadCount = (db.messages || []).filter(m => m.fromId === u.id && m.toId === user?.id && !m.read).length;
+ const unreadCount = (db.messages || []).filter(m => m.fromId === u.id && m.toId === user?.id && !m.read && !m.groupId).length;
  return (
  <div 
  key={u.id} 
@@ -2216,16 +2236,62 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  </div>
  </div>
  );
- })}
+ })
+ ) : (
+ (db.chatGroups || []).length === 0 ? (
+ <div style={{ textAlign: 'center', padding: '16px 8px', fontSize: 12, color: '#6B7280' }}>
+ No groups yet. Open inbox to create a group.
+ </div>
+ ) : (
+ (db.chatGroups || [])
+ .filter(g => (g.name || '').toLowerCase().includes(chatWidgetSearch.toLowerCase()))
+ .slice(0, 5)
+ .map(g => (
+ <div 
+ key={g.id} 
+ onClick={() => openChatWithGroup ? openChatWithGroup(g) : (setShowMessengerInbox && setShowMessengerInbox(true))}
+ style={{ 
+ display: 'flex', 
+ alignItems: 'center', 
+ justifyContent: 'space-between', 
+ padding: '10px 12px', 
+ background: '#F0FDF4', 
+ borderRadius: 16, 
+ border: '1px solid #BBF7D0', 
+ cursor: 'pointer',
+ transition: 'all 0.2s ease',
+ boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
+ }}
+ >
+ <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+ <div style={{ width: 36, height: 36, borderRadius: 10, background: g.color || '#10B981', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 15 }}>
+ 👥
+ </div>
+ <div>
+ <div style={{ fontSize: 13, fontWeight: 900, color: '#111827' }}>{g.name}</div>
+ <div style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>{(g.members || []).length} members</div>
+ </div>
+ </div>
+ <button 
+ type="button" 
+ className="btn btn-xs"
+ style={{ padding: '5px 10px', fontSize: 11, fontWeight: 800, background: '#10B981', color: '#ffffff', borderRadius: 99, border: 'none', cursor: 'pointer' }}
+ >
+ View
+ </button>
+ </div>
+ ))
+ )
+ )}
  </div>
 
  <button 
  type="button" 
  className="btn btn-sm btn-ghost" 
- onClick={() => setShowMessengerInbox(true)} 
+ onClick={() => setShowMessengerInbox ? setShowMessengerInbox(true) : null} 
  style={{ width: '100%', marginTop: 14, fontSize: 12, fontWeight: 800, borderRadius: 99, border: '1px dashed var(--accent)', color: 'var(--accent)', padding: 8 }}
  >
- Open Full Team Messenger Inbox
+ Open Full Team Messenger & Groups
  </button>
  </div>
 

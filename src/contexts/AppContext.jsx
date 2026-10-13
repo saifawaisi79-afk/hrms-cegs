@@ -42,6 +42,7 @@ export function AppProvider({ children }) {
   const [ready, setReady] = useState(false);
   const [quickViewUser, setQuickViewUser] = useState(null);
   const [chatTargetUser, setChatTargetUser] = useState(null);
+  const [chatTargetGroup, setChatTargetGroup] = useState(null);
   const [showMessengerInbox, setShowMessengerInbox] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -174,7 +175,15 @@ export function AppProvider({ children }) {
 
   const openChatWithUser = useCallback((targetUser) => {
     setQuickViewUser(null);
+    setChatTargetGroup(null);
     setChatTargetUser(targetUser);
+    setShowMessengerInbox(true);
+  }, []);
+
+  const openChatWithGroup = useCallback((targetGroup) => {
+    setQuickViewUser(null);
+    setChatTargetUser(null);
+    setChatTargetGroup(targetGroup);
     setShowMessengerInbox(true);
   }, []);
 
@@ -536,8 +545,12 @@ export function AppProvider({ children }) {
       setQuickViewUser,
       setChatTargetUser,
       openChatWithUser,
+      chatTargetGroup,
+      setChatTargetGroup,
+      openChatWithGroup,
+      setShowMessengerInbox,
     }),
-    [db, save, user, navigate, openChatWithUser]
+    [db, save, user, navigate, openChatWithUser, chatTargetGroup, openChatWithGroup, setShowMessengerInbox]
   );
 
   const value = {
@@ -556,11 +569,14 @@ export function AppProvider({ children }) {
     setQuickViewUser,
     chatTargetUser,
     setChatTargetUser,
+    chatTargetGroup,
+    setChatTargetGroup,
     showMessengerInbox,
     setShowMessengerInbox,
     showLogoutModal,
     setShowLogoutModal,
     openChatWithUser,
+    openChatWithGroup,
     pageProps,
   };
 

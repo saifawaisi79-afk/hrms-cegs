@@ -33,6 +33,8 @@ export function AppShell({ children }) {
     setShowMessengerInbox,
     chatTargetUser,
     setChatTargetUser,
+    chatTargetGroup,
+    setChatTargetGroup,
     openChatWithUser,
   } = useApp();
 
@@ -374,10 +376,13 @@ export function AppShell({ children }) {
         onClose={() => {
           setShowMessengerInbox(false);
           setChatTargetUser(null);
+          setChatTargetGroup?.(null);
         }}
         currentUser={user}
         targetUser={chatTargetUser}
         setTargetUser={setChatTargetUser}
+        targetGroup={chatTargetGroup}
+        setTargetGroup={setChatTargetGroup}
         db={db}
         save={save}
       />
