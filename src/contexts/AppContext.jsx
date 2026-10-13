@@ -316,9 +316,15 @@ export function AppProvider({ children }) {
   const nav = useMemo(() => buildNavConfig(user, db), [user, db]);
 
   const unread = (db.notifications || []).filter((n) => !n.read && (!n.to || n.to === user?.id)).length;
-  const unreadMsgCount = (db.messages || []).filter(
-    (m) => String(m.toId) === String(user?.id) && !m.read
-  ).length;
+  const unreadMsgCount = (db.messages || []).filter((m) => {
+    const myIdStr = String(user?.id || '');
+    if (!myIdStr || String(m.fromId) === myIdStr) return false;
+    if (m.groupId || m.group_id) {
+      const readList = (m.readBy || m.read_by || []).map((id) => String(id));
+      return !readList.includes(myIdStr);
+    }
+    return String(m.toId) === myIdStr && !m.read;
+  }).length;
 
   // Sync employee directory from MongoDB (production source of truth)
   useEffect(() => {

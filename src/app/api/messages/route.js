@@ -19,9 +19,13 @@ function flattenMessage(m) {
     fromDesignation: fromObj?.designation || obj.fromDesignation || '',
     toId: obj.to_id?.toString?.() || (obj.to_id ? String(obj.to_id) : null),
     groupId: obj.group_id?.toString?.() || (obj.group_id ? String(obj.group_id) : null),
-    text: obj.text,
+    text: obj.text || '',
+    imageUrl: obj.image_url || obj.imageUrl || '',
     time: obj.createdAt ? new Date(obj.createdAt).toISOString() : new Date().toISOString(),
     read: obj.read ? 1 : 0,
+    readBy: (obj.read_by || []).map((id) =>
+      typeof id === 'object' && id !== null ? id._id?.toString() || id.toString() : String(id)
+    ),
   };
 }
 
@@ -60,7 +64,7 @@ export async function GET(request) {
       ],
     };
   } else {
-    // Return all direct messages involving current user, OR also return recent group messages if no filter
+    // Return all direct messages involving current user
     filter = {
       $or: [
         { from_id: me, to_id: { $ne: null } },
@@ -86,9 +90,10 @@ export async function POST(request) {
   const toId = String(body.toId || body.to_id || '').trim();
   const groupId = String(body.groupId || body.group_id || '').trim();
   const text = String(body.text || '').trim();
+  const imageUrl = String(body.imageUrl || body.image_url || body.image || '').trim();
 
-  if (!text) {
-    return NextResponse.json({ error: 'Message text is required' }, { status: 400 });
+  if (!text && !imageUrl) {
+    return NextResponse.json({ error: 'Message text or image is required' }, { status: 400 });
   }
 
   await connectDB();
@@ -118,13 +123,14 @@ export async function POST(request) {
       group_id: group._id,
       to_id: null,
       text: text.slice(0, 4000),
+      image_url: imageUrl,
       read: false,
       read_by: [new mongoose.Types.ObjectId(authUser.id)],
     });
 
     // Update last message on the group
     group.last_message = {
-      text: text.slice(0, 200),
+      text: text ? text.slice(0, 200) : '📷 Photo',
       from_id: authUser.id,
       from_name: senderUser?.name || authUser.name || 'Member',
       time: new Date(),
@@ -156,7 +162,9 @@ export async function POST(request) {
     to_id: toId,
     group_id: null,
     text: text.slice(0, 4000),
+    image_url: imageUrl,
     read: false,
+    read_by: [new mongoose.Types.ObjectId(authUser.id)],
   });
 
   const populated = await Message.findById(created._id)

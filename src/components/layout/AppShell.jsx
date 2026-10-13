@@ -9,6 +9,7 @@ import {
   IC,
 } from '@/components/hrms/HrmsLegacy';
 import { GlobalMessengerModal } from '@/components/chat/GlobalMessengerModal';
+import { MessengerNotificationToast } from '@/components/chat/MessengerNotificationToast';
 import {
   ShiftReverseStopwatch,
   parseClockInTime,
@@ -36,6 +37,7 @@ export function AppShell({ children }) {
     chatTargetGroup,
     setChatTargetGroup,
     openChatWithUser,
+    openChatWithGroup,
   } = useApp();
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -392,6 +394,18 @@ export function AppShell({ children }) {
         currentUser={user}
         db={db}
         save={save}
+      />
+
+      {/* Floating Real-time Messenger Notification Toast with Audio Chime */}
+      <MessengerNotificationToast
+        currentUser={user}
+        messages={db?.messages || []}
+        groups={db?.chatGroups || []}
+        isMessengerOpen={showMessengerInbox}
+        activeTargetUserId={chatTargetUser?.id}
+        activeTargetGroupId={chatTargetGroup?.id}
+        onOpenChatWithUser={openChatWithUser}
+        onOpenChatWithGroup={openChatWithGroup}
       />
     </div>
   );

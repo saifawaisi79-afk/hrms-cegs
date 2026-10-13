@@ -32,10 +32,140 @@ const COLOR_PRESETS = [
   { name: 'Ocean Cyan', color: '#06B6D4' },
 ];
 
+// Curated WhatsApp-style Emoji Sets
+const EMOJI_CATEGORIES = [
+  {
+    name: 'Smileys',
+    icon: '😃',
+    emojis: [
+      '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
+      '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😋', '😛',
+      '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨',
+      '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔',
+      '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵',
+      '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓', '🧐', '🤝'
+    ],
+  },
+  {
+    name: 'Gestures',
+    icon: '👍',
+    emojis: [
+      '👍', '👎', '👏', '🙌', '👐', '🤲', '🙏', '✍️', '💅', '🤳',
+      '💪', '👈', '👉', '👆', '👇', '☝️', '🖐️', '✋', '👌', '🤌',
+      '🤏', '✌️', '🤞', '🫰', '🤟', '🤘', '🤙', '👊', '✊', '🤛',
+      '🤜', '👋', '🤚', '🙋‍♂️', '🙋‍♀️', '🙇‍♂️', '🙇‍♀️', '🤷‍♂️', '🤷‍♀️'
+    ],
+  },
+  {
+    name: 'Reactions',
+    icon: '❤️',
+    emojis: [
+      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
+      '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '✨', '🌟',
+      '⭐', '🔥', '💥', '💯', '💢', '💨', '💫', '💬', '💭', '🗯️'
+    ],
+  },
+  {
+    name: 'Work',
+    icon: '💼',
+    emojis: [
+      '💼', '📊', '📈', '📉', '📁', '📂', '💻', '🖥️', '⌨️', '📱',
+      '⏳', '⏰', '⏱️', '🎯', '📌', '📍', '📝', '📅', '🗓️', '📋',
+      '💡', '⚡', '🚀', '🏆', '🥇', '🥈', '🥉', '🔔', '📢', '✅',
+      '❌', '⚠️', '🎉', '🎊', '🎁', '☕', '🏢', '🔑', '🏷️', '💰'
+    ],
+  },
+];
+
+// Compress high-res photos to high quality lightweight JPEG data URL
+function compressImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 /**
- * Modern Live Team Messenger with WhatsApp-style Groups & Direct Messaging.
- * Authority: Only HR (Admin) and Finance / Invoice portal members can create groups.
- * Group Admins can add or remove employees whenever they want.
+ * WhatsApp-style message ticks:
+ * - One grey tick: Sent
+ * - Two grey ticks: Delivered
+ * - Two blue ticks (#34B7F1): Seen / Read
+ */
+function WhatsAppTicks({ isMe, read, readBy = [], isGroup = false, myId }) {
+  if (!isMe) return null;
+
+  const isSeen = isGroup
+    ? (readBy || []).some((id) => String(id) !== String(myId))
+    : Boolean(read);
+
+  if (isSeen) {
+    // Double Blue Ticks (#34B7F1 WhatsApp Blue)
+    return (
+      <span
+        title="Seen / Read"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          marginLeft: 4,
+          verticalAlign: 'middle',
+        }}
+      >
+        <svg width="16" height="11" viewBox="0 0 16 11" fill="none" style={{ display: 'inline-block' }}>
+          <path d="M11.05 0.7L4.9 6.85L2.85 4.8L1.45 6.2L4.9 9.65L12.45 2.1L11.05 0.7Z" fill="#34B7F1" />
+          <path d="M14.55 2.1L7 9.65L6.05 8.7L7.45 7.3L13.15 0.7L14.55 2.1Z" fill="#34B7F1" />
+        </svg>
+      </span>
+    );
+  }
+
+  // Double Grey Ticks (Delivered)
+  return (
+    <span
+      title="Delivered"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        marginLeft: 4,
+        verticalAlign: 'middle',
+      }}
+    >
+      <svg width="16" height="11" viewBox="0 0 16 11" fill="none" style={{ display: 'inline-block' }}>
+        <path d="M11.05 0.7L4.9 6.85L2.85 4.8L1.45 6.2L4.9 9.65L12.45 2.1L11.05 0.7Z" fill="#94A3B8" />
+        <path d="M14.55 2.1L7 9.65L6.05 8.7L7.45 7.3L13.15 0.7L14.55 2.1Z" fill="#94A3B8" />
+      </svg>
+    </span>
+  );
+}
+
+/**
+ * Modern Live Team Messenger with WhatsApp-style Groups, Direct Messaging,
+ * Image Uploads, Emoji Picker, and Blue Ticks.
+ * Note: Messages are permanent — no delete option.
  */
 export function GlobalMessengerModal({
   open,
@@ -59,6 +189,12 @@ export function GlobalMessengerModal({
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState('');
 
+  // Image upload and emoji picker states
+  const [selectedImage, setSelectedImage] = useState(null); // { dataUrl, name }
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [activeEmojiCategory, setActiveEmojiCategory] = useState(0);
+  const [previewImage, setPreviewImage] = useState(null); // For fullscreen lightbox preview
+
   // Modals
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showGroupInfoModal, setShowGroupInfoModal] = useState(false);
@@ -77,6 +213,10 @@ export function GlobalMessengerModal({
   const [addingMembers, setAddingMembers] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const textInputRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+
   const myId = String(currentUser?.id || currentUser?._id || '');
 
   // Authority check for group creation (Only HR Admin or Finance / Invoice Portal)
@@ -292,7 +432,10 @@ export function GlobalMessengerModal({
         });
         setMessages((prev) =>
           prev.map((m) =>
-            String(m.fromId) === String(activeChatPartner.id) && String(m.toId) === myId
+            !m.groupId &&
+            !m.group_id &&
+            String(m.fromId) === String(activeChatPartner.id) &&
+            String(m.toId) === myId
               ? { ...m, read: 1 }
               : m
           )
@@ -301,6 +444,51 @@ export function GlobalMessengerModal({
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, activeTab, activeChatPartner?.id, myId]);
+
+  // Mark group messages as read by current user
+  useEffect(() => {
+    if (!open || activeTab !== 'groups' || !activeGroup?.id || !myId) return;
+    (async () => {
+      try {
+        await apiFetch('/api/messages/read', {
+          method: 'POST',
+          body: JSON.stringify({ groupId: activeGroup.id }),
+        });
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (
+              String(m.groupId || m.group_id) === String(activeGroup.id) &&
+              String(m.fromId) !== myId
+            ) {
+              const currentReadBy = (m.readBy || m.read_by || []).map(String);
+              if (!currentReadBy.includes(myId)) {
+                return { ...m, readBy: [...currentReadBy, myId] };
+              }
+            }
+            return m;
+          })
+        );
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeTab, activeGroup?.id, myId]);
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(e.target) &&
+        !e.target.closest('#emoji-toggle-btn')
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showEmojiPicker]);
 
   // Active conversation filtering
   const conversation = useMemo(() => {
@@ -329,11 +517,44 @@ export function GlobalMessengerModal({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation.length, open]);
 
-  // Send message handler (Direct or Group)
+  // Image selection handler
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (PNG, JPG, JPEG, GIF, WEBP)');
+      return;
+    }
+
+    try {
+      const dataUrl = await compressImage(file);
+      setSelectedImage({
+        dataUrl,
+        name: file.name,
+      });
+      setShowEmojiPicker(false);
+      textInputRef.current?.focus();
+    } catch {
+      alert('Failed to process image. Please try another image.');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Emoji click handler
+  const handleEmojiSelect = (emoji) => {
+    setText((prev) => prev + emoji);
+    textInputRef.current?.focus();
+  };
+
+  // Send message handler (Direct or Group, Text + Image)
   const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!text.trim() || sending) return;
+    e?.preventDefault?.();
+    if ((!text.trim() && !selectedImage) || sending) return;
+
     const bodyText = text.trim();
+    const bodyImage = selectedImage?.dataUrl || '';
     setSending(true);
 
     try {
@@ -341,7 +562,11 @@ export function GlobalMessengerModal({
         // Send to Group
         const res = await apiFetch('/api/messages', {
           method: 'POST',
-          body: JSON.stringify({ groupId: activeGroup.id, text: bodyText }),
+          body: JSON.stringify({
+            groupId: activeGroup.id,
+            text: bodyText,
+            imageUrl: bodyImage,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -354,7 +579,9 @@ export function GlobalMessengerModal({
             fromRole: currentUser?.role || 'Staff',
             fromAvatar: currentUser?.avatar || '',
             text: bodyText,
+            imageUrl: bodyImage,
             time: new Date().toISOString(),
+            readBy: [myId],
           };
           setMessages((prev) => {
             const next = [...prev, localMsg];
@@ -372,7 +599,11 @@ export function GlobalMessengerModal({
         // Send Direct Message
         const res = await apiFetch('/api/messages', {
           method: 'POST',
-          body: JSON.stringify({ toId: activeChatPartner.id, text: bodyText }),
+          body: JSON.stringify({
+            toId: activeChatPartner.id,
+            text: bodyText,
+            imageUrl: bodyImage,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -381,7 +612,9 @@ export function GlobalMessengerModal({
             fromId: myId,
             toId: activeChatPartner.id,
             text: bodyText,
+            imageUrl: bodyImage,
             time: new Date().toISOString(),
+            read: 0,
           };
           setMessages((prev) => {
             const next = [...prev, localMsg];
@@ -397,6 +630,8 @@ export function GlobalMessengerModal({
         }
       }
       setText('');
+      setSelectedImage(null);
+      setShowEmojiPicker(false);
     } catch {
       alert('Unable to send message. Please check your network.');
     } finally {
@@ -464,7 +699,6 @@ export function GlobalMessengerModal({
         setActiveGroup(data);
       }
 
-      // Reset form and switch tab to groups
       setNewGroupName('');
       setNewGroupDesc('');
       setSelectedMemberIds([]);
@@ -599,10 +833,10 @@ export function GlobalMessengerModal({
         open={open}
         onClose={onClose}
         title="CEGS Live Team Messenger & WhatsApp Groups"
-        subtitle="Real-time 1-on-1 direct messaging and WhatsApp-style department & project groups"
+        subtitle="Real-time 1-on-1 direct messaging, team groups, image sharing, and WhatsApp ticks"
         maxWidth={980}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '290px 1fr', gap: 18, height: 530 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '290px 1fr', gap: 18, height: 540 }}>
           {/* LEFT SIDEBAR */}
           <div
             style={{
@@ -780,6 +1014,7 @@ export function GlobalMessengerModal({
                         key={u.id}
                         onClick={() => {
                           setTargetUser(u);
+                          setTargetGroup?.(null);
                         }}
                         style={{
                           display: 'flex',
@@ -878,7 +1113,10 @@ export function GlobalMessengerModal({
                     return (
                       <div
                         key={g.id}
-                        onClick={() => setActiveGroup(g)}
+                        onClick={() => {
+                          setActiveGroup(g);
+                          setTargetGroup?.(g);
+                        }}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -969,11 +1207,19 @@ export function GlobalMessengerModal({
           </div>
 
           {/* RIGHT CHAT AREA */}
-          {activeTab === 'groups' ? (
-            /* GROUP CHAT VIEW */
-            activeGroup ? (
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                {/* GROUP HEADER */}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+            {/* HIDDEN FILE INPUT FOR PHOTO ATTACHMENT */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleImageSelect}
+            />
+
+            {/* HEADER */}
+            {activeTab === 'groups' ? (
+              activeGroup ? (
                 <div
                   style={{
                     display: 'flex',
@@ -1029,7 +1275,6 @@ export function GlobalMessengerModal({
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {/* Add Member button if group admin */}
                     {isCurrentGroupAdmin && (
                       <button
                         type="button"
@@ -1072,193 +1317,9 @@ export function GlobalMessengerModal({
                     </button>
                   </div>
                 </div>
-
-                {/* GROUP MESSAGES FEED */}
-                <div
-                  style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    paddingRight: 8,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                    scrollbarWidth: 'thin',
-                  }}
-                >
-                  {conversation.length === 0 ? (
-                    <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)', fontSize: 13 }}>
-                      <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
-                      No messages in <strong>{activeGroup.name}</strong> yet.
-                      <div style={{ fontSize: 12, marginTop: 4 }}>
-                        Say hello to your team and kick off the discussion!
-                      </div>
-                    </div>
-                  ) : (
-                    conversation.map((m) => {
-                      const isMe = String(m.fromId) === myId;
-                      const senderName = m.fromName || (isMe ? 'You' : 'Member');
-                      const nameColor = getUserColor(senderName);
-                      const isSystem = m.isSystem || senderName === 'System';
-
-                      if (isSystem) {
-                        return (
-                          <div key={m.id || m.time} style={{ display: 'flex', justifyContent: 'center' }}>
-                            <div
-                              style={{
-                                background: '#F1F5F9',
-                                color: '#64748B',
-                                padding: '4px 14px',
-                                borderRadius: 99,
-                                fontSize: 11,
-                                fontWeight: 600,
-                              }}
-                            >
-                              {m.text}
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div
-                          key={m.id || `${m.fromId}-${m.time}`}
-                          style={{
-                            display: 'flex',
-                            justifyContent: isMe ? 'flex-end' : 'flex-start',
-                            alignItems: 'flex-start',
-                            gap: 8,
-                          }}
-                        >
-                          {!isMe && (
-                            <img
-                              src={
-                                m.fromAvatar ||
-                                `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(senderName)}`
-                              }
-                              alt=""
-                              style={{
-                                width: 30,
-                                height: 30,
-                                borderRadius: '50%',
-                                marginTop: 2,
-                                border: '1.5px solid #E2E8F0',
-                                flexShrink: 0,
-                              }}
-                            />
-                          )}
-
-                          <div
-                            style={{
-                              maxWidth: '75%',
-                              padding: '10px 14px',
-                              borderRadius: isMe ? '18px 18px 2px 18px' : '18px 18px 18px 2px',
-                              background: isMe ? 'var(--accent, #7C3AED)' : 'var(--bg-surface, #F1F5F9)',
-                              color: isMe ? '#FFFFFF' : 'var(--text-main, #0F172A)',
-                              boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
-                              fontSize: 13.5,
-                              lineHeight: 1.4,
-                            }}
-                          >
-                            {!isMe && (
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  fontWeight: 900,
-                                  color: nameColor,
-                                  marginBottom: 3,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 6,
-                                }}
-                              >
-                                <span>{senderName}</span>
-                                {m.fromRole && (
-                                  <span
-                                    style={{
-                                      fontSize: 9,
-                                      fontWeight: 800,
-                                      background: 'rgba(0,0,0,0.06)',
-                                      padding: '1px 5px',
-                                      borderRadius: 4,
-                                      color: '#475569',
-                                    }}
-                                  >
-                                    {m.fromRole}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-
-                            <div>{m.text}</div>
-
-                            <div
-                              style={{
-                                fontSize: 10,
-                                opacity: 0.7,
-                                marginTop: 4,
-                                textAlign: 'right',
-                                fontFamily: 'JetBrains Mono, monospace',
-                              }}
-                            >
-                              {new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* MESSAGE INPUT */}
-                <form
-                  onSubmit={handleSendMessage}
-                  style={{
-                    display: 'flex',
-                    gap: 10,
-                    marginTop: 14,
-                    paddingTop: 12,
-                    borderTop: '1px solid var(--border)',
-                  }}
-                >
-                  <input
-                    className="form-input"
-                    placeholder={`Message #${activeGroup.name}...`}
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: 12 }}
-                    autoFocus
-                    disabled={sending}
-                  />
-                  <button
-                    type="submit"
-                    className="btn btn-dark"
-                    disabled={sending || !text.trim()}
-                    style={{
-                      background: 'var(--accent, #7C3AED)',
-                      padding: '0 22px',
-                      fontWeight: 800,
-                      borderRadius: 12,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      opacity: sending ? 0.7 : 1,
-                    }}
-                  >
-                    <span>{sending ? 'Sending…' : 'Send'}</span> <IC n="send" s={15} />
-                  </button>
-                </form>
-              </div>
+              ) : null
             ) : (
-              <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)' }}>
-                Select a group to start collaborating.
-              </div>
-            )
-          ) : (
-            /* DIRECT CHAT VIEW */
-            activeChatPartner ? (
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                {/* DIRECT HEADER */}
+              activeChatPartner ? (
                 <div
                   style={{
                     display: 'flex',
@@ -1309,116 +1370,521 @@ export function GlobalMessengerModal({
                     Active Now
                   </span>
                 </div>
+              ) : null
+            )}
 
-                {loadError && (
-                  <div style={{ fontSize: 12, color: '#B45309', marginBottom: 8, fontWeight: 600 }}>
-                    {loadError}
+            {loadError && (
+              <div style={{ fontSize: 12, color: '#B45309', marginBottom: 8, fontWeight: 600 }}>
+                {loadError}
+              </div>
+            )}
+
+            {/* CONVERSATION FEED */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                paddingRight: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                scrollbarWidth: 'thin',
+              }}
+            >
+              {conversation.length === 0 ? (
+                <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)', fontSize: 13 }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
+                  {activeTab === 'groups' ? (
+                    <>
+                      No messages in <strong>{activeGroup?.name || 'group'}</strong> yet.
+                      <div style={{ fontSize: 12, marginTop: 4 }}>
+                        Say hello to your team and kick off the discussion!
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      No messages yet with <strong>{activeChatPartner?.name}</strong>.
+                      <div style={{ fontSize: 12, marginTop: 4 }}>
+                        Say hello to start the conversation!
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                conversation.map((m) => {
+                  const isMe = String(m.fromId) === myId;
+                  const senderName = m.fromName || (isMe ? 'You' : 'Member');
+                  const nameColor = getUserColor(senderName);
+                  const isSystem = m.isSystem || senderName === 'System';
+
+                  if (isSystem) {
+                    return (
+                      <div key={m.id || `${m.fromId}-${m.time}`} style={{ display: 'flex', justifyContent: 'center' }}>
+                        <div
+                          style={{
+                            background: '#F1F5F9',
+                            color: '#64748B',
+                            padding: '4px 14px',
+                            borderRadius: 99,
+                            fontSize: 11,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {m.text}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={m.id || `${m.fromId}-${m.time}`}
+                      style={{
+                        display: 'flex',
+                        justifyContent: isMe ? 'flex-end' : 'flex-start',
+                        alignItems: 'flex-start',
+                        gap: 8,
+                      }}
+                    >
+                      {!isMe && (
+                        <img
+                          src={
+                            m.fromAvatar ||
+                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(senderName)}`
+                          }
+                          alt=""
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: '50%',
+                            marginTop: 2,
+                            border: '1.5px solid #E2E8F0',
+                            flexShrink: 0,
+                            objectFit: 'cover',
+                          }}
+                        />
+                      )}
+
+                      <div
+                        style={{
+                          maxWidth: '75%',
+                          padding: '10px 14px',
+                          borderRadius: isMe ? '18px 18px 2px 18px' : '18px 18px 18px 2px',
+                          background: isMe ? 'var(--accent, #7C3AED)' : 'var(--bg-surface, #F1F5F9)',
+                          color: isMe ? '#FFFFFF' : 'var(--text-main, #0F172A)',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+                          fontSize: 13.5,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {!isMe && (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 900,
+                              color: nameColor,
+                              marginBottom: 3,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            <span>{senderName}</span>
+                            {m.fromRole && (
+                              <span
+                                style={{
+                                  fontSize: 9,
+                                  fontWeight: 800,
+                                  background: 'rgba(0,0,0,0.06)',
+                                  padding: '1px 5px',
+                                  borderRadius: 4,
+                                  color: '#475569',
+                                }}
+                              >
+                                {m.fromRole}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ATTACHED IMAGE (Clickable Lightbox) */}
+                        {m.imageUrl && (
+                          <div
+                            onClick={() => setPreviewImage(m.imageUrl)}
+                            style={{
+                              borderRadius: 12,
+                              overflow: 'hidden',
+                              marginBottom: m.text ? 8 : 4,
+                              cursor: 'pointer',
+                              position: 'relative',
+                            }}
+                          >
+                            <img
+                              src={m.imageUrl}
+                              alt="Photo"
+                              style={{
+                                display: 'block',
+                                maxWidth: '100%',
+                                maxHeight: 260,
+                                borderRadius: 10,
+                                objectFit: 'cover',
+                              }}
+                            />
+                            <div
+                              style={{
+                                position: 'absolute',
+                                bottom: 6,
+                                right: 6,
+                                background: 'rgba(0,0,0,0.6)',
+                                color: '#FFF',
+                                borderRadius: 6,
+                                padding: '2px 6px',
+                                fontSize: 10,
+                                fontWeight: 700,
+                              }}
+                            >
+                              🔍 View
+                            </div>
+                          </div>
+                        )}
+
+                        {/* TEXT MESSAGE */}
+                        {m.text && <div style={{ wordBreak: 'break-word' }}>{m.text}</div>}
+
+                        {/* TIMESTAMP & WHATSAPP TICKS */}
+                        <div
+                          style={{
+                            fontSize: 10,
+                            opacity: 0.8,
+                            marginTop: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
+                            gap: 3,
+                            fontFamily: 'JetBrains Mono, monospace',
+                          }}
+                        >
+                          <span>
+                            {new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+
+                          {/* ONE TICK, TWO TICK, BLUE TICK */}
+                          <WhatsAppTicks
+                            isMe={isMe}
+                            read={m.read}
+                            readBy={m.readBy || m.read_by}
+                            isGroup={activeTab === 'groups'}
+                            myId={myId}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* IMAGE PREVIEW DRAWER (Before Sending) */}
+            {selectedImage && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '8px 12px',
+                  background: '#F1F5F9',
+                  borderRadius: '12px 12px 0 0',
+                  border: '1px solid var(--border)',
+                  borderBottom: 'none',
+                }}
+              >
+                <div style={{ position: 'relative' }}>
+                  <img
+                    src={selectedImage.dataUrl}
+                    alt="Preview"
+                    style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedImage(null)}
+                    style={{
+                      position: 'absolute',
+                      top: -6,
+                      right: -6,
+                      background: '#EF4444',
+                      color: '#FFF',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: 18,
+                      height: 18,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      fontWeight: 900,
+                    }}
+                    title="Remove Image"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    {selectedImage.name || 'Photo selected'}
                   </div>
-                )}
+                  <div style={{ fontSize: 11, color: '#64748B' }}>
+                    Ready to send with your message
+                  </div>
+                </div>
+              </div>
+            )}
 
-                {/* DIRECT CONVERSATION FEED */}
+            {/* EMOJI PICKER POPUP (WhatsApp Style) */}
+            {showEmojiPicker && (
+              <div
+                ref={emojiPickerRef}
+                style={{
+                  position: 'absolute',
+                  bottom: selectedImage ? '135px' : '72px',
+                  left: 12,
+                  zIndex: 1000,
+                  background: '#FFFFFF',
+                  borderRadius: 16,
+                  border: '1px solid #E2E8F0',
+                  boxShadow: '0 14px 38px rgba(15, 23, 42, 0.18)',
+                  width: 320,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  animation: 'fadeIn 0.15s ease-out',
+                }}
+              >
+                {/* Category Header */}
                 <div
                   style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    paddingRight: 8,
                     display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
+                    background: '#F8FAFC',
+                    borderBottom: '1px solid #E2E8F0',
+                    padding: '6px 8px',
+                    gap: 4,
+                  }}
+                >
+                  {EMOJI_CATEGORIES.map((cat, idx) => (
+                    <button
+                      key={cat.name}
+                      type="button"
+                      onClick={() => setActiveEmojiCategory(idx)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 4px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: activeEmojiCategory === idx ? '#FFFFFF' : 'transparent',
+                        boxShadow: activeEmojiCategory === idx ? '0 1px 4px rgba(0,0,0,0.06)' : 'none',
+                        cursor: 'pointer',
+                        fontSize: 16,
+                      }}
+                      title={cat.name}
+                    >
+                      {cat.icon}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Emoji Grid */}
+                <div
+                  style={{
+                    maxHeight: 190,
+                    overflowY: 'auto',
+                    padding: 8,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 1fr)',
+                    gap: 4,
                     scrollbarWidth: 'thin',
                   }}
                 >
-                  {conversation.length === 0 ? (
-                    <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)', fontSize: 13 }}>
-                      No direct messages yet. Say hello to <strong>{activeChatPartner.name}</strong>!
-                    </div>
-                  ) : (
-                    conversation.map((m) => {
-                      const isMe = String(m.fromId) === myId;
-                      return (
-                        <div
-                          key={m.id || `${m.fromId}-${m.time}`}
-                          style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}
-                        >
-                          <div
-                            style={{
-                              maxWidth: '75%',
-                              padding: '12px 16px',
-                              borderRadius: isMe ? '18px 18px 2px 18px' : '18px 18px 18px 2px',
-                              background: isMe ? 'var(--accent, #7C3AED)' : 'var(--bg-surface, #F1F5F9)',
-                              color: isMe ? '#FFFFFF' : 'var(--text-main, #0F172A)',
-                              boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
-                              fontSize: 13.5,
-                              lineHeight: 1.4,
-                            }}
-                          >
-                            <div>{m.text}</div>
-                            <div
-                              style={{
-                                fontSize: 10,
-                                opacity: 0.7,
-                                marginTop: 4,
-                                textAlign: 'right',
-                                fontFamily: 'JetBrains Mono, monospace',
-                              }}
-                            >
-                              {new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                  <div ref={messagesEndRef} />
+                  {EMOJI_CATEGORIES[activeEmojiCategory].emojis.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => handleEmojiSelect(emoji)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        fontSize: 22,
+                        padding: '4px 0',
+                        cursor: 'pointer',
+                        borderRadius: 6,
+                        transition: 'transform 0.1s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.25)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
                 </div>
+              </div>
+            )}
 
-                {/* DIRECT SEND INPUT */}
-                <form
-                  onSubmit={handleSendMessage}
-                  style={{
-                    display: 'flex',
-                    gap: 10,
-                    marginTop: 14,
-                    paddingTop: 12,
-                    borderTop: '1px solid var(--border)',
-                  }}
-                >
-                  <input
-                    className="form-input"
-                    placeholder={`Type a message to ${activeChatPartner.name.split(' ')[0]}...`}
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: 12 }}
-                    autoFocus
-                    disabled={sending}
-                  />
-                  <button
-                    type="submit"
-                    className="btn btn-dark"
-                    disabled={sending || !text.trim()}
-                    style={{
-                      background: 'var(--accent, #7C3AED)',
-                      padding: '0 22px',
-                      fontWeight: 800,
-                      borderRadius: 12,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      opacity: sending ? 0.7 : 1,
-                    }}
-                  >
-                    <span>{sending ? 'Sending…' : 'Send'}</span> <IC n="send" s={15} />
-                  </button>
-                </form>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)' }}>
-                Select an employee to start a conversation.
-              </div>
-            )
-          )}
+            {/* WHATSAPP-STYLE INPUT BAR (Attachment + Emoji + Input + Send) */}
+            <form
+              onSubmit={handleSendMessage}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginTop: selectedImage ? 0 : 12,
+                paddingTop: selectedImage ? 8 : 12,
+                borderTop: selectedImage ? 'none' : '1px solid var(--border)',
+                background: '#FFFFFF',
+              }}
+            >
+              {/* ATTACHMENT / PAPERCLIP ICON */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Attach photo / image"
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: '#F1F5F9',
+                  color: '#475569',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+
+              {/* EMOJI ICON */}
+              <button
+                id="emoji-toggle-btn"
+                type="button"
+                onClick={() => setShowEmojiPicker((prev) => !prev)}
+                title="Insert emoji"
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: showEmojiPicker ? '#ECFDF5' : '#F1F5F9',
+                  color: showEmojiPicker ? '#10B981' : '#475569',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 19,
+                  transition: 'background 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                😊
+              </button>
+
+              {/* TEXT INPUT */}
+              <input
+                ref={textInputRef}
+                className="form-input"
+                placeholder={
+                  selectedImage
+                    ? 'Add a caption...'
+                    : activeTab === 'groups'
+                    ? `Message #${activeGroup?.name || 'group'}...`
+                    : `Type a message to ${activeChatPartner?.name?.split(' ')[0] || 'colleague'}...`
+                }
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                style={{ flex: 1, padding: '11px 16px', borderRadius: 99, fontSize: 13.5 }}
+                autoFocus
+                disabled={sending}
+              />
+
+              {/* SEND BUTTON */}
+              <button
+                type="submit"
+                className="btn btn-dark"
+                disabled={sending || (!text.trim() && !selectedImage)}
+                style={{
+                  background: 'var(--accent, #7C3AED)',
+                  height: 42,
+                  padding: '0 20px',
+                  fontWeight: 800,
+                  borderRadius: 99,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  opacity: sending || (!text.trim() && !selectedImage) ? 0.6 : 1,
+                  flexShrink: 0,
+                }}
+              >
+                <span>{sending ? 'Sending…' : 'Send'}</span> <IC n="send" s={14} />
+              </button>
+            </form>
+          </div>
         </div>
       </Modal>
+
+      {/* FULLSCREEN LIGHTBOX PHOTO MODAL */}
+      {previewImage && (
+        <Modal
+          open={Boolean(previewImage)}
+          onClose={() => setPreviewImage(null)}
+          title="Photo Preview"
+          maxWidth={760}
+        >
+          <div style={{ textAlign: 'center', padding: '10px 0' }}>
+            <img
+              src={previewImage}
+              alt="Photo preview"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '68vh',
+                borderRadius: 14,
+                objectFit: 'contain',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+              }}
+            />
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 12 }}>
+              <a
+                href={previewImage}
+                download="chat-photo.jpg"
+                className="btn btn-sm btn-dark"
+                style={{
+                  background: '#10B981',
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  padding: '8px 20px',
+                  borderRadius: 99,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>Download Photo</span>
+              </a>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => setPreviewImage(null)}
+                style={{ fontWeight: 800, borderRadius: 99 }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* MODAL 1: CREATE NEW GROUP (Authority: HR Admin or Finance / Invoice) */}
       {showCreateGroupModal && (
@@ -1818,7 +2284,7 @@ export function GlobalMessengerModal({
               </div>
             )}
 
-            {/* MEMBERS LIST */}
+            {/* MEMBERS LIST (Permanent, no message delete option) */}
             <div>
               <div
                 style={{
@@ -1869,7 +2335,6 @@ export function GlobalMessengerModal({
                     );
                   const isMe = mId === myId;
 
-                  // Resolve name and avatar
                   let memberObj = typeof m === 'object' ? m : null;
                   if (!memberObj?.name) {
                     memberObj = colleagues.find((c) => String(c.id) === mId) || {
