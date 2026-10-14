@@ -66,6 +66,21 @@ const INITIAL_CLIENTS = [
     notes: 'Internal corporate group accounts.',
     status: 'Active',
   },
+  {
+    name: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
+    contactPerson: 'Accounts & Finance Team',
+    email: 'finance.india@isonxperiences.com',
+    phone: '+91 80 4912 3400',
+    gstin: '29AADCI1246E1ZT',
+    address: 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'Customer Experience & BPO Services',
+    paymentTerms: 'Net 30',
+    templateType: 'GST_INV_1',
+    notes: 'Official Form GST INV – 1 candidate placement and seat billing partner.',
+    status: 'Active',
+  },
 ];
 
 function flatten(doc) {
@@ -79,6 +94,12 @@ export async function GET(request) {
     let count = await ClientCompany.countDocuments();
     if (count === 0) {
       await ClientCompany.insertMany(INITIAL_CLIENTS);
+    } else {
+      // Ensure ISON XPERIENCES is seeded if missing
+      const hasIson = await ClientCompany.findOne({ name: /ISON XPERIENCES/i });
+      if (!hasIson) {
+        await ClientCompany.create(INITIAL_CLIENTS[INITIAL_CLIENTS.length - 1]);
+      }
     }
     const clients = await ClientCompany.find({}).sort({ name: 1 }).lean();
     return NextResponse.json(clients.map(flatten));

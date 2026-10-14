@@ -38,6 +38,36 @@ const ClientInvoiceSchema = new mongoose.Schema(
     clientEmail: { type: String, default: '' },
     clientPhone: { type: String, default: '' },
     notes: { type: String, default: '' },
+    // Official Form GST INV – 1 & Client Template Extensions
+    templateType: { type: String, default: 'GST_INV_1' },
+    clientAddress: { type: String, default: '' },
+    clientGstin: { type: String, default: '' },
+    clientState: { type: String, default: 'Karnataka' },
+    clientStateCode: { type: String, default: '29' },
+    poNo: { type: String, default: '' },
+    modeOfTransport: { type: String, default: '' },
+    vehicleNo: { type: String, default: '' },
+    dateTimeOfService: { type: String, default: '' },
+    placeOfService: { type: String, default: 'Bangalore' },
+    sgstRate: { type: Number, default: 9 },
+    cgstRate: { type: Number, default: 9 },
+    sgstAmount: { type: Number, default: 0 },
+    cgstAmount: { type: Number, default: 0 },
+    amountInWords: { type: String, default: '' },
+    items: {
+      type: [
+        {
+          empId: { type: String, default: '' },
+          employeeName: { type: String, default: '' },
+          doj: { type: String, default: '' },
+          processLob: { type: String, default: '' },
+          ratePerSeat: { type: Number, default: 0 },
+          sacCode: { type: String, default: '99851' },
+          amount: { type: Number, default: 0 },
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true }
 );

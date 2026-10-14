@@ -145,6 +145,36 @@ const SEED_INVOICES = [
     invoiceDate: '2026-03-25',
     notes: 'Cleared on receipt.',
   },
+  {
+    invoiceNo: 'INV-2026-ISON-01',
+    client: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
+    projectMilestone: 'Employee & Seat Billing · 7 Seats (Etisalat, CNR, ICAD, EMoney, SMB)',
+    amount: 43660,
+    basicAmount: 37000,
+    sgstAmount: 3330,
+    cgstAmount: 3330,
+    dueDate: '30 days',
+    status: 'Pending',
+    stage: 'raised',
+    invoiceDate: '2026-10-14',
+    notes: 'Official Form GST INV – 1 candidate placement and seat billing.',
+    clientGstin: '29AADCI1246E1ZT',
+    clientAddress: 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102',
+    clientState: 'Karnataka',
+    clientStateCode: '29',
+    placeOfService: 'Bangalore',
+    templateType: 'GST_INV_1',
+    amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+    items: [
+      { empId: 'CEGS-01', employeeName: 'Mohammed Imran', doj: '12/04/2026', processLob: '101', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      { empId: 'CEGS-02', employeeName: 'Farhan Pasha', doj: '15/04/2026', processLob: 'Etisalat', ratePerSeat: 7000, sacCode: '99851', amount: 7000 },
+      { empId: 'CEGS-03', employeeName: 'Syed Tanveer', doj: '18/04/2026', processLob: 'CNR', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      { empId: 'CEGS-04', employeeName: 'Ayesha Siddiqua', doj: '20/04/2026', processLob: 'I-CAD', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      { empId: 'CEGS-05', employeeName: 'Zeeshan Ali', doj: '22/04/2026', processLob: 'E-Money', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      { empId: 'CEGS-06', employeeName: 'Tabassum Khan', doj: '25/04/2026', processLob: 'universal', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      { empId: 'CEGS-07', employeeName: 'Kashif Ahmed', doj: '28/04/2026', processLob: 'SMB', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+    ],
+  },
 ];
 
 async function seedCrmInvoicesIfEmpty() {
@@ -154,6 +184,11 @@ async function seedCrmInvoicesIfEmpty() {
   if (count === 0) {
     for (const item of SEED_INVOICES) {
       await ClientInvoice.create(item);
+    }
+  } else {
+    const hasIson = await ClientInvoice.findOne({ client: /ISON XPERIENCES/i });
+    if (!hasIson) {
+      await ClientInvoice.create(SEED_INVOICES[SEED_INVOICES.length - 1]);
     }
   }
 }
@@ -237,6 +272,9 @@ export async function POST(request) {
     }
 
     const amount = Number(body.amount) || 0;
+    const basicAmount = Number(body.basicAmount) || amount;
+    const sgstAmount = Number(body.sgstAmount) || 0;
+    const cgstAmount = Number(body.cgstAmount) || 0;
     const status = body.status === 'Paid' ? 'Paid' : 'Pending';
     const stage = status === 'Paid' ? 'cleared' : 'raised';
 
@@ -245,7 +283,9 @@ export async function POST(request) {
       client,
       projectMilestone: String(body.projectMilestone || 'Project Milestone').trim(),
       amount,
-      basicAmount: amount,
+      basicAmount,
+      sgstAmount,
+      cgstAmount,
       dueDate: String(body.dueDate || '10 days').trim(),
       status,
       stage,
@@ -253,6 +293,15 @@ export async function POST(request) {
       paidDate: status === 'Paid' ? todayIsoDate() : '',
       clientEmail: String(body.clientEmail || '').trim(),
       clientPhone: String(body.clientPhone || '').trim(),
+      clientAddress: String(body.clientAddress || '').trim(),
+      clientGstin: String(body.clientGstin || '').trim(),
+      clientState: String(body.clientState || 'Karnataka').trim(),
+      clientStateCode: String(body.clientStateCode || '29').trim(),
+      poNo: String(body.poNo || '').trim(),
+      placeOfService: String(body.placeOfService || 'Bangalore').trim(),
+      templateType: String(body.templateType || 'GST_INV_1').trim(),
+      amountInWords: String(body.amountInWords || '').trim(),
+      items: Array.isArray(body.items) ? body.items : [],
       notes: String(body.notes || '').trim(),
     });
 
@@ -269,8 +318,11 @@ export async function POST(request) {
     if (body.projectMilestone !== undefined) updateFields.projectMilestone = String(body.projectMilestone).trim();
     if (body.amount !== undefined) {
       updateFields.amount = Number(body.amount) || 0;
-      updateFields.basicAmount = updateFields.amount;
+      updateFields.basicAmount = Number(body.basicAmount) || updateFields.amount;
     }
+    if (body.basicAmount !== undefined) updateFields.basicAmount = Number(body.basicAmount) || 0;
+    if (body.sgstAmount !== undefined) updateFields.sgstAmount = Number(body.sgstAmount) || 0;
+    if (body.cgstAmount !== undefined) updateFields.cgstAmount = Number(body.cgstAmount) || 0;
     if (body.dueDate !== undefined) updateFields.dueDate = String(body.dueDate).trim();
     if (body.status !== undefined) {
       updateFields.status = body.status === 'Paid' ? 'Paid' : 'Pending';
@@ -288,6 +340,10 @@ export async function POST(request) {
     if (body.client !== undefined) updateFields.client = String(body.client).trim();
     if (body.clientEmail !== undefined) updateFields.clientEmail = String(body.clientEmail).trim();
     if (body.clientPhone !== undefined) updateFields.clientPhone = String(body.clientPhone).trim();
+    if (body.clientAddress !== undefined) updateFields.clientAddress = String(body.clientAddress).trim();
+    if (body.clientGstin !== undefined) updateFields.clientGstin = String(body.clientGstin).trim();
+    if (body.amountInWords !== undefined) updateFields.amountInWords = String(body.amountInWords).trim();
+    if (body.items !== undefined && Array.isArray(body.items)) updateFields.items = body.items;
     if (body.notes !== undefined) updateFields.notes = String(body.notes).trim();
 
     const updated = await ClientInvoice.findByIdAndUpdate(id, { $set: updateFields }, { new: true });

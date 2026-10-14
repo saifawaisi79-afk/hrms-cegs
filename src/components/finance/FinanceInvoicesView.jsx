@@ -67,6 +67,71 @@ function formatMonthLabel(key) {
   return key;
 }
 
+// Sample items matching ISON XPERIENCES Form GST INV – 1
+const ISON_SAMPLE_ITEMS = [
+  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: '101', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'Etisalat', ratePerSeat: 7000, sacCode: '99851', amount: 7000 },
+  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'CNR', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'I-CAD', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'E-Money', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'universal', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'SMB', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+];
+
+function numberToWordsINR(num) {
+  num = Math.round(Number(num) || 0);
+  if (num === 0) return 'Zero Rupees only';
+
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+    'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function convertTwoDigits(n) {
+    if (n === 0) return '';
+    if (n < 20) return a[n];
+    const tens = b[Math.floor(n / 10)];
+    const units = a[n % 10];
+    return tens + (units ? `-${units}` : '');
+  }
+
+  function convertThreeDigits(n) {
+    let str = '';
+    const hundreds = Math.floor(n / 100);
+    const rest = n % 100;
+    if (hundreds > 0) {
+      str += `${a[hundreds]} Hundred `;
+    }
+    if (rest > 0) {
+      str += convertTwoDigits(rest);
+    }
+    return str.trim();
+  }
+
+  let result = '';
+  const crore = Math.floor(num / 10000000);
+  num %= 10000000;
+  const lakh = Math.floor(num / 100000);
+  num %= 100000;
+  const thousand = Math.floor(num / 1000);
+  num %= 1000;
+  const remaining = num;
+
+  if (crore > 0) {
+    result += `${convertThreeDigits(crore)} Crore `;
+  }
+  if (lakh > 0) {
+    result += `${convertThreeDigits(lakh)} Lakh `;
+  }
+  if (thousand > 0) {
+    result += `${convertThreeDigits(thousand)} Thousand `;
+  }
+  if (remaining > 0) {
+    result += `${convertThreeDigits(remaining)} `;
+  }
+
+  return `${result.trim()} only.`;
+}
+
 function authHeaders() {
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('cegs_token') : '';
   return {
@@ -75,8 +140,32 @@ function authHeaders() {
   };
 }
 
-// Fallback seed invoices matching the user screenshot
+// Fallback seed invoices matching the user screenshot and official templates
 const DEFAULT_INVOICES = [
+  {
+    id: 'seed-ison-1',
+    _id: 'seed-ison-1',
+    invoiceNo: 'INV-2026-ISON-01',
+    client: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
+    projectMilestone: 'Employee & Seat Billing · 7 Seats (Etisalat, CNR, ICAD, EMoney, SMB)',
+    amount: 43660,
+    basicAmount: 37000,
+    sgstAmount: 3330,
+    cgstAmount: 3330,
+    dueDate: '30 days',
+    status: 'Pending',
+    paidDate: '',
+    invoiceDate: '2026-10-14',
+    notes: 'Official Form GST INV – 1 candidate placement and seat billing.',
+    clientGstin: '29AADCI1246E1ZT',
+    clientAddress: 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102',
+    clientState: 'Karnataka',
+    clientStateCode: '29',
+    placeOfService: 'Bangalore',
+    templateType: 'GST_INV_1',
+    amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+    items: ISON_SAMPLE_ITEMS,
+  },
   {
     id: 'seed-1',
     _id: 'seed-1',
@@ -156,6 +245,19 @@ const DEFAULT_INVOICES = [
 ];
 
 const DEFAULT_CLIENTS = [
+  {
+    id: 'c-ison',
+    name: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
+    email: 'finance.india@isonxperiences.com',
+    phone: '+91 80 4912 3400',
+    gstin: '29AADCI1246E1ZT',
+    address: 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'Customer Experience & BPO Services',
+    paymentTerms: 'Net 30',
+    templateType: 'GST_INV_1',
+  },
   { id: 'c-1', name: 'Apex Corp', email: 'billing@apexcorp.com', phone: '+91 98201 44521', industry: 'Branding & Tech' },
   { id: 'c-2', name: 'Nexus Media', email: 'finance@nexusmedia.com', phone: '+91 97110 33912', industry: 'Digital Media' },
   { id: 'c-3', name: 'Starlight Tech', email: 'accounts@starlighttech.io', phone: '+91 99400 88214', industry: 'Cloud & AI' },
@@ -183,6 +285,7 @@ export function FinanceInvoicesView() {
   const [monthFileSelection, setMonthFileSelection] = useState(new Date().toISOString().slice(0, 7));
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [previewInvoice, setPreviewInvoice] = useState(null);
+  const [previewTemplateMode, setPreviewTemplateMode] = useState('GST_INV_1');
   const [reminderInvoice, setReminderInvoice] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -203,13 +306,19 @@ export function FinanceInvoicesView() {
 
   // New Invoice Form state
   const [invoiceForm, setInvoiceForm] = useState({
-    client: 'Apex Corp',
+    client: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
     invoiceNo: '',
-    projectMilestone: '',
-    amount: '',
-    dueDate: '',
+    projectMilestone: 'Candidate Placement & Seat Billing (7 Seats)',
+    amount: '43660',
+    basicAmount: 37000,
+    sgstAmount: 3330,
+    cgstAmount: 3330,
+    dueDate: '30 days',
     status: 'Pending',
-    notes: '',
+    notes: 'Official Form GST INV – 1 candidate placement and seat billing across 7 processes.',
+    items: ISON_SAMPLE_ITEMS,
+    templateType: 'GST_INV_1',
+    amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
   });
   const [savingInvoice, setSavingInvoice] = useState(false);
   const [savingEditInvoice, setSavingEditInvoice] = useState(false);
@@ -414,9 +523,21 @@ export function FinanceInvoicesView() {
       client: inv.client || '',
       projectMilestone: inv.projectMilestone || '',
       amount: inv.amount || inv.basicAmount || 0,
+      basicAmount: inv.basicAmount || 0,
+      sgstAmount: inv.sgstAmount || 0,
+      cgstAmount: inv.cgstAmount || 0,
+      items: inv.items || [],
+      clientAddress: inv.clientAddress || '',
+      clientGstin: inv.clientGstin || '',
+      clientState: inv.clientState || '',
+      clientStateCode: inv.clientStateCode || '',
+      templateType: inv.templateType || '',
+      poNo: inv.poNo || '',
+      placeOfService: inv.placeOfService || 'Bangalore',
       dueDate: inv.dueDate || '',
       status: inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
       notes: inv.notes || '',
+      amountInWords: inv.amountInWords || '',
     });
   };
 
@@ -427,6 +548,11 @@ export function FinanceInvoicesView() {
     setSavingEditInvoice(true);
 
     try {
+      const amt = Number(editingInvoice.amount) || 0;
+      const bAmt = editingInvoice.basicAmount ? Number(editingInvoice.basicAmount) : (amt ? Math.round(amt / 1.18) : amt);
+      const sAmt = editingInvoice.sgstAmount ? Number(editingInvoice.sgstAmount) : (amt ? Math.round(bAmt * 0.09) : 0);
+      const cAmt = editingInvoice.cgstAmount ? Number(editingInvoice.cgstAmount) : (amt ? Math.round(bAmt * 0.09) : 0);
+
       const payload = {
         action: 'edit_invoice',
         id: editingInvoice.id,
@@ -434,7 +560,19 @@ export function FinanceInvoicesView() {
         invoiceDate: editingInvoice.invoiceDate, // Preserved!
         client: editingInvoice.client,
         projectMilestone: editingInvoice.projectMilestone,
-        amount: Number(editingInvoice.amount) || 0,
+        amount: amt,
+        basicAmount: bAmt,
+        sgstAmount: sAmt,
+        cgstAmount: cAmt,
+        items: editingInvoice.items || [],
+        clientAddress: editingInvoice.clientAddress,
+        clientGstin: editingInvoice.clientGstin,
+        clientState: editingInvoice.clientState,
+        clientStateCode: editingInvoice.clientStateCode,
+        templateType: editingInvoice.templateType,
+        poNo: editingInvoice.poNo,
+        placeOfService: editingInvoice.placeOfService,
+        amountInWords: editingInvoice.amountInWords || numberToWordsINR(amt),
         dueDate: editingInvoice.dueDate,
         status: editingInvoice.status,
         notes: editingInvoice.notes,
@@ -669,16 +807,34 @@ export function FinanceInvoicesView() {
         invNo = `INV-${String(invoices.length + 1).padStart(3, '0')}`;
       }
 
+      const isIson = (invoiceForm.client || '').toLowerCase().includes('ison');
+      const amt = Number(invoiceForm.amount) || 0;
+      const bAmt = invoiceForm.basicAmount ? Number(invoiceForm.basicAmount) : (isIson ? 37000 : (amt ? Math.round(amt / 1.18) : amt));
+      const sAmt = invoiceForm.sgstAmount ? Number(invoiceForm.sgstAmount) : (isIson ? 3330 : (amt ? Math.round(bAmt * 0.09) : 0));
+      const cAmt = invoiceForm.cgstAmount ? Number(invoiceForm.cgstAmount) : (isIson ? 3330 : (amt ? Math.round(bAmt * 0.09) : 0));
+
       const payload = {
         action: 'create_invoice',
         client: invoiceForm.client,
         invoiceNo: invNo,
-        projectMilestone: invoiceForm.projectMilestone || 'Project Deliverable',
-        amount: Number(invoiceForm.amount) || 0,
-        dueDate: invoiceForm.dueDate || '15 days',
+        projectMilestone: invoiceForm.projectMilestone || (isIson ? 'Candidate Placement & Seat Billing (7 Seats)' : 'Project Deliverable'),
+        amount: amt,
+        basicAmount: bAmt,
+        sgstAmount: sAmt,
+        cgstAmount: cAmt,
+        dueDate: invoiceForm.dueDate || '30 days',
         status: invoiceForm.status,
         notes: invoiceForm.notes,
         invoiceDate: new Date().toISOString().slice(0, 10),
+        items: invoiceForm.items && invoiceForm.items.length > 0 ? invoiceForm.items : (isIson ? ISON_SAMPLE_ITEMS : []),
+        templateType: invoiceForm.templateType || (isIson ? 'GST_INV_1' : 'standard'),
+        clientAddress: invoiceForm.clientAddress || (isIson ? 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102' : ''),
+        clientGstin: invoiceForm.clientGstin || (isIson ? '29AADCI1246E1ZT' : ''),
+        clientState: invoiceForm.clientState || 'Karnataka',
+        clientStateCode: invoiceForm.clientStateCode || '29',
+        poNo: invoiceForm.poNo || '',
+        placeOfService: invoiceForm.placeOfService || 'Bangalore',
+        amountInWords: invoiceForm.amountInWords || numberToWordsINR(amt),
       };
 
       const res = await fetch('/api/client-invoices', {
@@ -695,13 +851,19 @@ export function FinanceInvoicesView() {
       setShowGenerateInvoiceModal(false);
       showToast(`Invoice ${invNo} generated successfully!`);
       setInvoiceForm({
-        client: companyOptions[0] || 'Apex Corp',
+        client: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
         invoiceNo: '',
-        projectMilestone: '',
-        amount: '',
-        dueDate: '',
+        projectMilestone: 'Candidate Placement & Seat Billing (7 Seats)',
+        amount: '43660',
+        basicAmount: 37000,
+        sgstAmount: 3330,
+        cgstAmount: 3330,
+        dueDate: '30 days',
         status: 'Pending',
-        notes: '',
+        notes: 'Official Form GST INV – 1 candidate placement and seat billing across 7 processes.',
+        items: ISON_SAMPLE_ITEMS,
+        templateType: 'GST_INV_1',
+        amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
       });
     } catch {
       alert('Invoice created locally');
@@ -2155,7 +2317,27 @@ export function FinanceInvoicesView() {
                   </label>
                   <select
                     value={invoiceForm.client}
-                    onChange={(e) => setInvoiceForm({ ...invoiceForm, client: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val.toLowerCase().includes('ison')) {
+                        setInvoiceForm({
+                          ...invoiceForm,
+                          client: val,
+                          projectMilestone: 'Candidate Placement & Seat Billing (7 Seats)',
+                          amount: '43660',
+                          basicAmount: 37000,
+                          sgstAmount: 3330,
+                          cgstAmount: 3330,
+                          dueDate: '30 days',
+                          notes: 'Form GST INV – 1 candidate placements (101, Etisalat, CNR, I-CAD, E-Money, universal, SMB)',
+                          items: ISON_SAMPLE_ITEMS,
+                          templateType: 'GST_INV_1',
+                          amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+                        });
+                      } else {
+                        setInvoiceForm({ ...invoiceForm, client: val });
+                      }
+                    }}
                     style={{
                       width: '100%',
                       padding: '10px 14px',
@@ -2197,6 +2379,66 @@ export function FinanceInvoicesView() {
                   />
                 </div>
               </div>
+
+              {/* ISON QUICK-FILL HELPER BANNER */}
+              {invoiceForm.client?.toLowerCase().includes('ison') && (
+                <div
+                  style={{
+                    background: '#FEF9C3',
+                    border: '1.5px solid #FACC15',
+                    borderRadius: 12,
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 12.5, color: '#854D0E', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>📄 Form GST INV – 1 Active</span>
+                      <span style={{ background: '#CA8A04', color: '#FFF', fontSize: 9.5, padding: '2px 6px', borderRadius: 6, fontWeight: 900 }}>
+                        OFFICIAL ISON
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#A16207', marginTop: 2 }}>
+                      Preloaded 7 seat placements (101, Etisalat, CNR, I-CAD, E-Money, universal, SMB) = ₹37,000 + ₹6,660 GST = <strong>₹43,660</strong>.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvoiceForm({
+                        ...invoiceForm,
+                        projectMilestone: 'Candidate Placement & Seat Billing (7 Seats)',
+                        amount: '43660',
+                        basicAmount: 37000,
+                        sgstAmount: 3330,
+                        cgstAmount: 3330,
+                        dueDate: '30 days',
+                        notes: 'Form GST INV – 1 candidate placements (101, Etisalat, CNR, I-CAD, E-Money, universal, SMB)',
+                        items: ISON_SAMPLE_ITEMS,
+                        templateType: 'GST_INV_1',
+                        amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+                      });
+                      showToast('Populated 7 sample seats matching ISON invoice!');
+                    }}
+                    style={{
+                      background: '#0F172A',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '6px 12px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Load 7 Seats (₹43,660)
+                  </button>
+                </div>
+              )}
 
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
@@ -2346,149 +2588,488 @@ export function FinanceInvoicesView() {
       {/* ========================================================================= */}
       {/* MODAL 5: INVOICE PREVIEW & PRINTABLE TEMPLATE MODAL */}
       {/* ========================================================================= */}
-      {previewInvoice && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-          }}
-          onClick={() => setPreviewInvoice(null)}
-        >
+      {previewInvoice && (() => {
+        const isIson = Boolean(previewInvoice.client && previewInvoice.client.toLowerCase().includes('ison'));
+        const items = (previewInvoice.items && previewInvoice.items.length > 0)
+          ? previewInvoice.items
+          : (isIson ? ISON_SAMPLE_ITEMS : [
+              {
+                empId: 'CEGS-01',
+                employeeName: 'Milestone Scope Execution',
+                doj: previewInvoice.invoiceDate || '14/10/2026',
+                processLob: previewInvoice.projectMilestone || 'Staffing & Support Services',
+                ratePerSeat: previewInvoice.basicAmount || previewInvoice.amount || 0,
+                sacCode: '99851',
+                amount: previewInvoice.basicAmount || previewInvoice.amount || 0,
+              }
+            ]);
+
+        const basicAmt = Number(previewInvoice.basicAmount) || (
+          items.length > 0
+            ? items.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+            : Math.round(Number(previewInvoice.amount || 0) / 1.18)
+        );
+
+        const sgstAmt = previewInvoice.sgstAmount !== undefined && previewInvoice.sgstAmount !== null && previewInvoice.sgstAmount > 0
+          ? Number(previewInvoice.sgstAmount)
+          : Math.round(basicAmt * 0.09);
+
+        const cgstAmt = previewInvoice.cgstAmount !== undefined && previewInvoice.cgstAmount !== null && previewInvoice.cgstAmount > 0
+          ? Number(previewInvoice.cgstAmount)
+          : Math.round(basicAmt * 0.09);
+
+        const totalBill = Number(previewInvoice.amount) || (basicAmt + sgstAmt + cgstAmt);
+        const amountInWords = previewInvoice.amountInWords || numberToWordsINR(totalBill);
+
+        return (
           <div
             style={{
-              background: '#FFFFFF',
-              borderRadius: 24,
-              width: '100%',
-              maxWidth: 680,
-              padding: '36px 40px',
-              boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
-              border: '1px solid #E2E8F0',
-              maxHeight: '90vh',
-              overflowY: 'auto',
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.72)',
+              backdropFilter: 'blur(5px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={() => setPreviewInvoice(null)}
           >
-            {/* INVOICE HEADER */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #F1F5F9', paddingBottom: 20 }}>
-              <div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: '#0F172A', letterSpacing: '-0.02em' }}>
-                  CEGS ENTERPRISE
-                </div>
-                <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 4 }}>
-                  Tax Invoice / Bill of Supply
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent, #7C3AED)', fontFamily: 'JetBrains Mono, monospace' }}>
-                  {previewInvoice.invoiceNo || 'INV-001'}
-                </div>
-                <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
-                  Bill Raised: <strong>{previewInvoice.invoiceDate || '2026-05-10'}</strong> · Due: <strong>{previewInvoice.dueDate || '10 May'}</strong>
-                </div>
-              </div>
-            </div>
+            <style>{`
+              @media print {
+                body * {
+                  visibility: hidden !important;
+                }
+                #printable-gst-invoice, #printable-gst-invoice * {
+                  visibility: visible !important;
+                }
+                #printable-gst-invoice {
+                  position: fixed !important;
+                  left: 0 !important;
+                  top: 0 !important;
+                  width: 100% !important;
+                  margin: 0 !important;
+                  padding: 8px !important;
+                  border: 1.5px solid #000000 !important;
+                  box-shadow: none !important;
+                  background: #FFFFFF !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                .no-print-zone {
+                  display: none !important;
+                }
+              }
+            `}</style>
 
-            {/* BILLED TO */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, margin: '24px 0', padding: '16px 20px', background: '#F8FAFC', borderRadius: 16 }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Billed To</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
-                  {previewInvoice.client || 'Apex Corp'}
-                </div>
-                <div style={{ fontSize: 12.5, color: '#475569', marginTop: 2 }}>
-                  {previewInvoice.clientEmail || `billing@${(previewInvoice.client || 'company').toLowerCase().replace(/\s+/g, '')}.com`}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Payment Status</div>
-                <div style={{ marginTop: 6 }}>
-                  {previewInvoice.status === 'Paid' || previewInvoice.stage === 'cleared' ? (
-                    <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '4px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800 }}>
-                      ✓ PAID IN FULL
-                    </span>
-                  ) : (
-                    <span style={{ background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A', padding: '4px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800 }}>
-                      ⏳ PAYMENT PENDING
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* LINE ITEMS */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
-              <thead>
-                <tr style={{ borderBottom: '1.5px solid #CBD5E1', textAlign: 'left' }}>
-                  <th style={{ padding: '8px 0', fontSize: 12, color: '#64748B' }}>DELIVERABLE / MILESTONE</th>
-                  <th style={{ padding: '8px 0', fontSize: 12, color: '#64748B', textAlign: 'right' }}>AMOUNT</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                  <td style={{ padding: '16px 0' }}>
-                    <div style={{ fontWeight: 700, color: '#0F172A', fontSize: 14 }}>
-                      {previewInvoice.projectMilestone || 'Project Deliverable'}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                      {previewInvoice.notes || 'Full milestone signoff and verified scope deliverable.'}
-                    </div>
-                  </td>
-                  <td style={{ padding: '16px 0', textAlign: 'right', fontWeight: 800, fontSize: 15, color: '#0F172A' }}>
-                    {inr(previewInvoice.amount || previewInvoice.basicAmount || 0)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            {/* TOTAL AMOUNT */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '2px solid #0F172A', paddingTop: 16, marginBottom: 28 }}>
-              <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#64748B', marginRight: 16 }}>Total Amount Due:</span>
-                <span style={{ fontSize: 26, fontWeight: 900, color: '#0F172A' }}>
-                  {inr(previewInvoice.amount || previewInvoice.basicAmount || 0)}
-                </span>
-              </div>
-            </div>
-
-            {/* BUTTONS */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setPreviewInvoice(null)}
-                style={{ padding: '10px 18px', borderRadius: 12, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => window.print()}
+            <div
+              style={{
+                background: '#F1F5F9',
+                borderRadius: 24,
+                width: '100%',
+                maxWidth: 880,
+                padding: '24px 28px',
+                boxShadow: '0 25px 70px rgba(0,0,0,0.3)',
+                border: '1px solid #CBD5E1',
+                maxHeight: '92vh',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* MODAL TOP TOOLBAR (NO-PRINT) */}
+              <div
+                className="no-print-zone"
                 style={{
-                  display: 'inline-flex',
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  padding: '10px 22px',
-                  borderRadius: 12,
-                  border: 'none',
-                  background: '#0F172A',
-                  color: '#FFFFFF',
-                  fontWeight: 800,
-                  cursor: 'pointer',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  background: '#FFFFFF',
+                  padding: '12px 18px',
+                  borderRadius: 16,
+                  border: '1px solid #E2E8F0',
                 }}
               >
-                <Printer size={16} />
-                <span>Print / Save PDF</span>
-              </button>
+                {/* Template Mode Tabs */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTemplateMode('GST_INV_1')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 14px',
+                      borderRadius: 10,
+                      border: previewTemplateMode === 'GST_INV_1' ? '1.5px solid #000' : '1px solid #CBD5E1',
+                      background: previewTemplateMode === 'GST_INV_1' ? '#000000' : '#FFFFFF',
+                      color: previewTemplateMode === 'GST_INV_1' ? '#FFE500' : '#475569',
+                      fontWeight: 800,
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>Form GST INV – 1 (ISON Official)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTemplateMode('MODERN')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 14px',
+                      borderRadius: 10,
+                      border: previewTemplateMode === 'MODERN' ? '1.5px solid var(--accent, #7C3AED)' : '1px solid #CBD5E1',
+                      background: previewTemplateMode === 'MODERN' ? 'var(--accent, #7C3AED)' : '#FFFFFF',
+                      color: previewTemplateMode === 'MODERN' ? '#FFFFFF' : '#475569',
+                      fontWeight: 800,
+                      fontSize: 12.5,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>Executive Summary</span>
+                  </button>
+                </div>
+
+                {/* Print and Close Actions */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 18px',
+                      borderRadius: 12,
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+                      color: '#FFFFFF',
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(15, 23, 42, 0.25)',
+                    }}
+                  >
+                    <Printer size={15} />
+                    <span>Print / Save PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPreviewInvoice(null)}
+                    style={{
+                      background: '#F1F5F9',
+                      border: 'none',
+                      borderRadius: 10,
+                      color: '#64748B',
+                      cursor: 'pointer',
+                      padding: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* ========================================================================= */}
+              {/* VIEW 1: AUTHENTIC FORM GST INV – 1 TEMPLATE (MATCHING USER'S PDF SAMPLE) */}
+              {/* ========================================================================= */}
+              {previewTemplateMode === 'GST_INV_1' ? (
+                <div
+                  id="printable-gst-invoice"
+                  style={{
+                    background: '#FFFFFF',
+                    color: '#000000',
+                    border: '1.5px solid #000000',
+                    fontFamily: 'Arial, "Helvetica Neue", sans-serif',
+                    fontSize: 11,
+                    lineHeight: 1.45,
+                    margin: '0 auto',
+                    boxSizing: 'border-box',
+                    width: '100%',
+                    boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  {/* HEADER BLOCK */}
+                  <div style={{ textAlign: 'center', padding: '12px 14px', borderBottom: '1.5px solid #000000' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                      Form GST INV – 1
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', margin: '4px 0 2px' }}>
+                      CAREER EXPERTS GLOBAL SOLUTIONS
+                    </div>
+                    <div style={{ fontSize: 11.5, fontWeight: 600 }}>
+                      #1, Masjid Street neelasandra, Bengaluru, Karnataka-560047. <strong>TAX INVOICE</strong>
+                    </div>
+                  </div>
+
+                  {/* ROW 1: SUPPLIER METADATA & TRANSPORT DETAILS */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', borderBottom: '1.5px solid #000000' }}>
+                    <div style={{ padding: '8px 12px', borderRight: '1.5px solid #000000', lineHeight: 1.6 }}>
+                      <div><strong>GSTIN:</strong> 29DWCPM8081C2ZB</div>
+                      <div><strong>PAN No:</strong> DWCPM8081C</div>
+                      <div>
+                        <strong>Invoice No.:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>{previewInvoice.invoiceNo || 'INV-2026-ISON-01'}</span>
+                      </div>
+                      <div><strong>PO NO :</strong> {previewInvoice.poNo || '—'}</div>
+                      <div><strong>Date:</strong> {previewInvoice.invoiceDate || 'xx/xx/xxxx.'}</div>
+                      <div><strong>Due By:</strong> {previewInvoice.dueDate || '30 days'}</div>
+                    </div>
+                    <div style={{ padding: '8px 12px', lineHeight: 1.6 }}>
+                      <div><strong>Mode of Transport:</strong> {previewInvoice.modeOfTransport || '—'}</div>
+                      <div><strong>Vehicle No:</strong> {previewInvoice.vehicleNo || '—'}</div>
+                      <div><strong>Date & Time of Service:</strong> {previewInvoice.dateTimeOfService || previewInvoice.invoiceDate || '—'}</div>
+                      <div><strong>Place of Service:</strong> <span style={{ fontWeight: 700 }}>{previewInvoice.placeOfService || 'Bangalore'}</span></div>
+                    </div>
+                  </div>
+
+                  {/* ROW 2: RECEIVER & CONSIGNEE DETAILS */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', borderBottom: '1.5px solid #000000' }}>
+                    <div style={{ padding: '10px 12px', borderRight: '1.5px solid #000000', lineHeight: 1.55 }}>
+                      <div style={{ fontWeight: 800, fontSize: 11.5, textDecoration: 'underline', marginBottom: 4 }}>
+                        Details of Receiver (Billed to)
+                      </div>
+                      <div style={{ fontWeight: 900, fontSize: 12, color: '#000000' }}>
+                        {previewInvoice.client || 'ISON XPERIENCES INDIA PRIVATE LIMITED'}
+                      </div>
+                      <div style={{ margin: '2px 0' }}>
+                        {previewInvoice.clientAddress || 'Building No. H208,1st & 2nd Floor, 36/5 Somyasundarpalya,27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102'}
+                      </div>
+                      <div><strong>State:</strong> {previewInvoice.clientState || 'Karnataka'}</div>
+                      <div><strong>State Code :</strong> {previewInvoice.clientStateCode || '29'}</div>
+                      <div><strong>GSTIN/Unique ID:</strong> <span style={{ fontWeight: 700 }}>{previewInvoice.clientGstin || '29AADCI1246E1ZT'}</span></div>
+                    </div>
+                    <div style={{ padding: '10px 12px', lineHeight: 1.55 }}>
+                      <div style={{ fontWeight: 800, fontSize: 11.5, textDecoration: 'underline', marginBottom: 4 }}>
+                        Details of Consignee (Shipped to)
+                      </div>
+                      <div style={{ fontWeight: 700 }}>Name: Career Experts Global Solutions</div>
+                      <div>#1, Masjid Street, Neelasandra, Bangalore - 560047.</div>
+                      <div><strong>State:</strong> Karnataka</div>
+                      <div><strong>State Code :</strong> 29</div>
+                      <div><strong>GSTIN/Unique ID:</strong> 29DWCPM8081C2ZB</div>
+                    </div>
+                  </div>
+
+                  {/* ROW 3: SEAT / EMPLOYEE BILLING TABLE (WITH SAMPLE YELLOW HEADER) */}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ background: '#FFF000', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
+                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '11%' }}>EMP ID</th>
+                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '22%' }}>Employee Name</th>
+                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '11%' }}>DOJ</th>
+                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '17%' }}>Process /LOB</th>
+                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '15%' }}>Rate Per Seat IN Rs.</th>
+                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '10%' }}>SAC Code</th>
+                        <th style={{ padding: '6px 4px', fontWeight: 800, width: '14%' }}>Amount Rs.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((row, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
+                          <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center' }}>{row.empId || 'xxxx'}</td>
+                          <td style={{ borderRight: '1px solid #000000', padding: '6px 6px' }}>{row.employeeName || 'xxxx'}</td>
+                          <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center' }}>{row.doj || 'xx/x/xx'}</td>
+                          <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center', fontWeight: 600 }}>{row.processLob || 'Process'}</td>
+                          <td style={{ borderRight: '1px solid #000000', padding: '6px 8px', textAlign: 'right' }}>{Number(row.ratePerSeat || 0).toLocaleString('en-IN')}</td>
+                          <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center' }}>{row.sacCode || '99851'}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>{Number(row.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                      ))}
+
+                      {/* TOTAL AMOUNT ROW */}
+                      <tr style={{ borderBottom: '1.5px solid #000000', fontWeight: 800 }}>
+                        <td colSpan={6} style={{ borderRight: '1px solid #000000', padding: '7px 12px', textAlign: 'right', textTransform: 'uppercase' }}>
+                          TOTAL AMOUNT - IN Rs.
+                        </td>
+                        <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 900 }}>
+                          {Number(basicAmt).toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+
+                      {/* SGST ROW */}
+                      <tr style={{ borderBottom: '1px solid #000000' }}>
+                        <td colSpan={5} style={{ borderRight: '1px solid #000000' }}></td>
+                        <td style={{ borderRight: '1px solid #000000', padding: '6px 8px', fontWeight: 700, fontSize: 10.5 }}>
+                          SGST @ 9%
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>
+                          {Number(sgstAmt).toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+
+                      {/* CGST ROW */}
+                      <tr style={{ borderBottom: '1.5px solid #000000' }}>
+                        <td colSpan={5} style={{ borderRight: '1px solid #000000' }}></td>
+                        <td style={{ borderRight: '1px solid #000000', padding: '6px 8px', fontWeight: 700, fontSize: 10.5 }}>
+                          CGST @ 9 %
+                        </td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>
+                          {Number(cgstAmt).toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+
+                      {/* TOTAL BILL AMOUNT */}
+                      <tr style={{ borderBottom: '1.5px solid #000000', fontWeight: 900, background: '#FAFAFA' }}>
+                        <td colSpan={6} style={{ borderRight: '1px solid #000000', padding: '8px 12px', textAlign: 'right', textTransform: 'uppercase', fontSize: 11.5 }}>
+                          TOTAL BILL AMOUNT - IN Rs.
+                        </td>
+                        <td style={{ padding: '8px 8px', textAlign: 'right', fontSize: 12.5, fontWeight: 900 }}>
+                          {Number(totalBill).toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* ROW 4: AMOUNT IN WORDS */}
+                  <div style={{ padding: '8px 12px', borderBottom: '1.5px solid #000000', fontSize: 11.5, fontWeight: 700 }}>
+                    Amount in Words: <span style={{ fontWeight: 800 }}>{amountInWords}</span>
+                  </div>
+
+                  {/* ROW 5: SIGNATORY BLOCK */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1.5px solid #000000' }}>
+                    <div style={{ padding: '10px 12px' }}>
+                      <div style={{ fontSize: 10.5, color: '#444' }}>{previewInvoice.notes || ''}</div>
+                    </div>
+                    <div style={{ padding: '12px 14px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', minHeight: 95 }}>
+                      <div style={{ fontWeight: 800, fontSize: 11 }}>For CAREER EXPERTS GLOBAL SOLUTIONS</div>
+                      <div style={{ border: '1px dashed #64748B', borderRadius: 6, padding: '4px 10px', background: '#F8FAFC', margin: '8px 0', textAlign: 'center', fontSize: 10 }}>
+                        <div style={{ fontWeight: 700, color: '#0369A1' }}>✓ Digitally signed by</div>
+                        <div style={{ fontWeight: 900, color: '#0F172A', letterSpacing: '0.04em' }}>MOHAMMED USMAN ZABI</div>
+                        <div style={{ fontSize: 9, color: '#64748B' }}>Date: {previewInvoice.invoiceDate || '2026-10-14'} · Time: 4:07 PM</div>
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 11 }}>Authorised Signatory</div>
+                    </div>
+                  </div>
+
+                  {/* ROW 6: PAYMENT INSTRUCTIONS */}
+                  <div style={{ padding: '10px 12px', fontSize: 10.5, lineHeight: 1.6 }}>
+                    <div style={{ fontWeight: 800, textDecoration: 'underline', marginBottom: 2 }}>Payment Instructions:</div>
+                    <div><strong>Name of the Bank:</strong> HDFC</div>
+                    <div><strong>Banificiary Name:</strong> Career Experts Global Solutions <strong>Bank Account No:</strong> 50200080303100.</div>
+                    <div><strong>Bank Address:</strong> East Wing, KHB Building, KG Road, Bangalore - 560009.</div>
+                    <div><strong>IFSC Code:</strong> HDFC0000509.</div>
+                    <div><strong>RTGS/NEFT Code:</strong> HDFC0000509.</div>
+                    <div style={{ marginTop: 6, fontWeight: 700 }}>E. & O. E.</div>
+                  </div>
+                </div>
+              ) : (
+                /* ========================================================================= */
+                /* VIEW 2: MODERN CLEAN SUMMARY VIEW */
+                /* ========================================================================= */
+                <div
+                  style={{
+                    background: '#FFFFFF',
+                    borderRadius: 20,
+                    padding: '32px',
+                    border: '1px solid #E2E8F0',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #F1F5F9', paddingBottom: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: '#0F172A' }}>
+                        CAREER EXPERTS GLOBAL SOLUTIONS
+                      </div>
+                      <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 4 }}>
+                        Form GST INV – 1 · Tax Invoice
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent, #7C3AED)', fontFamily: 'monospace' }}>
+                        {previewInvoice.invoiceNo || 'INV-2026-ISON-01'}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
+                        Date: <strong>{previewInvoice.invoiceDate || '2026-10-14'}</strong> · Due: <strong>{previewInvoice.dueDate || '30 days'}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '20px 0', padding: '16px', background: '#F8FAFC', borderRadius: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Billed To</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', marginTop: 4 }}>{previewInvoice.client}</div>
+                      <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{previewInvoice.clientAddress}</div>
+                      <div style={{ fontSize: 11.5, color: '#0369A1', marginTop: 4, fontWeight: 700 }}>GSTIN: {previewInvoice.clientGstin || '29AADCI1246E1ZT'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Payment Status</div>
+                      <div style={{ marginTop: 6 }}>
+                        {previewInvoice.status === 'Paid' || previewInvoice.stage === 'cleared' ? (
+                          <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '4px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800 }}>
+                            ✓ PAID IN FULL
+                          </span>
+                        ) : (
+                          <span style={{ background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A', padding: '4px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800 }}>
+                            ⏳ PAYMENT PENDING
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>
+                        Place of Service: <strong>{previewInvoice.placeOfService || 'Bangalore'}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary Rows */}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1.5px solid #CBD5E1', textAlign: 'left', fontSize: 11.5, color: '#64748B' }}>
+                        <th style={{ padding: '8px 0' }}>DELIVERABLE / SEAT BILLING</th>
+                        <th style={{ padding: '8px 0', textAlign: 'right' }}>AMOUNT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '14px 0' }}>
+                          <div style={{ fontWeight: 700, color: '#0F172A', fontSize: 14 }}>
+                            {previewInvoice.projectMilestone || 'Seat & Employee Placement Billing'}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                            {items.length} seat item(s) billed under SAC 99851
+                          </div>
+                        </td>
+                        <td style={{ padding: '14px 0', textAlign: 'right', fontWeight: 800, fontSize: 15, color: '#0F172A' }}>
+                          {inr(basicAmt)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Totals */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, borderTop: '1px solid #E2E8F0', paddingTop: 14 }}>
+                    <div style={{ fontSize: 13, color: '#64748B' }}>
+                      Basic Amount: <strong style={{ color: '#0F172A' }}>{inr(basicAmt)}</strong>
+                    </div>
+                    <div style={{ fontSize: 13, color: '#64748B' }}>
+                      SGST (9%): <strong style={{ color: '#0F172A' }}>{inr(sgstAmt)}</strong> · CGST (9%): <strong style={{ color: '#0F172A' }}>{inr(cgstAmt)}</strong>
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: '#0F172A', marginTop: 4 }}>
+                      Total: {inr(totalBill)}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#64748B', fontStyle: 'italic' }}>
+                      {amountInWords}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* MODAL 6: PAYMENT REMINDER MODAL */}
