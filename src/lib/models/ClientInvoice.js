@@ -30,6 +30,14 @@ const ClientInvoiceSchema = new mongoose.Schema(
     basicAmount: { type: Number, default: 0 },
     moneyReceived: { type: Number, default: 0 },
     remark: { type: String, default: '' },
+    // CRM Payments & Invoices milestone & company billing extensions
+    projectMilestone: { type: String, default: '' },
+    amount: { type: Number, default: 0 },
+    dueDate: { type: String, default: '' },
+    paidDate: { type: String, default: '' },
+    clientEmail: { type: String, default: '' },
+    clientPhone: { type: String, default: '' },
+    notes: { type: String, default: '' },
   },
   { timestamps: true }
 );

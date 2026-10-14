@@ -30,6 +30,14 @@ const patchSchema = z.object({
   moneyReceived: z.number().optional(),
   remark: z.string().optional(),
   monthKey: z.string().optional(),
+  // CRM invoice fields
+  projectMilestone: z.string().optional(),
+  amount: z.number().optional(),
+  dueDate: z.string().optional(),
+  paidDate: z.string().optional(),
+  clientEmail: z.string().optional(),
+  clientPhone: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 function flatten(doc) {

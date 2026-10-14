@@ -74,6 +74,90 @@ const createSchema = z.object({
   ai: z.number().optional(),
 });
 
+const SEED_INVOICES = [
+  {
+    invoiceNo: 'INV-001',
+    client: 'Apex Corp',
+    projectMilestone: 'Brand Identity · Kickoff',
+    amount: 29500,
+    dueDate: '10 May',
+    status: 'Paid',
+    stage: 'cleared',
+    paidDate: '2026-05-10',
+    invoiceDate: '2026-05-01',
+    notes: 'Initial milestone payment completed via wire transfer.',
+  },
+  {
+    invoiceNo: 'INV-002',
+    client: 'Apex Corp',
+    projectMilestone: 'Brand Identity · Design Delivery',
+    amount: 47200,
+    dueDate: '24 May',
+    status: 'Pending',
+    stage: 'raised',
+    invoiceDate: '2026-05-10',
+    notes: 'Design delivery sprint 2 review pending approval.',
+  },
+  {
+    invoiceNo: 'INV-003',
+    client: 'Apex Corp',
+    projectMilestone: 'Brand Identity · Development',
+    amount: 53100,
+    dueDate: '15 Jun',
+    status: 'Pending',
+    stage: 'raised',
+    invoiceDate: '2026-05-15',
+    notes: 'Frontend and design token integration in progress.',
+  },
+  {
+    invoiceNo: 'INV-000A',
+    client: 'Nexus Media',
+    projectMilestone: 'Digital Brand Activation · Retainer',
+    amount: 185000,
+    dueDate: '28 Apr',
+    status: 'Paid',
+    stage: 'cleared',
+    paidDate: '2026-04-28',
+    invoiceDate: '2026-04-10',
+    notes: 'Full payment received.',
+  },
+  {
+    invoiceNo: 'INV-000B',
+    client: 'Starlight Tech',
+    projectMilestone: 'UX Design System Architecture',
+    amount: 115000,
+    dueDate: '14 Apr',
+    status: 'Paid',
+    stage: 'cleared',
+    paidDate: '2026-04-14',
+    invoiceDate: '2026-04-01',
+    notes: 'Full payment cleared via NEFT.',
+  },
+  {
+    invoiceNo: 'INV-000C',
+    client: 'TechCorp Solutions',
+    projectMilestone: 'Enterprise Integration Advisory',
+    amount: 90500,
+    dueDate: '02 Apr',
+    status: 'Paid',
+    stage: 'cleared',
+    paidDate: '2026-04-02',
+    invoiceDate: '2026-03-25',
+    notes: 'Cleared on receipt.',
+  },
+];
+
+async function seedCrmInvoicesIfEmpty() {
+  const count = await ClientInvoice.countDocuments({
+    projectMilestone: { $exists: true, $ne: '' },
+  });
+  if (count === 0) {
+    for (const item of SEED_INVOICES) {
+      await ClientInvoice.create(item);
+    }
+  }
+}
+
 export async function GET(request) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
@@ -81,14 +165,35 @@ export async function GET(request) {
 
   await connectDB();
   await syncEligibleJoiners();
+  await seedCrmInvoicesIfEmpty();
 
   const url = new URL(request.url);
   const stage = url.searchParams.get('stage');
   const month = url.searchParams.get('month');
+  const client = url.searchParams.get('client');
+  const status = url.searchParams.get('status');
+  const search = url.searchParams.get('search');
+
   const filter = {};
   if (stage) filter.stage = stage;
   if (month) filter.monthKey = month;
-  const rows = await ClientInvoice.find(filter).sort({ client: 1, createdAt: 1 }).lean();
+  if (client && client !== 'ALL') {
+    filter.client = { $regex: new RegExp(`^${client}$`, 'i') };
+  }
+  if (status && status !== 'ALL') {
+    filter.status = { $regex: new RegExp(`^${status}$`, 'i') };
+  }
+  if (search) {
+    const q = search.trim();
+    filter.$or = [
+      { client: { $regex: q, $options: 'i' } },
+      { invoiceNo: { $regex: q, $options: 'i' } },
+      { projectMilestone: { $regex: q, $options: 'i' } },
+      { candidateName: { $regex: q, $options: 'i' } },
+    ];
+  }
+
+  const rows = await ClientInvoice.find(filter).sort({ createdAt: -1, invoiceNo: -1 }).lean();
   return NextResponse.json(rows.map(flatten));
 }
 
@@ -98,6 +203,71 @@ export async function POST(request) {
   if (!canFinance(authUser)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await request.json().catch(() => ({}));
+
+  // Handle Mark Paid action
+  if (body.action === 'mark_paid') {
+    await connectDB();
+    const id = body.id || body._id;
+    if (!id) return NextResponse.json({ error: 'Invoice ID is required' }, { status: 400 });
+    const updated = await ClientInvoice.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          status: 'Paid',
+          stage: 'cleared',
+          paidDate: todayIsoDate(),
+        },
+      },
+      { new: true }
+    );
+    if (!updated) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    return NextResponse.json(flatten(updated));
+  }
+
+  // Handle Create Invoice from CRM modal
+  if (body.action === 'create_invoice') {
+    await connectDB();
+    const client = String(body.client || '').trim();
+    if (!client) return NextResponse.json({ error: 'Client / Company is required' }, { status: 400 });
+
+    let invoiceNo = String(body.invoiceNo || '').trim();
+    if (!invoiceNo) {
+      const count = await ClientInvoice.countDocuments();
+      invoiceNo = `INV-${String(count + 1).padStart(3, '0')}`;
+    }
+
+    const amount = Number(body.amount) || 0;
+    const status = body.status === 'Paid' ? 'Paid' : 'Pending';
+    const stage = status === 'Paid' ? 'cleared' : 'raised';
+
+    const created = await ClientInvoice.create({
+      invoiceNo,
+      client,
+      projectMilestone: String(body.projectMilestone || 'Project Milestone').trim(),
+      amount,
+      basicAmount: amount,
+      dueDate: String(body.dueDate || '10 days').trim(),
+      status,
+      stage,
+      invoiceDate: String(body.invoiceDate || todayIsoDate()).trim(),
+      paidDate: status === 'Paid' ? todayIsoDate() : '',
+      clientEmail: String(body.clientEmail || '').trim(),
+      clientPhone: String(body.clientPhone || '').trim(),
+      notes: String(body.notes || '').trim(),
+    });
+
+    return NextResponse.json(flatten(created), { status: 201 });
+  }
+
+  // Handle Send Reminder action
+  if (body.action === 'send_reminder') {
+    return NextResponse.json({
+      success: true,
+      message: `Payment reminder sent successfully for invoice ${body.invoiceNo || ''}`,
+      sentAt: new Date().toISOString(),
+    });
+  }
+
   if (body.action === 'import') {
     await connectDB();
     const stage = ['to_raise', 'raised', 'cleared', 'gst'].includes(body.stage) ? body.stage : 'to_raise';

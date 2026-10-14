@@ -206,6 +206,7 @@ export function buildNavConfig(user, db) {
       { href: '/billing/integrations', label: 'Integrations', icon: 'settings' },
       { href: '/billing/audit-logs', label: 'Audit Logs', icon: 'file' },
       { href: '/billing/security', label: 'Security', icon: 'shield' },
+      { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
     );
   } else if (isHR) {
     main.push(
@@ -228,6 +229,7 @@ export function buildNavConfig(user, db) {
     billing.push(
       { href: '/billing/workstation', label: 'IT Support & Assets', icon: 'help' },
       { href: '/billing/payroll', label: 'Payroll & Salary Slips', icon: 'card' },
+      { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
       ...(canEditAttendance ? [{ href: '/billing/attendance', label: 'Attendance', icon: 'clock' }] : []),
       ...(canApproveLeaves ? [{ href: '/billing/leaves', label: 'Leave', icon: 'calendar' }] : []),
       { href: '/billing/documents', label: 'Documents', icon: 'file' },
