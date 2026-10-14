@@ -25,6 +25,48 @@ function inr(n) {
   return `₹${Number(n || 0).toLocaleString('en-IN')}`;
 }
 
+// Helper: Extract YYYY-MM key from invoice
+function getInvoiceMonthKey(inv) {
+  const dStr = inv?.invoiceDate || inv?.paidDate || inv?.createdAt;
+  if (dStr && typeof dStr === 'string') {
+    const match = dStr.match(/^(\d{4})-(\d{2})/);
+    if (match) return `${match[1]}-${match[2]}`;
+    const parsed = new Date(dStr);
+    if (!isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      if (y >= 2020 && y <= 2035) return `${y}-${m}`;
+    }
+  }
+  if (inv?.dueDate && typeof inv.dueDate === 'string') {
+    const months = {
+      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+    };
+    const lower = inv.dueDate.toLowerCase();
+    for (const [mName, mNum] of Object.entries(months)) {
+      if (lower.includes(mName)) {
+        return `2026-${mNum}`;
+      }
+    }
+  }
+  return '2026-10';
+}
+
+function formatMonthLabel(key) {
+  if (!key || typeof key !== 'string') return key || '';
+  const parts = key.split('-');
+  if (parts.length === 2) {
+    const y = Number(parts[0]);
+    const m = Number(parts[1]) - 1;
+    const d = new Date(y, m, 1);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    }
+  }
+  return key;
+}
+
 function authHeaders() {
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('cegs_token') : '';
   return {
@@ -131,11 +173,14 @@ export function FinanceInvoicesView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
 
   // Modals state
   const [showAddClientModal, setShowAddClientModal] = useState(false);
   const [showManageClientsModal, setShowManageClientsModal] = useState(false);
   const [showGenerateInvoiceModal, setShowGenerateInvoiceModal] = useState(false);
+  const [showMonthFileModal, setShowMonthFileModal] = useState(false);
+  const [monthFileSelection, setMonthFileSelection] = useState(new Date().toISOString().slice(0, 7));
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [previewInvoice, setPreviewInvoice] = useState(null);
   const [reminderInvoice, setReminderInvoice] = useState(null);
@@ -224,6 +269,42 @@ export function FinanceInvoicesView() {
     return Array.from(set).sort();
   }, [invoices, clients]);
 
+  // Available billing months from invoices
+  const monthOptions = useMemo(() => {
+    const set = new Set();
+    const curKey = new Date().toISOString().slice(0, 7);
+    set.add(curKey);
+    invoices.forEach((inv) => {
+      const k = getInvoiceMonthKey(inv);
+      if (k) set.add(k);
+    });
+    return Array.from(set).sort().reverse();
+  }, [invoices]);
+
+  // Statistics for selected month in Month-Wise File modal
+  const selectedMonthStats = useMemo(() => {
+    const monthInvs = invoices.filter((inv) => getInvoiceMonthKey(inv) === monthFileSelection);
+    let totalBilled = 0;
+    let totalPaid = 0;
+    let totalPending = 0;
+
+    monthInvs.forEach((inv) => {
+      const amt = Number(inv.amount || inv.basicAmount || 0);
+      totalBilled += amt;
+      const isPaid = String(inv.status || '').toLowerCase() === 'paid' || inv.stage === 'cleared';
+      if (isPaid) totalPaid += amt;
+      else totalPending += amt;
+    });
+
+    return {
+      count: monthInvs.length,
+      totalBilled,
+      totalPaid,
+      totalPending,
+      invoices: monthInvs,
+    };
+  }, [invoices, monthFileSelection]);
+
   // Compute Revenue and Pending metrics
   // Sections: 1. Revenue (All Time), 2. Revenue (This Month), 3. Pending Invoices (NO OVERDUE)
   const metrics = useMemo(() => {
@@ -267,6 +348,14 @@ export function FinanceInvoicesView() {
         }
       }
 
+      // Month filter
+      if (selectedMonth !== 'ALL') {
+        const invMonth = getInvoiceMonthKey(inv);
+        if (invMonth !== selectedMonth) {
+          return false;
+        }
+      }
+
       // Status filter
       if (selectedStatus !== 'ALL') {
         const isPaid = String(inv.status || '').toLowerCase() === 'paid' || inv.stage === 'cleared';
@@ -288,7 +377,7 @@ export function FinanceInvoicesView() {
 
       return true;
     });
-  }, [invoices, selectedCompany, selectedStatus, searchQuery]);
+  }, [invoices, selectedCompany, selectedStatus, selectedMonth, searchQuery]);
 
   // Action: Mark Invoice as Paid
   const handleMarkPaid = async (inv) => {
@@ -429,7 +518,104 @@ export function FinanceInvoicesView() {
     const worksheet = XLSX.utils.json_to_sheet(rowsToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Payments & Invoices');
-    XLSX.writeFile(workbook, `CEGS_Payments_Invoices_${new Date().toISOString().slice(0, 10)}.csv`);
+    const monthTag = selectedMonth !== 'ALL' ? `_${formatMonthLabel(selectedMonth).replace(/\s+/g, '_')}` : '';
+    XLSX.writeFile(workbook, `CEGS_Payments_Invoices${monthTag}_${new Date().toISOString().slice(0, 10)}.csv`);
+    showToast('Invoices CSV file exported successfully!');
+  };
+
+  // Action: Export Single Month File (Excel .xlsx or CSV)
+  const handleExportMonthFile = (format = 'xlsx', targetMonth = monthFileSelection) => {
+    const targetInvs = invoices.filter((inv) => getInvoiceMonthKey(inv) === targetMonth);
+    const monthName = formatMonthLabel(targetMonth);
+
+    const rows = targetInvs.map((inv) => ({
+      'Invoice #': inv.invoiceNo || '—',
+      'Client / Company': inv.client || '—',
+      'Project / Milestone': inv.projectMilestone || 'Milestone Delivery',
+      'Amount (INR)': inv.amount || inv.basicAmount || 0,
+      'Bill Raised Date': inv.invoiceDate || '—',
+      'Due Date / Term': inv.dueDate || '—',
+      'Status': inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
+      'Paid Date': inv.paidDate || '—',
+      'Notes': inv.notes || '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{
+      'Invoice #': 'No records for this month',
+      'Client / Company': '—',
+      'Project / Milestone': '—',
+      'Amount (INR)': 0,
+      'Bill Raised Date': '—',
+      'Due Date / Term': '—',
+      'Status': '—',
+      'Paid Date': '—',
+      'Notes': '',
+    }]);
+
+    const workbook = XLSX.utils.book_new();
+    const cleanSheetName = monthName.replace(/[^a-zA-Z0-9 ]/g, '').slice(0, 31);
+    XLSX.utils.book_append_sheet(workbook, worksheet, cleanSheetName);
+
+    const sanitizedMonth = monthName.replace(/\s+/g, '_');
+    if (format === 'csv') {
+      XLSX.writeFile(workbook, `CEGS_Billing_${sanitizedMonth}.csv`, { bookType: 'csv' });
+    } else {
+      XLSX.writeFile(workbook, `CEGS_Billing_${sanitizedMonth}.xlsx`, { bookType: 'xlsx' });
+    }
+    showToast(`Downloaded ${monthName} file successfully!`);
+  };
+
+  // Action: Export Complete Multi-Month Workbook (Excel with separate sheet per month)
+  const handleExportAllMonthsWorkbook = () => {
+    const workbook = XLSX.utils.book_new();
+
+    // Summary Sheet
+    const summaryRows = monthOptions.map((mKey) => {
+      const mInvs = invoices.filter((inv) => getInvoiceMonthKey(inv) === mKey);
+      let billed = 0;
+      let paid = 0;
+      let pending = 0;
+      mInvs.forEach((inv) => {
+        const amt = Number(inv.amount || inv.basicAmount || 0);
+        billed += amt;
+        const isPaid = String(inv.status || '').toLowerCase() === 'paid' || inv.stage === 'cleared';
+        if (isPaid) paid += amt;
+        else pending += amt;
+      });
+      return {
+        'Billing Month': formatMonthLabel(mKey),
+        'Total Invoices': mInvs.length,
+        'Total Billed (INR)': billed,
+        'Cleared Revenue (INR)': paid,
+        'Pending Amount (INR)': pending,
+      };
+    });
+
+    const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Monthly Summary');
+
+    // Individual Month Sheets
+    monthOptions.forEach((mKey) => {
+      const mInvs = invoices.filter((inv) => getInvoiceMonthKey(inv) === mKey);
+      const rows = mInvs.map((inv) => ({
+        'Invoice #': inv.invoiceNo || '—',
+        'Client / Company': inv.client || '—',
+        'Project / Milestone': inv.projectMilestone || 'Milestone Delivery',
+        'Amount (INR)': inv.amount || inv.basicAmount || 0,
+        'Bill Raised Date': inv.invoiceDate || '—',
+        'Due Date / Term': inv.dueDate || '—',
+        'Status': inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
+        'Paid Date': inv.paidDate || '—',
+        'Notes': inv.notes || '',
+      }));
+
+      const sheet = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{ 'Message': 'No invoices recorded for this period' }]);
+      const sheetName = formatMonthLabel(mKey).replace(/[^a-zA-Z0-9 ]/g, '').slice(0, 31);
+      XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
+    });
+
+    XLSX.writeFile(workbook, `CEGS_All_Months_Billing_Report_${new Date().getFullYear()}.xlsx`, { bookType: 'xlsx' });
+    showToast('Downloaded complete month-wise billing workbook!');
   };
 
   // Action: Save New Client Company
@@ -580,7 +766,7 @@ export function FinanceInvoicesView() {
           </p>
         </div>
 
-        {/* TOP ACTION BUTTONS (Export CSV, + Add Client, Manage Clients, Generate Invoice) */}
+        {/* TOP ACTION BUTTONS (Export CSV, Month-Wise File, + Add Client, Manage Clients, Generate Invoice) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {/* EXPORT CSV BUTTON */}
           <button
@@ -604,6 +790,34 @@ export function FinanceInvoicesView() {
           >
             <Download size={16} />
             <span>Export CSV</span>
+          </button>
+
+          {/* MONTH-WISE FILE BUTTON */}
+          <button
+            type="button"
+            onClick={() => {
+              setMonthFileSelection(selectedMonth !== 'ALL' ? selectedMonth : (monthOptions[0] || new Date().toISOString().slice(0, 7)));
+              setShowMonthFileModal(true);
+            }}
+            title="Download month-wise statement file or multi-tab Excel workbook"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 18px',
+              borderRadius: 14,
+              border: '1.5px solid #C7D2FE',
+              background: '#EEF2FF',
+              color: '#4338CA',
+              fontWeight: 700,
+              fontSize: 13.5,
+              cursor: 'pointer',
+              boxShadow: '0 1px 3px rgba(67, 56, 202, 0.08)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Calendar size={16} color="#4338CA" />
+            <span>Month-Wise File</span>
           </button>
 
           {/* + ADD CLIENT BUTTON */}
@@ -909,6 +1123,33 @@ export function FinanceInvoicesView() {
             </button>
           )}
 
+          {/* MONTH FILTER */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#64748B' }}>Month:</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 12,
+                border: '1.5px solid #E2E8F0',
+                background: '#FFFFFF',
+                color: '#1E293B',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              <option value="ALL">All Months</option>
+              {monthOptions.map((mKey) => (
+                <option key={mKey} value={mKey}>
+                  {formatMonthLabel(mKey)}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* STATUS FILTER */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 12.5, fontWeight: 700, color: '#64748B' }}>Status:</span>
@@ -933,12 +1174,13 @@ export function FinanceInvoicesView() {
             </select>
           </div>
 
-          {(selectedCompany !== 'ALL' || selectedStatus !== 'ALL' || searchQuery) && (
+          {(selectedCompany !== 'ALL' || selectedStatus !== 'ALL' || selectedMonth !== 'ALL' || searchQuery) && (
             <button
               type="button"
               onClick={() => {
                 setSelectedCompany('ALL');
                 setSelectedStatus('ALL');
+                setSelectedMonth('ALL');
                 setSearchQuery('');
               }}
               style={{
@@ -2362,6 +2604,243 @@ export function FinanceInvoicesView() {
               >
                 <Send size={14} />
                 <span>Send Reminder</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 7: MONTH-WISE BILLING FILE EXPORT MODAL */}
+      {/* ========================================================================= */}
+      {showMonthFileModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={() => setShowMonthFileModal(false)}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 24,
+              width: '100%',
+              maxWidth: 580,
+              padding: '28px 32px',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.22)',
+              border: '1px solid #E2E8F0',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, borderBottom: '1px solid #F1F5F9', paddingBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 14, background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Calendar size={22} color="#4338CA" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0F172A' }}>
+                    Month-Wise Billing File
+                  </h3>
+                  <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#64748B' }}>
+                    Download single month statements or complete multi-tab workbooks
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMonthFileModal(false)}
+                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Select Billing Month */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                Select Month to Export:
+              </label>
+              <select
+                value={monthFileSelection}
+                onChange={(e) => setMonthFileSelection(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '11px 16px',
+                  borderRadius: 14,
+                  border: '1.5px solid #CBD5E1',
+                  background: '#F8FAFC',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: '#0F172A',
+                  outline: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                {monthOptions.map((mKey) => (
+                  <option key={mKey} value={mKey}>
+                    {formatMonthLabel(mKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Selected Month Summary Stats */}
+            <div
+              style={{
+                background: '#F8FAFC',
+                border: '1.5px solid #E2E8F0',
+                borderRadius: 18,
+                padding: '18px 20px',
+                marginBottom: 24,
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
+                {formatMonthLabel(monthFileSelection)} Overview
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>Invoices</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
+                    {selectedMonthStats.count}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11.5, color: '#059669', fontWeight: 600 }}>Cleared (Paid)</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#10B981', marginTop: 4 }}>
+                    {inr(selectedMonthStats.totalPaid)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11.5, color: '#D97706', fontWeight: 600 }}>Pending</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#F59E0B', marginTop: 4 }}>
+                    {inr(selectedMonthStats.totalPending)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Download Action Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#334155' }}>
+                Download Options:
+              </div>
+
+              {/* 1. Download Selected Month (Excel .xlsx) */}
+              <button
+                type="button"
+                onClick={() => handleExportMonthFile('xlsx', monthFileSelection)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '13px 18px',
+                  borderRadius: 14,
+                  border: '1.5px solid #BBF7D0',
+                  background: '#F0FDF4',
+                  color: '#15803D',
+                  fontWeight: 800,
+                  fontSize: 13.5,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Download size={18} color="#15803D" />
+                  <span>Download {formatMonthLabel(monthFileSelection)} (Excel .xlsx)</span>
+                </div>
+                <span style={{ fontSize: 11, background: '#DCFCE7', padding: '3px 9px', borderRadius: 99, color: '#166534', fontWeight: 700 }}>
+                  Itemized
+                </span>
+              </button>
+
+              {/* 2. Download Selected Month (CSV) */}
+              <button
+                type="button"
+                onClick={() => handleExportMonthFile('csv', monthFileSelection)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '13px 18px',
+                  borderRadius: 14,
+                  border: '1.5px solid #E2E8F0',
+                  background: '#FFFFFF',
+                  color: '#334155',
+                  fontWeight: 700,
+                  fontSize: 13.5,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Download size={18} color="#64748B" />
+                  <span>Download {formatMonthLabel(monthFileSelection)} (.csv)</span>
+                </div>
+                <span style={{ fontSize: 11, background: '#F1F5F9', padding: '3px 9px', borderRadius: 99, color: '#64748B', fontWeight: 700 }}>
+                  Raw CSV
+                </span>
+              </button>
+
+              {/* 3. Download All Months Workbook */}
+              <div style={{ borderTop: '1px solid #F1F5F9', marginTop: 8, paddingTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={handleExportAllMonthsWorkbook}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '13px 18px',
+                    borderRadius: 14,
+                    border: '1.5px solid #C7D2FE',
+                    background: '#EEF2FF',
+                    color: '#4338CA',
+                    fontWeight: 800,
+                    fontSize: 13.5,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Calendar size={18} color="#4338CA" />
+                    <span>Download All Months Workbook (Multi-Tab Excel)</span>
+                  </div>
+                  <span style={{ fontSize: 11, background: '#E0E7FF', padding: '3px 9px', borderRadius: 99, color: '#3730A3', fontWeight: 800 }}>
+                    All Months
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Close Button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 22 }}>
+              <button
+                type="button"
+                onClick={() => setShowMonthFileModal(false)}
+                style={{
+                  padding: '9px 20px',
+                  borderRadius: 12,
+                  border: '1px solid #CBD5E1',
+                  background: '#FFFFFF',
+                  color: '#475569',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                Close
               </button>
             </div>
           </div>
