@@ -129,3 +129,34 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Failed to create client company' }, { status: 500 });
   }
 }
+
+export async function DELETE(request) {
+  const authUser = getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: 'Access token required' }, { status: 401 });
+  }
+  if (!requireRole(authUser, ['admin', 'super_admin', 'finance'])) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+    const name = url.searchParams.get('name');
+
+    await connectDB();
+    if (id && id !== 'undefined') {
+      await ClientCompany.findByIdAndDelete(id);
+    } else if (name) {
+      await ClientCompany.findOneAndDelete({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+    } else {
+      return NextResponse.json({ error: 'Client ID or name required' }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, message: 'Client deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting client:', err);
+    return NextResponse.json({ error: 'Failed to delete client' }, { status: 500 });
+  }
+}
+

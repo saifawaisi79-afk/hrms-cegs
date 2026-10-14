@@ -259,6 +259,51 @@ export async function POST(request) {
     return NextResponse.json(flatten(created), { status: 201 });
   }
 
+  // Handle Edit / Update Invoice action
+  if (body.action === 'edit_invoice' || body.action === 'update_invoice') {
+    await connectDB();
+    const id = body.id || body._id;
+    if (!id) return NextResponse.json({ error: 'Invoice ID is required' }, { status: 400 });
+
+    const updateFields = {};
+    if (body.projectMilestone !== undefined) updateFields.projectMilestone = String(body.projectMilestone).trim();
+    if (body.amount !== undefined) {
+      updateFields.amount = Number(body.amount) || 0;
+      updateFields.basicAmount = updateFields.amount;
+    }
+    if (body.dueDate !== undefined) updateFields.dueDate = String(body.dueDate).trim();
+    if (body.status !== undefined) {
+      updateFields.status = body.status === 'Paid' ? 'Paid' : 'Pending';
+      updateFields.stage = updateFields.status === 'Paid' ? 'cleared' : 'raised';
+      if (updateFields.status === 'Paid' && !body.paidDate) {
+        updateFields.paidDate = todayIsoDate();
+      }
+    }
+    if (body.invoiceDate !== undefined && String(body.invoiceDate).trim()) {
+      updateFields.invoiceDate = String(body.invoiceDate).trim();
+    }
+    if (body.invoiceNo !== undefined && String(body.invoiceNo).trim()) {
+      updateFields.invoiceNo = String(body.invoiceNo).trim();
+    }
+    if (body.client !== undefined) updateFields.client = String(body.client).trim();
+    if (body.clientEmail !== undefined) updateFields.clientEmail = String(body.clientEmail).trim();
+    if (body.clientPhone !== undefined) updateFields.clientPhone = String(body.clientPhone).trim();
+    if (body.notes !== undefined) updateFields.notes = String(body.notes).trim();
+
+    const updated = await ClientInvoice.findByIdAndUpdate(id, { $set: updateFields }, { new: true });
+    if (!updated) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    return NextResponse.json(flatten(updated));
+  }
+
+  // Handle Delete Invoice action
+  if (body.action === 'delete_invoice') {
+    await connectDB();
+    const id = body.id || body._id;
+    if (!id) return NextResponse.json({ error: 'Invoice ID is required' }, { status: 400 });
+    await ClientInvoice.findByIdAndDelete(id);
+    return NextResponse.json({ success: true, message: 'Invoice deleted successfully' });
+  }
+
   // Handle Send Reminder action
   if (body.action === 'send_reminder') {
     return NextResponse.json({

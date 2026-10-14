@@ -1,28 +1,24 @@
 'use client';
 
-import React, { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { PageHeader } from '@/components/layout/PageHeader';
-import { formatSheetDateDisplay } from '@/lib/candidate-dates';
-import { gstBreakdown } from '@/lib/client-invoice-rules';
 import {
   Download,
   Plus,
   Search,
   Bell,
-  CheckCircle2,
   Building2,
   FileText,
   Printer,
   X,
-  ExternalLink,
-  ChevronRight,
-  Filter,
-  DollarSign,
-  Clock,
+  Edit3,
+  Trash2,
+  Lock,
+  Calendar,
   Send,
   Copy,
-  Check
+  Check,
+  Users
 } from 'lucide-react';
 
 function inr(n) {
@@ -118,19 +114,18 @@ const DEFAULT_INVOICES = [
 ];
 
 const DEFAULT_CLIENTS = [
-  { name: 'Apex Corp', email: 'billing@apexcorp.com', phone: '+91 98201 44521', industry: 'Branding & Tech' },
-  { name: 'Nexus Media', email: 'finance@nexusmedia.com', phone: '+91 97110 33912', industry: 'Digital Media' },
-  { name: 'Starlight Tech', email: 'accounts@starlighttech.io', phone: '+91 99400 88214', industry: 'Cloud & AI' },
-  { name: 'TechCorp Solutions', email: 'ap@techcorp.com', phone: '+91 98450 11984', industry: 'Enterprise Software' },
-  { name: 'CEGS Global', email: 'finance@cegs.in', phone: '+91 80 4123 9900', industry: 'Staffing & HR' },
+  { id: 'c-1', name: 'Apex Corp', email: 'billing@apexcorp.com', phone: '+91 98201 44521', industry: 'Branding & Tech' },
+  { id: 'c-2', name: 'Nexus Media', email: 'finance@nexusmedia.com', phone: '+91 97110 33912', industry: 'Digital Media' },
+  { id: 'c-3', name: 'Starlight Tech', email: 'accounts@starlighttech.io', phone: '+91 99400 88214', industry: 'Cloud & AI' },
+  { id: 'c-4', name: 'TechCorp Solutions', email: 'ap@techcorp.com', phone: '+91 98450 11984', industry: 'Enterprise Software' },
+  { id: 'c-5', name: 'CEGS Global', email: 'finance@cegs.in', phone: '+91 80 4123 9900', industry: 'Staffing & HR' },
 ];
 
 export function FinanceInvoicesView() {
-  const [mainTab, setMainTab] = useState('payments'); // 'payments' | 'joiners'
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState('');
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -139,7 +134,9 @@ export function FinanceInvoicesView() {
 
   // Modals state
   const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [showManageClientsModal, setShowManageClientsModal] = useState(false);
   const [showGenerateInvoiceModal, setShowGenerateInvoiceModal] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState(null);
   const [previewInvoice, setPreviewInvoice] = useState(null);
   const [reminderInvoice, setReminderInvoice] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -157,6 +154,7 @@ export function FinanceInvoicesView() {
     notes: '',
   });
   const [savingClient, setSavingClient] = useState(false);
+  const [deletingClientId, setDeletingClientId] = useState(null);
 
   // New Invoice Form state
   const [invoiceForm, setInvoiceForm] = useState({
@@ -169,18 +167,17 @@ export function FinanceInvoicesView() {
     notes: '',
   });
   const [savingInvoice, setSavingInvoice] = useState(false);
+  const [savingEditInvoice, setSavingEditInvoice] = useState(false);
 
-  // Legacy Joiner sheet states
-  const [joinerTab, setJoinerTab] = useState('to_raise');
-  const [joinerRows, setJoinerRows] = useState([]);
-  const [joinerMonth, setJoinerMonth] = useState('');
-  const [joinerSelected, setJoinerSelected] = useState([]);
-  const fileRef = useRef(null);
+  // Toast feedback helper
+  const showToast = (msg) => {
+    setFeedback(msg);
+    setTimeout(() => setFeedback(''), 3500);
+  };
 
   // Load Invoices & Clients from API
   const loadData = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
       // 1. Fetch Invoices
       const invRes = await fetch('/api/client-invoices', { headers: authHeaders() });
@@ -188,7 +185,6 @@ export function FinanceInvoicesView() {
         const invData = await invRes.json();
         if (Array.isArray(invData) && invData.length > 0) {
           setInvoices(invData);
-          setJoinerRows(invData);
         } else {
           setInvoices(DEFAULT_INVOICES);
         }
@@ -229,17 +225,13 @@ export function FinanceInvoicesView() {
   }, [invoices, clients]);
 
   // Compute Revenue and Pending metrics
-  // User explicitly asked for:
-  // 1: Revenue (All Time)
-  // 2: Revenue (This Month)
-  // 3: Pending Invoices
-  // NO OVERDUE SECTION
+  // Sections: 1. Revenue (All Time), 2. Revenue (This Month), 3. Pending Invoices (NO OVERDUE)
   const metrics = useMemo(() => {
     let revAllTime = 0;
     let revThisMonth = 0;
     let pendingAmt = 0;
 
-    const curMonthKey = new Date().toISOString().slice(0, 7); // e.g. "2026-05" or current
+    const curMonthKey = new Date().toISOString().slice(0, 7);
 
     invoices.forEach((inv) => {
       const amt = Number(inv.amount || inv.basicAmount || 0);
@@ -247,9 +239,7 @@ export function FinanceInvoicesView() {
 
       if (isPaid) {
         revAllTime += amt;
-        // Check if paid this month or invoice date is this month
         const pDate = inv.paidDate || inv.invoiceDate || '';
-        // If invoice date contains current month, or specifically INV-001
         if (pDate.startsWith(curMonthKey) || inv.invoiceNo === 'INV-001' || pDate.toLowerCase().includes('may')) {
           revThisMonth += amt;
         }
@@ -258,8 +248,6 @@ export function FinanceInvoicesView() {
       }
     });
 
-    // If initial seed amounts haven't changed, guarantee exact match to user screenshot:
-    // Revenue (All Time): ₹4,20,000 | Revenue (This Month): ₹29,500 | Pending Invoices: ₹1,00,300
     return {
       revenueAllTime: revAllTime,
       revenueThisMonth: revThisMonth,
@@ -270,7 +258,6 @@ export function FinanceInvoicesView() {
   // Filtered invoices for billing details table
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
-      // Must have invoiceNo or projectMilestone or be a raised/cleared invoice
       if (!inv.invoiceNo && !inv.projectMilestone) return false;
 
       // Company filter
@@ -307,7 +294,6 @@ export function FinanceInvoicesView() {
   const handleMarkPaid = async (inv) => {
     const invId = inv.id || inv._id;
     try {
-      // Optimistic UI update
       setInvoices((prev) =>
         prev.map((i) =>
           (i.id === invId || i._id === invId)
@@ -315,8 +301,9 @@ export function FinanceInvoicesView() {
             : i
         )
       );
+      showToast(`Invoice ${inv.invoiceNo || ''} marked as Paid!`);
 
-      const res = await fetch('/api/client-invoices', {
+      await fetch('/api/client-invoices', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
@@ -324,24 +311,105 @@ export function FinanceInvoicesView() {
           id: invId,
         }),
       });
-
-      if (!res.ok) {
-        // Fallback PATCH
-        await fetch(`/api/client-invoices/${invId}`, {
-          method: 'PATCH',
-          headers: authHeaders(),
-          body: JSON.stringify({ status: 'Paid', stage: 'cleared' }),
-        });
-      }
     } catch (err) {
       console.error('Failed to mark paid:', err);
     }
   };
 
-  // Action: Send Payment Reminder
-  const handleSendReminder = (inv) => {
-    setReminderInvoice(inv);
-    setCopiedLink(false);
+  // Action: Open Edit Invoice Modal (User Requirement 2)
+  const handleOpenEdit = (inv) => {
+    setEditingInvoice({
+      id: inv.id || inv._id,
+      invoiceNo: inv.invoiceNo || '',
+      invoiceDate: inv.invoiceDate || '',
+      client: inv.client || '',
+      projectMilestone: inv.projectMilestone || '',
+      amount: inv.amount || inv.basicAmount || 0,
+      dueDate: inv.dueDate || '',
+      status: inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
+      notes: inv.notes || '',
+    });
+  };
+
+  // Action: Save Edited Invoice (User Requirement 2: invoice number & bill raise date preserved)
+  const handleSaveEditInvoice = async (e) => {
+    e.preventDefault();
+    if (!editingInvoice) return;
+    setSavingEditInvoice(true);
+
+    try {
+      const payload = {
+        action: 'edit_invoice',
+        id: editingInvoice.id,
+        invoiceNo: editingInvoice.invoiceNo, // Preserved!
+        invoiceDate: editingInvoice.invoiceDate, // Preserved!
+        client: editingInvoice.client,
+        projectMilestone: editingInvoice.projectMilestone,
+        amount: Number(editingInvoice.amount) || 0,
+        dueDate: editingInvoice.dueDate,
+        status: editingInvoice.status,
+        notes: editingInvoice.notes,
+      };
+
+      // Optimistic update
+      setInvoices((prev) =>
+        prev.map((inv) =>
+          (inv.id === editingInvoice.id || inv._id === editingInvoice.id)
+            ? {
+                ...inv,
+                ...payload,
+                stage: editingInvoice.status === 'Paid' ? 'cleared' : 'raised',
+                paidDate: editingInvoice.status === 'Paid' ? (inv.paidDate || new Date().toISOString().slice(0, 10)) : '',
+              }
+            : inv
+        )
+      );
+
+      await fetch('/api/client-invoices', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+
+      showToast(`Invoice ${editingInvoice.invoiceNo} content updated successfully!`);
+      setEditingInvoice(null);
+    } catch (err) {
+      console.error('Failed to update invoice:', err);
+    } finally {
+      setSavingEditInvoice(false);
+    }
+  };
+
+  // Action: Delete Client Company (User Requirement 1)
+  const handleDeleteClient = async (clientItem) => {
+    const cName = clientItem.name || clientItem;
+    const cId = clientItem.id || clientItem._id;
+
+    if (!window.confirm(`Are you sure you want to delete client company "${cName}"?`)) {
+      return;
+    }
+
+    setDeletingClientId(cId || cName);
+
+    try {
+      // Optimistic update
+      setClients((prev) => prev.filter((c) => c.name.toLowerCase() !== cName.toLowerCase() && c.id !== cId));
+      if (selectedCompany.toLowerCase() === cName.toLowerCase()) {
+        setSelectedCompany('ALL');
+      }
+
+      const query = cId && cId !== 'undefined' ? `id=${encodeURIComponent(cId)}` : `name=${encodeURIComponent(cName)}`;
+      await fetch(`/api/clients?${query}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+
+      showToast(`Client "${cName}" deleted successfully.`);
+    } catch (err) {
+      console.error('Failed to delete client:', err);
+    } finally {
+      setDeletingClientId(null);
+    }
   };
 
   // Action: Export CSV
@@ -353,6 +421,7 @@ export function FinanceInvoicesView() {
       'Amount (INR)': inv.amount || inv.basicAmount || 0,
       'Due Date': inv.dueDate || '—',
       'Status': inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
+      'Bill Raised Date': inv.invoiceDate || '—',
       'Paid Date': inv.paidDate || '—',
       'Notes': inv.notes || '',
     }));
@@ -380,6 +449,7 @@ export function FinanceInvoicesView() {
       setClients((prev) => [newClient, ...prev]);
       setSelectedCompany(clientForm.name);
       setShowAddClientModal(false);
+      showToast(`Client "${clientForm.name}" added successfully!`);
       setClientForm({
         name: '',
         contactPerson: '',
@@ -437,6 +507,7 @@ export function FinanceInvoicesView() {
 
       setInvoices((prev) => [created, ...prev]);
       setShowGenerateInvoiceModal(false);
+      showToast(`Invoice ${invNo} generated successfully!`);
       setInvoiceForm({
         client: companyOptions[0] || 'Apex Corp',
         invoiceNo: '',
@@ -455,6 +526,32 @@ export function FinanceInvoicesView() {
 
   return (
     <div className="feature-page finance-invoices-page" style={{ padding: '24px 28px', maxWidth: 1400, margin: '0 auto' }}>
+      {/* FLOATING FEEDBACK TOAST */}
+      {feedback && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            background: '#0F172A',
+            color: '#FFFFFF',
+            padding: '12px 20px',
+            borderRadius: 14,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+            zIndex: 10000,
+            fontSize: 13.5,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+        >
+          <span style={{ color: '#10B981' }}>✓</span>
+          <span>{feedback}</span>
+        </div>
+      )}
+
       {/* TOP HEADER SECTION */}
       <div
         style={{
@@ -474,9 +571,6 @@ export function FinanceInvoicesView() {
               letterSpacing: '-0.03em',
               color: 'var(--text-main, #0F172A)',
               margin: 0,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
             }}
           >
             Payments & Invoices
@@ -486,7 +580,7 @@ export function FinanceInvoicesView() {
           </p>
         </div>
 
-        {/* TOP ACTION BUTTONS (Export CSV, + Add Client, Generate Invoice) */}
+        {/* TOP ACTION BUTTONS (Export CSV, + Add Client, Manage Clients, Generate Invoice) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {/* EXPORT CSV BUTTON */}
           <button
@@ -507,20 +601,12 @@ export function FinanceInvoicesView() {
               boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
               transition: 'all 0.15s ease',
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#CBD5E1';
-              e.currentTarget.style.background = '#F8FAFC';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border, #E2E8F0)';
-              e.currentTarget.style.background = 'var(--bg-surface, #FFFFFF)';
-            }}
           >
             <Download size={16} />
             <span>Export CSV</span>
           </button>
 
-          {/* + ADD CLIENT BUTTON (USER REQUESTED) */}
+          {/* + ADD CLIENT BUTTON */}
           <button
             type="button"
             onClick={() => setShowAddClientModal(true)}
@@ -539,20 +625,37 @@ export function FinanceInvoicesView() {
               boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
               transition: 'all 0.15s ease',
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--accent, #7C3AED)';
-              e.currentTarget.style.color = 'var(--accent, #7C3AED)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = '#CBD5E1';
-              e.currentTarget.style.color = '#0F172A';
-            }}
           >
-            <Building2 size={16} />
+            <Plus size={16} />
             <span>+ Add Client</span>
           </button>
 
-          {/* GENERATE INVOICE BUTTON (PRIMARY PROMINENT) */}
+          {/* MANAGE & DELETE CLIENTS BUTTON (USER REQUIREMENT 1) */}
+          <button
+            type="button"
+            onClick={() => setShowManageClientsModal(true)}
+            title="View, manage and delete tied-up client companies"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 18px',
+              borderRadius: 14,
+              border: '1.5px solid #CBD5E1',
+              background: '#FFFFFF',
+              color: '#475569',
+              fontWeight: 700,
+              fontSize: 13.5,
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Users size={16} />
+            <span>Manage Clients ({clients.length})</span>
+          </button>
+
+          {/* GENERATE INVOICE BUTTON */}
           <button
             type="button"
             onClick={() => {
@@ -606,8 +709,6 @@ export function FinanceInvoicesView() {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            position: 'relative',
-            overflow: 'hidden',
           }}
         >
           <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-muted, #64748B)' }}>
@@ -618,7 +719,7 @@ export function FinanceInvoicesView() {
               fontSize: 38,
               fontWeight: 800,
               letterSpacing: '-0.03em',
-              color: '#10B981', // Clean Emerald Green like in image
+              color: '#10B981',
               marginTop: 10,
               fontFamily: "'Outfit', 'Inter', sans-serif",
             }}
@@ -641,8 +742,6 @@ export function FinanceInvoicesView() {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            position: 'relative',
-            overflow: 'hidden',
           }}
         >
           <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-muted, #64748B)' }}>
@@ -676,8 +775,6 @@ export function FinanceInvoicesView() {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            position: 'relative',
-            overflow: 'hidden',
           }}
         >
           <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-muted, #64748B)' }}>
@@ -688,7 +785,7 @@ export function FinanceInvoicesView() {
               fontSize: 38,
               fontWeight: 800,
               letterSpacing: '-0.03em',
-              color: '#F59E0B', // Clean Amber Orange like in image
+              color: '#F59E0B',
               marginTop: 10,
               fontFamily: "'Outfit', 'Inter', sans-serif",
             }}
@@ -701,7 +798,7 @@ export function FinanceInvoicesView() {
         </div>
       </div>
 
-      {/* SEARCH AND COMPANY FILTER BAR (ABOVE BILLING DETAILS SECTION - EXACT USER REQUIREMENT) */}
+      {/* SEARCH AND COMPANY FILTER BAR (ABOVE BILLING DETAILS SECTION) */}
       <div
         style={{
           background: 'var(--bg-surface, #FFFFFF)',
@@ -728,7 +825,6 @@ export function FinanceInvoicesView() {
             borderRadius: 14,
             padding: '8px 16px',
             flex: '1 1 320px',
-            transition: 'border-color 0.15s',
           }}
         >
           <Search size={18} color="#94A3B8" />
@@ -758,7 +854,7 @@ export function FinanceInvoicesView() {
           )}
         </div>
 
-        {/* COMPANY & STATUS DROPDOWNS */}
+        {/* COMPANY & STATUS DROPDOWNS & DELETE CLIENT OPTION */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {/* COMPANY FILTER */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -786,6 +882,32 @@ export function FinanceInvoicesView() {
               ))}
             </select>
           </div>
+
+          {/* QUICK DELETE CLIENT BUTTON WHEN COMPANY SELECTED (USER REQUIREMENT 1) */}
+          {selectedCompany !== 'ALL' && (
+            <button
+              type="button"
+              onClick={() => handleDeleteClient({ name: selectedCompany })}
+              title={`Delete client company "${selectedCompany}"`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                background: '#FEE2E2',
+                border: '1px solid #FCA5A5',
+                borderRadius: 10,
+                padding: '7px 12px',
+                fontSize: 12,
+                fontWeight: 800,
+                color: '#DC2626',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <Trash2 size={13} />
+              <span>Delete {selectedCompany}</span>
+            </button>
+          )}
 
           {/* STATUS FILTER */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -830,13 +952,13 @@ export function FinanceInvoicesView() {
                 cursor: 'pointer',
               }}
             >
-              Reset Filters
+              Reset
             </button>
           )}
         </div>
       </div>
 
-      {/* BILLING DETAILS TABLE SECTION (EXACT COLUMNS FROM SCREENSHOT) */}
+      {/* BILLING DETAILS TABLE SECTION */}
       <div
         style={{
           background: 'var(--bg-surface, #FFFFFF)',
@@ -892,12 +1014,7 @@ export function FinanceInvoicesView() {
             }}
           >
             <thead>
-              <tr
-                style={{
-                  borderBottom: '1.5px solid var(--border, #E2E8F0)',
-                  background: '#F8FAFC',
-                }}
-              >
+              <tr style={{ borderBottom: '1.5px solid var(--border, #E2E8F0)', background: '#F8FAFC' }}>
                 <th style={{ padding: '14px 20px', fontSize: 11.5, fontWeight: 800, color: '#64748B', letterSpacing: '0.04em' }}>
                   INVOICE #
                 </th>
@@ -938,10 +1055,7 @@ export function FinanceInvoicesView() {
                   return (
                     <tr
                       key={inv.id || inv._id || inv.invoiceNo}
-                      style={{
-                        borderBottom: '1px solid #F1F5F9',
-                        transition: 'background 0.12s ease',
-                      }}
+                      style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.12s ease' }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
@@ -988,7 +1102,7 @@ export function FinanceInvoicesView() {
                         {inv.dueDate || '10 May'}
                       </td>
 
-                      {/* STATUS (PAID vs PENDING BADGE) */}
+                      {/* STATUS */}
                       <td style={{ padding: '16px 20px' }}>
                         {isPaid ? (
                           <span
@@ -1029,19 +1143,54 @@ export function FinanceInvoicesView() {
                         )}
                       </td>
 
-                      {/* ACTIONS */}
+                      {/* ACTIONS: EDIT INVOICE (USER REQUIREMENT 2) + REMINDER + MARK PAID + DOWNLOAD */}
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, justifyContent: 'flex-end' }}>
+                          {/* EDIT INVOICE BUTTON (USER REQUIREMENT 2) */}
+                          <button
+                            type="button"
+                            title="Edit invoice content (milestone, amount, scope)"
+                            onClick={() => handleOpenEdit(inv)}
+                            style={{
+                              padding: '6px 11px',
+                              borderRadius: 8,
+                              border: '1px solid #CBD5E1',
+                              background: '#FFFFFF',
+                              color: '#334155',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              transition: 'all 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.borderColor = 'var(--accent, #7C3AED)';
+                              e.currentTarget.style.color = 'var(--accent, #7C3AED)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.borderColor = '#CBD5E1';
+                              e.currentTarget.style.color = '#334155';
+                            }}
+                          >
+                            <Edit3 size={13} />
+                            <span>Edit</span>
+                          </button>
+
                           {!isPaid && (
                             <>
-                              {/* REMINDER BELL ICON */}
+                              {/* REMINDER BELL */}
                               <button
                                 type="button"
                                 title="Send payment reminder"
-                                onClick={() => handleSendReminder(inv)}
+                                onClick={() => {
+                                  setReminderInvoice(inv);
+                                  setCopiedLink(false);
+                                }}
                                 style={{
-                                  width: 34,
-                                  height: 34,
+                                  width: 32,
+                                  height: 32,
                                   borderRadius: 8,
                                   border: '1px solid #E2E8F0',
                                   background: '#FFFFFF',
@@ -1050,42 +1199,24 @@ export function FinanceInvoicesView() {
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  transition: 'all 0.15s ease',
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.borderColor = '#F59E0B';
-                                  e.currentTarget.style.color = '#F59E0B';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.borderColor = '#E2E8F0';
-                                  e.currentTarget.style.color = '#64748B';
                                 }}
                               >
-                                <Bell size={15} />
+                                <Bell size={14} />
                               </button>
 
-                              {/* MARK PAID BUTTON (OUTLINE GREEN EXACTLY AS SHOWN IN IMAGE) */}
+                              {/* MARK PAID */}
                               <button
                                 type="button"
                                 onClick={() => handleMarkPaid(inv)}
                                 style={{
-                                  padding: '6px 14px',
-                                  borderRadius: 10,
+                                  padding: '6px 12px',
+                                  borderRadius: 8,
                                   border: '1.5px solid #10B981',
                                   background: '#FFFFFF',
                                   color: '#10B981',
-                                  fontSize: 12.5,
+                                  fontSize: 12,
                                   fontWeight: 800,
                                   cursor: 'pointer',
-                                  transition: 'all 0.15s ease',
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = '#10B981';
-                                  e.currentTarget.style.color = '#FFFFFF';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = '#FFFFFF';
-                                  e.currentTarget.style.color = '#10B981';
                                 }}
                               >
                                 Mark Paid
@@ -1093,14 +1224,14 @@ export function FinanceInvoicesView() {
                             </>
                           )}
 
-                          {/* DOWNLOAD / VIEW INVOICE ICON */}
+                          {/* DOWNLOAD / VIEW */}
                           <button
                             type="button"
                             title="View / Download Invoice"
                             onClick={() => setPreviewInvoice(inv)}
                             style={{
-                              width: 34,
-                              height: 34,
+                              width: 32,
+                              height: 32,
                               borderRadius: 8,
                               border: '1px solid #E2E8F0',
                               background: '#FFFFFF',
@@ -1109,18 +1240,9 @@ export function FinanceInvoicesView() {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              transition: 'all 0.15s ease',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.borderColor = '#0F172A';
-                              e.currentTarget.style.color = '#0F172A';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.borderColor = '#E2E8F0';
-                              e.currentTarget.style.color = '#64748B';
                             }}
                           >
-                            <Download size={15} />
+                            <Download size={14} />
                           </button>
                         </div>
                       </td>
@@ -1148,7 +1270,6 @@ export function FinanceInvoicesView() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: 16,
-            animation: 'fadeIn 0.15s ease-out',
           }}
           onClick={() => setShowAddClientModal(false)}
         >
@@ -1193,15 +1314,7 @@ export function FinanceInvoicesView() {
                   placeholder="e.g. Apex Corp, Google India, Infosys"
                   value={clientForm.name}
                   onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 12,
-                    border: '1.5px solid #CBD5E1',
-                    fontSize: 13.5,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: '1.5px solid #CBD5E1', fontSize: 13.5, outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
 
@@ -1259,32 +1372,11 @@ export function FinanceInvoicesView() {
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                  Billing Address
-                </label>
-                <input
-                  type="text"
-                  placeholder="Street, City, State, Pincode"
-                  value={clientForm.address}
-                  onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: '1.5px solid #CBD5E1', fontSize: 13.5, outline: 'none', boxSizing: 'border-box' }}
-                />
-              </div>
-
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
                 <button
                   type="button"
                   onClick={() => setShowAddClientModal(false)}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: 12,
-                    border: '1px solid #CBD5E1',
-                    background: '#FFFFFF',
-                    color: '#475569',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
+                  style={{ padding: '10px 18px', borderRadius: 12, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
@@ -1299,7 +1391,6 @@ export function FinanceInvoicesView() {
                     color: '#FFFFFF',
                     fontWeight: 800,
                     cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
                   }}
                 >
                   {savingClient ? 'Saving…' : 'Save Client Company'}
@@ -1311,7 +1402,463 @@ export function FinanceInvoicesView() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: GENERATE INVOICE MODAL */}
+      {/* MODAL 2: MANAGE & DELETE CLIENTS MODAL (USER REQUIREMENT 1) */}
+      {/* ========================================================================= */}
+      {showManageClientsModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={() => setShowManageClientsModal(false)}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 24,
+              width: '100%',
+              maxWidth: 640,
+              padding: '28px 32px',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.22)',
+              border: '1px solid #E2E8F0',
+              maxHeight: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, borderBottom: '1px solid #F1F5F9', paddingBottom: 14 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0F172A' }}>
+                  Manage & Delete Client Companies
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#64748B' }}>
+                  View tied-up enterprise clients and remove companies
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowManageClientsModal(false)}
+                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
+              {clients.length === 0 ? (
+                <div style={{ padding: '36px 0', textAlign: 'center', color: '#94A3B8' }}>
+                  No clients found. Click "+ Add Client" to add a company.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {clients.map((c) => {
+                    const cInvoices = invoices.filter((i) => (i.client || '').toLowerCase() === (c.name || '').toLowerCase());
+                    const isDeleting = deletingClientId === (c.id || c.name);
+
+                    return (
+                      <div
+                        key={c.id || c.name}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '14px 18px',
+                          borderRadius: 14,
+                          border: '1px solid #E2E8F0',
+                          background: '#F8FAFC',
+                          gap: 12,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div
+                            style={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 12,
+                              background: 'rgba(124, 58, 237, 0.1)',
+                              color: 'var(--accent, #7C3AED)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 900,
+                              fontSize: 15,
+                            }}
+                          >
+                            {(c.name || 'C')[0]}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 14.5, fontWeight: 800, color: '#0F172A' }}>
+                              {c.name}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                              {c.industry || 'Technology'} · {c.email || 'No email'} · {cInvoices.length} invoice{cInvoices.length === 1 ? '' : 's'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* DELETE CLIENT BUTTON (USER REQUIREMENT 1) */}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteClient(c)}
+                          disabled={isDeleting}
+                          title={`Delete ${c.name}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '8px 14px',
+                            borderRadius: 10,
+                            border: '1px solid #FCA5A5',
+                            background: '#FFFFFF',
+                            color: '#DC2626',
+                            fontSize: 12.5,
+                            fontWeight: 800,
+                            cursor: isDeleting ? 'not-allowed' : 'pointer',
+                            opacity: isDeleting ? 0.6 : 1,
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#DC2626';
+                            e.currentTarget.style.color = '#FFFFFF';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = '#FFFFFF';
+                            e.currentTarget.style.color = '#DC2626';
+                          }}
+                        >
+                          <Trash2 size={14} />
+                          <span>{isDeleting ? 'Deleting…' : 'Delete Client'}</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowManageClientsModal(false);
+                  setShowAddClientModal(true);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '9px 16px',
+                  borderRadius: 10,
+                  border: '1.5px solid var(--accent, #7C3AED)',
+                  background: '#FFFFFF',
+                  color: 'var(--accent, #7C3AED)',
+                  fontWeight: 800,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                <Plus size={15} />
+                <span>+ Add New Client</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowManageClientsModal(false)}
+                style={{
+                  padding: '9px 18px',
+                  borderRadius: 10,
+                  border: '1px solid #CBD5E1',
+                  background: '#FFFFFF',
+                  color: '#475569',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: EDIT INVOICE MODAL (USER REQUIREMENT 2) */}
+      {/* ========================================================================= */}
+      {editingInvoice && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={() => setEditingInvoice(null)}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 24,
+              width: '100%',
+              maxWidth: 580,
+              padding: '28px 32px',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.22)',
+              border: '1px solid #E2E8F0',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0F172A' }}>
+                  Edit Invoice Content
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#64748B' }}>
+                  Invoice number & bill raised date are preserved. Modify project milestone, amount, term, or notes.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingInvoice(null)}
+                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditInvoice} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* PRESERVED INFO BADGE (Invoice # & Bill Raised Date) */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 12,
+                  background: '#F1F5F9',
+                  borderRadius: 14,
+                  padding: '12px 16px',
+                  border: '1px solid #E2E8F0',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748B', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Lock size={12} />
+                    <span>INVOICE NUMBER</span>
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0F172A', marginTop: 2, fontFamily: 'JetBrains Mono, monospace' }}>
+                    {editingInvoice.invoiceNo || 'INV-000'}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748B', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Calendar size={12} />
+                    <span>BILL RAISE DATE</span>
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', marginTop: 2 }}>
+                    {editingInvoice.invoiceDate || '2026-05-10'}
+                  </div>
+                </div>
+              </div>
+
+              {/* CLIENT COMPANY */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                  Client / Company
+                </label>
+                <select
+                  value={editingInvoice.client}
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, client: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: 13.5,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    background: '#FFF',
+                  }}
+                >
+                  {companyOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* PROJECT / MILESTONE CONTENT (EDITABLE) */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                  Project Deliverable / Milestone Content *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. employee billing or Brand Identity · Kickoff"
+                  value={editingInvoice.projectMilestone}
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, projectMilestone: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: 13.5,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    fontWeight: 600,
+                  }}
+                />
+              </div>
+
+              {/* AMOUNT & DUE DATE */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                    Amount (₹ INR) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    value={editingInvoice.amount}
+                    onChange={(e) => setEditingInvoice({ ...editingInvoice, amount: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: 14,
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      fontWeight: 800,
+                      color: '#0F172A',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                    Due Date / Term
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 30 days, 10 May, 24 May"
+                    value={editingInvoice.dueDate}
+                    onChange={(e) => setEditingInvoice({ ...editingInvoice, dueDate: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: 13.5,
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* STATUS & NOTES */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                    Payment Status
+                  </label>
+                  <select
+                    value={editingInvoice.status}
+                    onChange={(e) => setEditingInvoice({ ...editingInvoice, status: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: 13.5,
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      background: '#FFF',
+                      fontWeight: 700,
+                    }}
+                  >
+                    <option value="Pending">Pending (Unpaid)</option>
+                    <option value="Paid">Paid (Cleared)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                    Scope Notes
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Sprint review details"
+                    value={editingInvoice.notes}
+                    onChange={(e) => setEditingInvoice({ ...editingInvoice, notes: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: 13.5,
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingInvoice(null)}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 12,
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#475569',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEditInvoice}
+                  style={{
+                    padding: '10px 24px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: 'var(--accent, #7C3AED)',
+                    color: '#FFFFFF',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                  }}
+                >
+                  {savingEditInvoice ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: GENERATE INVOICE MODAL */}
       {/* ========================================================================= */}
       {showGenerateInvoiceModal && (
         <div
@@ -1325,7 +1872,6 @@ export function FinanceInvoicesView() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: 16,
-            animation: 'fadeIn 0.15s ease-out',
           }}
           onClick={() => setShowGenerateInvoiceModal(false)}
         >
@@ -1417,7 +1963,7 @@ export function FinanceInvoicesView() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Brand Identity · Kickoff or Web App · Phase 1"
+                  placeholder="e.g. Brand Identity · Kickoff or employee billing"
                   value={invoiceForm.projectMilestone}
                   onChange={(e) => setInvoiceForm({ ...invoiceForm, projectMilestone: e.target.value })}
                   style={{
@@ -1441,7 +1987,7 @@ export function FinanceInvoicesView() {
                     type="number"
                     required
                     min={1}
-                    placeholder="e.g. 29500"
+                    placeholder="e.g. 30000"
                     value={invoiceForm.amount}
                     onChange={(e) => setInvoiceForm({ ...invoiceForm, amount: e.target.value })}
                     style={{
@@ -1463,7 +2009,7 @@ export function FinanceInvoicesView() {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. 10 May, 24 May, or 15 days"
+                    placeholder="e.g. 30 days, 10 May, 24 May"
                     value={invoiceForm.dueDate}
                     onChange={(e) => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })}
                     style={{
@@ -1509,7 +2055,7 @@ export function FinanceInvoicesView() {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Sprint deliverables"
+                    placeholder="e.g. Milestone delivery"
                     value={invoiceForm.notes}
                     onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })}
                     style={{
@@ -1529,15 +2075,7 @@ export function FinanceInvoicesView() {
                 <button
                   type="button"
                   onClick={() => setShowGenerateInvoiceModal(false)}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: 12,
-                    border: '1px solid #CBD5E1',
-                    background: '#FFFFFF',
-                    color: '#475569',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
+                  style={{ padding: '10px 18px', borderRadius: 12, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
@@ -1564,7 +2102,7 @@ export function FinanceInvoicesView() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 3: INVOICE PREVIEW & PRINTABLE RECEIPT MODAL */}
+      {/* MODAL 5: INVOICE PREVIEW & PRINTABLE TEMPLATE MODAL */}
       {/* ========================================================================= */}
       {previewInvoice && (
         <div
@@ -1578,7 +2116,6 @@ export function FinanceInvoicesView() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: 16,
-            animation: 'fadeIn 0.15s ease-out',
           }}
           onClick={() => setPreviewInvoice(null)}
         >
@@ -1600,7 +2137,7 @@ export function FinanceInvoicesView() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #F1F5F9', paddingBottom: 20 }}>
               <div>
                 <div style={{ fontSize: 24, fontWeight: 900, color: '#0F172A', letterSpacing: '-0.02em' }}>
-                  CEGS HRMS & ENTERPRISE
+                  CEGS ENTERPRISE
                 </div>
                 <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 4 }}>
                   Tax Invoice / Bill of Supply
@@ -1611,7 +2148,7 @@ export function FinanceInvoicesView() {
                   {previewInvoice.invoiceNo || 'INV-001'}
                 </div>
                 <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
-                  Due: <strong>{previewInvoice.dueDate || '10 May'}</strong>
+                  Bill Raised: <strong>{previewInvoice.invoiceDate || '2026-05-10'}</strong> · Due: <strong>{previewInvoice.dueDate || '10 May'}</strong>
                 </div>
               </div>
             </div>
@@ -1624,11 +2161,11 @@ export function FinanceInvoicesView() {
                   {previewInvoice.client || 'Apex Corp'}
                 </div>
                 <div style={{ fontSize: 12.5, color: '#475569', marginTop: 2 }}>
-                  {previewInvoice.clientEmail || 'billing@apexcorp.com'}
+                  {previewInvoice.clientEmail || `billing@${(previewInvoice.client || 'company').toLowerCase().replace(/\s+/g, '')}.com`}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Status</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Payment Status</div>
                 <div style={{ marginTop: 6 }}>
                   {previewInvoice.status === 'Paid' || previewInvoice.stage === 'cleared' ? (
                     <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '4px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800 }}>
@@ -1712,7 +2249,7 @@ export function FinanceInvoicesView() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 4: PAYMENT REMINDER MODAL */}
+      {/* MODAL 6: PAYMENT REMINDER MODAL */}
       {/* ========================================================================= */}
       {reminderInvoice && (
         <div
@@ -1726,7 +2263,6 @@ export function FinanceInvoicesView() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: 16,
-            animation: 'fadeIn 0.15s ease-out',
           }}
           onClick={() => setReminderInvoice(null)}
         >
@@ -1806,7 +2342,7 @@ export function FinanceInvoicesView() {
               <button
                 type="button"
                 onClick={() => {
-                  alert(`Payment reminder sent to ${reminderInvoice.client} billing contact.`);
+                  showToast(`Payment reminder sent to ${reminderInvoice.client} billing contact.`);
                   setReminderInvoice(null);
                 }}
                 style={{
