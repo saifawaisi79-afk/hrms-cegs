@@ -81,6 +81,81 @@ const INITIAL_CLIENTS = [
     notes: 'Official Form GST INV – 1 candidate placement and seat billing partner.',
     status: 'Active',
   },
+  {
+    name: 'Five Splash Infotech Pvt. Ltd- Bangalore',
+    contactPerson: 'Finance & Accounts',
+    email: 'finance@fivesplash.com',
+    phone: '+91 80 4600 5000',
+    gstin: '29AABCF3991K1Z5',
+    address: '46/4, Novel Tech Park, Hosur Rd, Kudlugate, Krishna Reddy Industrial Area, Behind HSR, Bengaluru, Karnataka 560068.',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & IT Enabled Services',
+    paymentTerms: 'Net 30',
+    templateType: 'FIVE_SPLASH',
+    notes: 'Novel Tech Park Kudlugate candidate placement & process billing.',
+    status: 'Active',
+  },
+  {
+    name: 'Altruist Technologies Pvt. Ltd.',
+    contactPerson: 'Finance & Accounts',
+    email: 'accounts@altruistindia.com',
+    phone: '+91 80 4900 1200',
+    gstin: '29AAFCA3725N1ZC',
+    address: 'AKR Tech Park, 46/1, NH 44, near Krishna Reddy Industrial Area, Kudlu Gate, Bengaluru – 560068.',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & Telecom VAS',
+    paymentTerms: 'Net 30',
+    templateType: 'ALTRUIST',
+    notes: 'AKR Tech Park Kudlu Gate process placement & seat billing.',
+    status: 'Active',
+  },
+  {
+    name: 'Altruist GB',
+    contactPerson: 'Finance & Accounts (Garvebhavi palya)',
+    email: 'accounts.gb@altruistindia.com',
+    phone: '+91 80 4900 1250',
+    gstin: '29AAFCA3725N1ZC',
+    address: 'Garvebhavi palya, Behind RNS Motors, HGSL Chambers NO 4,5,6, Begur Hobli, Hosur Main Road, Bangalore, Hongasandra Village, Bengaluru (Bangalore) Urban, Karnataka, 560068',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & Telecom VAS',
+    paymentTerms: 'Net 30',
+    templateType: 'ALTRUIST_GB',
+    notes: 'Garvebhavi palya branch process placement & seat billing.',
+    status: 'Active',
+  },
+  {
+    name: 'One Point One Solutions Ltd',
+    contactPerson: 'Finance & Billing',
+    email: 'billing@1point1.in',
+    phone: '+91 80 6790 3300',
+    gstin: '29AACCD9158MIZZ',
+    address: '3rd Floor, AKR Infinity, Sy No. 113, Krishna Reddy Industrial Area, 7th Mile Hosur Road Bangalore, Karnataka 560068 India.',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & Customer Experience',
+    paymentTerms: 'Net 30',
+    templateType: 'ONE_POINT_ONE',
+    notes: 'AKR Infinity 7th Mile Hosur Road candidate billing.',
+    status: 'Active',
+  },
+  {
+    name: 'Radical Minds Technologies Pvt Ltd',
+    contactPerson: 'Finance & Accounts',
+    email: 'accounts@radicalminds.in',
+    phone: '+91 80 4321 8800',
+    gstin: '29AAFCR0597P1ZJ',
+    address: 'Krimson Square, 31/9, Aayee Matha Temple Rd, Muneswara Nagar, Sector 6, HSR Layout, Bengaluru, Karnataka 560102',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & Customer Management Services',
+    paymentTerms: 'Net 30',
+    templateType: 'RADICAL_MINDS',
+    notes: 'HSR Layout Krimson Square candidate placement billing.',
+    status: 'Active',
+  },
 ];
 
 function flatten(doc) {
@@ -95,10 +170,12 @@ export async function GET(request) {
     if (count === 0) {
       await ClientCompany.insertMany(INITIAL_CLIENTS);
     } else {
-      // Ensure ISON XPERIENCES is seeded if missing
-      const hasIson = await ClientCompany.findOne({ name: /ISON XPERIENCES/i });
-      if (!hasIson) {
-        await ClientCompany.create(INITIAL_CLIENTS[INITIAL_CLIENTS.length - 1]);
+      // Ensure all official client templates are seeded if missing
+      for (const cl of INITIAL_CLIENTS) {
+        const exists = await ClientCompany.findOne({ name: { $regex: new RegExp(`^${cl.name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } });
+        if (!exists) {
+          await ClientCompany.create(cl);
+        }
       }
     }
     const clients = await ClientCompany.find({}).sort({ name: 1 }).lean();

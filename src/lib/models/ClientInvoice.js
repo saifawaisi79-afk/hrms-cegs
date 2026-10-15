@@ -58,8 +58,12 @@ const ClientInvoiceSchema = new mongoose.Schema(
     items: {
       type: [
         {
+          sno: { type: String, default: '' },
           empId: { type: String, default: '' },
           employeeName: { type: String, default: '' },
+          phone: { type: String, default: '' },
+          designation: { type: String, default: '' },
+          status: { type: String, default: '' },
           doj: { type: String, default: '' },
           processLob: { type: String, default: '' },
           ratePerSeat: { type: Number, default: 0 },

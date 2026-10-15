@@ -81,6 +81,246 @@ const ISON_SAMPLE_ITEMS = [
   { empId: 'CEGS-107', employeeName: 'Kashif Ahmed', doj: '24/10/2026', processLob: 'SMB', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
 ];
 
+// Sample items matching Five Splash Infotech Pvt. Ltd- Bangalore
+const FIVE_SPLASH_SAMPLE_ITEMS = [
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'JFL', doj: 'xx/xx/xxxx', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'CoinDCX', doj: 'xx/xx/xxxx', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'EFL', doj: 'xx/xx/xxxx', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'TVS', doj: 'xx/xx/xxxx', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+];
+
+// Sample items matching Altruist Technologies Pvt. Ltd. (Kudlu Gate)
+const ALTRUIST_SAMPLE_ITEMS = [
+  { sno: '01', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation.', doj: 'x/x/xx-', processLob: 'IBL', sacCode: 'BPO', ratePerSeat: 4500, amount: 4500 },
+  { sno: '02', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation', doj: 'x/x/xx', processLob: 'Titan', sacCode: 'BPO', ratePerSeat: 10000, amount: 10000 },
+  { sno: '03', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation.', doj: 'x/x/xx-', processLob: 'Toyota', sacCode: 'BPO', ratePerSeat: 5000, amount: 5000 },
+  { sno: '04', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation.', doj: 'x/x/xx-', processLob: 'Leap Finance', sacCode: 'BPO', ratePerSeat: 5000, amount: 5000 },
+  { sno: '05', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation.', doj: 'x/x/xx-', processLob: 'RM- Leap Finance', sacCode: 'BPO', ratePerSeat: 5000, amount: 5000 },
+  { sno: '06', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation.', doj: 'x/x/xx-', processLob: 'Amazon', sacCode: 'BPO', ratePerSeat: 5000, amount: 5000 },
+  { sno: '07', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation.', doj: 'x/x/xx-', processLob: 'Indus Bank', sacCode: 'BPO', ratePerSeat: 3000, amount: 3000 },
+  { sno: '08', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation.', doj: 'x/x/xx-', processLob: 'EZE tap', sacCode: 'BPO', ratePerSeat: 4500, amount: 4500 },
+  { sno: '09', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation.', doj: 'x/x/xx-', processLob: 'BOB', sacCode: 'BPO', ratePerSeat: 4500, amount: 4500 },
+  { sno: '10', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation.', doj: 'x/x/xx-', processLob: 'TBSS', sacCode: 'BPO', ratePerSeat: 4500, amount: 4500 },
+  { sno: '11', empId: 'xxxxx', employeeName: 'xyz', designation: 'Business AssociateOperation.', doj: 'x/x/xx-', processLob: 'Switch Mobility', sacCode: 'BPO', ratePerSeat: 5000, amount: 5000 },
+];
+
+// Sample items matching Altruist GB (Garvebhavi palya)
+const ALTRUIST_GB_SAMPLE_ITEMS = [
+  { sno: '01', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'Airtel Black', sacCode: 'BPO', ratePerSeat: 12000, amount: 12000 },
+  { sno: '02', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'BB Gold', sacCode: 'BPO', ratePerSeat: 10000, amount: 10000 },
+  { sno: '03', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'Mobility', sacCode: 'BPO', ratePerSeat: 10000, amount: 10000 },
+  { sno: '04', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'Platinum', sacCode: 'BPO', ratePerSeat: 10000, amount: 10000 },
+  { sno: '05', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'DTH', sacCode: 'BPO', ratePerSeat: 4500, amount: 4500 },
+  { sno: '06', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'IPRU', sacCode: 'BPO', ratePerSeat: 3000, amount: 3000 },
+  { sno: '07', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: '121', sacCode: 'BPO', ratePerSeat: 4500, amount: 4500 },
+  { sno: '08', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'WCC', sacCode: 'BPO', ratePerSeat: 4000, amount: 4000 },
+  { sno: '09', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'ICICI', sacCode: 'BPO', ratePerSeat: 3000, amount: 3000 },
+  { sno: '10', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'airtel prepaid KK', sacCode: 'BPO', ratePerSeat: 4000, amount: 4000 },
+  { sno: '11', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'TN Postpaid', sacCode: 'BPO', ratePerSeat: 4000, amount: 4000 },
+  { sno: '12', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'OB Collection', sacCode: 'BPO', ratePerSeat: 4000, amount: 4000 },
+  { sno: '13', empId: 'xxxx', employeeName: 'XYZ', designation: 'Business AssociateOperation', doj: 'xx/x/xx', processLob: 'MLob', sacCode: 'BPO', ratePerSeat: 10000, amount: 10000 },
+];
+
+// Sample items matching One Point One Solutions Ltd
+const ONE_POINT_ONE_SAMPLE_ITEMS = [
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'Razorpay', doj: 'xx/xx/xxxx', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'TATA Premium', doj: 'xx/xx/xxxx', ratePerSeat: 7000, sacCode: '99851', amount: 7000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'TATA Standard', doj: 'xx/xx/xxxx', ratePerSeat: 7000, sacCode: '99851', amount: 7000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'ICICI', doj: 'xx/xx/xxxx', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'SBI', doj: 'xx/xx/xxxx', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'JFL(domino\'s)', doj: 'xx/xx/xxxx', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'Ujjivan finance', doj: 'xx/xx/xxxx', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'Xiaomi - Hotline', doj: 'xx/xx/xxxx', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'Edelweiss', doj: 'xx/xx/xxxx', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'DRA', doj: 'xx/xx/xxxx', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'DMI', doj: 'xx/xx/xxxx', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'Chola', doj: 'xx/xx/xxxx', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'TMB', doj: 'xx/xx/xxxx', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'xxxx', employeeName: 'xxxx', phone: 'xxxx', processLob: 'Lateral', doj: 'xx/xx/xxxx', ratePerSeat: 0, sacCode: '99851', amount: 0 },
+];
+
+// Sample items matching Radical Minds Technologies Pvt Ltd (From real data in PDF)
+const RADICAL_MINDS_SAMPLE_ITEMS = [
+  { empId: 'RMB98010', employeeName: 'BINDUSHWARI B', phone: '8497811576', status: 'Active', doj: '28-April-25', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'RMB98022', employeeName: 'Umar Paridar', phone: '7892483114', status: 'Active', doj: '30-April-25', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'RNB98027', employeeName: 'Vijay Kumar', phone: '9113583897', status: 'Active', doj: '01-May-25', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'RMB98026', employeeName: 'Eda Begum', phone: '9380229469', status: 'Active', doj: '01-May-25', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+  { empId: 'RMB98054', employeeName: 'Sandhya', phone: '9663460270', status: 'Active', doj: '15-May-25', ratePerSeat: 6000, sacCode: '99851', amount: 6000 },
+  { empId: 'RMB98058', employeeName: 'Janani', phone: '7411774844', status: 'Active', doj: '15-May-25', ratePerSeat: 6000, sacCode: '99851', amount: 6000 },
+  { empId: 'RMB98046', employeeName: 'Nandhini', phone: '9912311295', status: 'Active', doj: '12-May-25', ratePerSeat: 6000, sacCode: '99851', amount: 6000 },
+  { empId: 'RMB97624', employeeName: 'JHUNNU BABU', phone: '8340795702', status: 'Active', doj: '18/01/2025', ratePerSeat: 4000, sacCode: '99851', amount: 4000 },
+  { empId: 'RMB97756', employeeName: 'KAMALESH', phone: '7259121032', status: 'Active', doj: '6/02/2025', ratePerSeat: 4000, sacCode: '99851', amount: 4000 },
+  { empId: 'RMB97762', employeeName: 'SUHAIL CHOUDHARY', phone: '8744869587', status: 'Active', doj: '6/02/2025', ratePerSeat: 4000, sacCode: '99851', amount: 4000 },
+  { empId: 'RMB97817', employeeName: 'SIDDHRAJ', phone: '8088085997', status: 'Active', doj: '17/02/2025', ratePerSeat: 4000, sacCode: '99851', amount: 4000 },
+  { empId: 'RMB97883', employeeName: 'SHASHANK', phone: '6362965610', status: 'Active', doj: '12/03/2025', ratePerSeat: 6000, sacCode: '99851', amount: 6000 },
+  { empId: 'RMB97922', employeeName: 'MUDASSIR', phone: '9380112271', status: 'Active', doj: '10/04/2025', ratePerSeat: 4000, sacCode: '99851', amount: 4000 },
+  { empId: 'RMB97921', employeeName: 'NAVEED AHAMED ARNI', phone: '7892979591', status: 'Active', doj: '10/04/2025', ratePerSeat: 4000, sacCode: '99851', amount: 4000 },
+  { empId: 'RMB97906', employeeName: 'MOHAMMED YOUSUF', phone: '8217848124/7975119960', status: 'Active', doj: '07/04/2025', ratePerSeat: 10000, sacCode: '99851', amount: 10000 },
+  { empId: 'RMB97938', employeeName: 'SUNIL SAUD', phone: '8660631961', status: 'Active', doj: '12/04/2025', ratePerSeat: 3000, sacCode: '99851', amount: 3000 },
+];
+
+// Configuration registry for all 6 official client templates
+const CLIENT_CONFIGS = {
+  GST_INV_1: {
+    key: 'GST_INV_1',
+    name: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
+    label: 'Form GST INV – 1 (ISON Official)',
+    badge: 'ISON',
+    defaultAddress: 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102',
+    defaultGstin: '29AADCI1246E1ZT',
+    defaultPan: 'AADCI1246E',
+    sampleItems: ISON_SAMPLE_ITEMS,
+    sampleBasic: 37000,
+    sampleSgst: 3330,
+    sampleCgst: 3330,
+    sampleTotal: 43660,
+    words: 'Forty-Three thousand Six Hundred Sixty only.',
+  },
+  FIVE_SPLASH: {
+    key: 'FIVE_SPLASH',
+    name: 'Five Splash Infotech Pvt. Ltd- Bangalore',
+    label: 'Five Splash Infotech Official',
+    badge: 'Five Splash',
+    defaultAddress: '46/4, Novel Tech Park, Hosur Rd, Kudlugate, Krishna Reddy Industrial Area, Behind HSR, Bengaluru, Karnataka 560068.',
+    defaultGstin: '29AABCF3991K1Z5',
+    defaultPan: 'AABCF3991K',
+    sampleItems: FIVE_SPLASH_SAMPLE_ITEMS,
+    sampleBasic: 20000,
+    sampleSgst: 1800,
+    sampleCgst: 1800,
+    sampleTotal: 23600,
+    words: 'Twenty-Three Thousand Six Hundred only.',
+  },
+  ALTRUIST: {
+    key: 'ALTRUIST',
+    name: 'Altruist Technologies Pvt. Ltd.',
+    label: 'Altruist Technologies (Kudlu Gate)',
+    badge: 'Altruist',
+    defaultAddress: 'AKR Tech Park, 46/1, NH 44, near Krishna Reddy Industrial Area, Kudlu Gate, Bengaluru – 560068.',
+    defaultGstin: '29AAFCA3725N1ZC',
+    defaultPan: 'AAFCA3725N',
+    sampleItems: ALTRUIST_SAMPLE_ITEMS,
+    sampleBasic: 56000,
+    sampleSgst: 5040,
+    sampleCgst: 5040,
+    sampleTotal: 66080,
+    words: 'Sixty Six Thousand Eighty only.',
+  },
+  ALTRUIST_GB: {
+    key: 'ALTRUIST_GB',
+    name: 'Altruist GB',
+    label: 'Altruist GB (Garvebhavi palya)',
+    badge: 'Altruist GB',
+    defaultAddress: 'Garvebhavi palya, Behind RNS Motors, HGSL Chambers NO 4,5,6, Begur Hobli, Hosur Main Road, Bangalore, Hongasandra Village, Bengaluru (Bangalore) Urban, Karnataka, 560068',
+    defaultGstin: '29AAFCA3725N1ZC',
+    defaultPan: 'AAFCA3725N',
+    sampleItems: ALTRUIST_GB_SAMPLE_ITEMS,
+    sampleBasic: 83000,
+    sampleSgst: 7470,
+    sampleCgst: 7470,
+    sampleTotal: 97940,
+    words: 'Ninety-Seven Thousand Nine Hundred Forty only.',
+  },
+  ONE_POINT_ONE: {
+    key: 'ONE_POINT_ONE',
+    name: 'One Point One Solutions Ltd',
+    label: 'One Point One Solutions Official',
+    badge: 'One Point One',
+    defaultAddress: '3rd Floor, AKR Infinity, Sy No. 113, Krishna Reddy Industrial Area, 7th Mile Hosur Road Bangalore, Karnataka 560068 India.',
+    defaultGstin: '29AACCD9158MIZZ',
+    defaultPan: 'AACCD9158M',
+    sampleItems: ONE_POINT_ONE_SAMPLE_ITEMS,
+    sampleBasic: 49000,
+    sampleSgst: 4410,
+    sampleCgst: 4410,
+    sampleTotal: 57820,
+    words: 'Fifty-Seven Thousand Eight Hundred Twenty only.',
+  },
+  RADICAL_MINDS: {
+    key: 'RADICAL_MINDS',
+    name: 'Radical Minds Technologies Pvt Ltd',
+    label: 'Radical Minds Technologies Official',
+    badge: 'Radical Minds',
+    defaultAddress: 'Krimson Square, 31/9, Aayee Matha Temple Rd, Muneswara Nagar, Sector 6, HSR Layout, Bengaluru, Karnataka 560102',
+    defaultGstin: '29AAFCR0597P1ZJ',
+    defaultPan: 'AAFCR0597P',
+    sampleItems: RADICAL_MINDS_SAMPLE_ITEMS,
+    sampleBasic: 73000,
+    sampleSgst: 6570,
+    sampleCgst: 6570,
+    sampleTotal: 86140,
+    words: 'Eighty Six Thousand One Hundred and Forty only.',
+  },
+};
+
+// Helper: Determine the best template key for a client / invoice
+export function getClientTemplate(clientName = '', templateType = '') {
+  if (templateType && CLIENT_CONFIGS[templateType]) {
+    return templateType;
+  }
+  const c = String(clientName || '').toLowerCase();
+  if (c.includes('five splash') || c.includes('fivesplash')) return 'FIVE_SPLASH';
+  if (c.includes('altruist') && (c.includes('gb') || c.includes('garvebhavi') || c.includes('begur'))) return 'ALTRUIST_GB';
+  if (c.includes('altruist')) return 'ALTRUIST';
+  if (c.includes('one point one') || c.includes('1point1') || c.includes('onepointone')) return 'ONE_POINT_ONE';
+  if (c.includes('radical minds') || c.includes('radicalminds')) return 'RADICAL_MINDS';
+  if (c.includes('ison')) return 'GST_INV_1';
+  return 'GST_INV_1';
+}
+
+// Digital Signature Stamp / Badge Component
+function DigitalSignatureBadge({ name = 'MOHAMMED USMAN ZABI', date = '', customImage = null }) {
+  if (customImage && customImage !== '/signatures/usman-zabi-digital-signature.jpg') {
+    return (
+      <div style={{ textAlign: 'right', display: 'inline-block' }}>
+        <img
+          src={customImage}
+          alt={`Digital Signature of ${name}`}
+          style={{ maxHeight: 68, maxWidth: 220, objectFit: 'contain', display: 'block', marginLeft: 'auto' }}
+        />
+      </div>
+    );
+  }
+
+  const stampDate = date || '19/09/2026';
+  const stampTime = '2:15 PM';
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        border: '1.5px solid #CBD5E1',
+        borderRadius: 8,
+        padding: '6px 12px',
+        background: '#FAFBFD',
+        fontFamily: 'Arial, "Helvetica Neue", sans-serif',
+        textAlign: 'left',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+      }}
+    >
+      <div style={{ width: 26, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <svg width="24" height="28" viewBox="0 0 24 28" fill="none">
+          <path d="M12 2L3 6V13C3 18.5 6.8 23.7 12 25C17.2 23.7 21 18.5 21 13V6L12 2Z" fill="#FEE2E2" stroke="#DC2626" strokeWidth="1.5" />
+          <path d="M8 13.5L10.5 16L16 10" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <div>
+        <div style={{ fontSize: 12.5, fontWeight: 900, color: '#0F172A', letterSpacing: '0.04em', lineHeight: 1.15 }}>
+          {name}
+        </div>
+        <div style={{ fontSize: 9.5, color: '#475569', fontWeight: 600, marginTop: 2 }}>
+          Digitally signed by <span style={{ color: '#0F172A', fontWeight: 800 }}>{name}</span>
+        </div>
+        <div style={{ fontSize: 9, color: '#64748B', fontFamily: 'monospace', marginTop: 1 }}>
+          Date: {stampDate} · Time: {stampTime}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function numberToWordsINR(num) {
   num = Math.round(Number(num) || 0);
   if (num === 0) return 'Zero Rupees only';
@@ -146,7 +386,7 @@ function authHeaders() {
 // Default official digital signature stamp (Mohammed Usman Zabi)
 const DEFAULT_SIGNATURE_STAMP = '/signatures/usman-zabi-digital-signature.jpg';
 
-// Fallback seed invoices matching the user screenshot and official templates
+// Fallback seed invoices matching the official client templates
 const DEFAULT_INVOICES = [
   {
     id: 'seed-ison-1',
@@ -176,6 +416,126 @@ const DEFAULT_INVOICES = [
     amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
     signatureImage: DEFAULT_SIGNATURE_STAMP,
     items: ISON_SAMPLE_ITEMS,
+  },
+  {
+    id: 'seed-fivesplash-1',
+    _id: 'seed-fivesplash-1',
+    invoiceNo: 'INV-2026-FS-01',
+    client: 'Five Splash Infotech Pvt. Ltd- Bangalore',
+    projectMilestone: 'Candidate Placement & Process Billing · 4 Candidates (JFL, CoinDCX, EFL, TVS)',
+    amount: 23600,
+    basicAmount: 20000,
+    sgstAmount: 1800,
+    cgstAmount: 1800,
+    dueDate: '30 days',
+    status: 'Pending',
+    paidDate: '',
+    invoiceDate: '2026-10-15',
+    notes: 'Novel Tech Park Kudlugate candidate placement invoice.',
+    clientGstin: '29AABCF3991K1Z5',
+    clientAddress: '46/4, Novel Tech Park, Hosur Rd, Kudlugate, Krishna Reddy Industrial Area, Behind HSR, Bengaluru, Karnataka 560068.',
+    clientState: 'Karnataka',
+    clientStateCode: '29',
+    templateType: 'FIVE_SPLASH',
+    amountInWords: 'Twenty-Three Thousand Six Hundred only.',
+    signatureImage: DEFAULT_SIGNATURE_STAMP,
+    items: FIVE_SPLASH_SAMPLE_ITEMS,
+  },
+  {
+    id: 'seed-altruist-1',
+    _id: 'seed-altruist-1',
+    invoiceNo: 'INV-2026-ALT-01',
+    client: 'Altruist Technologies Pvt. Ltd.',
+    projectMilestone: 'Operations Placement & Billing · 11 Candidates (IBL, Titan, Toyota, Leap, Amazon...)',
+    amount: 66080,
+    basicAmount: 56000,
+    sgstAmount: 5040,
+    cgstAmount: 5040,
+    dueDate: '30 days',
+    status: 'Pending',
+    paidDate: '',
+    invoiceDate: '2026-10-15',
+    notes: 'Altruist Technologies Kudlu Gate Tax Invoice.',
+    clientGstin: '29AAFCA3725N1ZC',
+    clientAddress: 'AKR Tech Park, 46/1, NH 44, near Krishna Reddy Industrial Area, Kudlu Gate, Bengaluru – 560068.',
+    clientState: 'Karnataka',
+    clientStateCode: '29',
+    templateType: 'ALTRUIST',
+    amountInWords: 'Sixty Six Thousand Eighty only.',
+    signatureImage: DEFAULT_SIGNATURE_STAMP,
+    items: ALTRUIST_SAMPLE_ITEMS,
+  },
+  {
+    id: 'seed-altruist-gb-1',
+    _id: 'seed-altruist-gb-1',
+    invoiceNo: 'INV-2026-ALT-GB-01',
+    client: 'Altruist GB',
+    projectMilestone: 'Operations Placement & Billing · 13 Candidates (Airtel Black, BB Gold, Mobility, MLob...)',
+    amount: 97940,
+    basicAmount: 83000,
+    sgstAmount: 7470,
+    cgstAmount: 7470,
+    dueDate: '30 days',
+    status: 'Pending',
+    paidDate: '',
+    invoiceDate: '2026-10-15',
+    notes: 'Altruist GB Garvebhavi palya Tax Invoice.',
+    clientGstin: '29AAFCA3725N1ZC',
+    clientAddress: 'Garvebhavi palya, Behind RNS Motors, HGSL Chambers NO 4,5,6, Begur Hobli, Hosur Main Road, Bangalore, Hongasandra Village, Bengaluru (Bangalore) Urban, Karnataka, 560068',
+    clientState: 'Karnataka',
+    clientStateCode: '29',
+    templateType: 'ALTRUIST_GB',
+    amountInWords: 'Ninety-Seven Thousand Nine Hundred Forty only.',
+    signatureImage: DEFAULT_SIGNATURE_STAMP,
+    items: ALTRUIST_GB_SAMPLE_ITEMS,
+  },
+  {
+    id: 'seed-onepointone-1',
+    _id: 'seed-onepointone-1',
+    invoiceNo: 'INV-247',
+    client: 'One Point One Solutions Ltd',
+    projectMilestone: 'Candidate Placement & Process Billing · 14 Processes (Razorpay, TATA, ICICI, SBI, Domino\'s...)',
+    amount: 57820,
+    basicAmount: 49000,
+    sgstAmount: 4410,
+    cgstAmount: 4410,
+    dueDate: '30 days',
+    status: 'Pending',
+    paidDate: '',
+    invoiceDate: '2026-10-15',
+    notes: 'AKR Infinity 7th Mile Hosur Road candidate billing.',
+    clientGstin: '29AACCD9158MIZZ',
+    clientAddress: '3rd Floor, AKR Infinity, Sy No. 113, Krishna Reddy Industrial Area, 7th Mile Hosur Road Bangalore, Karnataka 560068 India.',
+    clientState: 'Karnataka',
+    clientStateCode: '29',
+    templateType: 'ONE_POINT_ONE',
+    amountInWords: 'Fifty-Seven Thousand Eight Hundred Twenty only.',
+    signatureImage: DEFAULT_SIGNATURE_STAMP,
+    items: ONE_POINT_ONE_SAMPLE_ITEMS,
+  },
+  {
+    id: 'seed-radicalminds-1',
+    _id: 'seed-radicalminds-1',
+    invoiceNo: 'INV-01',
+    client: 'Radical Minds Technologies Pvt Ltd',
+    projectMilestone: 'Candidate Placement & Billing · 16 Candidates',
+    amount: 86140,
+    basicAmount: 73000,
+    sgstAmount: 6570,
+    cgstAmount: 6570,
+    dueDate: '30 days',
+    status: 'Pending',
+    paidDate: '',
+    invoiceDate: '2025-09-04',
+    notes: 'Krimson Square HSR Layout candidate placement invoice.',
+    clientGstin: '29AAFCR0597P1ZJ',
+    clientAddress: 'Krimson Square, 31/9, Aayee Matha Temple Rd, Muneswara Nagar, Sector 6, HSR Layout, Bengaluru, Karnataka 560102',
+    clientState: 'Karnataka',
+    clientStateCode: '29',
+    templateType: 'RADICAL_MINDS',
+    amountInWords: 'Eighty Six Thousand One Hundred and Forty only.',
+    signatureImage: DEFAULT_SIGNATURE_STAMP,
+    items: RADICAL_MINDS_SAMPLE_ITEMS,
   },
   {
     id: 'seed-1',
@@ -269,12 +629,977 @@ const DEFAULT_CLIENTS = [
     paymentTerms: 'Net 30',
     templateType: 'GST_INV_1',
   },
+  {
+    id: 'c-fivesplash',
+    name: 'Five Splash Infotech Pvt. Ltd- Bangalore',
+    email: 'finance@fivesplash.com',
+    phone: '+91 80 4600 5000',
+    gstin: '29AABCF3991K1Z5',
+    address: '46/4, Novel Tech Park, Hosur Rd, Kudlugate, Krishna Reddy Industrial Area, Behind HSR, Bengaluru, Karnataka 560068.',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & IT Enabled Services',
+    paymentTerms: 'Net 30',
+    templateType: 'FIVE_SPLASH',
+  },
+  {
+    id: 'c-altruist',
+    name: 'Altruist Technologies Pvt. Ltd.',
+    email: 'accounts@altruistindia.com',
+    phone: '+91 80 4900 1200',
+    gstin: '29AAFCA3725N1ZC',
+    address: 'AKR Tech Park, 46/1, NH 44, near Krishna Reddy Industrial Area, Kudlu Gate, Bengaluru – 560068.',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & Telecom VAS',
+    paymentTerms: 'Net 30',
+    templateType: 'ALTRUIST',
+  },
+  {
+    id: 'c-altruist-gb',
+    name: 'Altruist GB',
+    email: 'accounts.gb@altruistindia.com',
+    phone: '+91 80 4900 1250',
+    gstin: '29AAFCA3725N1ZC',
+    address: 'Garvebhavi palya, Behind RNS Motors, HGSL Chambers NO 4,5,6, Begur Hobli, Hosur Main Road, Bangalore, Hongasandra Village, Bengaluru (Bangalore) Urban, Karnataka, 560068',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & Telecom VAS',
+    paymentTerms: 'Net 30',
+    templateType: 'ALTRUIST_GB',
+  },
+  {
+    id: 'c-onepointone',
+    name: 'One Point One Solutions Ltd',
+    email: 'billing@1point1.in',
+    phone: '+91 80 6790 3300',
+    gstin: '29AACCD9158MIZZ',
+    address: '3rd Floor, AKR Infinity, Sy No. 113, Krishna Reddy Industrial Area, 7th Mile Hosur Road Bangalore, Karnataka 560068 India.',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & Customer Experience',
+    paymentTerms: 'Net 30',
+    templateType: 'ONE_POINT_ONE',
+  },
+  {
+    id: 'c-radicalminds',
+    name: 'Radical Minds Technologies Pvt Ltd',
+    email: 'accounts@radicalminds.in',
+    phone: '+91 80 4321 8800',
+    gstin: '29AAFCR0597P1ZJ',
+    address: 'Krimson Square, 31/9, Aayee Matha Temple Rd, Muneswara Nagar, Sector 6, HSR Layout, Bengaluru, Karnataka 560102',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & Customer Management Services',
+    paymentTerms: 'Net 30',
+    templateType: 'RADICAL_MINDS',
+  },
   { id: 'c-1', name: 'Apex Corp', email: 'billing@apexcorp.com', phone: '+91 98201 44521', industry: 'Branding & Tech' },
   { id: 'c-2', name: 'Nexus Media', email: 'finance@nexusmedia.com', phone: '+91 97110 33912', industry: 'Digital Media' },
   { id: 'c-3', name: 'Starlight Tech', email: 'accounts@starlighttech.io', phone: '+91 99400 88214', industry: 'Cloud & AI' },
   { id: 'c-4', name: 'TechCorp Solutions', email: 'ap@techcorp.com', phone: '+91 98450 11984', industry: 'Enterprise Software' },
   { id: 'c-5', name: 'CEGS Global', email: 'finance@cegs.in', phone: '+91 80 4123 9900', industry: 'Staffing & HR' },
 ];
+
+// ============================================================================
+// TEMPLATE 1: FIVE SPLASH INFOTECH PVT. LTD - BANGALORE
+// ============================================================================
+function FiveSplashInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, totalBill, amountInWords, onSignatureUpload }) {
+  return (
+    <div style={{ padding: '24px 28px', background: '#FFFFFF', color: '#000000', fontSize: 11, fontFamily: 'Arial, "Helvetica Neue", sans-serif' }}>
+      {/* HEADER: USER COMMAND: "remove that logo and as ison keep our company and at last digital sigature upload option" */}
+      <div style={{ textAlign: 'center', marginBottom: 14 }}>
+        <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          CAREER EXPERTS GLOBAL SOLUTIONS
+        </div>
+        <div style={{ fontSize: 11, color: '#333333', marginTop: 2 }}>
+          #1, Masjid Street, Neelasandra, Bengaluru – 560047, Karnataka, India.
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 800, margin: '12px 0 2px' }}>
+          Invoice
+        </div>
+      </div>
+
+      <div style={{ textAlign: 'right', fontSize: 11.5, fontWeight: 700, marginBottom: 12 }}>
+        Date:{invoice.invoiceDate || 'xx/xx/xxxx.'}
+      </div>
+
+      {/* TO / CLIENT SECTION */}
+      <div style={{ fontSize: 11.5, lineHeight: 1.55, marginBottom: 14 }}>
+        <div style={{ fontWeight: 700 }}>To,</div>
+        <div style={{ fontWeight: 800 }}>Five Splash Infotech Pvt. Ltd- Bangalore</div>
+        <div>GST : {invoice.clientGstin || '29AABCF3991K1Z5'}</div>
+        <div>46/4, Novel Tech Park,</div>
+        <div>Hosur Rd, Kudlugate, Krishna Reddy Industrial Area,</div>
+        <div>Behind HSR, Bengaluru, Karnataka 560068.</div>
+        <div>PAN No. AABCF3991K</div>
+      </div>
+
+      {/* 6-COLUMN CANDIDATE & SERVICE TABLE */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: 11, border: '1.5px solid #000000' }}>
+        <thead>
+          <tr>
+            <th colSpan={6} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', fontWeight: 800, fontSize: 11.5 }}>
+              Invoice No.{invoice.invoiceNo || 'xxx'}
+            </th>
+          </tr>
+          <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '15%' }}>Emp ID</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '20%' }}>Name</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '18%' }}>Phone Number</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '18%' }}>Process</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '14%' }}>DOJ</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '15%' }}>Billing Amt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((row, idx) => (
+            <tr key={idx}>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.empId || 'xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.employeeName || 'xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.phone || 'xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px', fontWeight: 600 }}>{row.processLob || 'Process'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.doj || 'xx/xx/xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>
+                ₹{Number(row.amount || row.ratePerSeat || 0).toLocaleString('en-IN')}
+              </td>
+            </tr>
+          ))}
+
+          {/* TOTAL */}
+          <tr style={{ fontWeight: 800 }}>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '6px 12px', textAlign: 'right' }}>TOTAL</td>
+            <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'right', fontWeight: 900 }}>
+              ₹{Number(basicAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* CGST */}
+          <tr>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '5px 12px', textAlign: 'right', fontWeight: 700 }}>CGST 9%</td>
+            <td style={{ border: '1px solid #000000', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>
+              ₹{Number(cgstAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* SGST */}
+          <tr>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '5px 12px', textAlign: 'right', fontWeight: 700 }}>SGST 9%</td>
+            <td style={{ border: '1px solid #000000', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>
+              ₹{Number(sgstAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* GRAND TOTAL */}
+          <tr style={{ fontWeight: 900 }}>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '7px 12px', textAlign: 'right', fontSize: 11.5 }}>Grand Total</td>
+            <td style={{ border: '1px solid #000000', padding: '7px 8px', textAlign: 'right', fontSize: 12, fontWeight: 900 }}>
+              ₹{Number(totalBill).toLocaleString('en-IN')}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* RUPEES IN WORDS & TAX IDS */}
+      <div style={{ marginTop: 14, fontSize: 11, lineHeight: 1.6 }}>
+        <div style={{ fontWeight: 700 }}>Rupees in words: <span style={{ fontWeight: 800 }}>{amountInWords}</span></div>
+        <div style={{ marginTop: 6 }}><strong>GST No. :</strong> 29DWCPM8081C2ZB</div>
+        <div><strong>SAC No. :</strong> 99851</div>
+        <div><strong>PAN no:</strong> DWCPM8081C</div>
+      </div>
+
+      {/* PAYMENT DETAILS & SIGNATURE (WITH UPLOAD OPTION) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', marginTop: 18, alignItems: 'flex-end', gap: 16 }}>
+        <div style={{ fontSize: 11, lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 700, marginBottom: 2 }}>Please make the Payments in favor Of</div>
+          <div style={{ fontWeight: 800, textDecoration: 'underline' }}>Payment Details:</div>
+          <div>Account Number: <strong>50200080303100</strong></div>
+          <div>Account Holder Name: <strong>Career Experts Global solutions</strong></div>
+          <div>Bank Name: <strong>HDFC</strong></div>
+          <div>IFSC Code: <strong>HDFC0000509</strong></div>
+          <div>Account Type: <strong>Current Account.</strong></div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ marginBottom: 6 }}>
+            <DigitalSignatureBadge
+              name="MOHAMMED USMAN ZABI"
+              date={invoice.invoiceDate || '19/09/2026'}
+              customImage={invoice.signatureImage}
+            />
+          </div>
+          <div style={{ fontWeight: 800, fontSize: 11 }}>
+            Authorized Signature with stamp.
+          </div>
+          {/* USER COMMAND: "and at last digital sigature upload option" */}
+          {onSignatureUpload && (
+            <div className="no-print-zone" style={{ marginTop: 8 }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: '#F1F5F9', border: '1px dashed #64748B', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', color: '#334155' }}>
+                <Upload size={12} />
+                <span>Upload Digital Signature</span>
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={onSignatureUpload} />
+              </label>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* FOOTER */}
+      <div style={{ marginTop: 28, paddingTop: 10, borderTop: '1px solid #000000', textAlign: 'center', fontSize: 10.5, lineHeight: 1.5 }}>
+        <div>#1, Masjid Street, Neelasandra, Bengaluru – 560047, Karnataka, India.</div>
+        <div style={{ fontWeight: 800, textDecoration: 'underline' }}>Career Experts Global Solutions</div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// TEMPLATE 2 & 3: ALTRUIST TECHNOLOGIES (KUDLU GATE) & ALTRUIST GB (GARVEBHAVI)
+// ============================================================================
+function AltruistInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, totalBill, amountInWords, isGB }) {
+  const clientAddr = isGB
+    ? 'Garvebhavi palya, Behind RNS Motors, HGSL Chambers NO 4,5,6, Begur Hobli, Hosur Main Road, Bangalore, Hongasandra Village, Bengaluru ( Bangalore) Urban, Karnataka, 560068'
+    : 'AKR Tech Park, 46/1, NH 44, near Krishna Reddy Industrial Area, Kudlu Gate, Bengaluru – 560068.';
+  const consigneeAddr = isGB
+    ? 'Garvebhavi palya, Behind RNS Motors, HGSL Chambers NO 4,5,6, Begur Hobli, Hosur Main Road, Bangalore, Hongasandra Village, Bengaluru (Bangalore) Urban, Karnataka, 560068'
+    : 'AKR Tech Park, 46/1, NH 44, near Krishna Reddy Industrial Area, Kudlu Gate, Bengaluru – 560068';
+
+  return (
+    <div style={{ background: '#FFFFFF', color: '#000000', fontSize: 11, fontFamily: 'Arial, "Helvetica Neue", sans-serif', border: '1.5px solid #000000' }}>
+      {/* ROW 1: HEADER TITLE */}
+      <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 13, padding: '7px 10px', borderBottom: '1.5px solid #000000' }}>
+        Tax Invoice
+      </div>
+
+      {/* ROW 2: SUPPLIER DETAILS & SERIAL / DATE */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', borderBottom: '1.5px solid #000000' }}>
+        <div style={{ padding: '8px 12px', borderRight: '1.5px solid #000000', lineHeight: 1.55 }}>
+          <div><strong>GST ID:</strong>(29DWCPM8081C2ZB)</div>
+          <div><strong>Name:</strong> Career Experts Global Solutions.</div>
+          <div><strong>Address:</strong> #1, Masjid Street, Neelasandra, Bangalore – 560047.</div>
+          <div><strong>State:</strong> Karnataka.</div>
+          <div><strong>Contact No:</strong>7892220496.</div>
+          <div><strong>PAN Card No:</strong> DWCPM8081C.</div>
+          <div><strong>Email:</strong> zabiusman@careerexpertglobalsolution.com</div>
+        </div>
+        <div style={{ padding: '8px 12px', lineHeight: 1.6 }}>
+          <div><strong>Serial No. of Invoice:</strong> {invoice.invoiceNo || '----.'}</div>
+          <div><strong>Date of Invoice:</strong> {invoice.invoiceDate || '------.'}</div>
+        </div>
+      </div>
+
+      {/* ROW 3: RECEIVER & CONSIGNEE BOXES */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1.5px solid #000000' }}>
+        <div style={{ padding: '8px 12px', borderRight: '1.5px solid #000000', lineHeight: 1.5 }}>
+          <div style={{ fontWeight: 800, textDecoration: 'underline', marginBottom: 3 }}>Details of Receiver (Billed to)</div>
+          <div><strong>Name:</strong> Altruist Technologies Pvt. Ltd.</div>
+          <div><strong>Address:</strong> {clientAddr}</div>
+          <div><strong>State:</strong> Karnataka</div>
+          <div><strong>PAN:</strong> AAFCA3725N</div>
+          <div><strong>State Code:</strong></div>
+          <div><strong>GST ID:</strong> 29AAFCA3725N1ZC</div>
+        </div>
+        <div style={{ padding: '8px 12px', lineHeight: 1.5 }}>
+          <div style={{ fontWeight: 800, textDecoration: 'underline', marginBottom: 3 }}>Details of Consignee (Shipped to)</div>
+          <div><strong>Name:</strong> Altruist Technologies Pvt. Ltd.</div>
+          <div><strong>Address:</strong> {consigneeAddr}</div>
+          <div><strong>State:</strong> Karnataka</div>
+          <div><strong>PAN:</strong> AAFCA3725N</div>
+          <div><strong>State Code:</strong></div>
+          <div><strong>GST ID:</strong> 29AAFCA3725N1ZC</div>
+        </div>
+      </div>
+
+      {/* ROW 4: INVOICE SUB-HEADER */}
+      <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 12, padding: '5px', borderBottom: '1.5px solid #000000' }}>
+        INVOICE:{invoice.invoiceNo || 'xxx'}
+      </div>
+
+      {/* ROW 5: 9-COLUMN SERVICE TABLE */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 10.5 }}>
+        <thead>
+          <tr style={{ background: '#F8FAFC', borderBottom: '1.5px solid #000000', textAlign: 'center', fontWeight: 800 }}>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', width: '5%' }}>S.No.</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', width: '9%' }}>Emp. Code</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', width: '9%' }}>Emp. Name</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 6px', width: '25%' }}>Designation</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', width: '9%' }}>DOJ</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 6px', width: '15%' }}>Process</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', width: '8%' }}>HSN/SAC</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 6px', width: '10%' }}>Rate as per Contract</th>
+            <th style={{ padding: '6px 6px', width: '10%' }}>Total Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((row, idx) => (
+            <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
+              <td style={{ borderRight: '1px solid #000000', padding: '5px 4px', textAlign: 'center' }}>
+                {row.sno || String(idx + 1).padStart(2, '0')}
+              </td>
+              <td style={{ borderRight: '1px solid #000000', padding: '5px 4px', textAlign: 'center' }}>{row.empId || 'xxxxx'}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '5px 4px', textAlign: 'center' }}>{row.employeeName || 'xyz'}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '5px 6px', fontSize: 10 }}>{row.designation || 'Business AssociateOperation.'}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '5px 4px', textAlign: 'center' }}>{row.doj || 'x/x/xx-'}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '5px 6px', textAlign: 'center', fontWeight: 600 }}>{row.processLob || 'Process'}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '5px 4px', textAlign: 'center' }}>{row.sacCode || 'BPO'}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '5px 6px', textAlign: 'right' }}>
+                ₹{Number(row.ratePerSeat || row.amount || 0).toLocaleString('en-IN')}
+              </td>
+              <td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 700 }}>
+                ₹{Number(row.amount || row.ratePerSeat || 0).toLocaleString('en-IN')}
+              </td>
+            </tr>
+          ))}
+
+          {/* TOTAL INVOICE VALUE */}
+          <tr style={{ borderBottom: '1px solid #000000', fontWeight: 800 }}>
+            <td colSpan={7} style={{ borderRight: '1px solid #000000', padding: '6px 12px', textAlign: 'right' }}>
+              Total Invoice Value
+            </td>
+            <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'right' }}>
+              ₹{Number(basicAmt).toLocaleString('en-IN')}
+            </td>
+            <td style={{ padding: '6px 6px', textAlign: 'right', fontWeight: 900 }}>
+              ₹{Number(basicAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* CGST */}
+          <tr style={{ borderBottom: '1px solid #000000' }}>
+            <td colSpan={7} style={{ borderRight: '1px solid #000000', padding: '5px 12px', textAlign: 'right', fontWeight: 700 }}>
+              CGST @ 09%
+            </td>
+            <td style={{ borderRight: '1px solid #000000', padding: '5px 6px', textAlign: 'right' }}>
+              ₹{Number(cgstAmt).toLocaleString('en-IN')}
+            </td>
+            <td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 700 }}>
+              ₹{Number(cgstAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* SGST */}
+          <tr style={{ borderBottom: '1px solid #000000' }}>
+            <td colSpan={7} style={{ borderRight: '1px solid #000000', padding: '5px 12px', textAlign: 'right', fontWeight: 700 }}>
+              SGST @ 09%
+            </td>
+            <td style={{ borderRight: '1px solid #000000', padding: '5px 6px', textAlign: 'right' }}>
+              ₹{Number(sgstAmt).toLocaleString('en-IN')}
+            </td>
+            <td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 700 }}>
+              ₹{Number(sgstAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* GRAND TOTAL */}
+          <tr style={{ fontWeight: 900 }}>
+            <td colSpan={7} style={{ borderRight: '1px solid #000000', padding: '7px 12px', textAlign: 'right', fontSize: 11.5 }}>
+              Grand Total
+            </td>
+            <td style={{ borderRight: '1px solid #000000', padding: '7px 6px', textAlign: 'right', fontSize: 12 }}>
+              ₹{Number(totalBill).toLocaleString('en-IN')}
+            </td>
+            <td style={{ padding: '7px 6px', textAlign: 'right', fontSize: 12, fontWeight: 900 }}>
+              ₹{Number(totalBill).toLocaleString('en-IN')}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* ROW 6: AMOUNT IN WORDS */}
+      <div style={{ padding: '7px 12px', borderBottom: '1.5px solid #000000', fontSize: 11, fontWeight: 700 }}>
+        Invoice Amount in words : <span style={{ fontWeight: 800 }}>{amountInWords}</span>
+      </div>
+
+      {/* ROW 7: BANK & SIGNATURE BLOCK */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr' }}>
+        <div style={{ padding: '10px 12px', borderRight: '1.5px solid #000000', fontSize: 11, lineHeight: 1.6 }}>
+          {isGB && <div style={{ fontWeight: 800, textDecoration: 'underline', marginBottom: 2 }}>Bank Transfer Details</div>}
+          <div><strong>Favoring Name:</strong> Career Experts Global Solutions.</div>
+          <div><strong>Bank Name:</strong> HDFC Bank.</div>
+          <div><strong>Bank Account No.:</strong>50200080303100.</div>
+          <div><strong>IFSC :</strong>HDFC0000509</div>
+        </div>
+        <div style={{ padding: '10px 14px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', minHeight: 96 }}>
+          {isGB && <div style={{ fontSize: 11, fontWeight: 800, width: '100%', textAlign: 'left' }}>For:</div>}
+          <div style={{ margin: '4px 0' }}>
+            <DigitalSignatureBadge
+              name="MOHAMMED USMAN ZABI"
+              date={invoice.invoiceDate || '19/09/2026'}
+              customImage={invoice.signatureImage}
+            />
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 800, display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+            <span>Stamp</span>
+            <span>Authorized Signatory</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// TEMPLATE 4: ONE POINT ONE SOLUTIONS LTD
+// ============================================================================
+function OnePointOneInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, totalBill, amountInWords }) {
+  return (
+    <div style={{ padding: '24px 28px', background: '#FFFFFF', color: '#000000', fontSize: 11, fontFamily: 'Arial, "Helvetica Neue", sans-serif' }}>
+      {/* HEADER */}
+      <div style={{ textAlign: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 16.5, fontWeight: 900, color: '#000000' }}>
+          Career Expert Global Solution,
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#333333', marginTop: 2 }}>
+          #1, Masjid Street, Richard Xavier Colony, Neelasandra, Bangalore - 560047
+        </div>
+        <div style={{ fontSize: 13.5, fontWeight: 800, margin: '8px 0 2px' }}>
+          Invoice
+        </div>
+      </div>
+
+      <div style={{ textAlign: 'right', fontSize: 11.5, fontWeight: 700, marginBottom: 12 }}>
+        Date: {invoice.invoiceDate || 'xx/xx/xxxx.'}
+      </div>
+
+      {/* BILL TO */}
+      <div style={{ fontSize: 11.5, lineHeight: 1.5, marginBottom: 14 }}>
+        <div style={{ fontWeight: 700 }}>To,</div>
+        <div style={{ fontWeight: 800 }}>One Point One Solutions Ltd,</div>
+        <div>CIN: 29AACCD9158MIZZ.</div>
+        <div>3rd Floor, AKR Infinity, Sy No. 113,</div>
+        <div>Krishna Reddy Industrial Area, 7th Mile Hosur Road</div>
+        <div>Bangalore,</div>
+        <div>Karnataka 560068 India.</div>
+      </div>
+
+      {/* 6-COLUMN TABLE */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: 11, border: '1.5px solid #000000' }}>
+        <thead>
+          <tr>
+            <th colSpan={6} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', fontWeight: 800, fontSize: 11.5 }}>
+              Invoice No.{invoice.invoiceNo || '247'}
+            </th>
+          </tr>
+          <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '14%' }}>Emp ID</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '19%' }}>Name</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '17%' }}>Phone Number</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '20%' }}>Process</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '14%' }}>DOJ</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '16%' }}>Billing Amt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((row, idx) => (
+            <tr key={idx}>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.empId || 'xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.employeeName || 'xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.phone || 'xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px', fontWeight: 600 }}>
+                {row.processLob || 'Process'}
+                {row.notes ? <div style={{ fontSize: 9.5, color: '#555' }}>{row.notes}</div> : null}
+              </td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.doj || 'xx/xx/xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>
+                {Number(row.amount || row.ratePerSeat || 0) > 0
+                  ? Number(row.amount || row.ratePerSeat || 0).toLocaleString('en-IN')
+                  : '7.33% / 8.33%'}
+              </td>
+            </tr>
+          ))}
+
+          {/* TOTAL */}
+          <tr style={{ fontWeight: 800 }}>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '6px 12px', textAlign: 'right' }}>Total</td>
+            <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'right', fontWeight: 900 }}>
+              {Number(basicAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* CGST */}
+          <tr>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '5px 12px', textAlign: 'right', fontWeight: 700 }}>CGST 9%</td>
+            <td style={{ border: '1px solid #000000', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>
+              ₹{Number(cgstAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* SGST */}
+          <tr>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '5px 12px', textAlign: 'right', fontWeight: 700 }}>SGST 9%</td>
+            <td style={{ border: '1px solid #000000', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>
+              ₹{Number(sgstAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* GRAND TOTAL */}
+          <tr style={{ fontWeight: 900 }}>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '7px 12px', textAlign: 'right', fontSize: 11.5 }}>Grand Total</td>
+            <td style={{ border: '1px solid #000000', padding: '7px 8px', textAlign: 'right', fontSize: 12, fontWeight: 900 }}>
+              ₹{Number(totalBill).toLocaleString('en-IN')}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* METADATA UNDER TABLE */}
+      <div style={{ marginTop: 14, fontSize: 11, lineHeight: 1.6 }}>
+        <div style={{ fontWeight: 700 }}>Rupees in words: <span style={{ fontWeight: 800 }}>{amountInWords}</span></div>
+        <div style={{ marginTop: 6 }}><strong>GST No. :</strong> 29DWCPM8081C2ZB</div>
+        <div><strong>SAC No. :</strong> 99851</div>
+        <div><strong>PAN no:</strong> DWCPM8081C</div>
+      </div>
+
+      {/* PAYMENT DETAILS & SIGNATURE */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', marginTop: 18, alignItems: 'flex-end', gap: 16 }}>
+        <div style={{ fontSize: 11, lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 700, marginBottom: 2 }}>Please make the Payments in favor Of</div>
+          <div style={{ fontWeight: 800, textDecoration: 'underline' }}>Payment Details:</div>
+          <div>Account Number: <strong>50200080303100</strong></div>
+          <div>Account Holder Name: <strong>Career Experts Global solutions</strong></div>
+          <div>Bank Name: <strong>HDFC</strong> IFSC Code: <strong>HDFC0000509</strong></div>
+          <div>Account Type: <strong>Current Account</strong></div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ marginBottom: 6 }}>
+            <DigitalSignatureBadge
+              name="MOHAMMED USMAN ZABI"
+              date={invoice.invoiceDate || '02/09/2026'}
+              customImage={invoice.signatureImage}
+            />
+          </div>
+          <div style={{ fontWeight: 800, fontSize: 11 }}>
+            Authorized Signature.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// TEMPLATE 5: RADICAL MINDS TECHNOLOGIES PVT LTD
+// ============================================================================
+function RadicalMindsInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, totalBill, amountInWords }) {
+  return (
+    <div style={{ padding: '24px 28px', background: '#FFFFFF', color: '#000000', fontSize: 11, fontFamily: 'Arial, "Helvetica Neue", sans-serif' }}>
+      {/* HEADER */}
+      <div style={{ textAlign: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 15.5, fontWeight: 900, color: '#000000' }}>
+          Career Expert Global Solution, #1, Masjid Street, Richard Xavier Colony,
+        </div>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: '#333333', marginTop: 2 }}>
+          Neelasandra, Bangalore - 560047
+        </div>
+        <div style={{ fontSize: 13.5, fontWeight: 800, margin: '8px 0 2px' }}>
+          Invoice
+        </div>
+      </div>
+
+      <div style={{ textAlign: 'right', fontSize: 11.5, fontWeight: 700, marginBottom: 12 }}>
+        Date: {invoice.invoiceDate || '04/09/2025'}
+      </div>
+
+      {/* BILL TO */}
+      <div style={{ fontSize: 11.5, lineHeight: 1.5, marginBottom: 14 }}>
+        <div style={{ fontWeight: 700 }}>To,</div>
+        <div style={{ fontWeight: 800 }}>Radical Minds Technologies Pvt Ltd</div>
+        <div>Krimson Square, 31/9, Aayee Matha Temple Rd,</div>
+        <div>Muneswara Nagar, Sector 6, HSR Layout,</div>
+        <div>Bengaluru, Karnataka 560102</div>
+        <div>GST : 29AAFCR0597P1ZJ</div>
+      </div>
+
+      {/* 6-COLUMN TABLE (WITH STATUS COLUMN) */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: 10.5, border: '1.5px solid #000000' }}>
+        <thead>
+          <tr>
+            <th colSpan={6} style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'center', fontWeight: 800, fontSize: 11.5 }}>
+              Invoice No. {invoice.invoiceNo || '1'}
+            </th>
+          </tr>
+          <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '15%' }}>Emp ID</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '22%' }}>Name</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '22%' }}>Phone Number</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '12%' }}>Status</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '14%' }}>DOJ</th>
+            <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '15%' }}>Billing Amt</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((row, idx) => (
+            <tr key={idx}>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.empId || 'xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px', fontWeight: 600 }}>{row.employeeName || 'xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.phone || 'xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.status || 'Active'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 4px' }}>{row.doj || 'xx/xx/xxxx'}</td>
+              <td style={{ border: '1px solid #000000', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>
+                ₹ {Number(row.amount || row.ratePerSeat || 0).toLocaleString('en-IN')}
+              </td>
+            </tr>
+          ))}
+
+          {/* TOTAL */}
+          <tr style={{ fontWeight: 800 }}>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '6px 12px', textAlign: 'right' }}>TOTAL</td>
+            <td style={{ border: '1px solid #000000', padding: '6px 8px', textAlign: 'right', fontWeight: 900 }}>
+              ₹ {Number(basicAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* CGST */}
+          <tr>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '5px 12px', textAlign: 'right', fontWeight: 700 }}>CGST 9%</td>
+            <td style={{ border: '1px solid #000000', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>
+              ₹ {Number(cgstAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* SGST */}
+          <tr>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '5px 12px', textAlign: 'right', fontWeight: 700 }}>SGST 9%</td>
+            <td style={{ border: '1px solid #000000', padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>
+              ₹ {Number(sgstAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+          {/* GRAND TOTAL */}
+          <tr style={{ fontWeight: 900 }}>
+            <td colSpan={5} style={{ border: '1px solid #000000', padding: '7px 12px', textAlign: 'right', fontSize: 11.5 }}>Grand Total</td>
+            <td style={{ border: '1px solid #000000', padding: '7px 8px', textAlign: 'right', fontSize: 12, fontWeight: 900 }}>
+              ₹ {Number(totalBill).toLocaleString('en-IN')}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* METADATA UNDER TABLE */}
+      <div style={{ marginTop: 14, fontSize: 11, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 10.5, color: '#444', marginBottom: 4 }}>
+          Career Expert Global Solution, #1, Masjid Street, Richard Xavier Colony, Neelasandra, Bangalore - 560047
+        </div>
+        <div style={{ fontWeight: 700 }}>Rupees in words: <span style={{ fontWeight: 800 }}>{amountInWords}</span></div>
+        <div style={{ marginTop: 6 }}><strong>GST No. :</strong> 29DWCPM8081C2ZB</div>
+        <div><strong>SAC No. :</strong> 99851</div>
+        <div><strong>PAN no:</strong> DWCPM8081C</div>
+      </div>
+
+      {/* PAYMENT DETAILS & SIGNATURE */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', marginTop: 18, alignItems: 'flex-end', gap: 16 }}>
+        <div style={{ fontSize: 11, lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 700, marginBottom: 2 }}>Please make the Payments in favor Of</div>
+          <div style={{ fontWeight: 800, textDecoration: 'underline' }}>Payment Details:</div>
+          <div>Account Number: <strong>50200080303100</strong></div>
+          <div>Account Holder Name: <strong>Career Experts Global Solutions</strong></div>
+          <div>Bank Name: <strong>HDFC</strong></div>
+          <div>IFSC Code: <strong>HDFC0000509</strong></div>
+          <div>Account Type: <strong>Current Account.</strong></div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ marginBottom: 6 }}>
+            <DigitalSignatureBadge
+              name="MOHAMMED USMAN ZABI"
+              date={invoice.invoiceDate || '2025.09.04'}
+              customImage={invoice.signatureImage}
+            />
+          </div>
+          <div style={{ fontWeight: 800, fontSize: 11 }}>
+            Authorized Signature with stamp.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// TEMPLATE 6: ISON XPERIENCES (FORM GST INV - 1)
+// ============================================================================
+function IsonInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, totalBill, amountInWords }) {
+  return (
+    <div style={{ background: '#FFFFFF', color: '#000000', border: '1.5px solid #000000', fontFamily: 'Arial, "Helvetica Neue", sans-serif', fontSize: 11, lineHeight: 1.45 }}>
+      {/* HEADER BLOCK */}
+      <div style={{ textAlign: 'center', padding: '12px 14px', borderBottom: '1.5px solid #000000' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+          Form GST INV – 1
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', margin: '4px 0 2px' }}>
+          CAREER EXPERTS GLOBAL SOLUTIONS
+        </div>
+        <div style={{ fontSize: 11.5, fontWeight: 600 }}>
+          #1, Masjid Street neelasandra, Bengaluru, Karnataka-560047. <strong>TAX INVOICE</strong>
+        </div>
+      </div>
+
+      {/* ROW 1: SUPPLIER METADATA & TRANSPORT DETAILS */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', borderBottom: '1.5px solid #000000' }}>
+        <div style={{ padding: '8px 12px', borderRight: '1.5px solid #000000', lineHeight: 1.6 }}>
+          <div><strong>GSTIN:</strong> 29DWCPM8081C2ZB</div>
+          <div><strong>PAN No:</strong> DWCPM8081C</div>
+          <div>
+            <strong>Invoice No.:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>{invoice.invoiceNo || 'INV-2026-ISON-01'}</span>
+          </div>
+          <div><strong>PO NO :</strong> {invoice.poNo || '—'}</div>
+          <div><strong>Date:</strong> {invoice.invoiceDate || 'xx/xx/xxxx.'}</div>
+          <div><strong>Due By:</strong> {invoice.dueDate || '30 days'}</div>
+        </div>
+        <div style={{ padding: '8px 12px', lineHeight: 1.6 }}>
+          <div><strong>Mode of Transport:</strong> {invoice.modeOfTransport || '—'}</div>
+          <div><strong>Vehicle No:</strong> {invoice.vehicleNo || '—'}</div>
+          <div><strong>Date & Time of Service:</strong> {invoice.dateTimeOfService || invoice.invoiceDate || '—'}</div>
+          <div><strong>Place of Service:</strong> <span style={{ fontWeight: 700 }}>{invoice.placeOfService || 'Bangalore'}</span></div>
+        </div>
+      </div>
+
+      {/* ROW 2: RECEIVER & CONSIGNEE DETAILS */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', borderBottom: '1.5px solid #000000' }}>
+        <div style={{ padding: '10px 12px', borderRight: '1.5px solid #000000', lineHeight: 1.55 }}>
+          <div style={{ fontWeight: 800, fontSize: 11.5, textDecoration: 'underline', marginBottom: 4 }}>
+            Details of Receiver (Billed to)
+          </div>
+          <div style={{ fontWeight: 900, fontSize: 12, color: '#000000' }}>
+            {invoice.client || 'ISON XPERIENCES INDIA PRIVATE LIMITED'}
+          </div>
+          <div style={{ margin: '2px 0' }}>
+            {invoice.clientAddress || 'Building No. H208,1st & 2nd Floor, 36/5 Somyasundarpalya,27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102'}
+          </div>
+          <div><strong>State:</strong> {invoice.clientState || 'Karnataka'}</div>
+          <div><strong>State Code :</strong> {invoice.clientStateCode || '29'}</div>
+          <div><strong>GSTIN/Unique ID:</strong> <span style={{ fontWeight: 700 }}>{invoice.clientGstin || '29AADCI1246E1ZT'}</span></div>
+        </div>
+        <div style={{ padding: '10px 12px', lineHeight: 1.55 }}>
+          <div style={{ fontWeight: 800, fontSize: 11.5, textDecoration: 'underline', marginBottom: 4 }}>
+            Details of Consignee (Shipped to)
+          </div>
+          <div style={{ fontWeight: 700 }}>Name: Career Experts Global Solutions</div>
+          <div>#1, Masjid Street, Neelasandra, Bangalore - 560047.</div>
+          <div><strong>State:</strong> Karnataka</div>
+          <div><strong>State Code :</strong> 29</div>
+          <div><strong>GSTIN/Unique ID:</strong> 29DWCPM8081C2ZB</div>
+        </div>
+      </div>
+
+      {/* ROW 3: SEAT / EMPLOYEE BILLING TABLE (WITH YELLOW HEADER) */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 11 }}>
+        <thead>
+          <tr style={{ background: '#FFF000', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '11%' }}>EMP ID</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '22%' }}>Employee Name</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '11%' }}>DOJ</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '17%' }}>Process /LOB</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '15%' }}>Rate Per Seat IN Rs.</th>
+            <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '10%' }}>SAC Code</th>
+            <th style={{ padding: '6px 4px', fontWeight: 800, width: '14%' }}>Amount Rs.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((row, idx) => (
+            <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
+              <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center' }}>{row.empId || 'xxxx'}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '6px 6px' }}>{row.employeeName || 'xxxx'}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center' }}>{row.doj || 'xx/xx/xxxx'}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center', fontWeight: 600 }}>{row.processLob || 'Process'}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '6px 8px', textAlign: 'right' }}>{Number(row.ratePerSeat || 0).toLocaleString('en-IN')}</td>
+              <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center' }}>{row.sacCode || '99851'}</td>
+              <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>{Number(row.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+            </tr>
+          ))}
+
+          {/* TOTAL AMOUNT ROW */}
+          <tr style={{ borderBottom: '1.5px solid #000000', fontWeight: 800 }}>
+            <td colSpan={6} style={{ borderRight: '1px solid #000000', padding: '7px 12px', textAlign: 'right', textTransform: 'uppercase' }}>
+              TOTAL AMOUNT - IN Rs.
+            </td>
+            <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 900 }}>
+              {Number(basicAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+
+          {/* SGST ROW */}
+          <tr style={{ borderBottom: '1px solid #000000' }}>
+            <td colSpan={5} style={{ borderRight: '1px solid #000000' }}></td>
+            <td style={{ borderRight: '1px solid #000000', padding: '6px 8px', fontWeight: 700, fontSize: 10.5 }}>
+              SGST @ 9%
+            </td>
+            <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>
+              {Number(sgstAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+
+          {/* CGST ROW */}
+          <tr style={{ borderBottom: '1px solid #000000' }}>
+            <td colSpan={5} style={{ borderRight: '1px solid #000000' }}></td>
+            <td style={{ borderRight: '1px solid #000000', padding: '6px 8px', fontWeight: 700, fontSize: 10.5 }}>
+              CGST @ 9 %
+            </td>
+            <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>
+              {Number(cgstAmt).toLocaleString('en-IN')}
+            </td>
+          </tr>
+
+          {/* TOTAL BILL AMOUNT */}
+          <tr style={{ borderBottom: '1.5px solid #000000', fontWeight: 900, background: '#FAFAFA' }}>
+            <td colSpan={6} style={{ borderRight: '1px solid #000000', padding: '8px 12px', textAlign: 'right', textTransform: 'uppercase', fontSize: 11.5 }}>
+              TOTAL BILL AMOUNT - IN Rs.
+            </td>
+            <td style={{ padding: '8px 8px', textAlign: 'right', fontSize: 12.5, fontWeight: 900 }}>
+              {Number(totalBill).toLocaleString('en-IN')}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* ROW 4: AMOUNT IN WORDS */}
+      <div style={{ padding: '8px 12px', borderBottom: '1.5px solid #000000', fontSize: 11.5, fontWeight: 700 }}>
+        Amount in Words: <span style={{ fontWeight: 800 }}>{amountInWords}</span>
+      </div>
+
+      {/* ROW 5: SIGNATORY BLOCK */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1.5px solid #000000' }}>
+        <div style={{ padding: '10px 12px' }}>
+          <div style={{ fontSize: 10.5, color: '#444' }}>{invoice.notes || ''}</div>
+        </div>
+        <div style={{ padding: '10px 14px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', minHeight: 112 }}>
+          <div style={{ fontWeight: 800, fontSize: 11 }}>For CAREER EXPERTS GLOBAL SOLUTIONS</div>
+          <div style={{ margin: '4px 0', textAlign: 'right' }}>
+            <DigitalSignatureBadge
+              name="MOHAMMED USMAN ZABI"
+              date={invoice.invoiceDate || '19/09/2026'}
+              customImage={invoice.signatureImage}
+            />
+          </div>
+          <div style={{ fontWeight: 800, fontSize: 11 }}>Authorised Signatory</div>
+        </div>
+      </div>
+
+      {/* ROW 6: PAYMENT INSTRUCTIONS */}
+      <div style={{ padding: '10px 12px', fontSize: 10.5, lineHeight: 1.6 }}>
+        <div style={{ fontWeight: 800, textDecoration: 'underline', marginBottom: 2 }}>Payment Instructions:</div>
+        <div><strong>Name of the Bank:</strong> HDFC</div>
+        <div><strong>Banificiary Name:</strong> Career Experts Global Solutions <strong>Bank Account No:</strong> 50200080303100.</div>
+        <div><strong>Bank Address:</strong> East Wing, KHB Building, KG Road, Bangalore - 560009.</div>
+        <div><strong>IFSC Code:</strong> HDFC0000509.</div>
+        <div><strong>RTGS/NEFT Code:</strong> HDFC0000509.</div>
+        <div style={{ marginTop: 6, fontWeight: 700 }}>E. & O. E.</div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// TEMPLATE 7: MODERN CLEAN EXECUTIVE SUMMARY VIEW
+// ============================================================================
+function ModernInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, totalBill, amountInWords }) {
+  return (
+    <div style={{ background: '#FFFFFF', borderRadius: 20, padding: '32px', border: '1px solid #E2E8F0', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #F1F5F9', paddingBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#0F172A' }}>
+            CAREER EXPERTS GLOBAL SOLUTIONS
+          </div>
+          <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 4 }}>
+            Official Corporate Invoice · Tax Document
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent, #7C3AED)', fontFamily: 'monospace' }}>
+            {invoice.invoiceNo || 'INV-001'}
+          </div>
+          <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
+            Date: <strong>{invoice.invoiceDate || '2026-10-15'}</strong> · Due: <strong>{invoice.dueDate || '30 days'}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '20px 0', padding: '16px', background: '#F8FAFC', borderRadius: 14 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Billed To</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', marginTop: 4 }}>{invoice.client}</div>
+          <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{invoice.clientAddress}</div>
+          <div style={{ fontSize: 11.5, color: '#0369A1', marginTop: 4, fontWeight: 700 }}>GSTIN: {invoice.clientGstin || '—'}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Payment Status</div>
+          <div style={{ marginTop: 6 }}>
+            {invoice.status === 'Paid' || invoice.stage === 'cleared' ? (
+              <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '4px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800 }}>
+                ✓ PAID IN FULL
+              </span>
+            ) : (
+              <span style={{ background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A', padding: '4px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800 }}>
+                ⏳ PAYMENT PENDING
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>
+            Place of Service: <strong>{invoice.placeOfService || 'Bangalore'}</strong>
+          </div>
+        </div>
+      </div>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', margin: '20px 0' }}>
+        <thead>
+          <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0', textAlign: 'left', fontSize: 12, color: '#475569' }}>
+            <th style={{ padding: '12px 14px', fontWeight: 800 }}>ITEM / PROCESS</th>
+            <th style={{ padding: '12px 14px', fontWeight: 800 }}>CANDIDATE / DETAILS</th>
+            <th style={{ padding: '12px 14px', fontWeight: 800, textAlign: 'right' }}>RATE</th>
+            <th style={{ padding: '12px 14px', fontWeight: 800, textAlign: 'right' }}>AMOUNT</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it, idx) => (
+            <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9', fontSize: 13 }}>
+              <td style={{ padding: '12px 14px', fontWeight: 700, color: '#1E293B' }}>
+                {it.processLob || it.designation || 'Service Milestone'}
+              </td>
+              <td style={{ padding: '12px 14px', color: '#64748B' }}>
+                {it.employeeName ? `${it.employeeName} (${it.empId || 'Candidate'})` : (it.status || 'Active')}
+              </td>
+              <td style={{ padding: '12px 14px', textAlign: 'right', color: '#475569' }}>
+                ₹{Number(it.ratePerSeat || it.amount || 0).toLocaleString('en-IN')}
+              </td>
+              <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, color: '#0F172A' }}>
+                ₹{Number(it.amount || it.ratePerSeat || 0).toLocaleString('en-IN')}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+        <div style={{ width: 280, fontSize: 13, lineHeight: 1.8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}>
+            <span>Subtotal (Basic)</span>
+            <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{Number(basicAmt).toLocaleString('en-IN')}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}>
+            <span>CGST (9%)</span>
+            <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{Number(cgstAmt).toLocaleString('en-IN')}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748B' }}>
+            <span>SGST (9%)</span>
+            <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{Number(sgstAmt).toLocaleString('en-IN')}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #E2E8F0', paddingTop: 8, marginTop: 4, fontSize: 16, fontWeight: 900, color: '#0F172A' }}>
+            <span>Total Amount</span>
+            <span style={{ color: 'var(--accent, #7C3AED)' }}>₹{Number(totalBill).toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 24, padding: '14px 18px', background: '#F8FAFC', borderRadius: 12, fontSize: 12, color: '#475569' }}>
+        <strong>Amount in words:</strong> {amountInWords}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 28, paddingTop: 16, borderTop: '1px solid #E2E8F0' }}>
+        <div style={{ fontSize: 11.5, color: '#64748B' }}>
+          <div><strong>Beneficiary:</strong> Career Experts Global Solutions</div>
+          <div><strong>Bank:</strong> HDFC Bank · <strong>A/C:</strong> 50200080303100</div>
+          <div><strong>IFSC:</strong> HDFC0000509</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <DigitalSignatureBadge
+            name="MOHAMMED USMAN ZABI"
+            date={invoice.invoiceDate || '19/09/2026'}
+            customImage={invoice.signatureImage}
+          />
+          <div style={{ fontWeight: 800, fontSize: 11, color: '#475569', marginTop: 4 }}>
+            Authorised Signatory
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function FinanceInvoicesView() {
   const [invoices, setInvoices] = useState([]);
@@ -341,9 +1666,16 @@ export function FinanceInvoicesView() {
     setTimeout(() => setFeedback(''), 3500);
   };
 
-  // Helper: Upload & convert digital signature image to base64 Data URL
-  const handleSignatureUpload = (file, isEditing = true) => {
+  // Helper: Versatile Digital Signature Stamp Upload Handler (supports event OR raw File/Blob)
+  const handleSignatureUpload = (fileOrEvent, targetMode = 'all') => {
+    let file = null;
+    if (fileOrEvent?.target?.files) {
+      file = fileOrEvent.target.files[0];
+    } else if (fileOrEvent instanceof Blob || fileOrEvent instanceof File) {
+      file = fileOrEvent;
+    }
     if (!file) return;
+
     if (!file.type.startsWith('image/')) {
       showToast('Please select a valid image file (PNG, JPG, WebP).');
       return;
@@ -352,14 +1684,38 @@ export function FinanceInvoicesView() {
       showToast('Image size should be under 3MB.');
       return;
     }
+
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target.result;
-      if (isEditing) {
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+
+      if (previewInvoice) {
+        setPreviewInvoice((prev) => (prev ? { ...prev, signatureImage: dataUrl } : prev));
+        setInvoices((prev) =>
+          prev.map((it) =>
+            (it.id === previewInvoice.id || it._id === previewInvoice.id)
+              ? { ...it, signatureImage: dataUrl }
+              : it
+          )
+        );
+        fetch('/api/client-invoices', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            action: 'edit_invoice',
+            id: previewInvoice.id || previewInvoice._id,
+            signatureImage: dataUrl,
+          }),
+        }).catch(() => {});
+      }
+
+      if (targetMode === 'editing' || targetMode === 'all' || targetMode === true) {
         setEditingInvoice((prev) => (prev ? { ...prev, signatureImage: dataUrl } : prev));
-      } else {
+      }
+      if (targetMode === 'form' || targetMode === 'all' || targetMode === false) {
         setInvoiceForm((prev) => ({ ...prev, signatureImage: dataUrl }));
       }
+
       if (typeof window !== 'undefined') {
         try {
           localStorage.setItem('cegs_signature_stamp', dataUrl);
@@ -427,7 +1783,8 @@ export function FinanceInvoicesView() {
   const companyOptions = useMemo(() => {
     const fromInvoices = invoices.map((i) => i.client).filter(Boolean);
     const fromClients = clients.map((c) => c.name).filter(Boolean);
-    const set = new Set([...fromInvoices, ...fromClients, 'Apex Corp']);
+    const fromConfigs = Object.values(CLIENT_CONFIGS).map((c) => c.name);
+    const set = new Set([...fromInvoices, ...fromClients, ...fromConfigs, 'Apex Corp']);
     return Array.from(set).sort();
   }, [invoices, clients]);
 
@@ -568,28 +1925,31 @@ export function FinanceInvoicesView() {
   };
 
   // Action: Open Edit Invoice Modal (With candidate placement rows & dispatch fields)
+  // Action: Open Edit Invoice Modal (With candidate placement rows & dispatch fields)
   const handleOpenEdit = (inv) => {
+    const tmpl = getClientTemplate(inv.client, inv.templateType);
+    const cfg = CLIENT_CONFIGS[tmpl] || CLIENT_CONFIGS.GST_INV_1;
     let loadedItems = Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : [];
-    if (loadedItems.length === 0 && (inv.client || '').toLowerCase().includes('ison')) {
-      loadedItems = ISON_SAMPLE_ITEMS;
+    if (loadedItems.length === 0) {
+      loadedItems = cfg.sampleItems || ISON_SAMPLE_ITEMS;
     }
 
     setEditingInvoice({
       id: inv.id || inv._id,
       invoiceNo: inv.invoiceNo || '',
       invoiceDate: inv.invoiceDate || new Date().toISOString().slice(0, 10),
-      client: inv.client || '',
-      projectMilestone: inv.projectMilestone || '',
-      amount: inv.amount || inv.basicAmount || 0,
-      basicAmount: inv.basicAmount || 0,
-      sgstAmount: inv.sgstAmount || 0,
-      cgstAmount: inv.cgstAmount || 0,
+      client: inv.client || cfg.name,
+      projectMilestone: inv.projectMilestone || `${cfg.badge} Placement & Service Billing`,
+      amount: inv.amount || inv.basicAmount || cfg.sampleTotal,
+      basicAmount: inv.basicAmount || cfg.sampleBasic,
+      sgstAmount: inv.sgstAmount !== undefined && inv.sgstAmount !== null ? inv.sgstAmount : cfg.sampleSgst,
+      cgstAmount: inv.cgstAmount !== undefined && inv.cgstAmount !== null ? inv.cgstAmount : cfg.sampleCgst,
       items: loadedItems.map((it) => ({ ...it })),
-      clientAddress: inv.clientAddress || '',
-      clientGstin: inv.clientGstin || '',
+      clientAddress: inv.clientAddress || cfg.defaultAddress || '',
+      clientGstin: inv.clientGstin || cfg.defaultGstin || '',
       clientState: inv.clientState || 'Karnataka',
       clientStateCode: inv.clientStateCode || '29',
-      templateType: inv.templateType || 'GST_INV_1',
+      templateType: tmpl,
       poNo: inv.poNo || '',
       modeOfTransport: inv.modeOfTransport || '',
       vehicleNo: inv.vehicleNo || '',
@@ -598,12 +1958,12 @@ export function FinanceInvoicesView() {
       dueDate: inv.dueDate || '30 days',
       status: inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
       notes: inv.notes || '',
-      amountInWords: inv.amountInWords || '',
+      amountInWords: inv.amountInWords || cfg.words || '',
       signatureImage: inv.signatureImage || (typeof window !== 'undefined' && localStorage.getItem('cegs_signature_stamp')) || DEFAULT_SIGNATURE_STAMP,
     });
   };
 
-  // Helper: Update a single candidate seat item in Editing Invoice
+  // Helper: Update a single candidate item in Editing Invoice
   const updateEditingInvoiceItem = (idx, field, val) => {
     if (!editingInvoice) return;
     const newItems = [...(editingInvoice.items || [])];
@@ -611,6 +1971,9 @@ export function FinanceInvoicesView() {
     if (field === 'ratePerSeat') {
       const r = Number(val) || 0;
       target.amount = r;
+    } else if (field === 'amount') {
+      const a = Number(val) || 0;
+      target.ratePerSeat = a;
     }
     newItems[idx] = target;
 
@@ -633,9 +1996,22 @@ export function FinanceInvoicesView() {
   // Helper: Add a blank candidate row to Editing Invoice
   const addEditingInvoiceItem = () => {
     if (!editingInvoice) return;
+    const tmplKey = getClientTemplate(editingInvoice.client, editingInvoice.templateType);
     const newItems = [
       ...(editingInvoice.items || []),
-      { empId: '', employeeName: '', doj: '', processLob: 'Process', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      {
+        sno: String((editingInvoice.items || []).length + 1).padStart(2, '0'),
+        empId: 'CEGS-' + String((editingInvoice.items || []).length + 1).padStart(2, '0'),
+        employeeName: '',
+        phone: '',
+        designation: 'Business AssociateOperation.',
+        status: 'Active',
+        doj: new Date().toLocaleDateString('en-GB'),
+        processLob: 'Process',
+        ratePerSeat: 5000,
+        sacCode: tmplKey.includes('ALTRUIST') ? 'BPO' : '99851',
+        amount: 5000,
+      },
     ];
     const totalBasic = newItems.reduce((acc, it) => acc + (Number(it.amount) || Number(it.ratePerSeat) || 0), 0);
     const sgst = Math.round(totalBasic * 0.09);
@@ -673,29 +2049,52 @@ export function FinanceInvoicesView() {
     });
   };
 
-  // Helper: Pre-fill ISON 7 Process Rows in Editing Invoice
-  const loadIsonSampleToEditingInvoice = () => {
-    if (!editingInvoice) return;
-    const sampleRows = [
-      { empId: 'CEGS-101', employeeName: 'Mohammed Imran', doj: '12/10/2026', processLob: '101', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-      { empId: 'CEGS-102', employeeName: 'Farhan Pasha', doj: '14/10/2026', processLob: 'Etisalat', ratePerSeat: 7000, sacCode: '99851', amount: 7000 },
-      { empId: 'CEGS-103', employeeName: 'Syed Tanveer', doj: '15/10/2026', processLob: 'CNR', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-      { empId: 'CEGS-104', employeeName: 'Ayesha Siddiqua', doj: '18/10/2026', processLob: 'I-CAD', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-      { empId: 'CEGS-105', employeeName: 'Zeeshan Ali', doj: '20/10/2026', processLob: 'E-Money', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-      { empId: 'CEGS-106', employeeName: 'Tabassum Khan', doj: '22/10/2026', processLob: 'universal', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-      { empId: 'CEGS-107', employeeName: 'Kashif Ahmed', doj: '24/10/2026', processLob: 'SMB', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-    ];
-    setEditingInvoice({
-      ...editingInvoice,
-      items: sampleRows,
-      basicAmount: 37000,
-      sgstAmount: 3330,
-      cgstAmount: 3330,
-      amount: 43660,
-      amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
-    });
-    showToast('Loaded 7 sample candidate placement rows into editor!');
+  // Helper: Load Preset Rows for ANY Client into Editing or New Invoice
+  const loadPresetToInvoice = (presetKey, isEditing = true) => {
+    const cfg = CLIENT_CONFIGS[presetKey] || CLIENT_CONFIGS.GST_INV_1;
+    const sampleRows = cfg.sampleItems.map((r) => ({ ...r }));
+    const totalBasic = cfg.sampleBasic || sampleRows.reduce((s, r) => s + (Number(r.amount) || Number(r.ratePerSeat) || 0), 0);
+    const sgst = cfg.sampleSgst || Math.round(totalBasic * 0.09);
+    const cgst = cfg.sampleCgst || Math.round(totalBasic * 0.09);
+    const total = cfg.sampleTotal || (totalBasic + sgst + cgst);
+    const words = cfg.words || numberToWordsINR(total);
+
+    if (isEditing) {
+      if (!editingInvoice) return;
+      setEditingInvoice({
+        ...editingInvoice,
+        templateType: presetKey,
+        client: cfg.name,
+        clientAddress: cfg.defaultAddress,
+        clientGstin: cfg.defaultGstin,
+        items: sampleRows,
+        basicAmount: totalBasic,
+        sgstAmount: sgst,
+        cgstAmount: cgst,
+        amount: total,
+        amountInWords: words,
+      });
+      showToast(`Loaded ${sampleRows.length} sample rows for ${cfg.badge}!`);
+    } else {
+      setInvoiceForm({
+        ...invoiceForm,
+        templateType: presetKey,
+        client: cfg.name,
+        clientAddress: cfg.defaultAddress,
+        clientGstin: cfg.defaultGstin,
+        items: sampleRows,
+        basicAmount: totalBasic,
+        sgstAmount: sgst,
+        cgstAmount: cgst,
+        amount: String(total),
+        amountInWords: words,
+      });
+      showToast(`Loaded ${sampleRows.length} sample rows for ${cfg.badge}!`);
+    }
   };
+
+  // Backward compatibility alias
+  const loadIsonSampleToEditingInvoice = () => loadPresetToInvoice('GST_INV_1', true);
 
   // Helper: Update a single candidate seat item in New Invoice Form
   const updateInvoiceFormItem = (idx, field, val) => {
@@ -704,6 +2103,9 @@ export function FinanceInvoicesView() {
     if (field === 'ratePerSeat') {
       const r = Number(val) || 0;
       target.amount = r;
+    } else if (field === 'amount') {
+      const a = Number(val) || 0;
+      target.ratePerSeat = a;
     }
     newItems[idx] = target;
 
@@ -725,9 +2127,22 @@ export function FinanceInvoicesView() {
 
   // Helper: Add a blank candidate row to New Invoice Form
   const addInvoiceFormItem = () => {
+    const tmplKey = getClientTemplate(invoiceForm.client, invoiceForm.templateType);
     const newItems = [
       ...(invoiceForm.items || []),
-      { empId: '', employeeName: '', doj: '', processLob: 'Process', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      {
+        sno: String((invoiceForm.items || []).length + 1).padStart(2, '0'),
+        empId: 'CEGS-' + String((invoiceForm.items || []).length + 1).padStart(2, '0'),
+        employeeName: '',
+        phone: '',
+        designation: 'Business AssociateOperation.',
+        status: 'Active',
+        doj: new Date().toLocaleDateString('en-GB'),
+        processLob: 'Process',
+        ratePerSeat: 5000,
+        sacCode: tmplKey.includes('ALTRUIST') ? 'BPO' : '99851',
+        amount: 5000,
+      },
     ];
     const totalBasic = newItems.reduce((acc, it) => acc + (Number(it.amount) || Number(it.ratePerSeat) || 0), 0);
     const sgst = Math.round(totalBasic * 0.09);
@@ -763,6 +2178,8 @@ export function FinanceInvoicesView() {
       amountInWords: numberToWordsINR(total),
     });
   };
+
+
 
   // Action: Save Edited Invoice
   const handleSaveEditInvoice = async (e) => {
@@ -1039,17 +2456,19 @@ export function FinanceInvoicesView() {
         invNo = `INV-${String(invoices.length + 1).padStart(3, '0')}`;
       }
 
-      const isIson = (invoiceForm.client || '').toLowerCase().includes('ison');
-      const amt = Number(invoiceForm.amount) || 0;
-      const bAmt = invoiceForm.basicAmount ? Number(invoiceForm.basicAmount) : (isIson ? 37000 : (amt ? Math.round(amt / 1.18) : amt));
-      const sAmt = invoiceForm.sgstAmount ? Number(invoiceForm.sgstAmount) : (isIson ? 3330 : (amt ? Math.round(bAmt * 0.09) : 0));
-      const cAmt = invoiceForm.cgstAmount ? Number(invoiceForm.cgstAmount) : (isIson ? 3330 : (amt ? Math.round(bAmt * 0.09) : 0));
+      const tmpl = getClientTemplate(invoiceForm.client, invoiceForm.templateType);
+      const cfg = CLIENT_CONFIGS[tmpl] || CLIENT_CONFIGS.GST_INV_1;
+
+      const amt = Number(invoiceForm.amount) || cfg.sampleTotal || 0;
+      const bAmt = invoiceForm.basicAmount ? Number(invoiceForm.basicAmount) : (cfg.sampleBasic || (amt ? Math.round(amt / 1.18) : amt));
+      const sAmt = invoiceForm.sgstAmount ? Number(invoiceForm.sgstAmount) : (cfg.sampleSgst || Math.round(bAmt * 0.09));
+      const cAmt = invoiceForm.cgstAmount ? Number(invoiceForm.cgstAmount) : (cfg.sampleCgst || Math.round(bAmt * 0.09));
 
       const payload = {
         action: 'create_invoice',
         client: invoiceForm.client,
         invoiceNo: invNo,
-        projectMilestone: invoiceForm.projectMilestone || (isIson ? 'Candidate Placement & Seat Billing (7 Seats)' : 'Project Deliverable'),
+        projectMilestone: invoiceForm.projectMilestone || `${cfg.badge} Placement & Service Billing`,
         amount: amt,
         basicAmount: bAmt,
         sgstAmount: sAmt,
@@ -1058,15 +2477,15 @@ export function FinanceInvoicesView() {
         status: invoiceForm.status,
         notes: invoiceForm.notes,
         invoiceDate: new Date().toISOString().slice(0, 10),
-        items: invoiceForm.items && invoiceForm.items.length > 0 ? invoiceForm.items : (isIson ? ISON_SAMPLE_ITEMS : []),
-        templateType: invoiceForm.templateType || (isIson ? 'GST_INV_1' : 'standard'),
-        clientAddress: invoiceForm.clientAddress || (isIson ? 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102' : ''),
-        clientGstin: invoiceForm.clientGstin || (isIson ? '29AADCI1246E1ZT' : ''),
+        items: invoiceForm.items && invoiceForm.items.length > 0 ? invoiceForm.items : cfg.sampleItems,
+        templateType: tmpl,
+        clientAddress: invoiceForm.clientAddress || cfg.defaultAddress || '',
+        clientGstin: invoiceForm.clientGstin || cfg.defaultGstin || '',
         clientState: invoiceForm.clientState || 'Karnataka',
         clientStateCode: invoiceForm.clientStateCode || '29',
         poNo: invoiceForm.poNo || '',
         placeOfService: invoiceForm.placeOfService || 'Bangalore',
-        amountInWords: invoiceForm.amountInWords || numberToWordsINR(amt),
+        amountInWords: invoiceForm.amountInWords || cfg.words || numberToWordsINR(amt),
         signatureImage: invoiceForm.signatureImage || (typeof window !== 'undefined' && localStorage.getItem('cegs_signature_stamp')) || DEFAULT_SIGNATURE_STAMP,
       };
 
@@ -1866,7 +3285,10 @@ export function FinanceInvoicesView() {
                           <button
                             type="button"
                             title="View / Download Invoice"
-                            onClick={() => setPreviewInvoice(inv)}
+                            onClick={() => {
+                              setPreviewInvoice(inv);
+                              setPreviewTemplateMode(getClientTemplate(inv.client, inv.templateType));
+                            }}
                             style={{
                               width: 32,
                               height: 32,
@@ -2388,7 +3810,22 @@ export function FinanceInvoicesView() {
                     </label>
                     <select
                       value={editingInvoice.client}
-                      onChange={(e) => setEditingInvoice({ ...editingInvoice, client: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const tmpl = getClientTemplate(val);
+                        const cfg = CLIENT_CONFIGS[tmpl];
+                        if (cfg) {
+                          setEditingInvoice({
+                            ...editingInvoice,
+                            client: val,
+                            templateType: tmpl,
+                            clientAddress: cfg.defaultAddress,
+                            clientGstin: cfg.defaultGstin,
+                          });
+                        } else {
+                          setEditingInvoice({ ...editingInvoice, client: val });
+                        }
+                      }}
                       style={{
                         width: '100%',
                         padding: '10px 14px',
@@ -2528,14 +3965,18 @@ export function FinanceInvoicesView() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      type="button"
-                      onClick={loadIsonSampleToEditingInvoice}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          loadPresetToInvoice(e.target.value, true);
+                        }
+                      }}
+                      defaultValue=""
                       style={{
                         background: '#0F172A',
-                        color: '#FFFFFF',
-                        border: 'none',
+                        color: '#F8FAFC',
+                        border: '1px solid #334155',
                         borderRadius: 8,
                         padding: '6px 12px',
                         fontSize: 11.5,
@@ -2543,8 +3984,14 @@ export function FinanceInvoicesView() {
                         cursor: 'pointer',
                       }}
                     >
-                      ⚡ Load 7 ISON Process Rows
-                    </button>
+                      <option value="" disabled>⚡ Load Preset Template Rows...</option>
+                      {Object.values(CLIENT_CONFIGS).map((cfg) => (
+                        <option key={cfg.key} value={cfg.key}>
+                          {cfg.badge} ({cfg.sampleItems.length} rows)
+                        </option>
+                      ))}
+                    </select>
+
                     <button
                       type="button"
                       onClick={addEditingInvoiceItem}
@@ -2568,163 +4015,201 @@ export function FinanceInvoicesView() {
                   </div>
                 </div>
 
-                <div style={{ overflowX: 'auto', maxHeight: 340, overflowY: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: '#FFF000', borderBottom: '1.5px solid #000000', textAlign: 'center', color: '#000000' }}>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '4%' }}>#</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '13%' }}>EMP ID</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '22%' }}>Employee Name</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '12%' }}>DOJ</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '16%' }}>Process / LOB</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '14%' }}>Rate / Seat (₹)</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '9%' }}>SAC Code</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '10%' }}>Amount (₹)</th>
-                        <th style={{ padding: '8px 4px', fontWeight: 800, width: '4%' }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(editingInvoice.items || []).length === 0 ? (
-                        <tr>
-                          <td colSpan={9} style={{ textAlign: 'center', padding: '24px 16px', color: '#64748B', fontSize: 13 }}>
-                            No candidate rows added. Click <strong>"+ Add Row"</strong> or <strong>"⚡ Load 7 ISON Process Rows"</strong> above.
-                          </td>
-                        </tr>
-                      ) : (
-                        editingInvoice.items.map((row, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC' }}>
-                            <td style={{ textAlign: 'center', fontWeight: 700, color: '#94A3B8' }}>{idx + 1}</td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="text"
-                                placeholder="e.g. CEGS-01"
-                                value={row.empId === 'xxxx' ? '' : row.empId}
-                                onChange={(e) => updateEditingInvoiceItem(idx, 'empId', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: row.empId === 'xxxx' || !row.empId ? '1.5px solid #F59E0B' : '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  background: row.empId === 'xxxx' || !row.empId ? '#FFFBEB' : '#FFFFFF',
-                                  fontWeight: 700,
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="text"
-                                placeholder="Candidate Full Name"
-                                value={row.employeeName === 'xxxx' ? '' : row.employeeName}
-                                onChange={(e) => updateEditingInvoiceItem(idx, 'employeeName', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: row.employeeName === 'xxxx' || !row.employeeName ? '1.5px solid #F59E0B' : '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  background: row.employeeName === 'xxxx' || !row.employeeName ? '#FFFBEB' : '#FFFFFF',
-                                  fontWeight: 600,
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="text"
-                                placeholder="DD/MM/YYYY"
-                                value={row.doj === 'xx/x/xx' ? '' : row.doj}
-                                onChange={(e) => updateEditingInvoiceItem(idx, 'doj', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: row.doj === 'xx/x/xx' || !row.doj ? '1.5px solid #F59E0B' : '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  background: row.doj === 'xx/x/xx' || !row.doj ? '#FFFBEB' : '#FFFFFF',
-                                  textAlign: 'center',
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="text"
-                                placeholder="Process / LOB"
-                                value={row.processLob || ''}
-                                onChange={(e) => updateEditingInvoiceItem(idx, 'processLob', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  fontWeight: 600,
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="number"
-                                placeholder="5000"
-                                value={row.ratePerSeat ?? ''}
-                                onChange={(e) => updateEditingInvoiceItem(idx, 'ratePerSeat', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  textAlign: 'right',
-                                  fontWeight: 700,
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="text"
-                                placeholder="99851"
-                                value={row.sacCode || '99851'}
-                                onChange={(e) => updateEditingInvoiceItem(idx, 'sacCode', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 6px',
-                                  borderRadius: 6,
-                                  border: '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  textAlign: 'center',
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 800 }}>
-                              ₹{Number(row.amount || row.ratePerSeat || 0).toLocaleString('en-IN')}
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => removeEditingInvoiceItem(idx)}
-                                title="Remove row"
-                                style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </td>
+                {(() => {
+                  const editTmplKey = getClientTemplate(editingInvoice.client, editingInvoice.templateType);
+                  const isEditAltruist = editTmplKey === 'ALTRUIST' || editTmplKey === 'ALTRUIST_GB';
+                  const isEditRadical = editTmplKey === 'RADICAL_MINDS';
+                  const isEditFiveSplashOr1P1 = editTmplKey === 'FIVE_SPLASH' || editTmplKey === 'ONE_POINT_ONE';
+
+                  return (
+                    <div style={{ overflowX: 'auto', maxHeight: 340, overflowY: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: '#FFF000', borderBottom: '1.5px solid #000000', textAlign: 'center', color: '#000000' }}>
+                            <th style={{ padding: '8px 4px', fontWeight: 800, width: '4%' }}>#</th>
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: isEditAltruist ? '10%' : '12%' }}>
+                              {isEditAltruist ? 'Emp. Code' : 'EMP ID'}
+                            </th>
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: isEditAltruist ? '13%' : '18%' }}>
+                              {isEditAltruist ? 'Emp. Name' : 'Candidate Name'}
+                            </th>
+                            {(isEditFiveSplashOr1P1 || isEditRadical) && (
+                              <th style={{ padding: '8px 6px', fontWeight: 800, width: '13%' }}>Phone</th>
+                            )}
+                            {isEditAltruist && (
+                              <th style={{ padding: '8px 6px', fontWeight: 800, width: '19%' }}>Designation</th>
+                            )}
+                            {isEditRadical && (
+                              <th style={{ padding: '8px 6px', fontWeight: 800, width: '10%' }}>Status</th>
+                            )}
+                            {!isEditRadical && (
+                              <th style={{ padding: '8px 6px', fontWeight: 800, width: isEditAltruist ? '13%' : '15%' }}>Process</th>
+                            )}
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: '10%' }}>DOJ</th>
+                            {isEditAltruist && (
+                              <th style={{ padding: '8px 4px', fontWeight: 800, width: '7%' }}>HSN/SAC</th>
+                            )}
+                            {!isEditFiveSplashOr1P1 && !isEditRadical && (
+                              <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>Rate (₹)</th>
+                            )}
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>
+                              {isEditFiveSplashOr1P1 || isEditRadical ? 'Billing Amt (₹)' : 'Total (₹)'}
+                            </th>
+                            <th style={{ padding: '8px 4px', fontWeight: 800, width: '4%' }}></th>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {(editingInvoice.items || []).length === 0 ? (
+                            <tr>
+                              <td colSpan={10} style={{ textAlign: 'center', padding: '24px 16px', color: '#64748B', fontSize: 13 }}>
+                                No candidate rows added. Click <strong>"+ Add Row"</strong> or select a template preset above.
+                              </td>
+                            </tr>
+                          ) : (
+                            editingInvoice.items.map((row, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC' }}>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: '#94A3B8' }}>{row.sno || idx + 1}</td>
+                                <td style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="CEGS-01"
+                                    value={row.empId === 'xxxx' ? '' : row.empId}
+                                    onChange={(e) => updateEditingInvoiceItem(idx, 'empId', e.target.value)}
+                                    style={{
+                                      width: '100%',
+                                      padding: '6px 6px',
+                                      borderRadius: 6,
+                                      border: row.empId === 'xxxx' || !row.empId ? '1.5px solid #F59E0B' : '1px solid #CBD5E1',
+                                      fontSize: 11.5,
+                                      outline: 'none',
+                                      boxSizing: 'border-box',
+                                      background: row.empId === 'xxxx' || !row.empId ? '#FFFBEB' : '#FFFFFF',
+                                      fontWeight: 700,
+                                    }}
+                                  />
+                                </td>
+                                <td style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="Full Name"
+                                    value={row.employeeName === 'xxxx' ? '' : row.employeeName}
+                                    onChange={(e) => updateEditingInvoiceItem(idx, 'employeeName', e.target.value)}
+                                    style={{
+                                      width: '100%',
+                                      padding: '6px 6px',
+                                      borderRadius: 6,
+                                      border: row.employeeName === 'xxxx' || !row.employeeName ? '1.5px solid #F59E0B' : '1px solid #CBD5E1',
+                                      fontSize: 11.5,
+                                      outline: 'none',
+                                      boxSizing: 'border-box',
+                                      background: row.employeeName === 'xxxx' || !row.employeeName ? '#FFFBEB' : '#FFFFFF',
+                                      fontWeight: 600,
+                                    }}
+                                  />
+                                </td>
+                                {(isEditFiveSplashOr1P1 || isEditRadical) && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <input
+                                      type="text"
+                                      placeholder="Phone"
+                                      value={row.phone === 'xxxx' ? '' : (row.phone || '')}
+                                      onChange={(e) => updateEditingInvoiceItem(idx, 'phone', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box' }}
+                                    />
+                                  </td>
+                                )}
+                                {isEditAltruist && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <input
+                                      type="text"
+                                      placeholder="Designation"
+                                      value={row.designation || 'Business AssociateOperation.'}
+                                      onChange={(e) => updateEditingInvoiceItem(idx, 'designation', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11, outline: 'none', boxSizing: 'border-box' }}
+                                    />
+                                  </td>
+                                )}
+                                {isEditRadical && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <select
+                                      value={row.status || 'Active'}
+                                      onChange={(e) => updateEditingInvoiceItem(idx, 'status', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 4px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', background: '#FFF' }}
+                                    >
+                                      <option value="Active">Active</option>
+                                      <option value="Inactive">Inactive</option>
+                                    </select>
+                                  </td>
+                                )}
+                                {!isEditRadical && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <input
+                                      type="text"
+                                      placeholder="Process / LOB"
+                                      value={row.processLob || ''}
+                                      onChange={(e) => updateEditingInvoiceItem(idx, 'processLob', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', fontWeight: 600 }}
+                                    />
+                                  </td>
+                                )}
+                                <td style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="DD/MM/YYYY"
+                                    value={row.doj === 'xx/x/xx' || row.doj === 'xx/xx/xxxx' ? '' : (row.doj || '')}
+                                    onChange={(e) => updateEditingInvoiceItem(idx, 'doj', e.target.value)}
+                                    style={{ width: '100%', padding: '6px 4px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }}
+                                  />
+                                </td>
+                                {isEditAltruist && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <input
+                                      type="text"
+                                      placeholder="BPO"
+                                      value={row.sacCode || 'BPO'}
+                                      onChange={(e) => updateEditingInvoiceItem(idx, 'sacCode', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 4px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }}
+                                    />
+                                  </td>
+                                )}
+                                {!isEditFiveSplashOr1P1 && !isEditRadical && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <input
+                                      type="number"
+                                      placeholder="5000"
+                                      value={row.ratePerSeat ?? ''}
+                                      onChange={(e) => updateEditingInvoiceItem(idx, 'ratePerSeat', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'right', fontWeight: 700 }}
+                                    />
+                                  </td>
+                                )}
+                                <td style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="number"
+                                    placeholder="5000"
+                                    value={row.amount ?? ''}
+                                    onChange={(e) => updateEditingInvoiceItem(idx, 'amount', e.target.value)}
+                                    style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'right', fontWeight: 800 }}
+                                  />
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeEditingInvoiceItem(idx)}
+                                    title="Remove row"
+                                    style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* SECTION 3: REAL-TIME TAX & TOTALS BREAKDOWN */}
@@ -2997,20 +4482,24 @@ export function FinanceInvoicesView() {
                       value={invoiceForm.client}
                       onChange={(e) => {
                         const val = e.target.value;
-                        if (val.toLowerCase().includes('ison')) {
+                        const tmpl = getClientTemplate(val);
+                        const cfg = CLIENT_CONFIGS[tmpl] || CLIENT_CONFIGS.GST_INV_1;
+                        if (CLIENT_CONFIGS[tmpl]) {
                           setInvoiceForm({
                             ...invoiceForm,
                             client: val,
-                            projectMilestone: 'Candidate Placement & Seat Billing (7 Seats)',
-                            amount: '43660',
-                            basicAmount: 37000,
-                            sgstAmount: 3330,
-                            cgstAmount: 3330,
+                            projectMilestone: `${cfg.badge} Placement & Service Billing`,
+                            amount: String(cfg.sampleTotal),
+                            basicAmount: cfg.sampleBasic,
+                            sgstAmount: cfg.sampleSgst,
+                            cgstAmount: cfg.sampleCgst,
                             dueDate: '30 days',
-                            notes: 'Form GST INV – 1 candidate placements (101, Etisalat, CNR, I-CAD, E-Money, universal, SMB)',
-                            items: ISON_SAMPLE_ITEMS,
-                            templateType: 'GST_INV_1',
-                            amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+                            notes: `${cfg.badge} official billing invoice`,
+                            items: cfg.sampleItems.map((it) => ({ ...it })),
+                            templateType: tmpl,
+                            clientAddress: cfg.defaultAddress,
+                            clientGstin: cfg.defaultGstin,
+                            amountInWords: cfg.words,
                           });
                         } else {
                           setInvoiceForm({ ...invoiceForm, client: val });
@@ -3197,24 +4686,17 @@ export function FinanceInvoicesView() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInvoiceForm({
-                          ...invoiceForm,
-                          items: ISON_SAMPLE_ITEMS,
-                          basicAmount: 37000,
-                          sgstAmount: 3330,
-                          cgstAmount: 3330,
-                          amount: '43660',
-                          amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
-                        });
-                        showToast('Loaded 7 sample seats into form!');
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          loadPresetToInvoice(e.target.value, false);
+                        }
                       }}
+                      defaultValue=""
                       style={{
                         background: '#0F172A',
-                        color: '#FFFFFF',
-                        border: 'none',
+                        color: '#F8FAFC',
+                        border: '1px solid #334155',
                         borderRadius: 8,
                         padding: '6px 12px',
                         fontSize: 11.5,
@@ -3222,8 +4704,14 @@ export function FinanceInvoicesView() {
                         cursor: 'pointer',
                       }}
                     >
-                      ⚡ Load 7 ISON Process Rows
-                    </button>
+                      <option value="" disabled>⚡ Load Client Template Rows...</option>
+                      {Object.values(CLIENT_CONFIGS).map((cfg) => (
+                        <option key={cfg.key} value={cfg.key}>
+                          {cfg.badge} ({cfg.sampleItems.length} rows)
+                        </option>
+                      ))}
+                    </select>
+
                     <button
                       type="button"
                       onClick={addInvoiceFormItem}
@@ -3247,160 +4735,199 @@ export function FinanceInvoicesView() {
                   </div>
                 </div>
 
-                <div style={{ overflowX: 'auto', maxHeight: 280, overflowY: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ background: '#FFF000', borderBottom: '1.5px solid #000000', textAlign: 'center', color: '#000000' }}>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '4%' }}>#</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '13%' }}>EMP ID</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '22%' }}>Employee Name</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '12%' }}>DOJ</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '16%' }}>Process / LOB</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '14%' }}>Rate / Seat (₹)</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '9%' }}>SAC Code</th>
-                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '10%' }}>Amount (₹)</th>
-                        <th style={{ padding: '8px 4px', fontWeight: 800, width: '4%' }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(invoiceForm.items || []).length === 0 ? (
-                        <tr>
-                          <td colSpan={9} style={{ textAlign: 'center', padding: '20px 16px', color: '#64748B', fontSize: 13 }}>
-                            No candidate rows added. You can bill as a single amount or click <strong>"⚡ Load 7 ISON Process Rows"</strong>.
-                          </td>
-                        </tr>
-                      ) : (
-                        invoiceForm.items.map((row, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC' }}>
-                            <td style={{ textAlign: 'center', fontWeight: 700, color: '#94A3B8' }}>{idx + 1}</td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="text"
-                                placeholder="e.g. CEGS-01"
-                                value={row.empId || ''}
-                                onChange={(e) => updateInvoiceFormItem(idx, 'empId', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  fontWeight: 700,
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="text"
-                                placeholder="Candidate Full Name"
-                                value={row.employeeName || ''}
-                                onChange={(e) => updateInvoiceFormItem(idx, 'employeeName', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  fontWeight: 600,
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="text"
-                                placeholder="DD/MM/YYYY"
-                                value={row.doj || ''}
-                                onChange={(e) => updateInvoiceFormItem(idx, 'doj', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  textAlign: 'center',
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="text"
-                                placeholder="Process / LOB"
-                                value={row.processLob || ''}
-                                onChange={(e) => updateInvoiceFormItem(idx, 'processLob', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  fontWeight: 600,
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="number"
-                                placeholder="5000"
-                                value={row.ratePerSeat ?? ''}
-                                onChange={(e) => updateInvoiceFormItem(idx, 'ratePerSeat', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 8px',
-                                  borderRadius: 6,
-                                  border: '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  textAlign: 'right',
-                                  fontWeight: 700,
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px' }}>
-                              <input
-                                type="text"
-                                placeholder="99851"
-                                value={row.sacCode || '99851'}
-                                onChange={(e) => updateInvoiceFormItem(idx, 'sacCode', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '6px 6px',
-                                  borderRadius: 6,
-                                  border: '1px solid #CBD5E1',
-                                  fontSize: 11.5,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                  textAlign: 'center',
-                                }}
-                              />
-                            </td>
-                            <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 800 }}>
-                              ₹{Number(row.amount || row.ratePerSeat || 0).toLocaleString('en-IN')}
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => removeInvoiceFormItem(idx)}
-                                title="Remove row"
-                                style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </td>
+                {(() => {
+                  const formTmplKey = getClientTemplate(invoiceForm.client, invoiceForm.templateType);
+                  const isFormAltruist = formTmplKey === 'ALTRUIST' || formTmplKey === 'ALTRUIST_GB';
+                  const isFormRadical = formTmplKey === 'RADICAL_MINDS';
+                  const isFormFiveSplashOr1P1 = formTmplKey === 'FIVE_SPLASH' || formTmplKey === 'ONE_POINT_ONE';
+
+                  return (
+                    <div style={{ overflowX: 'auto', maxHeight: 300, overflowY: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: '#FFF000', borderBottom: '1.5px solid #000000', textAlign: 'center', color: '#000000' }}>
+                            <th style={{ padding: '8px 4px', fontWeight: 800, width: '4%' }}>#</th>
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: isFormAltruist ? '10%' : '12%' }}>
+                              {isFormAltruist ? 'Emp. Code' : 'EMP ID'}
+                            </th>
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: isFormAltruist ? '13%' : '18%' }}>
+                              {isFormAltruist ? 'Emp. Name' : 'Candidate Name'}
+                            </th>
+                            {(isFormFiveSplashOr1P1 || isFormRadical) && (
+                              <th style={{ padding: '8px 6px', fontWeight: 800, width: '13%' }}>Phone</th>
+                            )}
+                            {isFormAltruist && (
+                              <th style={{ padding: '8px 6px', fontWeight: 800, width: '19%' }}>Designation</th>
+                            )}
+                            {isFormRadical && (
+                              <th style={{ padding: '8px 6px', fontWeight: 800, width: '10%' }}>Status</th>
+                            )}
+                            {!isFormRadical && (
+                              <th style={{ padding: '8px 6px', fontWeight: 800, width: isFormAltruist ? '13%' : '15%' }}>Process</th>
+                            )}
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: '10%' }}>DOJ</th>
+                            {isFormAltruist && (
+                              <th style={{ padding: '8px 4px', fontWeight: 800, width: '7%' }}>HSN/SAC</th>
+                            )}
+                            {!isFormFiveSplashOr1P1 && !isFormRadical && (
+                              <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>Rate (₹)</th>
+                            )}
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>
+                              {isFormFiveSplashOr1P1 || isFormRadical ? 'Billing Amt (₹)' : 'Total (₹)'}
+                            </th>
+                            <th style={{ padding: '8px 4px', fontWeight: 800, width: '4%' }}></th>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {(invoiceForm.items || []).length === 0 ? (
+                            <tr>
+                              <td colSpan={10} style={{ textAlign: 'center', padding: '24px 16px', color: '#64748B', fontSize: 13 }}>
+                                No candidate rows added. Click <strong>"+ Add Row"</strong> or select a template preset above.
+                              </td>
+                            </tr>
+                          ) : (
+                            invoiceForm.items.map((row, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC' }}>
+                                <td style={{ textAlign: 'center', fontWeight: 700, color: '#94A3B8' }}>{row.sno || idx + 1}</td>
+                                <td style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="CEGS-01"
+                                    value={row.empId === 'xxxx' ? '' : (row.empId || '')}
+                                    onChange={(e) => updateInvoiceFormItem(idx, 'empId', e.target.value)}
+                                    style={{
+                                      width: '100%',
+                                      padding: '6px 6px',
+                                      borderRadius: 6,
+                                      border: '1px solid #CBD5E1',
+                                      fontSize: 11.5,
+                                      outline: 'none',
+                                      boxSizing: 'border-box',
+                                      fontWeight: 700,
+                                    }}
+                                  />
+                                </td>
+                                <td style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="Full Name"
+                                    value={row.employeeName === 'xxxx' ? '' : (row.employeeName || '')}
+                                    onChange={(e) => updateInvoiceFormItem(idx, 'employeeName', e.target.value)}
+                                    style={{
+                                      width: '100%',
+                                      padding: '6px 6px',
+                                      borderRadius: 6,
+                                      border: '1px solid #CBD5E1',
+                                      fontSize: 11.5,
+                                      outline: 'none',
+                                      boxSizing: 'border-box',
+                                      fontWeight: 600,
+                                    }}
+                                  />
+                                </td>
+                                {(isFormFiveSplashOr1P1 || isFormRadical) && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <input
+                                      type="text"
+                                      placeholder="Phone"
+                                      value={row.phone === 'xxxx' ? '' : (row.phone || '')}
+                                      onChange={(e) => updateInvoiceFormItem(idx, 'phone', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box' }}
+                                    />
+                                  </td>
+                                )}
+                                {isFormAltruist && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <input
+                                      type="text"
+                                      placeholder="Designation"
+                                      value={row.designation || 'Business AssociateOperation.'}
+                                      onChange={(e) => updateInvoiceFormItem(idx, 'designation', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11, outline: 'none', boxSizing: 'border-box' }}
+                                    />
+                                  </td>
+                                )}
+                                {isFormRadical && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <select
+                                      value={row.status || 'Active'}
+                                      onChange={(e) => updateInvoiceFormItem(idx, 'status', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 4px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', background: '#FFF' }}
+                                    >
+                                      <option value="Active">Active</option>
+                                      <option value="Inactive">Inactive</option>
+                                    </select>
+                                  </td>
+                                )}
+                                {!isFormRadical && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <input
+                                      type="text"
+                                      placeholder="Process / LOB"
+                                      value={row.processLob || ''}
+                                      onChange={(e) => updateInvoiceFormItem(idx, 'processLob', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', fontWeight: 600 }}
+                                    />
+                                  </td>
+                                )}
+                                <td style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="DD/MM/YYYY"
+                                    value={row.doj === 'xx/x/xx' || row.doj === 'xx/xx/xxxx' ? '' : (row.doj || '')}
+                                    onChange={(e) => updateInvoiceFormItem(idx, 'doj', e.target.value)}
+                                    style={{ width: '100%', padding: '6px 4px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }}
+                                  />
+                                </td>
+                                {isFormAltruist && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <input
+                                      type="text"
+                                      placeholder="BPO"
+                                      value={row.sacCode || 'BPO'}
+                                      onChange={(e) => updateInvoiceFormItem(idx, 'sacCode', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 4px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }}
+                                    />
+                                  </td>
+                                )}
+                                {!isFormFiveSplashOr1P1 && !isFormRadical && (
+                                  <td style={{ padding: '6px 4px' }}>
+                                    <input
+                                      type="number"
+                                      placeholder="5000"
+                                      value={row.ratePerSeat ?? ''}
+                                      onChange={(e) => updateInvoiceFormItem(idx, 'ratePerSeat', e.target.value)}
+                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'right', fontWeight: 700 }}
+                                    />
+                                  </td>
+                                )}
+                                <td style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="number"
+                                    placeholder="5000"
+                                    value={row.amount ?? ''}
+                                    onChange={(e) => updateInvoiceFormItem(idx, 'amount', e.target.value)}
+                                    style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'right', fontWeight: 800 }}
+                                  />
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeInvoiceFormItem(idx)}
+                                    title="Remove row"
+                                    style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* SECTION 3: TOTALS BREAKDOWN */}
@@ -3705,48 +5232,42 @@ export function FinanceInvoicesView() {
                 }}
               >
                 {/* Template Mode Tabs */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTemplateMode('GST_INV_1')}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 14px',
-                      borderRadius: 10,
-                      border: previewTemplateMode === 'GST_INV_1' ? '1.5px solid #000' : '1px solid #CBD5E1',
-                      background: previewTemplateMode === 'GST_INV_1' ? '#000000' : '#FFFFFF',
-                      color: previewTemplateMode === 'GST_INV_1' ? '#FFE500' : '#475569',
-                      fontWeight: 800,
-                      fontSize: 12.5,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <span>Form GST INV – 1 (ISON Official)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTemplateMode('MODERN')}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '8px 14px',
-                      borderRadius: 10,
-                      border: previewTemplateMode === 'MODERN' ? '1.5px solid var(--accent, #7C3AED)' : '1px solid #CBD5E1',
-                      background: previewTemplateMode === 'MODERN' ? 'var(--accent, #7C3AED)' : '#FFFFFF',
-                      color: previewTemplateMode === 'MODERN' ? '#FFFFFF' : '#475569',
-                      fontWeight: 800,
-                      fontSize: 12.5,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <span>Executive Summary</span>
-                  </button>
+                {/* Template Mode Tabs */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'GST_INV_1', label: 'Form GST INV-1 (ISON)' },
+                    { key: 'FIVE_SPLASH', label: 'Five Splash' },
+                    { key: 'ALTRUIST', label: 'Altruist Tech' },
+                    { key: 'ALTRUIST_GB', label: 'Altruist GB' },
+                    { key: 'ONE_POINT_ONE', label: 'One Point One' },
+                    { key: 'RADICAL_MINDS', label: 'Radical Minds' },
+                    { key: 'MODERN', label: 'Executive' },
+                  ].map((t) => {
+                    const isActive = previewTemplateMode === t.key;
+                    return (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => setPreviewTemplateMode(t.key)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          border: isActive ? '1.5px solid #0F172A' : '1px solid #CBD5E1',
+                          background: isActive ? '#0F172A' : '#FFFFFF',
+                          color: isActive ? '#FFE500' : '#475569',
+                          fontWeight: 800,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span>{t.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Print, Edit, and Close Actions */}
@@ -3800,41 +5321,7 @@ export function FinanceInvoicesView() {
                       type="file"
                       accept="image/png,image/jpeg,image/jpg,image/webp"
                       style={{ display: 'none' }}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) {
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            const url = ev.target.result;
-                            setPreviewInvoice((prev) => ({ ...prev, signatureImage: url }));
-                            setInvoices((prev) =>
-                              prev.map((it) =>
-                                (it.id === previewInvoice.id || it._id === previewInvoice.id)
-                                  ? { ...it, signatureImage: url }
-                                  : it
-                              )
-                            );
-                            if (typeof window !== 'undefined') {
-                              try {
-                                localStorage.setItem('cegs_signature_stamp', url);
-                              } catch (err) {
-                                console.warn(err);
-                              }
-                            }
-                            fetch('/api/client-invoices', {
-                              method: 'POST',
-                              headers: authHeaders(),
-                              body: JSON.stringify({
-                                action: 'edit_invoice',
-                                id: previewInvoice.id || previewInvoice._id,
-                                signatureImage: url,
-                              }),
-                            }).catch(() => {});
-                            showToast('Digital signature stamp updated on invoice!');
-                          };
-                          reader.readAsDataURL(f);
-                        }
-                      }}
+                      onChange={handleSignatureUpload}
                     />
                   </label>
 
@@ -3932,315 +5419,108 @@ export function FinanceInvoicesView() {
               )}
 
               {/* ========================================================================= */}
-              {/* VIEW 1: AUTHENTIC FORM GST INV – 1 TEMPLATE (MATCHING USER'S PDF SAMPLE) */}
+              {/* PRINTABLE DEDICATED INVOICE TEMPLATE CONTAINER                           */}
               {/* ========================================================================= */}
-              {previewTemplateMode === 'GST_INV_1' ? (
-                <div
-                  id="printable-gst-invoice"
-                  style={{
-                    background: '#FFFFFF',
-                    color: '#000000',
-                    border: '1.5px solid #000000',
-                    fontFamily: 'Arial, "Helvetica Neue", sans-serif',
-                    fontSize: 11,
-                    lineHeight: 1.45,
-                    margin: '0 auto',
-                    boxSizing: 'border-box',
-                    width: '100%',
-                    boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
-                  }}
-                >
-                  {/* HEADER BLOCK */}
-                  <div style={{ textAlign: 'center', padding: '12px 14px', borderBottom: '1.5px solid #000000' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-                      Form GST INV – 1
-                    </div>
-                    <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: '0.04em', margin: '4px 0 2px' }}>
-                      CAREER EXPERTS GLOBAL SOLUTIONS
-                    </div>
-                    <div style={{ fontSize: 11.5, fontWeight: 600 }}>
-                      #1, Masjid Street neelasandra, Bengaluru, Karnataka-560047. <strong>TAX INVOICE</strong>
-                    </div>
-                  </div>
+              <div
+                id="printable-gst-invoice"
+                style={{
+                  background: '#FFFFFF',
+                  color: '#000000',
+                  margin: '0 auto',
+                  boxSizing: 'border-box',
+                  width: '100%',
+                  boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
+                  borderRadius: previewTemplateMode === 'MODERN' ? 20 : 0,
+                  overflow: 'hidden',
+                }}
+              >
+                {previewTemplateMode === 'FIVE_SPLASH' && (
+                  <FiveSplashInvoiceTemplate
+                    invoice={previewInvoice}
+                    items={items}
+                    basicAmt={basicAmt}
+                    cgstAmt={cgstAmt}
+                    sgstAmt={sgstAmt}
+                    totalBill={totalBill}
+                    amountInWords={amountInWords}
+                    onSignatureUpload={handleSignatureUpload}
+                  />
+                )}
 
-                  {/* ROW 1: SUPPLIER METADATA & TRANSPORT DETAILS */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', borderBottom: '1.5px solid #000000' }}>
-                    <div style={{ padding: '8px 12px', borderRight: '1.5px solid #000000', lineHeight: 1.6 }}>
-                      <div><strong>GSTIN:</strong> 29DWCPM8081C2ZB</div>
-                      <div><strong>PAN No:</strong> DWCPM8081C</div>
-                      <div>
-                        <strong>Invoice No.:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>{previewInvoice.invoiceNo || 'INV-2026-ISON-01'}</span>
-                      </div>
-                      <div><strong>PO NO :</strong> {previewInvoice.poNo || '—'}</div>
-                      <div><strong>Date:</strong> {previewInvoice.invoiceDate || 'xx/xx/xxxx.'}</div>
-                      <div><strong>Due By:</strong> {previewInvoice.dueDate || '30 days'}</div>
-                    </div>
-                    <div style={{ padding: '8px 12px', lineHeight: 1.6 }}>
-                      <div><strong>Mode of Transport:</strong> {previewInvoice.modeOfTransport || '—'}</div>
-                      <div><strong>Vehicle No:</strong> {previewInvoice.vehicleNo || '—'}</div>
-                      <div><strong>Date & Time of Service:</strong> {previewInvoice.dateTimeOfService || previewInvoice.invoiceDate || '—'}</div>
-                      <div><strong>Place of Service:</strong> <span style={{ fontWeight: 700 }}>{previewInvoice.placeOfService || 'Bangalore'}</span></div>
-                    </div>
-                  </div>
+                {previewTemplateMode === 'ALTRUIST' && (
+                  <AltruistInvoiceTemplate
+                    invoice={previewInvoice}
+                    items={items}
+                    basicAmt={basicAmt}
+                    cgstAmt={cgstAmt}
+                    sgstAmt={sgstAmt}
+                    totalBill={totalBill}
+                    amountInWords={amountInWords}
+                    isGB={false}
+                  />
+                )}
 
-                  {/* ROW 2: RECEIVER & CONSIGNEE DETAILS */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', borderBottom: '1.5px solid #000000' }}>
-                    <div style={{ padding: '10px 12px', borderRight: '1.5px solid #000000', lineHeight: 1.55 }}>
-                      <div style={{ fontWeight: 800, fontSize: 11.5, textDecoration: 'underline', marginBottom: 4 }}>
-                        Details of Receiver (Billed to)
-                      </div>
-                      <div style={{ fontWeight: 900, fontSize: 12, color: '#000000' }}>
-                        {previewInvoice.client || 'ISON XPERIENCES INDIA PRIVATE LIMITED'}
-                      </div>
-                      <div style={{ margin: '2px 0' }}>
-                        {previewInvoice.clientAddress || 'Building No. H208,1st & 2nd Floor, 36/5 Somyasundarpalya,27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102'}
-                      </div>
-                      <div><strong>State:</strong> {previewInvoice.clientState || 'Karnataka'}</div>
-                      <div><strong>State Code :</strong> {previewInvoice.clientStateCode || '29'}</div>
-                      <div><strong>GSTIN/Unique ID:</strong> <span style={{ fontWeight: 700 }}>{previewInvoice.clientGstin || '29AADCI1246E1ZT'}</span></div>
-                    </div>
-                    <div style={{ padding: '10px 12px', lineHeight: 1.55 }}>
-                      <div style={{ fontWeight: 800, fontSize: 11.5, textDecoration: 'underline', marginBottom: 4 }}>
-                        Details of Consignee (Shipped to)
-                      </div>
-                      <div style={{ fontWeight: 700 }}>Name: Career Experts Global Solutions</div>
-                      <div>#1, Masjid Street, Neelasandra, Bangalore - 560047.</div>
-                      <div><strong>State:</strong> Karnataka</div>
-                      <div><strong>State Code :</strong> 29</div>
-                      <div><strong>GSTIN/Unique ID:</strong> 29DWCPM8081C2ZB</div>
-                    </div>
-                  </div>
+                {previewTemplateMode === 'ALTRUIST_GB' && (
+                  <AltruistInvoiceTemplate
+                    invoice={previewInvoice}
+                    items={items}
+                    basicAmt={basicAmt}
+                    cgstAmt={cgstAmt}
+                    sgstAmt={sgstAmt}
+                    totalBill={totalBill}
+                    amountInWords={amountInWords}
+                    isGB={true}
+                  />
+                )}
 
-                  {/* ROW 3: SEAT / EMPLOYEE BILLING TABLE (WITH SAMPLE YELLOW HEADER) */}
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 11 }}>
-                    <thead>
-                      <tr style={{ background: '#FFF000', borderBottom: '1.5px solid #000000', textAlign: 'center' }}>
-                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '11%' }}>EMP ID</th>
-                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '22%' }}>Employee Name</th>
-                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '11%' }}>DOJ</th>
-                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '17%' }}>Process /LOB</th>
-                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '15%' }}>Rate Per Seat IN Rs.</th>
-                        <th style={{ borderRight: '1px solid #000000', padding: '6px 4px', fontWeight: 800, width: '10%' }}>SAC Code</th>
-                        <th style={{ padding: '6px 4px', fontWeight: 800, width: '14%' }}>Amount Rs.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((row, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #000000' }}>
-                          <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center' }}>{row.empId || 'xxxx'}</td>
-                          <td style={{ borderRight: '1px solid #000000', padding: '6px 6px' }}>{row.employeeName || 'xxxx'}</td>
-                          <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center' }}>{row.doj || 'xx/x/xx'}</td>
-                          <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center', fontWeight: 600 }}>{row.processLob || 'Process'}</td>
-                          <td style={{ borderRight: '1px solid #000000', padding: '6px 8px', textAlign: 'right' }}>{Number(row.ratePerSeat || 0).toLocaleString('en-IN')}</td>
-                          <td style={{ borderRight: '1px solid #000000', padding: '6px 6px', textAlign: 'center' }}>{row.sacCode || '99851'}</td>
-                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600 }}>{Number(row.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                        </tr>
-                      ))}
+                {previewTemplateMode === 'ONE_POINT_ONE' && (
+                  <OnePointOneInvoiceTemplate
+                    invoice={previewInvoice}
+                    items={items}
+                    basicAmt={basicAmt}
+                    cgstAmt={cgstAmt}
+                    sgstAmt={sgstAmt}
+                    totalBill={totalBill}
+                    amountInWords={amountInWords}
+                  />
+                )}
 
-                      {/* TOTAL AMOUNT ROW */}
-                      <tr style={{ borderBottom: '1.5px solid #000000', fontWeight: 800 }}>
-                        <td colSpan={6} style={{ borderRight: '1px solid #000000', padding: '7px 12px', textAlign: 'right', textTransform: 'uppercase' }}>
-                          TOTAL AMOUNT - IN Rs.
-                        </td>
-                        <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 900 }}>
-                          {Number(basicAmt).toLocaleString('en-IN')}
-                        </td>
-                      </tr>
+                {previewTemplateMode === 'RADICAL_MINDS' && (
+                  <RadicalMindsInvoiceTemplate
+                    invoice={previewInvoice}
+                    items={items}
+                    basicAmt={basicAmt}
+                    cgstAmt={cgstAmt}
+                    sgstAmt={sgstAmt}
+                    totalBill={totalBill}
+                    amountInWords={amountInWords}
+                  />
+                )}
 
-                      {/* SGST ROW */}
-                      <tr style={{ borderBottom: '1px solid #000000' }}>
-                        <td colSpan={5} style={{ borderRight: '1px solid #000000' }}></td>
-                        <td style={{ borderRight: '1px solid #000000', padding: '6px 8px', fontWeight: 700, fontSize: 10.5 }}>
-                          SGST @ 9%
-                        </td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>
-                          {Number(sgstAmt).toLocaleString('en-IN')}
-                        </td>
-                      </tr>
+                {previewTemplateMode === 'GST_INV_1' && (
+                  <IsonInvoiceTemplate
+                    invoice={previewInvoice}
+                    items={items}
+                    basicAmt={basicAmt}
+                    cgstAmt={cgstAmt}
+                    sgstAmt={sgstAmt}
+                    totalBill={totalBill}
+                    amountInWords={amountInWords}
+                  />
+                )}
 
-                      {/* CGST ROW */}
-                      <tr style={{ borderBottom: '1.5px solid #000000' }}>
-                        <td colSpan={5} style={{ borderRight: '1px solid #000000' }}></td>
-                        <td style={{ borderRight: '1px solid #000000', padding: '6px 8px', fontWeight: 700, fontSize: 10.5 }}>
-                          CGST @ 9 %
-                        </td>
-                        <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>
-                          {Number(cgstAmt).toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-
-                      {/* TOTAL BILL AMOUNT */}
-                      <tr style={{ borderBottom: '1.5px solid #000000', fontWeight: 900, background: '#FAFAFA' }}>
-                        <td colSpan={6} style={{ borderRight: '1px solid #000000', padding: '8px 12px', textAlign: 'right', textTransform: 'uppercase', fontSize: 11.5 }}>
-                          TOTAL BILL AMOUNT - IN Rs.
-                        </td>
-                        <td style={{ padding: '8px 8px', textAlign: 'right', fontSize: 12.5, fontWeight: 900 }}>
-                          {Number(totalBill).toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-
-                  {/* ROW 4: AMOUNT IN WORDS */}
-                  <div style={{ padding: '8px 12px', borderBottom: '1.5px solid #000000', fontSize: 11.5, fontWeight: 700 }}>
-                    Amount in Words: <span style={{ fontWeight: 800 }}>{amountInWords}</span>
-                  </div>
-
-                  {/* ROW 5: SIGNATORY BLOCK */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1.5px solid #000000' }}>
-                    <div style={{ padding: '10px 12px' }}>
-                      <div style={{ fontSize: 10.5, color: '#444' }}>{previewInvoice.notes || ''}</div>
-                    </div>
-                    <div style={{ padding: '10px 14px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', minHeight: 112 }}>
-                      <div style={{ fontWeight: 800, fontSize: 11 }}>For CAREER EXPERTS GLOBAL SOLUTIONS</div>
-                      <div style={{ margin: '4px 0', textAlign: 'right' }}>
-                        <img
-                          src={previewInvoice.signatureImage || DEFAULT_SIGNATURE_STAMP}
-                          alt="Digitally signed by MOHAMMED USMAN ZABI"
-                          style={{ maxHeight: 72, maxWidth: 240, objectFit: 'contain', display: 'block', marginLeft: 'auto' }}
-                          onError={(e) => {
-                            e.currentTarget.src = DEFAULT_SIGNATURE_STAMP;
-                          }}
-                        />
-                      </div>
-                      <div style={{ fontWeight: 800, fontSize: 11 }}>Authorised Signatory</div>
-                    </div>
-                  </div>
-
-                  {/* ROW 6: PAYMENT INSTRUCTIONS */}
-                  <div style={{ padding: '10px 12px', fontSize: 10.5, lineHeight: 1.6 }}>
-                    <div style={{ fontWeight: 800, textDecoration: 'underline', marginBottom: 2 }}>Payment Instructions:</div>
-                    <div><strong>Name of the Bank:</strong> HDFC</div>
-                    <div><strong>Banificiary Name:</strong> Career Experts Global Solutions <strong>Bank Account No:</strong> 50200080303100.</div>
-                    <div><strong>Bank Address:</strong> East Wing, KHB Building, KG Road, Bangalore - 560009.</div>
-                    <div><strong>IFSC Code:</strong> HDFC0000509.</div>
-                    <div><strong>RTGS/NEFT Code:</strong> HDFC0000509.</div>
-                    <div style={{ marginTop: 6, fontWeight: 700 }}>E. & O. E.</div>
-                  </div>
-                </div>
-              ) : (
-                /* ========================================================================= */
-                /* VIEW 2: MODERN CLEAN SUMMARY VIEW */
-                /* ========================================================================= */
-                <div
-                  style={{
-                    background: '#FFFFFF',
-                    borderRadius: 20,
-                    padding: '32px',
-                    border: '1px solid #E2E8F0',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #F1F5F9', paddingBottom: 16 }}>
-                    <div>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: '#0F172A' }}>
-                        CAREER EXPERTS GLOBAL SOLUTIONS
-                      </div>
-                      <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 4 }}>
-                        Form GST INV – 1 · Tax Invoice
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent, #7C3AED)', fontFamily: 'monospace' }}>
-                        {previewInvoice.invoiceNo || 'INV-2026-ISON-01'}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
-                        Date: <strong>{previewInvoice.invoiceDate || '2026-10-14'}</strong> · Due: <strong>{previewInvoice.dueDate || '30 days'}</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '20px 0', padding: '16px', background: '#F8FAFC', borderRadius: 14 }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Billed To</div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', marginTop: 4 }}>{previewInvoice.client}</div>
-                      <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{previewInvoice.clientAddress}</div>
-                      <div style={{ fontSize: 11.5, color: '#0369A1', marginTop: 4, fontWeight: 700 }}>GSTIN: {previewInvoice.clientGstin || '29AADCI1246E1ZT'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: '#94A3B8', textTransform: 'uppercase' }}>Payment Status</div>
-                      <div style={{ marginTop: 6 }}>
-                        {previewInvoice.status === 'Paid' || previewInvoice.stage === 'cleared' ? (
-                          <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '4px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800 }}>
-                            ✓ PAID IN FULL
-                          </span>
-                        ) : (
-                          <span style={{ background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A', padding: '4px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800 }}>
-                            ⏳ PAYMENT PENDING
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>
-                        Place of Service: <strong>{previewInvoice.placeOfService || 'Bangalore'}</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Summary Rows */}
-                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1.5px solid #CBD5E1', textAlign: 'left', fontSize: 11.5, color: '#64748B' }}>
-                        <th style={{ padding: '8px 0' }}>DELIVERABLE / SEAT BILLING</th>
-                        <th style={{ padding: '8px 0', textAlign: 'right' }}>AMOUNT</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                        <td style={{ padding: '14px 0' }}>
-                          <div style={{ fontWeight: 700, color: '#0F172A', fontSize: 14 }}>
-                            {previewInvoice.projectMilestone || 'Seat & Employee Placement Billing'}
-                          </div>
-                          <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                            {items.length} seat item(s) billed under SAC 99851
-                          </div>
-                        </td>
-                        <td style={{ padding: '14px 0', textAlign: 'right', fontWeight: 800, fontSize: 15, color: '#0F172A' }}>
-                          {inr(basicAmt)}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-
-                  {/* Totals */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, borderTop: '1px solid #E2E8F0', paddingTop: 14 }}>
-                    <div style={{ fontSize: 13, color: '#64748B' }}>
-                      Basic Amount: <strong style={{ color: '#0F172A' }}>{inr(basicAmt)}</strong>
-                    </div>
-                    <div style={{ fontSize: 13, color: '#64748B' }}>
-                      SGST (9%): <strong style={{ color: '#0F172A' }}>{inr(sgstAmt)}</strong> · CGST (9%): <strong style={{ color: '#0F172A' }}>{inr(cgstAmt)}</strong>
-                    </div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: '#0F172A', marginTop: 4 }}>
-                      Total: {inr(totalBill)}
-                    </div>
-                    <div style={{ fontSize: 11.5, color: '#64748B', fontStyle: 'italic' }}>
-                      {amountInWords}
-                    </div>
-                  </div>
-
-                  {/* View 2: Authorised Signatory Block */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 24, paddingTop: 16, borderTop: '1px dashed #CBD5E1' }}>
-                    <div style={{ fontSize: 11, color: '#64748B', maxWidth: 300 }}>
-                      This is an electronically verified invoice issued by <strong>Career Experts Global Solutions</strong>.
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontWeight: 800, fontSize: 11, color: '#0F172A', marginBottom: 4 }}>
-                        For CAREER EXPERTS GLOBAL SOLUTIONS
-                      </div>
-                      <img
-                        src={previewInvoice.signatureImage || DEFAULT_SIGNATURE_STAMP}
-                        alt="Authorised Signatory"
-                        style={{ maxHeight: 60, maxWidth: 210, objectFit: 'contain', display: 'block', marginLeft: 'auto', marginBottom: 4 }}
-                        onError={(e) => {
-                          e.currentTarget.src = DEFAULT_SIGNATURE_STAMP;
-                        }}
-                      />
-                      <div style={{ fontWeight: 800, fontSize: 11, color: '#475569' }}>
-                        Authorised Signatory
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+                {previewTemplateMode === 'MODERN' && (
+                  <ModernInvoiceTemplate
+                    invoice={previewInvoice}
+                    items={items}
+                    basicAmt={basicAmt}
+                    cgstAmt={cgstAmt}
+                    sgstAmt={sgstAmt}
+                    totalBill={totalBill}
+                    amountInWords={amountInWords}
+                  />
+                )}
+              </div>
             </div>
           </div>
         );
