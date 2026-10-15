@@ -162,6 +162,10 @@ const SEED_INVOICES = [
     clientAddress: 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102',
     clientState: 'Karnataka',
     clientStateCode: '29',
+    poNo: 'PO-2026-9812',
+    modeOfTransport: 'Digital Services',
+    vehicleNo: 'N/A',
+    dateTimeOfService: 'October 2026',
     placeOfService: 'Bangalore',
     templateType: 'GST_INV_1',
     amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
@@ -342,6 +346,14 @@ export async function POST(request) {
     if (body.clientPhone !== undefined) updateFields.clientPhone = String(body.clientPhone).trim();
     if (body.clientAddress !== undefined) updateFields.clientAddress = String(body.clientAddress).trim();
     if (body.clientGstin !== undefined) updateFields.clientGstin = String(body.clientGstin).trim();
+    if (body.clientState !== undefined) updateFields.clientState = String(body.clientState).trim();
+    if (body.clientStateCode !== undefined) updateFields.clientStateCode = String(body.clientStateCode).trim();
+    if (body.poNo !== undefined) updateFields.poNo = String(body.poNo).trim();
+    if (body.modeOfTransport !== undefined) updateFields.modeOfTransport = String(body.modeOfTransport).trim();
+    if (body.vehicleNo !== undefined) updateFields.vehicleNo = String(body.vehicleNo).trim();
+    if (body.dateTimeOfService !== undefined) updateFields.dateTimeOfService = String(body.dateTimeOfService).trim();
+    if (body.placeOfService !== undefined) updateFields.placeOfService = String(body.placeOfService).trim();
+    if (body.templateType !== undefined) updateFields.templateType = String(body.templateType).trim();
     if (body.amountInWords !== undefined) updateFields.amountInWords = String(body.amountInWords).trim();
     if (body.items !== undefined && Array.isArray(body.items)) updateFields.items = body.items;
     if (body.notes !== undefined) updateFields.notes = String(body.notes).trim();

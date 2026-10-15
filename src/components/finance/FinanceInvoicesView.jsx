@@ -67,15 +67,15 @@ function formatMonthLabel(key) {
   return key;
 }
 
-// Sample items matching ISON XPERIENCES Form GST INV – 1
+// Sample candidate seat items matching ISON XPERIENCES Form GST INV – 1
 const ISON_SAMPLE_ITEMS = [
-  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: '101', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'Etisalat', ratePerSeat: 7000, sacCode: '99851', amount: 7000 },
-  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'CNR', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'I-CAD', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'E-Money', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'universal', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
-  { empId: 'xxxx', employeeName: 'xxxx', doj: 'xx/x/xx', processLob: 'SMB', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'CEGS-101', employeeName: 'Mohammed Imran', doj: '12/10/2026', processLob: '101', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'CEGS-102', employeeName: 'Farhan Pasha', doj: '14/10/2026', processLob: 'Etisalat', ratePerSeat: 7000, sacCode: '99851', amount: 7000 },
+  { empId: 'CEGS-103', employeeName: 'Syed Tanveer', doj: '15/10/2026', processLob: 'CNR', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'CEGS-104', employeeName: 'Ayesha Siddiqua', doj: '18/10/2026', processLob: 'I-CAD', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'CEGS-105', employeeName: 'Zeeshan Ali', doj: '20/10/2026', processLob: 'E-Money', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'CEGS-106', employeeName: 'Tabassum Khan', doj: '22/10/2026', processLob: 'universal', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+  { empId: 'CEGS-107', employeeName: 'Kashif Ahmed', doj: '24/10/2026', processLob: 'SMB', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
 ];
 
 function numberToWordsINR(num) {
@@ -161,6 +161,10 @@ const DEFAULT_INVOICES = [
     clientAddress: 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102',
     clientState: 'Karnataka',
     clientStateCode: '29',
+    poNo: 'PO-2026-9812',
+    modeOfTransport: 'Digital Services',
+    vehicleNo: 'N/A',
+    dateTimeOfService: 'October 2026',
     placeOfService: 'Bangalore',
     templateType: 'GST_INV_1',
     amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
@@ -514,34 +518,203 @@ export function FinanceInvoicesView() {
     }
   };
 
-  // Action: Open Edit Invoice Modal (User Requirement 2)
+  // Action: Open Edit Invoice Modal (With candidate placement rows & dispatch fields)
   const handleOpenEdit = (inv) => {
+    let loadedItems = Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : [];
+    if (loadedItems.length === 0 && (inv.client || '').toLowerCase().includes('ison')) {
+      loadedItems = ISON_SAMPLE_ITEMS;
+    }
+
     setEditingInvoice({
       id: inv.id || inv._id,
       invoiceNo: inv.invoiceNo || '',
-      invoiceDate: inv.invoiceDate || '',
+      invoiceDate: inv.invoiceDate || new Date().toISOString().slice(0, 10),
       client: inv.client || '',
       projectMilestone: inv.projectMilestone || '',
       amount: inv.amount || inv.basicAmount || 0,
       basicAmount: inv.basicAmount || 0,
       sgstAmount: inv.sgstAmount || 0,
       cgstAmount: inv.cgstAmount || 0,
-      items: inv.items || [],
+      items: loadedItems.map((it) => ({ ...it })),
       clientAddress: inv.clientAddress || '',
       clientGstin: inv.clientGstin || '',
-      clientState: inv.clientState || '',
-      clientStateCode: inv.clientStateCode || '',
-      templateType: inv.templateType || '',
+      clientState: inv.clientState || 'Karnataka',
+      clientStateCode: inv.clientStateCode || '29',
+      templateType: inv.templateType || 'GST_INV_1',
       poNo: inv.poNo || '',
+      modeOfTransport: inv.modeOfTransport || '',
+      vehicleNo: inv.vehicleNo || '',
+      dateTimeOfService: inv.dateTimeOfService || '',
       placeOfService: inv.placeOfService || 'Bangalore',
-      dueDate: inv.dueDate || '',
+      dueDate: inv.dueDate || '30 days',
       status: inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
       notes: inv.notes || '',
       amountInWords: inv.amountInWords || '',
     });
   };
 
-  // Action: Save Edited Invoice (User Requirement 2: invoice number & bill raise date preserved)
+  // Helper: Update a single candidate seat item in Editing Invoice
+  const updateEditingInvoiceItem = (idx, field, val) => {
+    if (!editingInvoice) return;
+    const newItems = [...(editingInvoice.items || [])];
+    const target = { ...newItems[idx], [field]: val };
+    if (field === 'ratePerSeat') {
+      const r = Number(val) || 0;
+      target.amount = r;
+    }
+    newItems[idx] = target;
+
+    const totalBasic = newItems.reduce((acc, it) => acc + (Number(it.amount) || Number(it.ratePerSeat) || 0), 0);
+    const sgst = Math.round(totalBasic * 0.09);
+    const cgst = Math.round(totalBasic * 0.09);
+    const total = totalBasic + sgst + cgst;
+
+    setEditingInvoice({
+      ...editingInvoice,
+      items: newItems,
+      basicAmount: totalBasic,
+      sgstAmount: sgst,
+      cgstAmount: cgst,
+      amount: total,
+      amountInWords: numberToWordsINR(total),
+    });
+  };
+
+  // Helper: Add a blank candidate row to Editing Invoice
+  const addEditingInvoiceItem = () => {
+    if (!editingInvoice) return;
+    const newItems = [
+      ...(editingInvoice.items || []),
+      { empId: '', employeeName: '', doj: '', processLob: 'Process', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+    ];
+    const totalBasic = newItems.reduce((acc, it) => acc + (Number(it.amount) || Number(it.ratePerSeat) || 0), 0);
+    const sgst = Math.round(totalBasic * 0.09);
+    const cgst = Math.round(totalBasic * 0.09);
+    const total = totalBasic + sgst + cgst;
+
+    setEditingInvoice({
+      ...editingInvoice,
+      items: newItems,
+      basicAmount: totalBasic,
+      sgstAmount: sgst,
+      cgstAmount: cgst,
+      amount: total,
+      amountInWords: numberToWordsINR(total),
+    });
+  };
+
+  // Helper: Remove a candidate row from Editing Invoice
+  const removeEditingInvoiceItem = (idx) => {
+    if (!editingInvoice) return;
+    const newItems = (editingInvoice.items || []).filter((_, i) => i !== idx);
+    const totalBasic = newItems.reduce((acc, it) => acc + (Number(it.amount) || Number(it.ratePerSeat) || 0), 0);
+    const sgst = Math.round(totalBasic * 0.09);
+    const cgst = Math.round(totalBasic * 0.09);
+    const total = totalBasic + sgst + cgst;
+
+    setEditingInvoice({
+      ...editingInvoice,
+      items: newItems,
+      basicAmount: totalBasic,
+      sgstAmount: sgst,
+      cgstAmount: cgst,
+      amount: total,
+      amountInWords: numberToWordsINR(total),
+    });
+  };
+
+  // Helper: Pre-fill ISON 7 Process Rows in Editing Invoice
+  const loadIsonSampleToEditingInvoice = () => {
+    if (!editingInvoice) return;
+    const sampleRows = [
+      { empId: 'CEGS-101', employeeName: 'Mohammed Imran', doj: '12/10/2026', processLob: '101', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      { empId: 'CEGS-102', employeeName: 'Farhan Pasha', doj: '14/10/2026', processLob: 'Etisalat', ratePerSeat: 7000, sacCode: '99851', amount: 7000 },
+      { empId: 'CEGS-103', employeeName: 'Syed Tanveer', doj: '15/10/2026', processLob: 'CNR', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      { empId: 'CEGS-104', employeeName: 'Ayesha Siddiqua', doj: '18/10/2026', processLob: 'I-CAD', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      { empId: 'CEGS-105', employeeName: 'Zeeshan Ali', doj: '20/10/2026', processLob: 'E-Money', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      { empId: 'CEGS-106', employeeName: 'Tabassum Khan', doj: '22/10/2026', processLob: 'universal', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+      { empId: 'CEGS-107', employeeName: 'Kashif Ahmed', doj: '24/10/2026', processLob: 'SMB', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+    ];
+    setEditingInvoice({
+      ...editingInvoice,
+      items: sampleRows,
+      basicAmount: 37000,
+      sgstAmount: 3330,
+      cgstAmount: 3330,
+      amount: 43660,
+      amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+    });
+    showToast('Loaded 7 sample candidate placement rows into editor!');
+  };
+
+  // Helper: Update a single candidate seat item in New Invoice Form
+  const updateInvoiceFormItem = (idx, field, val) => {
+    const newItems = [...(invoiceForm.items || [])];
+    const target = { ...newItems[idx], [field]: val };
+    if (field === 'ratePerSeat') {
+      const r = Number(val) || 0;
+      target.amount = r;
+    }
+    newItems[idx] = target;
+
+    const totalBasic = newItems.reduce((acc, it) => acc + (Number(it.amount) || Number(it.ratePerSeat) || 0), 0);
+    const sgst = Math.round(totalBasic * 0.09);
+    const cgst = Math.round(totalBasic * 0.09);
+    const total = totalBasic + sgst + cgst;
+
+    setInvoiceForm({
+      ...invoiceForm,
+      items: newItems,
+      basicAmount: totalBasic,
+      sgstAmount: sgst,
+      cgstAmount: cgst,
+      amount: String(total),
+      amountInWords: numberToWordsINR(total),
+    });
+  };
+
+  // Helper: Add a blank candidate row to New Invoice Form
+  const addInvoiceFormItem = () => {
+    const newItems = [
+      ...(invoiceForm.items || []),
+      { empId: '', employeeName: '', doj: '', processLob: 'Process', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
+    ];
+    const totalBasic = newItems.reduce((acc, it) => acc + (Number(it.amount) || Number(it.ratePerSeat) || 0), 0);
+    const sgst = Math.round(totalBasic * 0.09);
+    const cgst = Math.round(totalBasic * 0.09);
+    const total = totalBasic + sgst + cgst;
+
+    setInvoiceForm({
+      ...invoiceForm,
+      items: newItems,
+      basicAmount: totalBasic,
+      sgstAmount: sgst,
+      cgstAmount: cgst,
+      amount: String(total),
+      amountInWords: numberToWordsINR(total),
+    });
+  };
+
+  // Helper: Remove a candidate row from New Invoice Form
+  const removeInvoiceFormItem = (idx) => {
+    const newItems = (invoiceForm.items || []).filter((_, i) => i !== idx);
+    const totalBasic = newItems.reduce((acc, it) => acc + (Number(it.amount) || Number(it.ratePerSeat) || 0), 0);
+    const sgst = Math.round(totalBasic * 0.09);
+    const cgst = Math.round(totalBasic * 0.09);
+    const total = totalBasic + sgst + cgst;
+
+    setInvoiceForm({
+      ...invoiceForm,
+      items: newItems,
+      basicAmount: totalBasic,
+      sgstAmount: sgst,
+      cgstAmount: cgst,
+      amount: String(total),
+      amountInWords: numberToWordsINR(total),
+    });
+  };
+
+  // Action: Save Edited Invoice
   const handleSaveEditInvoice = async (e) => {
     e.preventDefault();
     if (!editingInvoice) return;
@@ -556,8 +729,13 @@ export function FinanceInvoicesView() {
       const payload = {
         action: 'edit_invoice',
         id: editingInvoice.id,
-        invoiceNo: editingInvoice.invoiceNo, // Preserved!
-        invoiceDate: editingInvoice.invoiceDate, // Preserved!
+        invoiceNo: editingInvoice.invoiceNo || 'INV-001',
+        invoiceDate: editingInvoice.invoiceDate || new Date().toISOString().slice(0, 10),
+        poNo: editingInvoice.poNo || '',
+        modeOfTransport: editingInvoice.modeOfTransport || '',
+        vehicleNo: editingInvoice.vehicleNo || '',
+        dateTimeOfService: editingInvoice.dateTimeOfService || '',
+        placeOfService: editingInvoice.placeOfService || 'Bangalore',
         client: editingInvoice.client,
         projectMilestone: editingInvoice.projectMilestone,
         amount: amt,
@@ -567,13 +745,11 @@ export function FinanceInvoicesView() {
         items: editingInvoice.items || [],
         clientAddress: editingInvoice.clientAddress,
         clientGstin: editingInvoice.clientGstin,
-        clientState: editingInvoice.clientState,
-        clientStateCode: editingInvoice.clientStateCode,
-        templateType: editingInvoice.templateType,
-        poNo: editingInvoice.poNo,
-        placeOfService: editingInvoice.placeOfService,
+        clientState: editingInvoice.clientState || 'Karnataka',
+        clientStateCode: editingInvoice.clientStateCode || '29',
+        templateType: editingInvoice.templateType || 'GST_INV_1',
         amountInWords: editingInvoice.amountInWords || numberToWordsINR(amt),
-        dueDate: editingInvoice.dueDate,
+        dueDate: editingInvoice.dueDate || '30 days',
         status: editingInvoice.status,
         notes: editingInvoice.notes,
       };
@@ -592,13 +768,18 @@ export function FinanceInvoicesView() {
         )
       );
 
+      // Also update previewInvoice if currently open
+      if (previewInvoice && (previewInvoice.id === editingInvoice.id || previewInvoice._id === editingInvoice.id)) {
+        setPreviewInvoice((prev) => ({ ...prev, ...payload }));
+      }
+
       await fetch('/api/client-invoices', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify(payload),
       });
 
-      showToast(`Invoice ${editingInvoice.invoiceNo} content updated successfully!`);
+      showToast(`Invoice ${editingInvoice.invoiceNo} saved & updated successfully!`);
       setEditingInvoice(null);
     } catch (err) {
       console.error('Failed to update invoice:', err);
@@ -2017,218 +2198,547 @@ export function FinanceInvoicesView() {
               background: '#FFFFFF',
               borderRadius: 24,
               width: '100%',
-              maxWidth: 580,
+              maxWidth: 1040,
+              maxHeight: '92vh',
+              overflowY: 'auto',
               padding: '28px 32px',
-              boxShadow: '0 25px 60px rgba(0,0,0,0.22)',
-              border: '1px solid #E2E8F0',
+              boxShadow: '0 25px 70px rgba(0,0,0,0.3)',
+              border: '1px solid #CBD5E1',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            {/* MODAL HEADER */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, borderBottom: '1px solid #E2E8F0', paddingBottom: 16 }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0F172A' }}>
-                  Edit Invoice Content
-                </h3>
-                <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#64748B' }}>
-                  Invoice number & bill raised date are preserved. Modify project milestone, amount, term, or notes.
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <h3 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: '#0F172A' }}>
+                    Edit Invoice & Candidate Details
+                  </h3>
+                  <span style={{ background: '#FEF3C7', color: '#92400E', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
+                    Replaces 'xxx' with Live Data
+                  </span>
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748B' }}>
+                  Update invoice number, PO number, dates, candidate names, EMP IDs, and processes. Totals and GST recalculate automatically.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingInvoice(null)}
-                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: 4 }}
+                style={{ background: '#F1F5F9', border: 'none', borderRadius: 10, color: '#64748B', cursor: 'pointer', padding: 8 }}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditInvoice} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* PRESERVED INFO BADGE (Invoice # & Bill Raised Date) */}
+            <form onSubmit={handleSaveEditInvoice} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* SECTION 1: INVOICE IDENTIFIERS & TAX DISPATCH DETAILS */}
+              <div style={{ background: '#F8FAFC', borderRadius: 16, padding: '18px 20px', border: '1px solid #E2E8F0' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#0369A1', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+                  1. Invoice & Dispatch Metadata
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Invoice Number (Replaces XXX) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. INV-2026-ISON-01 or CEGS/26-27/01"
+                      value={editingInvoice.invoiceNo}
+                      onChange={(e) => setEditingInvoice({ ...editingInvoice, invoiceNo: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        fontFamily: 'JetBrains Mono, monospace',
+                        fontWeight: 800,
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      PO Number (Purchase Order)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. PO-84920 or PO/2026/09"
+                      value={editingInvoice.poNo || ''}
+                      onChange={(e) => setEditingInvoice({ ...editingInvoice, poNo: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Invoice / Bill Date (Replaces xx/xx/xxxx)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 2026-10-14 or 14/10/2026"
+                      value={editingInvoice.invoiceDate || ''}
+                      onChange={(e) => setEditingInvoice({ ...editingInvoice, invoiceDate: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Due By / Terms (Replaces xx/xx/xxxx)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 30 days, 15 Nov 2026"
+                      value={editingInvoice.dueDate || ''}
+                      onChange={(e) => setEditingInvoice({ ...editingInvoice, dueDate: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Client / Company *
+                    </label>
+                    <select
+                      value={editingInvoice.client}
+                      onChange={(e) => setEditingInvoice({ ...editingInvoice, client: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        background: '#FFFFFF',
+                      }}
+                    >
+                      {companyOptions.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Place of Service
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Bangalore"
+                      value={editingInvoice.placeOfService || 'Bangalore'}
+                      onChange={(e) => setEditingInvoice({ ...editingInvoice, placeOfService: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Date & Time of Service
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. October 2026 or 14/10/2026"
+                      value={editingInvoice.dateTimeOfService || ''}
+                      onChange={(e) => setEditingInvoice({ ...editingInvoice, dateTimeOfService: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        background: '#FFFFFF',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Payment Status
+                    </label>
+                    <select
+                      value={editingInvoice.status}
+                      onChange={(e) => setEditingInvoice({ ...editingInvoice, status: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        background: '#FFFFFF',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <option value="Pending">Pending (Unpaid)</option>
+                      <option value="Paid">Paid (Cleared)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                    Deliverable / Milestone Title
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Employee & Seat Billing · 7 Seats (Etisalat, CNR, ICAD, EMoney, SMB)"
+                    value={editingInvoice.projectMilestone}
+                    onChange={(e) => setEditingInvoice({ ...editingInvoice, projectMilestone: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: 13.5,
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      fontWeight: 600,
+                      background: '#FFFFFF',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* SECTION 2: CANDIDATE / SEAT BILLING TABLE EDITOR (REPLACES ALL "xxxx") */}
+              <div style={{ border: '1.5px solid #E2E8F0', borderRadius: 16, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    background: '#FFF9E6',
+                    borderBottom: '1.5px solid #FDE68A',
+                    padding: '12px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 13.5, color: '#92400E', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>👥 Candidate Placement & Seat Billing Table</span>
+                      <span style={{ background: '#F59E0B', color: '#FFF', fontSize: 10, padding: '2px 7px', borderRadius: 99, fontWeight: 900 }}>
+                        {(editingInvoice.items || []).length} Seats
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#B45309', marginTop: 2 }}>
+                      Fill in candidate details below to replace placeholder 'xxxx' with real names, employee IDs, and joining dates.
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={loadIsonSampleToEditingInvoice}
+                      style={{
+                        background: '#0F172A',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '6px 12px',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⚡ Load 7 ISON Process Rows
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addEditingInvoiceItem}
+                      style={{
+                        background: '#0284C7',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '6px 14px',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <Plus size={14} />
+                      <span>Add Row</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto', maxHeight: 340, overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: '#FFF000', borderBottom: '1.5px solid #000000', textAlign: 'center', color: '#000000' }}>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '4%' }}>#</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '13%' }}>EMP ID</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '22%' }}>Employee Name</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '12%' }}>DOJ</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '16%' }}>Process / LOB</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '14%' }}>Rate / Seat (₹)</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '9%' }}>SAC Code</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '10%' }}>Amount (₹)</th>
+                        <th style={{ padding: '8px 4px', fontWeight: 800, width: '4%' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(editingInvoice.items || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={9} style={{ textAlign: 'center', padding: '24px 16px', color: '#64748B', fontSize: 13 }}>
+                            No candidate rows added. Click <strong>"+ Add Row"</strong> or <strong>"⚡ Load 7 ISON Process Rows"</strong> above.
+                          </td>
+                        </tr>
+                      ) : (
+                        editingInvoice.items.map((row, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC' }}>
+                            <td style={{ textAlign: 'center', fontWeight: 700, color: '#94A3B8' }}>{idx + 1}</td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                placeholder="e.g. CEGS-01"
+                                value={row.empId === 'xxxx' ? '' : row.empId}
+                                onChange={(e) => updateEditingInvoiceItem(idx, 'empId', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: row.empId === 'xxxx' || !row.empId ? '1.5px solid #F59E0B' : '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  background: row.empId === 'xxxx' || !row.empId ? '#FFFBEB' : '#FFFFFF',
+                                  fontWeight: 700,
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                placeholder="Candidate Full Name"
+                                value={row.employeeName === 'xxxx' ? '' : row.employeeName}
+                                onChange={(e) => updateEditingInvoiceItem(idx, 'employeeName', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: row.employeeName === 'xxxx' || !row.employeeName ? '1.5px solid #F59E0B' : '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  background: row.employeeName === 'xxxx' || !row.employeeName ? '#FFFBEB' : '#FFFFFF',
+                                  fontWeight: 600,
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                placeholder="DD/MM/YYYY"
+                                value={row.doj === 'xx/x/xx' ? '' : row.doj}
+                                onChange={(e) => updateEditingInvoiceItem(idx, 'doj', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: row.doj === 'xx/x/xx' || !row.doj ? '1.5px solid #F59E0B' : '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  background: row.doj === 'xx/x/xx' || !row.doj ? '#FFFBEB' : '#FFFFFF',
+                                  textAlign: 'center',
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                placeholder="Process / LOB"
+                                value={row.processLob || ''}
+                                onChange={(e) => updateEditingInvoiceItem(idx, 'processLob', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  fontWeight: 600,
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="number"
+                                placeholder="5000"
+                                value={row.ratePerSeat ?? ''}
+                                onChange={(e) => updateEditingInvoiceItem(idx, 'ratePerSeat', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  textAlign: 'right',
+                                  fontWeight: 700,
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                placeholder="99851"
+                                value={row.sacCode || '99851'}
+                                onChange={(e) => updateEditingInvoiceItem(idx, 'sacCode', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 6px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  textAlign: 'center',
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 800 }}>
+                              ₹{Number(row.amount || row.ratePerSeat || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => removeEditingInvoiceItem(idx)}
+                                title="Remove row"
+                                style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION 3: REAL-TIME TAX & TOTALS BREAKDOWN */}
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 12,
-                  background: '#F1F5F9',
-                  borderRadius: 14,
-                  padding: '12px 16px',
-                  border: '1px solid #E2E8F0',
+                  background: '#0F172A',
+                  color: '#FFFFFF',
+                  borderRadius: 16,
+                  padding: '18px 22px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 16,
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748B', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Lock size={12} />
-                    <span>INVOICE NUMBER</span>
+                  <div style={{ fontSize: 11, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+                    Tax Calculations (Live Form GST INV – 1 Summary)
                   </div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0F172A', marginTop: 2, fontFamily: 'JetBrains Mono, monospace' }}>
-                    {editingInvoice.invoiceNo || 'INV-000'}
+                  <div style={{ fontSize: 12.5, color: '#CBD5E1', marginTop: 4 }}>
+                    Subtotal: <strong>₹{Number(editingInvoice.basicAmount || 0).toLocaleString('en-IN')}</strong> · SGST (9%): <strong>₹{Number(editingInvoice.sgstAmount || 0).toLocaleString('en-IN')}</strong> · CGST (9%): <strong>₹{Number(editingInvoice.cgstAmount || 0).toLocaleString('en-IN')}</strong>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#93C5FD', marginTop: 3, fontStyle: 'italic' }}>
+                    Amount in Words: {editingInvoice.amountInWords || numberToWordsINR(editingInvoice.amount || 0)}
                   </div>
                 </div>
 
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#64748B', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Calendar size={12} />
-                    <span>BILL RAISE DATE</span>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, color: '#94A3B8', textTransform: 'uppercase', fontWeight: 700 }}>
+                    TOTAL BILL AMOUNT - IN Rs.
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', marginTop: 2 }}>
-                    {editingInvoice.invoiceDate || '2026-05-10'}
+                  <div style={{ fontSize: 26, fontWeight: 900, color: '#FCD34D' }}>
+                    ₹{Number(editingInvoice.amount || 0).toLocaleString('en-IN')}
                   </div>
                 </div>
               </div>
 
-              {/* CLIENT COMPANY */}
+              {/* SECTION 4: NOTES */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                  Client / Company
-                </label>
-                <select
-                  value={editingInvoice.client}
-                  onChange={(e) => setEditingInvoice({ ...editingInvoice, client: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 12,
-                    border: '1.5px solid #CBD5E1',
-                    fontSize: 13.5,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    background: '#FFF',
-                  }}
-                >
-                  {companyOptions.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* PROJECT / MILESTONE CONTENT (EDITABLE) */}
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                  Project Deliverable / Milestone Content *
+                  Scope Notes / Special Instructions
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder="e.g. employee billing or Brand Identity · Kickoff"
-                  value={editingInvoice.projectMilestone}
-                  onChange={(e) => setEditingInvoice({ ...editingInvoice, projectMilestone: e.target.value })}
+                  placeholder="e.g. Verified candidate onboarding deliverables for October 2026."
+                  value={editingInvoice.notes || ''}
+                  onChange={(e) => setEditingInvoice({ ...editingInvoice, notes: e.target.value })}
                   style={{
                     width: '100%',
                     padding: '10px 14px',
-                    borderRadius: 12,
+                    borderRadius: 10,
                     border: '1.5px solid #CBD5E1',
                     fontSize: 13.5,
                     outline: 'none',
                     boxSizing: 'border-box',
-                    fontWeight: 600,
                   }}
                 />
               </div>
 
-              {/* AMOUNT & DUE DATE */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Amount (₹ INR) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={editingInvoice.amount}
-                    onChange={(e) => setEditingInvoice({ ...editingInvoice, amount: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '1.5px solid #CBD5E1',
-                      fontSize: 14,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      fontWeight: 800,
-                      color: '#0F172A',
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Due Date / Term
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 30 days, 10 May, 24 May"
-                    value={editingInvoice.dueDate}
-                    onChange={(e) => setEditingInvoice({ ...editingInvoice, dueDate: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '1.5px solid #CBD5E1',
-                      fontSize: 13.5,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* STATUS & NOTES */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Payment Status
-                  </label>
-                  <select
-                    value={editingInvoice.status}
-                    onChange={(e) => setEditingInvoice({ ...editingInvoice, status: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '1.5px solid #CBD5E1',
-                      fontSize: 13.5,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      background: '#FFF',
-                      fontWeight: 700,
-                    }}
-                  >
-                    <option value="Pending">Pending (Unpaid)</option>
-                    <option value="Paid">Paid (Cleared)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Scope Notes
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Sprint review details"
-                    value={editingInvoice.notes}
-                    onChange={(e) => setEditingInvoice({ ...editingInvoice, notes: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '1.5px solid #CBD5E1',
-                      fontSize: 13.5,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+              {/* ACTION BUTTONS */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 6, borderTop: '1px solid #E2E8F0', paddingTop: 16 }}>
                 <button
                   type="button"
                   onClick={() => setEditingInvoice(null)}
                   style={{
-                    padding: '10px 18px',
+                    padding: '10px 20px',
                     borderRadius: 12,
                     border: '1px solid #CBD5E1',
                     background: '#FFFFFF',
@@ -2243,17 +2753,17 @@ export function FinanceInvoicesView() {
                   type="submit"
                   disabled={savingEditInvoice}
                   style={{
-                    padding: '10px 24px',
+                    padding: '10px 28px',
                     borderRadius: 12,
                     border: 'none',
-                    background: 'var(--accent, #7C3AED)',
+                    background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
                     color: '#FFFFFF',
                     fontWeight: 800,
                     cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
                   }}
                 >
-                  {savingEditInvoice ? 'Saving…' : 'Save Changes'}
+                  {savingEditInvoice ? 'Saving…' : 'Save Invoice & Candidates'}
                 </button>
               </div>
             </form>
@@ -2284,176 +2794,509 @@ export function FinanceInvoicesView() {
               background: '#FFFFFF',
               borderRadius: 24,
               width: '100%',
-              maxWidth: 580,
+              maxWidth: 1040,
+              maxHeight: '92vh',
+              overflowY: 'auto',
               padding: '28px 32px',
-              boxShadow: '0 25px 60px rgba(0,0,0,0.22)',
-              border: '1px solid #E2E8F0',
+              boxShadow: '0 25px 70px rgba(0,0,0,0.3)',
+              border: '1px solid #CBD5E1',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, borderBottom: '1px solid #E2E8F0', paddingBottom: 16 }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0F172A' }}>
-                  Generate New Invoice
-                </h3>
-                <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#64748B' }}>
-                  Issue milestone or project invoice to client company
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <h3 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: '#0F172A' }}>
+                    Generate New Invoice
+                  </h3>
+                  <span style={{ background: '#FEF3C7', color: '#92400E', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
+                    Form GST INV – 1 Compatible
+                  </span>
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748B' }}>
+                  Create candidate placement seat invoices or milestone deliverables with automatic GST calculations.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowGenerateInvoiceModal(false)}
-                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: 4 }}
+                style={{ background: '#F1F5F9', border: 'none', borderRadius: 10, color: '#64748B', cursor: 'pointer', padding: 8 }}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveInvoice} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Client / Company *
-                  </label>
-                  <select
-                    value={invoiceForm.client}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val.toLowerCase().includes('ison')) {
-                        setInvoiceForm({
-                          ...invoiceForm,
-                          client: val,
-                          projectMilestone: 'Candidate Placement & Seat Billing (7 Seats)',
-                          amount: '43660',
-                          basicAmount: 37000,
-                          sgstAmount: 3330,
-                          cgstAmount: 3330,
-                          dueDate: '30 days',
-                          notes: 'Form GST INV – 1 candidate placements (101, Etisalat, CNR, I-CAD, E-Money, universal, SMB)',
-                          items: ISON_SAMPLE_ITEMS,
-                          templateType: 'GST_INV_1',
-                          amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
-                        });
-                      } else {
-                        setInvoiceForm({ ...invoiceForm, client: val });
-                      }
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '1.5px solid #CBD5E1',
-                      fontSize: 13.5,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      background: '#FFF',
-                    }}
-                  >
-                    {companyOptions.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+            <form onSubmit={handleSaveInvoice} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* SECTION 1: INVOICE IDENTIFIERS & DISPATCH */}
+              <div style={{ background: '#F8FAFC', borderRadius: 16, padding: '18px 20px', border: '1px solid #E2E8F0' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#0369A1', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+                  1. Invoice & Dispatch Metadata
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Client / Company *
+                    </label>
+                    <select
+                      value={invoiceForm.client}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.toLowerCase().includes('ison')) {
+                          setInvoiceForm({
+                            ...invoiceForm,
+                            client: val,
+                            projectMilestone: 'Candidate Placement & Seat Billing (7 Seats)',
+                            amount: '43660',
+                            basicAmount: 37000,
+                            sgstAmount: 3330,
+                            cgstAmount: 3330,
+                            dueDate: '30 days',
+                            notes: 'Form GST INV – 1 candidate placements (101, Etisalat, CNR, I-CAD, E-Money, universal, SMB)',
+                            items: ISON_SAMPLE_ITEMS,
+                            templateType: 'GST_INV_1',
+                            amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+                          });
+                        } else {
+                          setInvoiceForm({ ...invoiceForm, client: val });
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        background: '#FFF',
+                      }}
+                    >
+                      {companyOptions.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Invoice Number
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. INV-004 or CEGS/26-27/01"
+                      value={invoiceForm.invoiceNo}
+                      onChange={(e) => setInvoiceForm({ ...invoiceForm, invoiceNo: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        fontFamily: 'JetBrains Mono, monospace',
+                        fontWeight: 700,
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      PO Number (Purchase Order)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. PO-84920"
+                      value={invoiceForm.poNo || ''}
+                      onChange={(e) => setInvoiceForm({ ...invoiceForm, poNo: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Due Date / Term
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 30 days, 15 Nov"
+                      value={invoiceForm.dueDate}
+                      onChange={(e) => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Place of Service
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Bangalore"
+                      value={invoiceForm.placeOfService || 'Bangalore'}
+                      onChange={(e) => setInvoiceForm({ ...invoiceForm, placeOfService: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                      Payment Status
+                    </label>
+                    <select
+                      value={invoiceForm.status}
+                      onChange={(e) => setInvoiceForm({ ...invoiceForm, status: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px solid #CBD5E1',
+                        fontSize: 13.5,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        background: '#FFF',
+                        fontWeight: 700,
+                      }}
+                    >
+                      <option value="Pending">Pending (Unpaid)</option>
+                      <option value="Paid">Paid (Already Cleared)</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
+                <div style={{ marginTop: 12 }}>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Invoice Number
+                    Project / Milestone Deliverable *
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. INV-004"
-                    value={invoiceForm.invoiceNo}
-                    onChange={(e) => setInvoiceForm({ ...invoiceForm, invoiceNo: e.target.value })}
+                    required
+                    placeholder="e.g. Candidate Placement & Seat Billing (7 Seats)"
+                    value={invoiceForm.projectMilestone}
+                    onChange={(e) => setInvoiceForm({ ...invoiceForm, projectMilestone: e.target.value })}
                     style={{
                       width: '100%',
                       padding: '10px 14px',
-                      borderRadius: 12,
+                      borderRadius: 10,
                       border: '1.5px solid #CBD5E1',
                       fontSize: 13.5,
                       outline: 'none',
                       boxSizing: 'border-box',
-                      fontFamily: 'JetBrains Mono, monospace',
+                      fontWeight: 600,
                     }}
                   />
                 </div>
               </div>
 
-              {/* ISON QUICK-FILL HELPER BANNER */}
-              {invoiceForm.client?.toLowerCase().includes('ison') && (
+              {/* SECTION 2: CANDIDATE / SEAT BILLING TABLE */}
+              <div style={{ border: '1.5px solid #E2E8F0', borderRadius: 16, overflow: 'hidden' }}>
                 <div
                   style={{
-                    background: '#FEF9C3',
-                    border: '1.5px solid #FACC15',
-                    borderRadius: 12,
-                    padding: '10px 14px',
+                    background: '#FFF9E6',
+                    borderBottom: '1.5px solid #FDE68A',
+                    padding: '12px 18px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: 12,
+                    flexWrap: 'wrap',
+                    gap: 10,
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: 12.5, color: '#854D0E', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>📄 Form GST INV – 1 Active</span>
-                      <span style={{ background: '#CA8A04', color: '#FFF', fontSize: 9.5, padding: '2px 6px', borderRadius: 6, fontWeight: 900 }}>
-                        OFFICIAL ISON
+                    <div style={{ fontWeight: 800, fontSize: 13.5, color: '#92400E', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>👥 Candidate Placement Rows</span>
+                      <span style={{ background: '#F59E0B', color: '#FFF', fontSize: 10, padding: '2px 7px', borderRadius: 99, fontWeight: 900 }}>
+                        {(invoiceForm.items || []).length} Seats
                       </span>
                     </div>
-                    <div style={{ fontSize: 11.5, color: '#A16207', marginTop: 2 }}>
-                      Preloaded 7 seat placements (101, Etisalat, CNR, I-CAD, E-Money, universal, SMB) = ₹37,000 + ₹6,660 GST = <strong>₹43,660</strong>.
+                    <div style={{ fontSize: 11.5, color: '#B45309', marginTop: 2 }}>
+                      Preload candidate seat rows or add custom seats with rates.
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInvoiceForm({
-                        ...invoiceForm,
-                        projectMilestone: 'Candidate Placement & Seat Billing (7 Seats)',
-                        amount: '43660',
-                        basicAmount: 37000,
-                        sgstAmount: 3330,
-                        cgstAmount: 3330,
-                        dueDate: '30 days',
-                        notes: 'Form GST INV – 1 candidate placements (101, Etisalat, CNR, I-CAD, E-Money, universal, SMB)',
-                        items: ISON_SAMPLE_ITEMS,
-                        templateType: 'GST_INV_1',
-                        amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
-                      });
-                      showToast('Populated 7 sample seats matching ISON invoice!');
-                    }}
-                    style={{
-                      background: '#0F172A',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '6px 12px',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Load 7 Seats (₹43,660)
-                  </button>
-                </div>
-              )}
 
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvoiceForm({
+                          ...invoiceForm,
+                          items: ISON_SAMPLE_ITEMS,
+                          basicAmount: 37000,
+                          sgstAmount: 3330,
+                          cgstAmount: 3330,
+                          amount: '43660',
+                          amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+                        });
+                        showToast('Loaded 7 sample seats into form!');
+                      }}
+                      style={{
+                        background: '#0F172A',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '6px 12px',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⚡ Load 7 ISON Process Rows
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addInvoiceFormItem}
+                      style={{
+                        background: '#0284C7',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '6px 14px',
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <Plus size={14} />
+                      <span>Add Row</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto', maxHeight: 280, overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: '#FFF000', borderBottom: '1.5px solid #000000', textAlign: 'center', color: '#000000' }}>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '4%' }}>#</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '13%' }}>EMP ID</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '22%' }}>Employee Name</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '12%' }}>DOJ</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '16%' }}>Process / LOB</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '14%' }}>Rate / Seat (₹)</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '9%' }}>SAC Code</th>
+                        <th style={{ padding: '8px 6px', fontWeight: 800, width: '10%' }}>Amount (₹)</th>
+                        <th style={{ padding: '8px 4px', fontWeight: 800, width: '4%' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(invoiceForm.items || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={9} style={{ textAlign: 'center', padding: '20px 16px', color: '#64748B', fontSize: 13 }}>
+                            No candidate rows added. You can bill as a single amount or click <strong>"⚡ Load 7 ISON Process Rows"</strong>.
+                          </td>
+                        </tr>
+                      ) : (
+                        invoiceForm.items.map((row, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC' }}>
+                            <td style={{ textAlign: 'center', fontWeight: 700, color: '#94A3B8' }}>{idx + 1}</td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                placeholder="e.g. CEGS-01"
+                                value={row.empId || ''}
+                                onChange={(e) => updateInvoiceFormItem(idx, 'empId', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  fontWeight: 700,
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                placeholder="Candidate Full Name"
+                                value={row.employeeName || ''}
+                                onChange={(e) => updateInvoiceFormItem(idx, 'employeeName', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  fontWeight: 600,
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                placeholder="DD/MM/YYYY"
+                                value={row.doj || ''}
+                                onChange={(e) => updateInvoiceFormItem(idx, 'doj', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  textAlign: 'center',
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                placeholder="Process / LOB"
+                                value={row.processLob || ''}
+                                onChange={(e) => updateInvoiceFormItem(idx, 'processLob', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  fontWeight: 600,
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="number"
+                                placeholder="5000"
+                                value={row.ratePerSeat ?? ''}
+                                onChange={(e) => updateInvoiceFormItem(idx, 'ratePerSeat', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 8px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  textAlign: 'right',
+                                  fontWeight: 700,
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px' }}>
+                              <input
+                                type="text"
+                                placeholder="99851"
+                                value={row.sacCode || '99851'}
+                                onChange={(e) => updateInvoiceFormItem(idx, 'sacCode', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '6px 6px',
+                                  borderRadius: 6,
+                                  border: '1px solid #CBD5E1',
+                                  fontSize: 11.5,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                  textAlign: 'center',
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 800 }}>
+                              ₹{Number(row.amount || row.ratePerSeat || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => removeInvoiceFormItem(idx)}
+                                title="Remove row"
+                                style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION 3: TOTALS BREAKDOWN */}
+              <div
+                style={{
+                  background: '#0F172A',
+                  color: '#FFFFFF',
+                  borderRadius: 16,
+                  padding: '18px 22px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 16,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 11, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+                    Tax Calculations (Live Form GST INV – 1 Summary)
+                  </div>
+                  <div style={{ fontSize: 12.5, color: '#CBD5E1', marginTop: 4 }}>
+                    Subtotal: <strong>₹{Number(invoiceForm.basicAmount || 0).toLocaleString('en-IN')}</strong> · SGST (9%): <strong>₹{Number(invoiceForm.sgstAmount || 0).toLocaleString('en-IN')}</strong> · CGST (9%): <strong>₹{Number(invoiceForm.cgstAmount || 0).toLocaleString('en-IN')}</strong>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: '#93C5FD', marginTop: 3, fontStyle: 'italic' }}>
+                    Amount in Words: {invoiceForm.amountInWords || numberToWordsINR(invoiceForm.amount || 0)}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, color: '#94A3B8', textTransform: 'uppercase', fontWeight: 700 }}>
+                    TOTAL BILL AMOUNT - IN Rs.
+                  </div>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: '#FCD34D' }}>
+                    ₹{Number(invoiceForm.amount || 0).toLocaleString('en-IN')}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 4: NOTES */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                  Project / Milestone Deliverable *
+                  Scope Notes
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder="e.g. Brand Identity · Kickoff or employee billing"
-                  value={invoiceForm.projectMilestone}
-                  onChange={(e) => setInvoiceForm({ ...invoiceForm, projectMilestone: e.target.value })}
+                  placeholder="e.g. Official candidate placements for October"
+                  value={invoiceForm.notes}
+                  onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })}
                   style={{
                     width: '100%',
                     padding: '10px 14px',
-                    borderRadius: 12,
+                    borderRadius: 10,
                     border: '1.5px solid #CBD5E1',
                     fontSize: 13.5,
                     outline: 'none',
@@ -2462,104 +3305,11 @@ export function FinanceInvoicesView() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Amount (₹ INR) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    placeholder="e.g. 30000"
-                    value={invoiceForm.amount}
-                    onChange={(e) => setInvoiceForm({ ...invoiceForm, amount: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '1.5px solid #CBD5E1',
-                      fontSize: 13.5,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      fontWeight: 700,
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Due Date / Term
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 30 days, 10 May, 24 May"
-                    value={invoiceForm.dueDate}
-                    onChange={(e) => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '1.5px solid #CBD5E1',
-                      fontSize: 13.5,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Initial Status
-                  </label>
-                  <select
-                    value={invoiceForm.status}
-                    onChange={(e) => setInvoiceForm({ ...invoiceForm, status: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '1.5px solid #CBD5E1',
-                      fontSize: 13.5,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      background: '#FFF',
-                    }}
-                  >
-                    <option value="Pending">Pending (Unpaid)</option>
-                    <option value="Paid">Paid (Already Cleared)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
-                    Scope Notes
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Milestone delivery"
-                    value={invoiceForm.notes}
-                    onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '1.5px solid #CBD5E1',
-                      fontSize: 13.5,
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 6, borderTop: '1px solid #E2E8F0', paddingTop: 16 }}>
                 <button
                   type="button"
                   onClick={() => setShowGenerateInvoiceModal(false)}
-                  style={{ padding: '10px 18px', borderRadius: 12, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                  style={{ padding: '10px 20px', borderRadius: 12, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
@@ -2567,7 +3317,7 @@ export function FinanceInvoicesView() {
                   type="submit"
                   disabled={savingInvoice}
                   style={{
-                    padding: '10px 24px',
+                    padding: '10px 28px',
                     borderRadius: 12,
                     border: 'none',
                     background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
@@ -2740,8 +3490,34 @@ export function FinanceInvoicesView() {
                   </button>
                 </div>
 
-                {/* Print and Close Actions */}
+                {/* Print, Edit, and Close Actions */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const inv = previewInvoice;
+                      setPreviewInvoice(null);
+                      handleOpenEdit(inv);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 18px',
+                      borderRadius: 12,
+                      border: '1.5px solid #2563EB',
+                      background: '#EFF6FF',
+                      color: '#1D4ED8',
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <Edit3 size={15} />
+                    <span>✏️ Edit Invoice & Candidates</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => window.print()}
@@ -2783,6 +3559,57 @@ export function FinanceInvoicesView() {
                   </button>
                 </div>
               </div>
+
+              {/* PLACEHOLDER DATA BANNER IF 'xxxx' PRESENT */}
+              {(items.some((it) => it.empId === 'xxxx' || it.employeeName === 'xxxx') || !previewInvoice.poNo || previewInvoice.invoiceNo === 'XXX') && (
+                <div
+                  className="no-print-zone"
+                  style={{
+                    background: '#FEF3C7',
+                    border: '1.5px solid #F59E0B',
+                    borderRadius: 14,
+                    padding: '12px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 18 }}>📝</span>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 13, color: '#92400E' }}>
+                        Placeholder 'xxxx' values detected in this invoice template
+                      </div>
+                      <div style={{ fontSize: 11.5, color: '#B45309', marginTop: 2 }}>
+                        You can customize candidate names, EMP IDs, joining dates, and PO number before printing.
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const inv = previewInvoice;
+                      setPreviewInvoice(null);
+                      handleOpenEdit(inv);
+                    }}
+                    style={{
+                      background: '#D97706',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: 8,
+                      padding: '8px 16px',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(217, 119, 6, 0.3)',
+                    }}
+                  >
+                    ✏️ Fill Candidate Details & Edit 'xxxx'
+                  </button>
+                </div>
+              )}
 
               {/* ========================================================================= */}
               {/* VIEW 1: AUTHENTIC FORM GST INV – 1 TEMPLATE (MATCHING USER'S PDF SAMPLE) */}
