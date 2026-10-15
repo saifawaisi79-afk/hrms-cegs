@@ -54,6 +54,7 @@ const ClientInvoiceSchema = new mongoose.Schema(
     sgstAmount: { type: Number, default: 0 },
     cgstAmount: { type: Number, default: 0 },
     amountInWords: { type: String, default: '' },
+    signatureImage: { type: String, default: '/signatures/usman-zabi-digital-signature.jpg' },
     items: {
       type: [
         {

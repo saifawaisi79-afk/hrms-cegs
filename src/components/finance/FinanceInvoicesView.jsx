@@ -18,7 +18,10 @@ import {
   Send,
   Copy,
   Check,
-  Users
+  Users,
+  Upload,
+  Image as ImageIcon,
+  RotateCcw
 } from 'lucide-react';
 
 function inr(n) {
@@ -140,6 +143,9 @@ function authHeaders() {
   };
 }
 
+// Default official digital signature stamp (Mohammed Usman Zabi)
+const DEFAULT_SIGNATURE_STAMP = '/signatures/usman-zabi-digital-signature.jpg';
+
 // Fallback seed invoices matching the user screenshot and official templates
 const DEFAULT_INVOICES = [
   {
@@ -168,6 +174,7 @@ const DEFAULT_INVOICES = [
     placeOfService: 'Bangalore',
     templateType: 'GST_INV_1',
     amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+    signatureImage: DEFAULT_SIGNATURE_STAMP,
     items: ISON_SAMPLE_ITEMS,
   },
   {
@@ -323,6 +330,7 @@ export function FinanceInvoicesView() {
     items: ISON_SAMPLE_ITEMS,
     templateType: 'GST_INV_1',
     amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+    signatureImage: DEFAULT_SIGNATURE_STAMP,
   });
   const [savingInvoice, setSavingInvoice] = useState(false);
   const [savingEditInvoice, setSavingEditInvoice] = useState(false);
@@ -331,6 +339,37 @@ export function FinanceInvoicesView() {
   const showToast = (msg) => {
     setFeedback(msg);
     setTimeout(() => setFeedback(''), 3500);
+  };
+
+  // Helper: Upload & convert digital signature image to base64 Data URL
+  const handleSignatureUpload = (file, isEditing = true) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file (PNG, JPG, WebP).');
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      showToast('Image size should be under 3MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      if (isEditing) {
+        setEditingInvoice((prev) => (prev ? { ...prev, signatureImage: dataUrl } : prev));
+      } else {
+        setInvoiceForm((prev) => ({ ...prev, signatureImage: dataUrl }));
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('cegs_signature_stamp', dataUrl);
+        } catch (err) {
+          console.warn('localStorage signature save failed', err);
+        }
+      }
+      showToast('✓ Digital signature stamp uploaded and applied!');
+    };
+    reader.readAsDataURL(file);
   };
 
   // Load Invoices & Clients from API
@@ -373,6 +412,16 @@ export function FinanceInvoicesView() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load custom signature stamp from localStorage if available
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('cegs_signature_stamp');
+      if (saved) {
+        setInvoiceForm((prev) => ({ ...prev, signatureImage: saved }));
+      }
+    }
+  }, []);
 
   // Combined list of companies
   const companyOptions = useMemo(() => {
@@ -550,6 +599,7 @@ export function FinanceInvoicesView() {
       status: inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
       notes: inv.notes || '',
       amountInWords: inv.amountInWords || '',
+      signatureImage: inv.signatureImage || (typeof window !== 'undefined' && localStorage.getItem('cegs_signature_stamp')) || DEFAULT_SIGNATURE_STAMP,
     });
   };
 
@@ -752,6 +802,7 @@ export function FinanceInvoicesView() {
         dueDate: editingInvoice.dueDate || '30 days',
         status: editingInvoice.status,
         notes: editingInvoice.notes,
+        signatureImage: editingInvoice.signatureImage || DEFAULT_SIGNATURE_STAMP,
       };
 
       // Optimistic update
@@ -1016,6 +1067,7 @@ export function FinanceInvoicesView() {
         poNo: invoiceForm.poNo || '',
         placeOfService: invoiceForm.placeOfService || 'Bangalore',
         amountInWords: invoiceForm.amountInWords || numberToWordsINR(amt),
+        signatureImage: invoiceForm.signatureImage || (typeof window !== 'undefined' && localStorage.getItem('cegs_signature_stamp')) || DEFAULT_SIGNATURE_STAMP,
       };
 
       const res = await fetch('/api/client-invoices', {
@@ -1045,6 +1097,7 @@ export function FinanceInvoicesView() {
         items: ISON_SAMPLE_ITEMS,
         templateType: 'GST_INV_1',
         amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+        signatureImage: (typeof window !== 'undefined' && localStorage.getItem('cegs_signature_stamp')) || DEFAULT_SIGNATURE_STAMP,
       });
     } catch {
       alert('Invoice created locally');
@@ -2710,7 +2763,110 @@ export function FinanceInvoicesView() {
                 </div>
               </div>
 
-              {/* SECTION 4: NOTES */}
+              {/* SECTION 4: DIGITAL SIGNATURE STAMP */}
+              <div style={{ background: '#F8FAFC', borderRadius: 16, padding: '18px 20px', border: '1.5px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#EFF6FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <ImageIcon size={16} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>
+                        Digital Signature Stamp (Authorised Signatory)
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748B' }}>
+                        Official Adobe Acrobat stamp embedded into the Form GST INV – 1 signature box
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
+                    ✓ Embedded in Invoice
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 280px) 1fr', gap: 18, alignItems: 'center', background: '#FFFFFF', padding: 14, borderRadius: 12, border: '1px solid #CBD5E1' }}>
+                  {/* Left: Stamp Thumbnail Preview */}
+                  <div style={{ border: '1.5px dashed #94A3B8', borderRadius: 10, padding: 8, background: '#FAFAFA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 95 }}>
+                    <img
+                      src={editingInvoice.signatureImage || DEFAULT_SIGNATURE_STAMP}
+                      alt="Digitally Signed by Mohammed Usman Zabi"
+                      style={{ maxHeight: 68, maxWidth: '100%', objectFit: 'contain', display: 'block' }}
+                      onError={(e) => {
+                        e.currentTarget.src = DEFAULT_SIGNATURE_STAMP;
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: '#64748B', marginTop: 6, fontWeight: 700 }}>
+                      Active Stamp Preview
+                    </div>
+                  </div>
+
+                  {/* Right: Actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.5 }}>
+                      Upload your official scanned or Adobe Acrobat digital signature stamp (PNG, JPG, WebP). When uploaded, it instantly appears on the invoice and printable PDF.
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 16px',
+                          borderRadius: 9,
+                          background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+                          color: '#FFFFFF',
+                          fontWeight: 800,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Upload size={14} />
+                        <span>Upload Signature Stamp</span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleSignatureUpload(f, true);
+                          }}
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingInvoice((prev) => ({ ...prev, signatureImage: DEFAULT_SIGNATURE_STAMP }));
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('cegs_signature_stamp', DEFAULT_SIGNATURE_STAMP);
+                          }
+                          showToast('Reset to default Mohammed Usman Zabi signature stamp');
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 14px',
+                          borderRadius: 9,
+                          border: '1px solid #CBD5E1',
+                          background: '#FFFFFF',
+                          color: '#475569',
+                          fontWeight: 700,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <RotateCcw size={13} />
+                        <span>Reset to Default Stamp</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: NOTES */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                   Scope Notes / Special Instructions
@@ -3283,7 +3439,110 @@ export function FinanceInvoicesView() {
                 </div>
               </div>
 
-              {/* SECTION 4: NOTES */}
+              {/* SECTION 4: DIGITAL SIGNATURE STAMP */}
+              <div style={{ background: '#F8FAFC', borderRadius: 16, padding: '18px 20px', border: '1.5px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#FFFBEB', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <ImageIcon size={16} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>
+                        Digital Signature Stamp (Authorised Signatory)
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748B' }}>
+                        Official Adobe Acrobat stamp embedded into the Form GST INV – 1 signature box
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
+                    ✓ Embedded in Invoice
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 280px) 1fr', gap: 18, alignItems: 'center', background: '#FFFFFF', padding: 14, borderRadius: 12, border: '1px solid #CBD5E1' }}>
+                  {/* Left: Stamp Thumbnail Preview */}
+                  <div style={{ border: '1.5px dashed #94A3B8', borderRadius: 10, padding: 8, background: '#FAFAFA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 95 }}>
+                    <img
+                      src={invoiceForm.signatureImage || DEFAULT_SIGNATURE_STAMP}
+                      alt="Digitally Signed by Mohammed Usman Zabi"
+                      style={{ maxHeight: 68, maxWidth: '100%', objectFit: 'contain', display: 'block' }}
+                      onError={(e) => {
+                        e.currentTarget.src = DEFAULT_SIGNATURE_STAMP;
+                      }}
+                    />
+                    <div style={{ fontSize: 10, color: '#64748B', marginTop: 6, fontWeight: 700 }}>
+                      Active Stamp Preview
+                    </div>
+                  </div>
+
+                  {/* Right: Actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.5 }}>
+                      Upload your official scanned or Adobe Acrobat digital signature stamp (PNG, JPG, WebP). When uploaded, it instantly appears on the invoice and printable PDF.
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 16px',
+                          borderRadius: 9,
+                          background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                          color: '#FFFFFF',
+                          fontWeight: 800,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(245, 158, 11, 0.25)',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Upload size={14} />
+                        <span>Upload Signature Stamp</span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleSignatureUpload(f, false);
+                          }}
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInvoiceForm((prev) => ({ ...prev, signatureImage: DEFAULT_SIGNATURE_STAMP }));
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('cegs_signature_stamp', DEFAULT_SIGNATURE_STAMP);
+                          }
+                          showToast('Reset to default Mohammed Usman Zabi signature stamp');
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '8px 14px',
+                          borderRadius: 9,
+                          border: '1px solid #CBD5E1',
+                          background: '#FFFFFF',
+                          color: '#475569',
+                          fontWeight: 700,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <RotateCcw size={13} />
+                        <span>Reset to Default Stamp</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 5: NOTES */}
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                   Scope Notes
@@ -3517,6 +3776,67 @@ export function FinanceInvoicesView() {
                     <Edit3 size={15} />
                     <span>✏️ Edit Invoice & Candidates</span>
                   </button>
+
+                  <label
+                    title="Upload and apply a new digital signature stamp for this invoice"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 7,
+                      padding: '8px 16px',
+                      borderRadius: 12,
+                      border: '1.5px solid #CBD5E1',
+                      background: '#FFFFFF',
+                      color: '#334155',
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <Upload size={14} />
+                    <span>🖋️ Change Stamp</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) {
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            const url = ev.target.result;
+                            setPreviewInvoice((prev) => ({ ...prev, signatureImage: url }));
+                            setInvoices((prev) =>
+                              prev.map((it) =>
+                                (it.id === previewInvoice.id || it._id === previewInvoice.id)
+                                  ? { ...it, signatureImage: url }
+                                  : it
+                              )
+                            );
+                            if (typeof window !== 'undefined') {
+                              try {
+                                localStorage.setItem('cegs_signature_stamp', url);
+                              } catch (err) {
+                                console.warn(err);
+                              }
+                            }
+                            fetch('/api/client-invoices', {
+                              method: 'POST',
+                              headers: authHeaders(),
+                              body: JSON.stringify({
+                                action: 'edit_invoice',
+                                id: previewInvoice.id || previewInvoice._id,
+                                signatureImage: url,
+                              }),
+                            }).catch(() => {});
+                            showToast('Digital signature stamp updated on invoice!');
+                          };
+                          reader.readAsDataURL(f);
+                        }
+                      }}
+                    />
+                  </label>
 
                   <button
                     type="button"
@@ -3771,12 +4091,17 @@ export function FinanceInvoicesView() {
                     <div style={{ padding: '10px 12px' }}>
                       <div style={{ fontSize: 10.5, color: '#444' }}>{previewInvoice.notes || ''}</div>
                     </div>
-                    <div style={{ padding: '12px 14px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', minHeight: 95 }}>
+                    <div style={{ padding: '10px 14px', textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', minHeight: 112 }}>
                       <div style={{ fontWeight: 800, fontSize: 11 }}>For CAREER EXPERTS GLOBAL SOLUTIONS</div>
-                      <div style={{ border: '1px dashed #64748B', borderRadius: 6, padding: '4px 10px', background: '#F8FAFC', margin: '8px 0', textAlign: 'center', fontSize: 10 }}>
-                        <div style={{ fontWeight: 700, color: '#0369A1' }}>✓ Digitally signed by</div>
-                        <div style={{ fontWeight: 900, color: '#0F172A', letterSpacing: '0.04em' }}>MOHAMMED USMAN ZABI</div>
-                        <div style={{ fontSize: 9, color: '#64748B' }}>Date: {previewInvoice.invoiceDate || '2026-10-14'} · Time: 4:07 PM</div>
+                      <div style={{ margin: '4px 0', textAlign: 'right' }}>
+                        <img
+                          src={previewInvoice.signatureImage || DEFAULT_SIGNATURE_STAMP}
+                          alt="Digitally signed by MOHAMMED USMAN ZABI"
+                          style={{ maxHeight: 72, maxWidth: 240, objectFit: 'contain', display: 'block', marginLeft: 'auto' }}
+                          onError={(e) => {
+                            e.currentTarget.src = DEFAULT_SIGNATURE_STAMP;
+                          }}
+                        />
                       </div>
                       <div style={{ fontWeight: 800, fontSize: 11 }}>Authorised Signatory</div>
                     </div>
@@ -3889,6 +4214,29 @@ export function FinanceInvoicesView() {
                     </div>
                     <div style={{ fontSize: 11.5, color: '#64748B', fontStyle: 'italic' }}>
                       {amountInWords}
+                    </div>
+                  </div>
+
+                  {/* View 2: Authorised Signatory Block */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 24, paddingTop: 16, borderTop: '1px dashed #CBD5E1' }}>
+                    <div style={{ fontSize: 11, color: '#64748B', maxWidth: 300 }}>
+                      This is an electronically verified invoice issued by <strong>Career Experts Global Solutions</strong>.
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, fontSize: 11, color: '#0F172A', marginBottom: 4 }}>
+                        For CAREER EXPERTS GLOBAL SOLUTIONS
+                      </div>
+                      <img
+                        src={previewInvoice.signatureImage || DEFAULT_SIGNATURE_STAMP}
+                        alt="Authorised Signatory"
+                        style={{ maxHeight: 60, maxWidth: 210, objectFit: 'contain', display: 'block', marginLeft: 'auto', marginBottom: 4 }}
+                        onError={(e) => {
+                          e.currentTarget.src = DEFAULT_SIGNATURE_STAMP;
+                        }}
+                      />
+                      <div style={{ fontWeight: 800, fontSize: 11, color: '#475569' }}>
+                        Authorised Signatory
+                      </div>
                     </div>
                   </div>
                 </div>

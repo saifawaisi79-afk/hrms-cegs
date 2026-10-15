@@ -169,6 +169,7 @@ const SEED_INVOICES = [
     placeOfService: 'Bangalore',
     templateType: 'GST_INV_1',
     amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+    signatureImage: '/signatures/usman-zabi-digital-signature.jpg',
     items: [
       { empId: 'CEGS-01', employeeName: 'Mohammed Imran', doj: '12/04/2026', processLob: '101', ratePerSeat: 5000, sacCode: '99851', amount: 5000 },
       { empId: 'CEGS-02', employeeName: 'Farhan Pasha', doj: '15/04/2026', processLob: 'Etisalat', ratePerSeat: 7000, sacCode: '99851', amount: 7000 },
@@ -305,6 +306,7 @@ export async function POST(request) {
       placeOfService: String(body.placeOfService || 'Bangalore').trim(),
       templateType: String(body.templateType || 'GST_INV_1').trim(),
       amountInWords: String(body.amountInWords || '').trim(),
+      signatureImage: String(body.signatureImage || '/signatures/usman-zabi-digital-signature.jpg').trim(),
       items: Array.isArray(body.items) ? body.items : [],
       notes: String(body.notes || '').trim(),
     });
@@ -354,6 +356,7 @@ export async function POST(request) {
     if (body.dateTimeOfService !== undefined) updateFields.dateTimeOfService = String(body.dateTimeOfService).trim();
     if (body.placeOfService !== undefined) updateFields.placeOfService = String(body.placeOfService).trim();
     if (body.templateType !== undefined) updateFields.templateType = String(body.templateType).trim();
+    if (body.signatureImage !== undefined) updateFields.signatureImage = String(body.signatureImage).trim();
     if (body.amountInWords !== undefined) updateFields.amountInWords = String(body.amountInWords).trim();
     if (body.items !== undefined && Array.isArray(body.items)) updateFields.items = body.items;
     if (body.notes !== undefined) updateFields.notes = String(body.notes).trim();
