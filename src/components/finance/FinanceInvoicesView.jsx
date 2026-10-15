@@ -5162,13 +5162,15 @@ export function FinanceInvoicesView() {
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(15, 23, 42, 0.72)',
-              backdropFilter: 'blur(5px)',
+              background: 'rgba(15, 23, 42, 0.75)',
+              backdropFilter: 'blur(6px)',
               zIndex: 9999,
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               justifyContent: 'center',
               padding: 16,
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
             }}
             onClick={() => setPreviewInvoice(null)}
           >
@@ -5197,6 +5199,24 @@ export function FinanceInvoicesView() {
                   display: none !important;
                 }
               }
+
+              /* Smooth, visible, high-contrast scrollbar for invoice preview */
+              .invoice-modal-scrollable::-webkit-scrollbar {
+                width: 10px;
+                height: 10px;
+              }
+              .invoice-modal-scrollable::-webkit-scrollbar-track {
+                background: #E2E8F0;
+                border-radius: 8px;
+              }
+              .invoice-modal-scrollable::-webkit-scrollbar-thumb {
+                background: #64748B;
+                border-radius: 8px;
+                border: 2px solid #E2E8F0;
+              }
+              .invoice-modal-scrollable::-webkit-scrollbar-thumb:hover {
+                background: #334155;
+              }
             `}</style>
 
             <div
@@ -5204,15 +5224,18 @@ export function FinanceInvoicesView() {
                 background: '#F1F5F9',
                 borderRadius: 24,
                 width: '100%',
-                maxWidth: 880,
-                padding: '24px 28px',
-                boxShadow: '0 25px 70px rgba(0,0,0,0.3)',
+                maxWidth: 920,
+                maxHeight: 'calc(100vh - 32px)',
+                height: 'calc(100vh - 32px)',
+                boxSizing: 'border-box',
+                padding: '20px 24px',
+                boxShadow: '0 25px 70px rgba(0,0,0,0.35)',
                 border: '1px solid #CBD5E1',
-                maxHeight: '92vh',
-                overflowY: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 16,
+                gap: 12,
+                overflow: 'hidden',
+                position: 'relative',
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -5229,9 +5252,9 @@ export function FinanceInvoicesView() {
                   padding: '12px 18px',
                   borderRadius: 16,
                   border: '1px solid #E2E8F0',
+                  flexShrink: 0,
                 }}
               >
-                {/* Template Mode Tabs */}
                 {/* Template Mode Tabs */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   {[
@@ -5381,6 +5404,7 @@ export function FinanceInvoicesView() {
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
                     gap: 12,
+                    flexShrink: 0,
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -5419,21 +5443,35 @@ export function FinanceInvoicesView() {
               )}
 
               {/* ========================================================================= */}
-              {/* PRINTABLE DEDICATED INVOICE TEMPLATE CONTAINER                           */}
+              {/* SCROLLABLE DEDICATED INVOICE DOCUMENT VIEWPORT                            */}
               {/* ========================================================================= */}
               <div
-                id="printable-gst-invoice"
+                className="invoice-modal-scrollable"
                 style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  paddingRight: 6,
+                  paddingBottom: 24,
+                  borderRadius: 14,
+                  border: '1px solid #E2E8F0',
                   background: '#FFFFFF',
-                  color: '#000000',
-                  margin: '0 auto',
-                  boxSizing: 'border-box',
-                  width: '100%',
-                  boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
-                  borderRadius: previewTemplateMode === 'MODERN' ? 20 : 0,
-                  overflow: 'hidden',
+                  boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.03)',
                 }}
               >
+                <div
+                  id="printable-gst-invoice"
+                  style={{
+                    background: '#FFFFFF',
+                    color: '#000000',
+                    margin: '0 auto',
+                    boxSizing: 'border-box',
+                    width: '100%',
+                    borderRadius: previewTemplateMode === 'MODERN' ? 20 : 0,
+                  }}
+                >
                 {previewTemplateMode === 'FIVE_SPLASH' && (
                   <FiveSplashInvoiceTemplate
                     invoice={previewInvoice}
@@ -5523,6 +5561,7 @@ export function FinanceInvoicesView() {
               </div>
             </div>
           </div>
+        </div>
         );
       })()}
 
