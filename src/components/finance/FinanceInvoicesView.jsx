@@ -23,6 +23,11 @@ import {
   Image as ImageIcon,
   RotateCcw,
   Mail,
+  ExternalLink,
+  CheckCircle,
+  AlertCircle,
+  Settings,
+  Key,
 } from 'lucide-react';
 
 function inr(n) {
@@ -1698,6 +1703,15 @@ export function FinanceInvoicesView() {
     sending: false,
     lastResponse: '',
   });
+  const [smtpStatus, setSmtpStatus] = useState({ checked: false, configured: false, user: '' });
+  const [showSmtpConfig, setShowSmtpConfig] = useState(false);
+  const [smtpForm, setSmtpForm] = useState({
+    smtpUser: '',
+    smtpPass: '',
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: 465,
+    saving: false,
+  });
 
   // New Client Form state
   const [clientForm, setClientForm] = useState({
@@ -1898,6 +1912,22 @@ export function FinanceInvoicesView() {
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [clients]);
 
+  // Check SMTP connection status
+  const checkSmtpStatus = async () => {
+    try {
+      const res = await fetch('/api/client-invoices/send-email', { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setSmtpStatus({ checked: true, configured: Boolean(data.configured), user: data.smtpUser || '' });
+        if (data.smtpUser) {
+          setSmtpForm((prev) => ({ ...prev, smtpUser: data.smtpUser }));
+        }
+      }
+    } catch {
+      setSmtpStatus({ checked: true, configured: false, user: '' });
+    }
+  };
+
   // Handler: Open Send Email modal with pre-filled multi-recipient form
   const handleOpenEmailModal = (inv) => {
     const clientNorm = normalizeClientName(inv.client);
@@ -1914,6 +1944,63 @@ export function FinanceInvoicesView() {
       sending: false,
       lastResponse: '',
     });
+    checkSmtpStatus();
+  };
+
+  // Handler: Instant 1-Click Send via Gmail Web (Opens user's active Gmail in browser with pre-filled email)
+  const handleOpenGmailWeb = () => {
+    const parsedRecipients = cleanEmailList(emailForm.recipients);
+    if (parsedRecipients.length === 0) {
+      showToast('Please enter at least one recipient email address.');
+      return;
+    }
+    const to = parsedRecipients.join(',');
+    const cc = cleanEmailList(emailForm.cc).join(',');
+    const su = encodeURIComponent(emailForm.subject);
+    const body = encodeURIComponent(emailForm.message);
+
+    let gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${su}&body=${body}`;
+    if (cc) gmailUrl += `&cc=${encodeURIComponent(cc)}`;
+
+    window.open(gmailUrl, '_blank');
+    showToast(`✓ Opened Gmail with ${parsedRecipients.length} recipient(s) ready to send!`);
+  };
+
+  // Handler: Save & Test SMTP credentials directly to database
+  const handleSaveSmtp = async (e) => {
+    e?.preventDefault();
+    if (!smtpForm.smtpUser || !smtpForm.smtpPass) {
+      showToast('Please enter your email and App Password.');
+      return;
+    }
+    setSmtpForm((prev) => ({ ...prev, saving: true }));
+
+    try {
+      const res = await fetch('/api/client-invoices/send-email', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          action: 'save_smtp',
+          smtpUser: smtpForm.smtpUser,
+          smtpPass: smtpForm.smtpPass,
+          smtpHost: smtpForm.smtpHost || 'smtp.gmail.com',
+          smtpPort: Number(smtpForm.smtpPort || 465),
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || '✓ SMTP connected and verified successfully!');
+        setSmtpStatus({ checked: true, configured: true, user: data.smtpUser });
+        setShowSmtpConfig(false);
+      } else {
+        showToast(`SMTP Connection Failed: ${data.error || 'Check credentials'}`);
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setSmtpForm((prev) => ({ ...prev, saving: false }));
+    }
   };
 
   // Handler: Direct Email Sending API
@@ -1955,7 +2042,10 @@ export function FinanceInvoicesView() {
         );
         setSendEmailInvoice(null);
       } else {
-        showToast(`Failed to send email: ${data.error || 'Server error'}`);
+        if (data.notConfigured) {
+          setShowSmtpConfig(true);
+        }
+        showToast(data.error || 'Failed to send email. Check SMTP settings or click Send with Gmail.');
         setEmailForm((prev) => ({ ...prev, sending: false, lastResponse: data.error }));
       }
     } catch (err) {
@@ -5916,6 +6006,231 @@ export function FinanceInvoicesView() {
 
             {/* Modal Form Body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '22px 28px' }}>
+              {/* Option A: Quick Instant Delivery via Gmail Web */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
+                  border: '1.5px solid #86EFAC',
+                  borderRadius: 14,
+                  padding: '14px 16px',
+                  marginBottom: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 14,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 260 }}>
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      background: '#16A34A',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: '0 2px 8px rgba(22, 163, 74, 0.3)',
+                    }}
+                  >
+                    <ExternalLink size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: '#14532D', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>Send with Gmail Web</span>
+                      <span style={{ fontSize: 10, background: '#16A34A', color: '#FFF', padding: '1px 6px', borderRadius: 4, fontWeight: 800 }}>
+                        RECOMMENDED · INSTANT
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#166534', marginTop: 2 }}>
+                      Opens your logged-in Gmail in browser with pre-filled recipients, subject, and tax invoice cover letter. Zero setup required!
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenGmailWeb}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    padding: '8px 16px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: '#16A34A',
+                    color: '#FFFFFF',
+                    fontWeight: 800,
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                    boxShadow: '0 3px 10px rgba(22, 163, 74, 0.3)',
+                  }}
+                >
+                  <ExternalLink size={14} />
+                  <span>Open in Gmail Compose</span>
+                </button>
+              </div>
+
+              {/* Direct Server SMTP Status & Config Drawer */}
+              <div
+                style={{
+                  background: smtpStatus.configured ? '#F8FAFC' : '#FFFBEB',
+                  border: `1.5px solid ${smtpStatus.configured ? '#E2E8F0' : '#FDE68A'}`,
+                  borderRadius: 14,
+                  padding: '12px 16px',
+                  marginBottom: 18,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {smtpStatus.configured ? (
+                      <CheckCircle size={17} color="#10B981" />
+                    ) : (
+                      <AlertCircle size={17} color="#D97706" />
+                    )}
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: smtpStatus.configured ? '#1E293B' : '#92400E' }}>
+                      {smtpStatus.configured
+                        ? `Direct Background Sending: Connected (${smtpStatus.user})`
+                        : 'Direct Server SMTP: Not Connected (Requires Gmail App Password)'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowSmtpConfig(!showSmtpConfig)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: smtpStatus.configured ? '#0284C7' : '#B45309',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Settings size={13} />
+                    <span>{showSmtpConfig ? 'Hide SMTP Settings' : smtpStatus.configured ? 'Change SMTP Settings' : 'Connect Gmail / SMTP'}</span>
+                  </button>
+                </div>
+
+                {/* Collapsible SMTP Configuration Form */}
+                {showSmtpConfig && (
+                  <form
+                    onSubmit={handleSaveSmtp}
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTop: '1px dashed #CBD5E1',
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        background: '#FFFFFF',
+                        borderRadius: 8,
+                        border: '1px solid #E2E8F0',
+                        fontSize: 11.5,
+                        color: '#475569',
+                        lineHeight: 1.5,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <strong style={{ color: '#0F172A' }}>How to connect Gmail SMTP:</strong>
+                      <ol style={{ margin: '4px 0 0', paddingLeft: 16 }}>
+                        <li>Go to Google Account (<a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" style={{ color: '#0284C7', fontWeight: 700 }}>myaccount.google.com/apppasswords</a>)</li>
+                        <li>Ensure 2-Step Verification is active, then create an App Password named <strong>HRMS</strong></li>
+                        <li>Paste the 16-character code below and click <strong>Verify & Save Connection</strong></li>
+                      </ol>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                          Sender Gmail / Email *
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          value={smtpForm.smtpUser}
+                          onChange={(e) => setSmtpForm({ ...smtpForm, smtpUser: e.target.value })}
+                          placeholder="e.g. saifawaisi79@gmail.com"
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            border: '1.5px solid #CBD5E1',
+                            fontSize: 12,
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                          16-Char Google App Password *
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={smtpForm.smtpPass}
+                          onChange={(e) => setSmtpForm({ ...smtpForm, smtpPass: e.target.value })}
+                          placeholder="xxxx xxxx xxxx xxxx"
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            borderRadius: 8,
+                            border: '1.5px solid #CBD5E1',
+                            fontSize: 12,
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowSmtpConfig(false)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          background: '#FFF',
+                          color: '#64748B',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={smtpForm.saving}
+                        style={{
+                          padding: '6px 16px',
+                          borderRadius: 8,
+                          border: 'none',
+                          background: smtpForm.saving ? '#94A3B8' : '#0284C7',
+                          color: '#FFFFFF',
+                          fontSize: 12,
+                          fontWeight: 800,
+                          cursor: smtpForm.saving ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {smtpForm.saving ? 'Verifying with Google...' : 'Verify & Save Connection'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
               {/* Recipient Emails */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
@@ -6155,7 +6470,29 @@ export function FinanceInvoicesView() {
                 flexWrap: 'wrap',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleOpenGmailWeb}
+                  title="Opens logged-in Gmail Compose in browser with all recipient emails & cover letter prefilled"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    border: '1px solid #86EFAC',
+                    background: '#F0FDF4',
+                    color: '#166534',
+                    fontWeight: 800,
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <ExternalLink size={14} color="#16A34A" />
+                  <span>Send via Gmail Web</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleOpenMailto}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import ClientInvoice from '@/lib/models/ClientInvoice';
+import SystemSetting from '@/lib/models/SystemSetting';
 import nodemailer from 'nodemailer';
 
 export const dynamic = 'force-dynamic';
@@ -23,9 +24,135 @@ function cleanEmailList(input) {
   );
 }
 
+// Retrieve SMTP config from environment variables or MongoDB SystemSetting
+async function getSmtpConfig() {
+  await connectDB();
+  const envHost = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+  const envUser = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const envPass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
+  const envPort = process.env.SMTP_PORT || process.env.EMAIL_PORT;
+
+  if (envUser && envPass) {
+    return {
+      host: envHost || 'smtp.gmail.com',
+      port: Number(envPort || 465),
+      user: envUser,
+      pass: envPass,
+      source: 'env',
+    };
+  }
+
+  try {
+    const settings = await SystemSetting.find({
+      key: { $in: ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass'] },
+    }).lean();
+
+    const map = {};
+    settings.forEach((s) => {
+      map[s.key] = s.value;
+    });
+
+    if (map.smtp_user && map.smtp_pass) {
+      return {
+        host: map.smtp_host || 'smtp.gmail.com',
+        port: Number(map.smtp_port || 465),
+        user: map.smtp_user,
+        pass: map.smtp_pass,
+        source: 'database',
+      };
+    }
+  } catch (err) {
+    console.warn('Could not read SMTP settings from DB:', err.message);
+  }
+
+  return null;
+}
+
+// GET: Check if SMTP is configured
+export async function GET() {
+  try {
+    const config = await getSmtpConfig();
+    if (config) {
+      return NextResponse.json({
+        configured: true,
+        source: config.source,
+        smtpHost: config.host,
+        smtpPort: config.port,
+        smtpUser: config.user,
+      });
+    }
+    return NextResponse.json({
+      configured: false,
+      message: 'SMTP credentials are not configured yet.',
+    });
+  } catch (err) {
+    return NextResponse.json({ configured: false, error: err.message });
+  }
+}
+
+// POST: Send invoice email or save SMTP credentials
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
+
+    // Action: Save & Verify SMTP settings
+    if (body.action === 'save_smtp') {
+      const smtpUser = String(body.smtpUser || '').trim();
+      const smtpPass = String(body.smtpPass || '').trim().replace(/\s+/g, '');
+      const smtpHost = String(body.smtpHost || 'smtp.gmail.com').trim();
+      const smtpPort = Number(body.smtpPort || 465);
+
+      if (!smtpUser || !smtpPass) {
+        return NextResponse.json(
+          { error: 'Email username/address and App Password are required' },
+          { status: 400 }
+        );
+      }
+
+      // Verify connection with nodemailer
+      const testTransporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465 || smtpHost.includes('gmail'),
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+
+      try {
+        await testTransporter.verify();
+      } catch (verifyErr) {
+        return NextResponse.json(
+          {
+            error: `Connection test failed: ${verifyErr.message}. For Gmail: Turn ON 2-Step Verification in Google Account -> Security -> App Passwords -> Generate 16-character password.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      await connectDB();
+      const upsert = async (key, value) => {
+        await SystemSetting.findOneAndUpdate(
+          { key },
+          { $set: { key, value } },
+          { upsert: true, new: true }
+        );
+      };
+
+      await upsert('smtp_host', smtpHost);
+      await upsert('smtp_port', String(smtpPort));
+      await upsert('smtp_user', smtpUser);
+      await upsert('smtp_pass', smtpPass);
+
+      return NextResponse.json({
+        success: true,
+        message: `✓ SMTP connection verified and saved! All outgoing invoices will now be sent directly from ${smtpUser}.`,
+        smtpUser,
+        smtpHost,
+        smtpPort,
+      });
+    }
 
     const recipients = cleanEmailList(body.recipients);
     if (recipients.length === 0) {
@@ -150,47 +277,52 @@ ${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find t
 </html>
 `.trim();
 
-    let emailSent = false;
-    let transportInfo = 'simulated';
+    // Retrieve active SMTP configuration
+    const smtpConfig = await getSmtpConfig();
 
-    // Check if SMTP is configured
-    const smtpHost = process.env.SMTP_HOST || process.env.EMAIL_HOST;
-    const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
-    const smtpPass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
-    const smtpPort = Number(process.env.SMTP_PORT || process.env.EMAIL_PORT || 587);
+    if (!smtpConfig) {
+      return NextResponse.json(
+        {
+          success: false,
+          notConfigured: true,
+          error:
+            'SMTP email server credentials are not configured. To send emails directly from the server, configure your Gmail App Password below, or click "Send via Gmail Web" for instant 1-click delivery.',
+        },
+        { status: 400 }
+      );
+    }
 
-    if (smtpHost && smtpUser && smtpPass) {
-      try {
-        const transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: smtpPort,
-          secure: smtpPort === 465,
-          auth: {
-            user: smtpUser,
-            pass: smtpPass,
-          },
-        });
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465 || smtpConfig.host.includes('gmail'),
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    });
 
-        const mailOptions = {
-          from: `"Career Experts Global Solutions" <${smtpUser}>`,
-          to: recipients.join(', '),
-          cc: ccRecipients.length > 0 ? ccRecipients.join(', ') : undefined,
-          subject,
-          text: textContent,
-          html: htmlContent,
-        };
+    const mailOptions = {
+      from: `"Career Experts Global Solutions" <${smtpConfig.user}>`,
+      to: recipients.join(', '),
+      cc: ccRecipients.length > 0 ? ccRecipients.join(', ') : undefined,
+      subject,
+      text: textContent,
+      html: htmlContent,
+    };
 
-        const info = await transporter.sendMail(mailOptions);
-        emailSent = true;
-        transportInfo = info?.messageId || 'delivered';
-      } catch (smtpErr) {
-        console.error('SMTP send failed, recording dispatch:', smtpErr.message);
-        transportInfo = `smtp_error: ${smtpErr.message}`;
-      }
-    } else {
-      console.log(`[Email Dispatch] Mock delivery to ${recipients.join(', ')} for invoice ${invoiceNo}`);
-      emailSent = true;
-      transportInfo = 'recorded_dispatch';
+    let info;
+    try {
+      info = await transporter.sendMail(mailOptions);
+    } catch (smtpErr) {
+      console.error('SMTP sendMail failed:', smtpErr.message);
+      return NextResponse.json(
+        {
+          success: false,
+          error: `SMTP delivery failed: ${smtpErr.message}. If using Gmail, make sure you created a 16-character App Password (at myaccount.google.com/apppasswords) and 2-Step Verification is ON.`,
+        },
+        { status: 400 }
+      );
     }
 
     // Save dispatch record on MongoDB invoice
@@ -216,10 +348,10 @@ ${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find t
       recipients,
       cc: ccRecipients,
       sentAt: sentTimestamp,
-      transportInfo,
-      message: `Invoice ${invoiceNo} dispatched successfully to ${recipients.length} recipient${
+      messageId: info?.messageId || '',
+      message: `Invoice ${invoiceNo} sent successfully to ${recipients.length} recipient${
         recipients.length === 1 ? '' : 's'
-      } (${recipients.join(', ')})`,
+      } (${recipients.join(', ')}) from ${smtpConfig.user}`,
     });
   } catch (err) {
     console.error('Error in send-email route:', err);
