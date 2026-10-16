@@ -179,10 +179,26 @@ export async function GET(request) {
       }
     }
     const clients = await ClientCompany.find({}).sort({ name: 1 }).lean();
-    return NextResponse.json(clients.map(flatten));
+    // Guarantee strict deduplication by normalized lowercase name
+    const seenNames = new Map();
+    for (const c of clients) {
+      const key = String(c.name || '').trim().toLowerCase();
+      if (!key) continue;
+      if (!seenNames.has(key)) {
+        seenNames.set(key, flatten(c));
+      }
+    }
+    return NextResponse.json(Array.from(seenNames.values()));
   } catch (err) {
     console.error('Error fetching clients:', err);
-    return NextResponse.json(INITIAL_CLIENTS.map((c, i) => ({ ...c, id: `seed-${i}`, _id: `seed-${i}` })));
+    const seenFallback = new Map();
+    INITIAL_CLIENTS.forEach((c, i) => {
+      const key = c.name.trim().toLowerCase();
+      if (!seenFallback.has(key)) {
+        seenFallback.set(key, { ...c, id: `seed-${i}`, _id: `seed-${i}` });
+      }
+    });
+    return NextResponse.json(Array.from(seenFallback.values()));
   }
 }
 

@@ -21,11 +21,76 @@ import {
   Users,
   Upload,
   Image as ImageIcon,
-  RotateCcw
+  RotateCcw,
+  Mail,
 } from 'lucide-react';
 
 function inr(n) {
   return `₹${Number(n || 0).toLocaleString('en-IN')}`;
+}
+
+// Canonical Client Name Normalizer (Eliminates duplicates across all sources)
+export function normalizeClientName(rawName) {
+  if (!rawName) return '';
+  const trimmed = String(rawName).trim().replace(/\s+/g, ' ');
+  const lower = trimmed.toLowerCase();
+
+  if (lower.startsWith('ison') || lower.includes('ison xperiences')) {
+    return 'ISON XPERIENCES INDIA PRIVATE LIMITED';
+  }
+  if (lower.includes('five splash') || lower.includes('fivesplash')) {
+    return 'Five Splash Infotech Pvt. Ltd- Bangalore';
+  }
+  if (lower.includes('altruist') && (lower.includes('gb') || lower.includes('garvebhavi') || lower.includes('begur'))) {
+    return 'Altruist GB';
+  }
+  if (lower.includes('altruist')) {
+    return 'Altruist Technologies Pvt. Ltd.';
+  }
+  if (lower.includes('one point one') || lower.includes('1point1') || lower.includes('onepointone')) {
+    return 'One Point One Solutions Ltd';
+  }
+  if (lower.includes('radical minds') || lower.includes('radicalminds')) {
+    return 'Radical Minds Technologies Pvt Ltd';
+  }
+  if (lower === 'apex' || lower.includes('apex corp')) {
+    return 'Apex Corp';
+  }
+  if (lower.includes('nexus media')) {
+    return 'Nexus Media';
+  }
+  if (lower.includes('starlight tech')) {
+    return 'Starlight Tech';
+  }
+  if (lower.includes('techcorp')) {
+    return 'TechCorp Solutions';
+  }
+  if (lower.includes('cegs global') || lower === 'cegs') {
+    return 'CEGS Global';
+  }
+  if (lower === 'codevate') {
+    return 'Codevate';
+  }
+  return trimmed;
+}
+
+// Helper: Clean email list from string or array
+function cleanEmailList(input) {
+  if (!input) return [];
+  let list = [];
+  if (Array.isArray(input)) {
+    list = input;
+  } else if (typeof input === 'string') {
+    list = input.split(/[,;\s\n\r]+/).filter(Boolean);
+  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return Array.from(
+    new Set(
+      list
+        .map((e) => String(e).trim().toLowerCase())
+        .filter((e) => emailRegex.test(e))
+    )
+  );
 }
 
 // Helper: Extract YYYY-MM key from invoice
@@ -1624,6 +1689,15 @@ export function FinanceInvoicesView() {
   const [previewTemplateMode, setPreviewTemplateMode] = useState('GST_INV_1');
   const [reminderInvoice, setReminderInvoice] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [sendEmailInvoice, setSendEmailInvoice] = useState(null);
+  const [emailForm, setEmailForm] = useState({
+    recipients: '',
+    cc: '',
+    subject: '',
+    message: '',
+    sending: false,
+    lastResponse: '',
+  });
 
   // New Client Form state
   const [clientForm, setClientForm] = useState({
@@ -1750,7 +1824,16 @@ export function FinanceInvoicesView() {
       if (clientRes.ok) {
         const clientData = await clientRes.json();
         if (Array.isArray(clientData) && clientData.length > 0) {
-          setClients(clientData);
+          const map = new Map();
+          clientData.forEach((c) => {
+            const norm = normalizeClientName(c.name);
+            const key = norm.toLowerCase();
+            if (!key) return;
+            if (!map.has(key)) {
+              map.set(key, { ...c, name: norm });
+            }
+          });
+          setClients(Array.from(map.values()));
         } else {
           setClients(DEFAULT_CLIENTS);
         }
@@ -1779,14 +1862,125 @@ export function FinanceInvoicesView() {
     }
   }, []);
 
-  // Combined list of companies
+  // Combined list of companies (strictly deduplicated across all sources)
   const companyOptions = useMemo(() => {
-    const fromInvoices = invoices.map((i) => i.client).filter(Boolean);
-    const fromClients = clients.map((c) => c.name).filter(Boolean);
-    const fromConfigs = Object.values(CLIENT_CONFIGS).map((c) => c.name);
-    const set = new Set([...fromInvoices, ...fromClients, ...fromConfigs, 'Apex Corp']);
-    return Array.from(set).sort();
+    const canonicalMap = new Map();
+    const rawList = [
+      ...invoices.map((i) => i.client),
+      ...clients.map((c) => c.name),
+      ...Object.values(CLIENT_CONFIGS).map((c) => c.name),
+      'Apex Corp',
+    ].filter(Boolean);
+
+    rawList.forEach((raw) => {
+      const canonical = normalizeClientName(raw);
+      if (!canonical) return;
+      const key = canonical.toLowerCase();
+      if (!canonicalMap.has(key)) {
+        canonicalMap.set(key, canonical);
+      }
+    });
+
+    return Array.from(canonicalMap.values()).sort((a, b) => a.localeCompare(b));
   }, [invoices, clients]);
+
+  // Strictly deduplicated clients array for Manage Clients modal
+  const dedupedClients = useMemo(() => {
+    const map = new Map();
+    clients.forEach((c) => {
+      const norm = normalizeClientName(c.name);
+      const key = norm.toLowerCase();
+      if (!key) return;
+      if (!map.has(key)) {
+        map.set(key, { ...c, name: norm });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [clients]);
+
+  // Handler: Open Send Email modal with pre-filled multi-recipient form
+  const handleOpenEmailModal = (inv) => {
+    const clientNorm = normalizeClientName(inv.client);
+    const clientRec = clients.find((c) => normalizeClientName(c.name).toLowerCase() === clientNorm.toLowerCase());
+    const defaultEmail = inv.clientEmail || clientRec?.email || '';
+    const amtStr = inr(inv.amount || inv.basicAmount);
+
+    setSendEmailInvoice(inv);
+    setEmailForm({
+      recipients: defaultEmail,
+      cc: '',
+      subject: `[TAX INVOICE] ${inv.invoiceNo || 'INV'} - Career Experts Global Solutions - ${clientNorm}`,
+      message: `Dear ${clientNorm} Accounts & Finance Team,\n\nPlease find the tax invoice details for candidate placement and process seat billing services delivered by Career Experts Global Solutions.\n\n• Invoice No: ${inv.invoiceNo || 'N/A'}\n• Amount Due: ${amtStr} (${inv.amountInWords || ''})\n• Due Date: ${inv.dueDate || '30 days'}\n\nBank Remittance Details:\n• Beneficiary: Career Experts Global Solutions\n• Bank: HDFC Bank\n• Account No: 50200080303100\n• IFSC Code: HDFC0000509\n\nKindly acknowledge receipt and confirm the payment disbursement schedule.\n\nWarm regards,\nFinance & Accounts Department\nCareer Experts Global Solutions`,
+      sending: false,
+      lastResponse: '',
+    });
+  };
+
+  // Handler: Direct Email Sending API
+  const handleSendEmailDirectly = async () => {
+    const parsedRecipients = cleanEmailList(emailForm.recipients);
+    if (parsedRecipients.length === 0) {
+      showToast('Please enter at least one valid recipient email address.');
+      return;
+    }
+    setEmailForm((prev) => ({ ...prev, sending: true, lastResponse: '' }));
+
+    try {
+      const res = await fetch('/api/client-invoices/send-email', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          invoiceId: sendEmailInvoice.id || sendEmailInvoice._id,
+          invoiceNo: sendEmailInvoice.invoiceNo,
+          clientName: normalizeClientName(sendEmailInvoice.client),
+          totalAmount: Number(sendEmailInvoice.amount || sendEmailInvoice.basicAmount || 0),
+          dueDate: sendEmailInvoice.dueDate || '30 days',
+          invoiceDate: sendEmailInvoice.invoiceDate || '',
+          recipients: parsedRecipients,
+          cc: cleanEmailList(emailForm.cc),
+          subject: emailForm.subject,
+          message: emailForm.message,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`✓ Invoice sent directly to ${parsedRecipients.length} recipient${parsedRecipients.length === 1 ? '' : 's'}!`);
+        setInvoices((prev) =>
+          prev.map((it) =>
+            (it.id === sendEmailInvoice.id || it._id === sendEmailInvoice.id)
+              ? { ...it, lastSentTo: parsedRecipients.join(', '), lastSentAt: data.sentAt || new Date().toISOString() }
+              : it
+          )
+        );
+        setSendEmailInvoice(null);
+      } else {
+        showToast(`Failed to send email: ${data.error || 'Server error'}`);
+        setEmailForm((prev) => ({ ...prev, sending: false, lastResponse: data.error }));
+      }
+    } catch (err) {
+      showToast(`Error sending email: ${err.message}`);
+      setEmailForm((prev) => ({ ...prev, sending: false, lastResponse: err.message }));
+    }
+  };
+
+  // Handler: Open native Mail app (mailto: with all recipient emails)
+  const handleOpenMailto = () => {
+    const parsedRecipients = cleanEmailList(emailForm.recipients);
+    if (parsedRecipients.length === 0) {
+      showToast('Please enter at least one recipient email address.');
+      return;
+    }
+    const to = parsedRecipients.join(',');
+    const cc = cleanEmailList(emailForm.cc).join(',');
+    const sub = encodeURIComponent(emailForm.subject);
+    const body = encodeURIComponent(emailForm.message);
+
+    let link = `mailto:${to}?subject=${sub}&body=${body}`;
+    if (cc) link += `&cc=${cc}`;
+    window.open(link, '_blank');
+    showToast(`✓ Opened email client with ${parsedRecipients.length} recipient(s)!`);
+  };
 
   // Available billing months from invoices
   const monthOptions = useMemo(() => {
@@ -1862,7 +2056,9 @@ export function FinanceInvoicesView() {
 
       // Company filter
       if (selectedCompany !== 'ALL') {
-        if ((inv.client || '').toLowerCase() !== selectedCompany.toLowerCase()) {
+        const filterNorm = normalizeClientName(selectedCompany).toLowerCase();
+        const clientNorm = normalizeClientName(inv.client).toLowerCase();
+        if (filterNorm !== clientNorm) {
           return false;
         }
       }
@@ -1885,7 +2081,8 @@ export function FinanceInvoicesView() {
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesClient = (inv.client || '').toLowerCase().includes(q);
+        const clientNorm = normalizeClientName(inv.client).toLowerCase();
+        const matchesClient = clientNorm.includes(q) || (inv.client || '').toLowerCase().includes(q);
         const matchesInvNo = (inv.invoiceNo || '').toLowerCase().includes(q);
         const matchesMilestone = (inv.projectMilestone || '').toLowerCase().includes(q);
         const matchesAmt = String(inv.amount || '').includes(q);
@@ -2269,8 +2466,9 @@ export function FinanceInvoicesView() {
 
     try {
       // Optimistic update
-      setClients((prev) => prev.filter((c) => c.name.toLowerCase() !== cName.toLowerCase() && c.id !== cId));
-      if (selectedCompany.toLowerCase() === cName.toLowerCase()) {
+      const normTarget = normalizeClientName(cName).toLowerCase();
+      setClients((prev) => prev.filter((c) => normalizeClientName(c.name).toLowerCase() !== normTarget && c.id !== cId));
+      if (normalizeClientName(selectedCompany).toLowerCase() === normTarget) {
         setSelectedCompany('ALL');
       }
 
@@ -2419,10 +2617,14 @@ export function FinanceInvoicesView() {
 
       const newClient = res.ok ? await res.json() : { ...clientForm, id: `local-${Date.now()}` };
 
-      setClients((prev) => [newClient, ...prev]);
-      setSelectedCompany(clientForm.name);
+      setClients((prev) => {
+        const norm = normalizeClientName(newClient.name);
+        const filtered = prev.filter((c) => normalizeClientName(c.name).toLowerCase() !== norm.toLowerCase());
+        return [{ ...newClient, name: norm }, ...filtered];
+      });
+      setSelectedCompany(normalizeClientName(clientForm.name));
       setShowAddClientModal(false);
-      showToast(`Client "${clientForm.name}" added successfully!`);
+      showToast(`Client "${normalizeClientName(clientForm.name)}" added successfully!`);
       setClientForm({
         name: '',
         contactPerson: '',
@@ -2436,8 +2638,12 @@ export function FinanceInvoicesView() {
       });
     } catch {
       const local = { ...clientForm, id: `local-${Date.now()}` };
-      setClients((prev) => [local, ...prev]);
-      setSelectedCompany(clientForm.name);
+      setClients((prev) => {
+        const norm = normalizeClientName(local.name);
+        const filtered = prev.filter((c) => normalizeClientName(c.name).toLowerCase() !== norm.toLowerCase());
+        return [{ ...local, name: norm }, ...filtered];
+      });
+      setSelectedCompany(normalizeClientName(clientForm.name));
       setShowAddClientModal(false);
     } finally {
       setSavingClient(false);
@@ -3138,9 +3344,9 @@ export function FinanceInvoicesView() {
                               fontSize: 13,
                             }}
                           >
-                            {(inv.client || 'C')[0]}
+                            {(normalizeClientName(inv.client) || 'C')[0]}
                           </div>
-                          <span>{inv.client || 'Apex Corp'}</span>
+                          <span>{normalizeClientName(inv.client || 'Apex Corp')}</span>
                         </div>
                       </td>
 
@@ -3203,6 +3409,38 @@ export function FinanceInvoicesView() {
                       {/* ACTIONS: EDIT INVOICE (USER REQUIREMENT 2) + REMINDER + MARK PAID + DOWNLOAD */}
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, justifyContent: 'flex-end' }}>
+                          {/* SEND EMAIL BUTTON (MULTIPLE RECIPIENTS FORM) */}
+                          <button
+                            type="button"
+                            title="Send invoice directly to multiple recipient email IDs"
+                            onClick={() => handleOpenEmailModal(inv)}
+                            style={{
+                              padding: '6px 11px',
+                              borderRadius: 8,
+                              border: '1.5px solid #0284C7',
+                              background: '#F0F9FF',
+                              color: '#0284C7',
+                              fontSize: 12,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              transition: 'all 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#0284C7';
+                              e.currentTarget.style.color = '#FFFFFF';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#F0F9FF';
+                              e.currentTarget.style.color = '#0284C7';
+                            }}
+                          >
+                            <Mail size={13} />
+                            <span>Email</span>
+                          </button>
+
                           {/* EDIT INVOICE BUTTON (USER REQUIREMENT 2) */}
                           <button
                             type="button"
@@ -3513,19 +3751,20 @@ export function FinanceInvoicesView() {
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
-              {clients.length === 0 ? (
+              {dedupedClients.length === 0 ? (
                 <div style={{ padding: '36px 0', textAlign: 'center', color: '#94A3B8' }}>
                   No clients found. Click "+ Add Client" to add a company.
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {clients.map((c) => {
-                    const cInvoices = invoices.filter((i) => (i.client || '').toLowerCase() === (c.name || '').toLowerCase());
+                  {dedupedClients.map((c) => {
+                    const normName = normalizeClientName(c.name);
+                    const cInvoices = invoices.filter((i) => normalizeClientName(i.client).toLowerCase() === normName.toLowerCase());
                     const isDeleting = deletingClientId === (c.id || c.name);
 
                     return (
                       <div
-                        key={c.id || c.name}
+                        key={c.id || normName}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -3552,11 +3791,11 @@ export function FinanceInvoicesView() {
                               fontSize: 15,
                             }}
                           >
-                            {(c.name || 'C')[0]}
+                            {(normName || 'C')[0]}
                           </div>
                           <div>
                             <div style={{ fontSize: 14.5, fontWeight: 800, color: '#0F172A' }}>
-                              {c.name}
+                              {normName}
                             </div>
                             <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
                               {c.industry || 'Technology'} · {c.email || 'No email'} · {cInvoices.length} invoice{cInvoices.length === 1 ? '' : 's'}
@@ -5348,6 +5587,29 @@ export function FinanceInvoicesView() {
                     />
                   </label>
 
+                  {/* SEND VIA EMAIL BUTTON (MULTIPLE RECIPIENTS) */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEmailModal(previewInvoice)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 18px',
+                      borderRadius: 12,
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
+                      color: '#FFFFFF',
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
+                    }}
+                  >
+                    <Mail size={15} />
+                    <span>Send via Email</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => window.print()}
@@ -5564,6 +5826,431 @@ export function FinanceInvoicesView() {
         </div>
         );
       })()}
+
+      {/* ========================================================================= */}
+      {/* MODAL: MULTIPLE EMAIL ENTRY & DIRECT INVOICE SENDING MODAL */}
+      {/* ========================================================================= */}
+      {sendEmailInvoice && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.72)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={() => setSendEmailInvoice(null)}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 22,
+              width: '100%',
+              maxWidth: 620,
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 65px rgba(0,0,0,0.25)',
+              border: '1.5px solid #E2E8F0',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '22px 28px 18px',
+                borderBottom: '1px solid #F1F5F9',
+                background: '#FFFFFF',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 14,
+                    background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+                  }}
+                >
+                  <Mail size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18.5, fontWeight: 800, color: '#0F172A' }}>
+                    Send Invoice via Email
+                  </h3>
+                  <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#64748B' }}>
+                    Invoice <strong>#{sendEmailInvoice.invoiceNo || 'INV'}</strong> · {normalizeClientName(sendEmailInvoice.client)} · <strong style={{ color: '#0284C7' }}>{inr(sendEmailInvoice.amount || sendEmailInvoice.basicAmount)}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSendEmailInvoice(null)}
+                style={{
+                  background: '#F1F5F9',
+                  border: 'none',
+                  borderRadius: 10,
+                  color: '#64748B',
+                  cursor: 'pointer',
+                  padding: 6,
+                  display: 'flex',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Form Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '22px 28px' }}>
+              {/* Recipient Emails */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+                  <label style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>
+                    Recipient Email Addresses *
+                  </label>
+                  <span style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>
+                    Separate multiple with commas or spaces
+                  </span>
+                </div>
+                <textarea
+                  rows={2}
+                  value={emailForm.recipients}
+                  onChange={(e) => setEmailForm({ ...emailForm, recipients: e.target.value })}
+                  placeholder="e.g. billing@client.com, finance@client.com, accounts.dept@client.com"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    background: '#FFFFFF',
+                    transition: 'border 0.15s ease',
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = '#0284C7')}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = '#CBD5E1')}
+                />
+
+                {/* Parsed Email Tag Chips */}
+                {cleanEmailList(emailForm.recipients).length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: '#0284C7', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {cleanEmailList(emailForm.recipients).length} Recipient{cleanEmailList(emailForm.recipients).length === 1 ? '' : 's'}:
+                    </span>
+                    {cleanEmailList(emailForm.recipients).map((em) => (
+                      <span
+                        key={em}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '3px 10px',
+                          borderRadius: 99,
+                          background: '#E0F2FE',
+                          color: '#0369A1',
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {em}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const remaining = cleanEmailList(emailForm.recipients).filter((x) => x !== em);
+                            setEmailForm({ ...emailForm, recipients: remaining.join(', ') });
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            cursor: 'pointer',
+                            color: '#0369A1',
+                            display: 'flex',
+                          }}
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Quick Add Client Email Button */}
+                {(() => {
+                  const cNorm = normalizeClientName(sendEmailInvoice.client);
+                  const clientRec = clients.find((c) => normalizeClientName(c.name).toLowerCase() === cNorm.toLowerCase());
+                  const clEmail = sendEmailInvoice.clientEmail || clientRec?.email;
+                  const currentList = cleanEmailList(emailForm.recipients);
+                  const showAdd = clEmail && !currentList.includes(clEmail.toLowerCase());
+                  return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                      {showAdd && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const combined = [...currentList, clEmail].join(', ');
+                            setEmailForm({ ...emailForm, recipients: combined });
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '4px 10px',
+                            borderRadius: 8,
+                            border: '1px dashed #0284C7',
+                            background: '#F0F9FF',
+                            color: '#0284C7',
+                            fontSize: 11.5,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span>+ Add Client Contact: {clEmail}</span>
+                        </button>
+                      )}
+                      {!currentList.includes('finance@cegs.in') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const combined = [...currentList, 'finance@cegs.in'].join(', ');
+                            setEmailForm({ ...emailForm, recipients: combined });
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '4px 10px',
+                            borderRadius: 8,
+                            border: '1px dashed #CBD5E1',
+                            background: '#F8FAFC',
+                            color: '#475569',
+                            fontSize: 11.5,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span>+ Add finance@cegs.in</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* CC Field (Optional) */}
+              <div style={{ marginTop: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                  CC (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={emailForm.cc}
+                  onChange={(e) => setEmailForm({ ...emailForm, cc: e.target.value })}
+                  placeholder="e.g. audit@cegs.in, management@cegs.in"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    border: '1.5px solid #E2E8F0',
+                    fontSize: 12.5,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    background: '#FFFFFF',
+                  }}
+                />
+              </div>
+
+              {/* Subject Field */}
+              <div style={{ marginTop: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                  Subject Line *
+                </label>
+                <input
+                  type="text"
+                  value={emailForm.subject}
+                  onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#0F172A',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    background: '#FFFFFF',
+                  }}
+                />
+              </div>
+
+              {/* Message / Cover Letter */}
+              <div style={{ marginTop: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                  Email Message / Cover Letter *
+                </label>
+                <textarea
+                  rows={6}
+                  value={emailForm.message}
+                  onChange={(e) => setEmailForm({ ...emailForm, message: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: 12.5,
+                    lineHeight: 1.5,
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    background: '#FFFFFF',
+                  }}
+                />
+              </div>
+
+              {/* Bank Remittance Details Banner */}
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: '#F0F9FF',
+                  border: '1px solid #BAE6FD',
+                  fontSize: 12,
+                  color: '#0369A1',
+                  lineHeight: 1.5,
+                }}
+              >
+                <div><strong>Remittance Bank:</strong> HDFC Bank · <strong>A/C:</strong> 50200080303100</div>
+                <div><strong>IFSC:</strong> HDFC0000509 · <strong>Beneficiary:</strong> Career Experts Global Solutions</div>
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 28px',
+                borderTop: '1px solid #F1F5F9',
+                background: '#FAFAFA',
+                gap: 10,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleOpenMailto}
+                  title="Open in your default email client with all recipient emails prefilled"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#334155',
+                    fontWeight: 700,
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Mail size={14} color="#0284C7" />
+                  <span>Open in Mail App</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const fullText = `To: ${emailForm.recipients}\nSubject: ${emailForm.subject}\n\n${emailForm.message}`;
+                    navigator.clipboard?.writeText(fullText);
+                    showToast('✓ Email text copied to clipboard!');
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#475569',
+                    fontWeight: 700,
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Copy size={14} />
+                  <span>Copy Text</span>
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setSendEmailInvoice(null)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 10,
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#64748B',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={emailForm.sending}
+                  onClick={handleSendEmailDirectly}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    padding: '8px 22px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: emailForm.sending
+                      ? '#94A3B8'
+                      : 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
+                    color: '#FFFFFF',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: emailForm.sending ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
+                  }}
+                >
+                  <Send size={14} />
+                  <span>{emailForm.sending ? 'Sending...' : 'Send Email Directly'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL 6: PAYMENT REMINDER MODAL */}

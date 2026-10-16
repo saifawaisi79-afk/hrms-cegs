@@ -38,6 +38,8 @@ const ClientInvoiceSchema = new mongoose.Schema(
     clientEmail: { type: String, default: '' },
     clientPhone: { type: String, default: '' },
     notes: { type: String, default: '' },
+    lastSentTo: { type: String, default: '' },
+    lastSentAt: { type: String, default: '' },
     // Official Form GST INV – 1 & Client Template Extensions
     templateType: { type: String, default: 'GST_INV_1' },
     clientAddress: { type: String, default: '' },
