@@ -3,6 +3,7 @@ import connectDB from '@/lib/db';
 import ClientInvoice from '@/lib/models/ClientInvoice';
 import SystemSetting from '@/lib/models/SystemSetting';
 import nodemailer from 'nodemailer';
+import { generateInvoicePdfBuffer } from '@/lib/generateInvoicePdf';
 
 export const dynamic = 'force-dynamic';
 
@@ -265,6 +266,14 @@ ${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find t
         <div class="bank-item"><strong>Branch:</strong> Bengaluru, Karnataka</div>
       </div>
 
+      <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 14px 18px; margin: 18px 0; display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 20px;">📎</span>
+        <div>
+          <div style="font-size: 13px; font-weight: 800; color: #166534;">Official Invoice Attached (TAX_INVOICE_${invoiceNo}.pdf)</div>
+          <div style="font-size: 11.5px; color: #15803d; margin-top: 2px;">Please find attached the formal PDF invoice containing candidate placement itemization, SAC code, GST breakdown, and digital certification.</div>
+        </div>
+      </div>
+
       <div style="font-size: 12px; color: #64748b; margin-top: 18px; line-height: 1.5;">
         This is an official computer-generated billing notice from Career Experts Global Solutions authorised by Mohammed Usman Zabi.
       </div>
@@ -302,6 +311,60 @@ ${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find t
       },
     });
 
+    // Prepare full invoice data for PDF generation
+    let invoicePayload = {
+      invoiceNo,
+      client: clientName,
+      clientAddress: String(body.clientAddress || ''),
+      clientGstin: String(body.clientGstin || ''),
+      clientState: String(body.clientState || 'Karnataka'),
+      clientStateCode: String(body.clientStateCode || '29'),
+      amount,
+      basicAmount: Number(body.basicAmount || 0),
+      sgstAmount: Number(body.sgstAmount || 0),
+      cgstAmount: Number(body.cgstAmount || 0),
+      amountInWords: String(body.amountInWords || ''),
+      dueDate,
+      invoiceDate,
+      poNo: String(body.poNo || ''),
+      items: Array.isArray(body.items) ? body.items : [],
+    };
+
+    if (invoiceId) {
+      try {
+        await connectDB();
+        if (typeof invoiceId === 'string' && invoiceId.match(/^[0-9a-fA-F]{24}$/)) {
+          const dbInv = await ClientInvoice.findById(invoiceId).lean();
+          if (dbInv) {
+            invoicePayload = {
+              ...dbInv,
+              ...invoicePayload,
+              items: (invoicePayload.items && invoicePayload.items.length > 0) ? invoicePayload.items : (dbInv.items || []),
+            };
+          }
+        }
+      } catch (dbErr) {
+        console.warn('Could not enrich invoice payload from DB:', dbErr.message);
+      }
+    }
+
+    const safeInvNo = invoiceNo.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const attachments = [];
+
+    // Automatically generate official PDF invoice attachment
+    try {
+      const pdfBuffer = await generateInvoicePdfBuffer(invoicePayload);
+      if (pdfBuffer && pdfBuffer.length > 0) {
+        attachments.push({
+          filename: `TAX_INVOICE_${safeInvNo}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        });
+      }
+    } catch (pdfErr) {
+      console.error('Failed to generate PDF attachment:', pdfErr);
+    }
+
     const mailOptions = {
       from: `"Career Experts Global Solutions" <${smtpConfig.user}>`,
       to: recipients.join(', '),
@@ -309,6 +372,7 @@ ${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find t
       subject,
       text: textContent,
       html: htmlContent,
+      attachments,
     };
 
     let info;
@@ -347,11 +411,13 @@ ${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find t
       invoiceNo,
       recipients,
       cc: ccRecipients,
+      hasAttachment: attachments.length > 0,
+      attachmentName: attachments.length > 0 ? attachments[0].filename : '',
       sentAt: sentTimestamp,
       messageId: info?.messageId || '',
       message: `Invoice ${invoiceNo} sent successfully to ${recipients.length} recipient${
         recipients.length === 1 ? '' : 's'
-      } (${recipients.join(', ')}) from ${smtpConfig.user}`,
+      } with TAX_INVOICE_${safeInvNo}.pdf automatically attached!`,
     });
   } catch (err) {
     console.error('Error in send-email route:', err);

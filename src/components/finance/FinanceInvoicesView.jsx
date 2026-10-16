@@ -1947,23 +1947,63 @@ export function FinanceInvoicesView() {
     checkSmtpStatus();
   };
 
-  // Handler: Instant 1-Click Send via Gmail Web (Opens user's active Gmail in browser with pre-filled email)
+  // Handler: Download official PDF invoice file directly
+  const handleDownloadInvoicePdf = async (inv) => {
+    const target = inv || sendEmailInvoice || previewInvoice;
+    if (!target) return;
+    try {
+      showToast(`Generating TAX_INVOICE_${target.invoiceNo || 'INV'}.pdf...`);
+      const res = await fetch('/api/client-invoices/download-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(target),
+      });
+      if (!res.ok) throw new Error('Failed to generate PDF');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `TAX_INVOICE_${String(target.invoiceNo || 'INV').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      showToast(`✓ Downloaded TAX_INVOICE_${target.invoiceNo || 'INV'}.pdf`);
+    } catch (err) {
+      showToast(`Download error: ${err.message}`);
+    }
+  };
+
+  // Handler: Instant 1-Click Send via Gmail Web (Auto-downloads invoice PDF & opens prefilled Gmail)
   const handleOpenGmailWeb = () => {
     const parsedRecipients = cleanEmailList(emailForm.recipients);
     if (parsedRecipients.length === 0) {
       showToast('Please enter at least one recipient email address.');
       return;
     }
+
+    // Auto-trigger PDF download so the user has the invoice file ready to attach in Gmail
+    if (sendEmailInvoice) {
+      handleDownloadInvoicePdf(sendEmailInvoice);
+    }
+
     const to = parsedRecipients.join(',');
     const cc = cleanEmailList(emailForm.cc).join(',');
     const su = encodeURIComponent(emailForm.subject);
-    const body = encodeURIComponent(emailForm.message);
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://hrms-cegs.vercel.app';
+    const safeInvNo = String(sendEmailInvoice?.invoiceNo || 'INV').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const directDownloadUrl = `${origin}/api/client-invoices/download-pdf?invoiceNo=${encodeURIComponent(sendEmailInvoice?.invoiceNo || '')}`;
+
+    const enrichedMessage = `${emailForm.message}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📎 ATTACHED OFFICIAL TAX INVOICE:\n• Document: TAX_INVOICE_${safeInvNo}.pdf\n• Direct Download Link: ${directDownloadUrl}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+    const body = encodeURIComponent(enrichedMessage);
 
     let gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${su}&body=${body}`;
     if (cc) gmailUrl += `&cc=${encodeURIComponent(cc)}`;
 
     window.open(gmailUrl, '_blank');
-    showToast(`✓ Opened Gmail with ${parsedRecipients.length} recipient(s) ready to send!`);
+    showToast(`✓ Opened Gmail & downloaded TAX_INVOICE_${safeInvNo}.pdf! Simply drag the file into your email.`);
   };
 
   // Handler: Save & Test SMTP credentials directly to database
@@ -2003,7 +2043,7 @@ export function FinanceInvoicesView() {
     }
   };
 
-  // Handler: Direct Email Sending API
+  // Handler: Direct Email Sending API (With automatic PDF invoice attachment)
   const handleSendEmailDirectly = async () => {
     const parsedRecipients = cleanEmailList(emailForm.recipients);
     if (parsedRecipients.length === 0) {
@@ -2020,9 +2060,19 @@ export function FinanceInvoicesView() {
           invoiceId: sendEmailInvoice.id || sendEmailInvoice._id,
           invoiceNo: sendEmailInvoice.invoiceNo,
           clientName: normalizeClientName(sendEmailInvoice.client),
+          clientAddress: sendEmailInvoice.clientAddress || '',
+          clientGstin: sendEmailInvoice.clientGstin || '',
+          clientState: sendEmailInvoice.clientState || 'Karnataka',
+          clientStateCode: sendEmailInvoice.clientStateCode || '29',
+          poNo: sendEmailInvoice.poNo || '',
           totalAmount: Number(sendEmailInvoice.amount || sendEmailInvoice.basicAmount || 0),
+          basicAmount: Number(sendEmailInvoice.basicAmount || 0),
+          sgstAmount: Number(sendEmailInvoice.sgstAmount || 0),
+          cgstAmount: Number(sendEmailInvoice.cgstAmount || 0),
+          amountInWords: sendEmailInvoice.amountInWords || '',
           dueDate: sendEmailInvoice.dueDate || '30 days',
           invoiceDate: sendEmailInvoice.invoiceDate || '',
+          items: sendEmailInvoice.items || [],
           recipients: parsedRecipients,
           cc: cleanEmailList(emailForm.cc),
           subject: emailForm.subject,
@@ -2032,7 +2082,8 @@ export function FinanceInvoicesView() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`✓ Invoice sent directly to ${parsedRecipients.length} recipient${parsedRecipients.length === 1 ? '' : 's'}!`);
+        const safeInvNo = String(sendEmailInvoice.invoiceNo || 'INV').replace(/[^a-zA-Z0-9_-]/g, '_');
+        showToast(`✓ Invoice sent directly with TAX_INVOICE_${safeInvNo}.pdf automatically attached!`);
         setInvoices((prev) =>
           prev.map((it) =>
             (it.id === sendEmailInvoice.id || it._id === sendEmailInvoice.id)
@@ -6231,6 +6282,75 @@ export function FinanceInvoicesView() {
                 )}
               </div>
 
+              {/* Automatic Invoice PDF Attachment Card */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)',
+                  border: '1.5px solid #7DD3FC',
+                  borderRadius: 14,
+                  padding: '12px 16px',
+                  marginBottom: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 260 }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      background: '#0284C7',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+                    }}
+                  >
+                    <FileText size={18} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0369A1', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>📎 Auto-Attached: TAX_INVOICE_{sendEmailInvoice.invoiceNo || 'INV'}.pdf</span>
+                      <span style={{ fontSize: 10, background: '#0284C7', color: '#FFF', padding: '1px 6px', borderRadius: 4, fontWeight: 800 }}>
+                        OFFICIAL PDF
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#0284C7', marginTop: 2 }}>
+                      Automatically attached to direct emails. Includes candidate placement list, GST breakdown, and digital certification.
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleDownloadInvoicePdf(sendEmailInvoice)}
+                  title="Download a copy of this official PDF invoice"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 14px',
+                    borderRadius: 10,
+                    border: '1.5px solid #0284C7',
+                    background: '#FFFFFF',
+                    color: '#0284C7',
+                    fontWeight: 800,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <Download size={13} />
+                  <span>Download PDF</span>
+                </button>
+              </div>
+
               {/* Recipient Emails */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
@@ -6538,6 +6658,28 @@ export function FinanceInvoicesView() {
                 >
                   <Copy size={14} />
                   <span>Copy Text</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDownloadInvoicePdf(sendEmailInvoice)}
+                  title="Download official PDF copy of this invoice"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#0284C7',
+                    fontWeight: 700,
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Download size={14} />
+                  <span>Download PDF</span>
                 </button>
               </div>
 
