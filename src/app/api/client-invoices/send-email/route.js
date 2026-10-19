@@ -6,6 +6,7 @@ import nodemailer from 'nodemailer';
 import { generateInvoicePdfBuffer } from '@/lib/generateInvoicePdf';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 function cleanEmailList(input) {
   if (!input) return [];

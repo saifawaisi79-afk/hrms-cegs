@@ -4,6 +4,7 @@ import ClientInvoice from '@/lib/models/ClientInvoice';
 import { generateInvoicePdfBuffer } from '@/lib/generateInvoicePdf';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET(request) {
   try {
@@ -14,12 +15,16 @@ export async function GET(request) {
     let invoice = null;
 
     if (id || invoiceNo) {
-      await connectDB();
-      if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
-        invoice = await ClientInvoice.findById(id).lean();
-      }
-      if (!invoice && invoiceNo) {
-        invoice = await ClientInvoice.findOne({ invoiceNo }).lean();
+      try {
+        await connectDB();
+        if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
+          invoice = await ClientInvoice.findById(id).lean();
+        }
+        if (!invoice && invoiceNo) {
+          invoice = await ClientInvoice.findOne({ invoiceNo }).lean();
+        }
+      } catch (dbErr) {
+        console.warn('DB lookup failed in PDF GET:', dbErr.message);
       }
     }
 
@@ -52,7 +57,22 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const invoice = await request.json().catch(() => ({}));
+    let invoice = await request.json().catch(() => ({}));
+    if ((!invoice || !invoice.client) && (invoice?.id || invoice?.invoiceNo)) {
+      try {
+        await connectDB();
+        if (invoice.id && invoice.id.match(/^[0-9a-fA-F]{24}$/)) {
+          const dbInv = await ClientInvoice.findById(invoice.id).lean();
+          if (dbInv) invoice = { ...dbInv, ...invoice };
+        } else if (invoice.invoiceNo) {
+          const dbInv = await ClientInvoice.findOne({ invoiceNo: invoice.invoiceNo }).lean();
+          if (dbInv) invoice = { ...dbInv, ...invoice };
+        }
+      } catch (dbErr) {
+        console.warn('DB lookup failed in PDF POST:', dbErr.message);
+      }
+    }
+
     const pdfBuffer = await generateInvoicePdfBuffer(invoice);
     const safeInvNo = String(invoice.invoiceNo || 'INV').replace(/[^a-zA-Z0-9_-]/g, '_');
 

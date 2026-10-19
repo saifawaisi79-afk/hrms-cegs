@@ -28,6 +28,7 @@ import {
   AlertCircle,
   Settings,
   Key,
+  Eye,
 } from 'lucide-react';
 
 function inr(n) {
@@ -2029,30 +2030,62 @@ export function FinanceInvoicesView() {
     checkSmtpStatus();
   };
 
-  // Handler: Download official PDF invoice file directly
+  // Handler: Download official PDF invoice file directly with multi-tier fallback
   const handleDownloadInvoicePdf = async (inv) => {
     const target = inv || sendEmailInvoice || previewInvoice;
     if (!target) return;
+    const safeInvNo = String(target.invoiceNo || 'INV').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `TAX_INVOICE_${safeInvNo}.pdf`;
+
     try {
-      showToast(`Generating TAX_INVOICE_${target.invoiceNo || 'INV'}.pdf...`);
-      const res = await fetch('/api/client-invoices/download-pdf', {
+      showToast(`Generating ${fileName}...`);
+
+      // Tier 1: POST payload directly to download endpoint
+      let res = await fetch('/api/client-invoices/download-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(target),
       });
-      if (!res.ok) throw new Error('Failed to generate PDF');
+
+      // Tier 2: GET fallback by invoiceNo / id if POST failed
+      if (!res.ok && (target.invoiceNo || target.id || target._id)) {
+        const queryParams = new URLSearchParams({
+          invoiceNo: target.invoiceNo || '',
+          id: target.id || target._id || '',
+          client: target.client || '',
+          amount: String(target.amount || target.basicAmount || 0),
+        });
+        res = await fetch(`/api/client-invoices/download-pdf?${queryParams.toString()}`);
+      }
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Server responded with status ${res.status}`);
+      }
+
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `TAX_INVOICE_${String(target.invoiceNo || 'INV').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      showToast(`✓ Downloaded TAX_INVOICE_${target.invoiceNo || 'INV'}.pdf`);
+      showToast(`✓ Downloaded ${fileName}`);
     } catch (err) {
-      showToast(`Download error: ${err.message}`);
+      console.warn('Direct PDF download route issue, switching to Print / Save as PDF:', err);
+      // Tier 3: Instant client-side fallback - open preview modal & trigger browser print to PDF
+      setPreviewInvoice(target);
+      setPreviewTemplateMode(getClientTemplate(target.client, target.templateType));
+      setTimeout(() => {
+        try {
+          window.print();
+        } catch (printErr) {
+          console.warn('Window.print failed:', printErr);
+        }
+      }, 400);
+      showToast(`Opened ${target.invoiceNo || 'Invoice'}: select "Save as PDF" to save file.`);
     }
   };
 
@@ -3742,10 +3775,40 @@ export function FinanceInvoicesView() {
                             </>
                           )}
 
-                          {/* DOWNLOAD / VIEW */}
+                          {/* DIRECT DOWNLOAD PDF */}
                           <button
                             type="button"
-                            title="View / Download Invoice"
+                            title="Download PDF Invoice"
+                            onClick={() => handleDownloadInvoicePdf(inv)}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 8,
+                              border: '1.5px solid #BAE6FD',
+                              background: '#F0F9FF',
+                              color: '#0284C7',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#0284C7';
+                              e.currentTarget.style.color = '#FFFFFF';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#F0F9FF';
+                              e.currentTarget.style.color = '#0284C7';
+                            }}
+                          >
+                            <Download size={14} />
+                          </button>
+
+                          {/* VIEW INVOICE TEMPLATE */}
+                          <button
+                            type="button"
+                            title="View Invoice Template"
                             onClick={() => {
                               setPreviewInvoice(inv);
                               setPreviewTemplateMode(getClientTemplate(inv.client, inv.templateType));
@@ -3761,9 +3824,18 @@ export function FinanceInvoicesView() {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
+                              transition: 'all 0.15s ease',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.borderColor = '#94A3B8';
+                              e.currentTarget.style.color = '#1E293B';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.borderColor = '#E2E8F0';
+                              e.currentTarget.style.color = '#64748B';
                             }}
                           >
-                            <Download size={14} />
+                            <Eye size={14} />
                           </button>
                         </div>
                       </td>
@@ -5853,6 +5925,28 @@ export function FinanceInvoicesView() {
                   >
                     <Printer size={15} />
                     <span>Print / Save PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadInvoicePdf(previewInvoice)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 18px',
+                      borderRadius: 12,
+                      border: '1.5px solid #0284C7',
+                      background: '#F0F9FF',
+                      color: '#0284C7',
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.15)',
+                    }}
+                  >
+                    <Download size={15} />
+                    <span>Download PDF File</span>
                   </button>
 
                   <button

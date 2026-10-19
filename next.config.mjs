@@ -16,6 +16,11 @@ const nextConfig = {
   // Allow large component files (HRMSApp.jsx is ~740KB minified)
   experimental: {
     largePageDataBytes: 1024 * 1024 * 10,
+    serverComponentsExternalPackages: ['pdfkit'],
+    outputFileTracingIncludes: {
+      '/api/**/*': ['./node_modules/pdfkit/**/*'],
+      '/api/client-invoices/**/*': ['./node_modules/pdfkit/**/*'],
+    },
   },
 };
 
