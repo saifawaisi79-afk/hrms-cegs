@@ -43,7 +43,7 @@ export function normalizeClientName(rawName) {
   if (lower.startsWith('ison') || lower.includes('ison xperiences')) {
     return 'ISON XPERIENCES INDIA PRIVATE LIMITED';
   }
-  if (lower.includes('five splash') || lower.includes('fivesplash')) {
+  if (lower.includes('five splash') || lower.includes('fivesplash') || lower.includes('fives digital') || lower.includes('fivesdigital')) {
     return 'Five Splash Infotech Pvt. Ltd- Bangalore';
   }
   if (lower.includes('altruist') && (lower.includes('gb') || lower.includes('garvebhavi') || lower.includes('begur'))) {
@@ -57,6 +57,9 @@ export function normalizeClientName(rawName) {
   }
   if (lower.includes('radical minds') || lower.includes('radicalminds')) {
     return 'Radical Minds Technologies Pvt Ltd';
+  }
+  if (lower.includes('startek')) {
+    return 'Startek';
   }
   if (lower === 'apex' || lower.includes('apex corp')) {
     return 'Apex Corp';
@@ -77,6 +80,64 @@ export function normalizeClientName(rawName) {
     return 'Codevate';
   }
   return trimmed;
+}
+
+// Official Client Company Email Addresses & Contacts
+export const CLIENT_OFFICIAL_CONTACTS = {
+  'ISON XPERIENCES INDIA PRIVATE LIMITED': [
+    { name: 'Sudheesh Kumar', email: 'sudheesh.kumar@isonxperiences.com' },
+    { name: 'Maqsood Khan', email: 'maqsood.khan@isonxperiences.com' },
+    { name: 'Navaneetha Krishnan', email: 'navaneetha.krishnan@isonxperiences.com' },
+    { name: 'Preethi S.', email: 'Preethi.s@isonxperiences.com' },
+  ],
+  'Altruist Technologies Pvt. Ltd.': [
+    { name: 'Jyotiranjan Nayak', email: 'jyotiranjan.nayak@altruistindia.com' },
+    { name: 'Hiring Partner BLR', email: 'Hiringpartner.blr@altruistindia.com' },
+  ],
+  'Altruist GB': [
+    { name: 'Abhilash Nair', email: 'Abhilash.Nair@altruistindia.com' },
+    { name: 'Prachi Kadam', email: 'prachi.kadam@altruistindia.com' },
+  ],
+  'Five Splash Infotech Pvt. Ltd- Bangalore': [
+    { name: 'Jyotiranjan Nayak', email: 'jyotiranjan.nayak@fivesdigital.com' },
+  ],
+  'Radical Minds Technologies Pvt Ltd': [
+    { name: 'Vishal Yadawad', email: 'vishal.yadawad@radicalminds.net' },
+    { name: 'Rupak Chatterjee', email: 'rupak.chatterjee@radicalminds.net' },
+  ],
+  'One Point One Solutions Ltd': [
+    { name: 'Sandeep K.', email: 'Sandeep.k@1point1.com' },
+    { name: 'Shibabrata Lenka', email: 'shibabrata.lenka@1point1.com' },
+  ],
+  'Startek': [
+    { name: 'Rohit Pal', email: 'rohit.pal@startek.com' },
+    { name: 'Sangana Bala', email: 'Sangana.bala@startek.com' },
+  ],
+};
+
+export function getClientContacts(rawName) {
+  if (!rawName) return [];
+  const norm = normalizeClientName(rawName);
+  if (CLIENT_OFFICIAL_CONTACTS[norm]) {
+    return CLIENT_OFFICIAL_CONTACTS[norm];
+  }
+  const lower = String(rawName).toLowerCase();
+  if (lower.includes('ison')) return CLIENT_OFFICIAL_CONTACTS['ISON XPERIENCES INDIA PRIVATE LIMITED'];
+  if (lower.includes('altruist') && (lower.includes('gb') || lower.includes('garvebhavi'))) return CLIENT_OFFICIAL_CONTACTS['Altruist GB'];
+  if (lower.includes('altruist')) return CLIENT_OFFICIAL_CONTACTS['Altruist Technologies Pvt. Ltd.'];
+  if (lower.includes('five') || lower.includes('splash') || lower.includes('fives')) return CLIENT_OFFICIAL_CONTACTS['Five Splash Infotech Pvt. Ltd- Bangalore'];
+  if (lower.includes('radical')) return CLIENT_OFFICIAL_CONTACTS['Radical Minds Technologies Pvt Ltd'];
+  if (lower.includes('point') || lower.includes('1point1')) return CLIENT_OFFICIAL_CONTACTS['One Point One Solutions Ltd'];
+  if (lower.includes('startek')) return CLIENT_OFFICIAL_CONTACTS['Startek'];
+  return [];
+}
+
+export function getClientDefaultEmails(rawName) {
+  const contacts = getClientContacts(rawName);
+  if (contacts.length > 0) {
+    return contacts.map((c) => c.email).join(', ');
+  }
+  return '';
 }
 
 // Helper: Clean email list from string or array
@@ -689,7 +750,8 @@ const DEFAULT_CLIENTS = [
   {
     id: 'c-ison',
     name: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
-    email: 'finance.india@isonxperiences.com',
+    email: 'sudheesh.kumar@isonxperiences.com, maqsood.khan@isonxperiences.com, navaneetha.krishnan@isonxperiences.com, Preethi.s@isonxperiences.com',
+    contactPerson: 'Sudheesh Kumar, Maqsood Khan, Navaneetha Krishnan, Preethi S.',
     phone: '+91 80 4912 3400',
     gstin: '29AADCI1246E1ZT',
     address: 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102',
@@ -702,7 +764,8 @@ const DEFAULT_CLIENTS = [
   {
     id: 'c-fivesplash',
     name: 'Five Splash Infotech Pvt. Ltd- Bangalore',
-    email: 'finance@fivesplash.com',
+    email: 'jyotiranjan.nayak@fivesdigital.com',
+    contactPerson: 'Jyotiranjan Nayak',
     phone: '+91 80 4600 5000',
     gstin: '29AABCF3991K1Z5',
     address: '46/4, Novel Tech Park, Hosur Rd, Kudlugate, Krishna Reddy Industrial Area, Behind HSR, Bengaluru, Karnataka 560068.',
@@ -715,7 +778,8 @@ const DEFAULT_CLIENTS = [
   {
     id: 'c-altruist',
     name: 'Altruist Technologies Pvt. Ltd.',
-    email: 'accounts@altruistindia.com',
+    email: 'jyotiranjan.nayak@altruistindia.com, Hiringpartner.blr@altruistindia.com',
+    contactPerson: 'Jyotiranjan Nayak, Hiring Partner BLR',
     phone: '+91 80 4900 1200',
     gstin: '29AAFCA3725N1ZC',
     address: 'AKR Tech Park, 46/1, NH 44, near Krishna Reddy Industrial Area, Kudlu Gate, Bengaluru – 560068.',
@@ -728,7 +792,8 @@ const DEFAULT_CLIENTS = [
   {
     id: 'c-altruist-gb',
     name: 'Altruist GB',
-    email: 'accounts.gb@altruistindia.com',
+    email: 'Abhilash.Nair@altruistindia.com, prachi.kadam@altruistindia.com',
+    contactPerson: 'Abhilash Nair, Prachi Kadam',
     phone: '+91 80 4900 1250',
     gstin: '29AAFCA3725N1ZC',
     address: 'Garvebhavi palya, Behind RNS Motors, HGSL Chambers NO 4,5,6, Begur Hobli, Hosur Main Road, Bangalore, Hongasandra Village, Bengaluru (Bangalore) Urban, Karnataka, 560068',
@@ -741,7 +806,8 @@ const DEFAULT_CLIENTS = [
   {
     id: 'c-onepointone',
     name: 'One Point One Solutions Ltd',
-    email: 'billing@1point1.in',
+    email: 'Sandeep.k@1point1.com, shibabrata.lenka@1point1.com',
+    contactPerson: 'Sandeep K., Shibabrata Lenka',
     phone: '+91 80 6790 3300',
     gstin: '29AACCD9158MIZZ',
     address: '3rd Floor, AKR Infinity, Sy No. 113, Krishna Reddy Industrial Area, 7th Mile Hosur Road Bangalore, Karnataka 560068 India.',
@@ -754,7 +820,8 @@ const DEFAULT_CLIENTS = [
   {
     id: 'c-radicalminds',
     name: 'Radical Minds Technologies Pvt Ltd',
-    email: 'accounts@radicalminds.in',
+    email: 'vishal.yadawad@radicalminds.net, rupak.chatterjee@radicalminds.net',
+    contactPerson: 'Vishal Yadawad, Rupak Chatterjee',
     phone: '+91 80 4321 8800',
     gstin: '29AAFCR0597P1ZJ',
     address: 'Krimson Square, 31/9, Aayee Matha Temple Rd, Muneswara Nagar, Sector 6, HSR Layout, Bengaluru, Karnataka 560102',
@@ -763,6 +830,20 @@ const DEFAULT_CLIENTS = [
     industry: 'BPO & Customer Management Services',
     paymentTerms: 'Net 30',
     templateType: 'RADICAL_MINDS',
+  },
+  {
+    id: 'c-startek',
+    name: 'Startek',
+    email: 'rohit.pal@startek.com, Sangana.bala@startek.com',
+    contactPerson: 'Rohit Pal, Sangana Bala',
+    phone: '+91 80 4000 6000',
+    gstin: '29AAECS4930J1ZO',
+    address: 'Novel Tech Park, 46/4, Garvebhavipalya, Kudlu Gate, Bengaluru, Karnataka 560068',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & Customer Experience',
+    paymentTerms: 'Net 30',
+    templateType: 'MODERN',
   },
   { id: 'c-1', name: 'Apex Corp', email: 'billing@apexcorp.com', phone: '+91 98201 44521', industry: 'Branding & Tech' },
   { id: 'c-2', name: 'Nexus Media', email: 'finance@nexusmedia.com', phone: '+91 97110 33912', industry: 'Digital Media' },
@@ -1932,7 +2013,8 @@ export function FinanceInvoicesView() {
   const handleOpenEmailModal = (inv) => {
     const clientNorm = normalizeClientName(inv.client);
     const clientRec = clients.find((c) => normalizeClientName(c.name).toLowerCase() === clientNorm.toLowerCase());
-    const defaultEmail = inv.clientEmail || clientRec?.email || '';
+    const officialEmails = getClientDefaultEmails(inv.client);
+    const defaultEmail = officialEmails || inv.clientEmail || clientRec?.email || '';
     const amtStr = inr(inv.amount || inv.basicAmount);
 
     setSendEmailInvoice(inv);
@@ -6426,63 +6508,108 @@ export function FinanceInvoicesView() {
                   </div>
                 )}
 
-                {/* Quick Add Client Email Button */}
+                {/* Quick Add Client Email Buttons */}
                 {(() => {
-                  const cNorm = normalizeClientName(sendEmailInvoice.client);
-                  const clientRec = clients.find((c) => normalizeClientName(c.name).toLowerCase() === cNorm.toLowerCase());
-                  const clEmail = sendEmailInvoice.clientEmail || clientRec?.email;
+                  const clientContacts = getClientContacts(sendEmailInvoice.client);
                   const currentList = cleanEmailList(emailForm.recipients);
-                  const showAdd = clEmail && !currentList.includes(clEmail.toLowerCase());
+                  const clientNorm = normalizeClientName(sendEmailInvoice.client);
+                  const clientRec = clients.find((c) => normalizeClientName(c.name).toLowerCase() === clientNorm.toLowerCase());
+
+                  // Gather all candidate contacts
+                  const allContacts = [...clientContacts];
+                  if (allContacts.length === 0) {
+                    const fallbackEmail = sendEmailInvoice.clientEmail || clientRec?.email;
+                    if (fallbackEmail) {
+                      cleanEmailList(fallbackEmail).forEach((em) => {
+                        allContacts.push({ name: clientNorm, email: em });
+                      });
+                    }
+                  }
+
+                  const missingContacts = allContacts.filter((c) => !currentList.includes(c.email.toLowerCase()));
+                  const hasMultipleMissing = missingContacts.length > 1;
+
                   return (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                      {showAdd && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const combined = [...currentList, clEmail].join(', ');
-                            setEmailForm({ ...emailForm, recipients: combined });
-                          }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '4px 10px',
-                            borderRadius: 8,
-                            border: '1px dashed #0284C7',
-                            background: '#F0F9FF',
-                            color: '#0284C7',
-                            fontSize: 11.5,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <span>+ Add Client Contact: {clEmail}</span>
-                        </button>
-                      )}
-                      {!currentList.includes('finance@cegs.in') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const combined = [...currentList, 'finance@cegs.in'].join(', ');
-                            setEmailForm({ ...emailForm, recipients: combined });
-                          }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '4px 10px',
-                            borderRadius: 8,
-                            border: '1px dashed #CBD5E1',
-                            background: '#F8FAFC',
-                            color: '#475569',
-                            fontSize: 11.5,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <span>+ Add finance@cegs.in</span>
-                        </button>
-                      )}
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', marginBottom: 5 }}>
+                        Official Client Contacts ({clientNorm}):
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {hasMultipleMissing && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newEmails = missingContacts.map((c) => c.email);
+                              const combined = [...currentList, ...newEmails].join(', ');
+                              setEmailForm({ ...emailForm, recipients: combined });
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '4px 10px',
+                              borderRadius: 8,
+                              border: '1px solid #0284C7',
+                              background: '#E0F2FE',
+                              color: '#0369A1',
+                              fontSize: 11.5,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <span>+ Add All ({missingContacts.length}) Contacts</span>
+                          </button>
+                        )}
+                        {missingContacts.map((c) => (
+                          <button
+                            key={c.email}
+                            type="button"
+                            onClick={() => {
+                              const combined = [...currentList, c.email].join(', ');
+                              setEmailForm({ ...emailForm, recipients: combined });
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '4px 10px',
+                              borderRadius: 8,
+                              border: '1px dashed #0284C7',
+                              background: '#F0F9FF',
+                              color: '#0284C7',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <span>+ {c.name}: {c.email}</span>
+                          </button>
+                        ))}
+                        {!currentList.includes('finance@cegs.in') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const combined = [...currentList, 'finance@cegs.in'].join(', ');
+                              setEmailForm({ ...emailForm, recipients: combined });
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '4px 10px',
+                              borderRadius: 8,
+                              border: '1px dashed #CBD5E1',
+                              background: '#F8FAFC',
+                              color: '#475569',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <span>+ Add finance@cegs.in</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}

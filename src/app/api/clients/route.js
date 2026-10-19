@@ -68,8 +68,8 @@ const INITIAL_CLIENTS = [
   },
   {
     name: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
-    contactPerson: 'Accounts & Finance Team',
-    email: 'finance.india@isonxperiences.com',
+    contactPerson: 'Sudheesh Kumar, Maqsood Khan, Navaneetha Krishnan, Preethi S.',
+    email: 'sudheesh.kumar@isonxperiences.com, maqsood.khan@isonxperiences.com, navaneetha.krishnan@isonxperiences.com, Preethi.s@isonxperiences.com',
     phone: '+91 80 4912 3400',
     gstin: '29AADCI1246E1ZT',
     address: 'Building No. H208, 1st & 2nd Floor, 36/5 Somyasundarpalya, 27th Main Road, Sector 2 HSR Layout, Bengaluru, Karnataka-560102',
@@ -83,8 +83,8 @@ const INITIAL_CLIENTS = [
   },
   {
     name: 'Five Splash Infotech Pvt. Ltd- Bangalore',
-    contactPerson: 'Finance & Accounts',
-    email: 'finance@fivesplash.com',
+    contactPerson: 'Jyotiranjan Nayak',
+    email: 'jyotiranjan.nayak@fivesdigital.com',
     phone: '+91 80 4600 5000',
     gstin: '29AABCF3991K1Z5',
     address: '46/4, Novel Tech Park, Hosur Rd, Kudlugate, Krishna Reddy Industrial Area, Behind HSR, Bengaluru, Karnataka 560068.',
@@ -93,13 +93,13 @@ const INITIAL_CLIENTS = [
     industry: 'BPO & IT Enabled Services',
     paymentTerms: 'Net 30',
     templateType: 'FIVE_SPLASH',
-    notes: 'Novel Tech Park Kudlugate candidate placement & process billing.',
+    notes: 'Fives Digital / Five Splash Novel Tech Park candidate placement & process billing.',
     status: 'Active',
   },
   {
     name: 'Altruist Technologies Pvt. Ltd.',
-    contactPerson: 'Finance & Accounts',
-    email: 'accounts@altruistindia.com',
+    contactPerson: 'Jyotiranjan Nayak, Hiring Partner BLR',
+    email: 'jyotiranjan.nayak@altruistindia.com, Hiringpartner.blr@altruistindia.com',
     phone: '+91 80 4900 1200',
     gstin: '29AAFCA3725N1ZC',
     address: 'AKR Tech Park, 46/1, NH 44, near Krishna Reddy Industrial Area, Kudlu Gate, Bengaluru – 560068.',
@@ -108,13 +108,13 @@ const INITIAL_CLIENTS = [
     industry: 'BPO & Telecom VAS',
     paymentTerms: 'Net 30',
     templateType: 'ALTRUIST',
-    notes: 'AKR Tech Park Kudlu Gate process placement & seat billing.',
+    notes: 'Altruist AKR Tech Park Kudlu Gate process placement & seat billing.',
     status: 'Active',
   },
   {
     name: 'Altruist GB',
-    contactPerson: 'Finance & Accounts (Garvebhavi palya)',
-    email: 'accounts.gb@altruistindia.com',
+    contactPerson: 'Abhilash Nair, Prachi Kadam',
+    email: 'Abhilash.Nair@altruistindia.com, prachi.kadam@altruistindia.com',
     phone: '+91 80 4900 1250',
     gstin: '29AAFCA3725N1ZC',
     address: 'Garvebhavi palya, Behind RNS Motors, HGSL Chambers NO 4,5,6, Begur Hobli, Hosur Main Road, Bangalore, Hongasandra Village, Bengaluru (Bangalore) Urban, Karnataka, 560068',
@@ -123,13 +123,13 @@ const INITIAL_CLIENTS = [
     industry: 'BPO & Telecom VAS',
     paymentTerms: 'Net 30',
     templateType: 'ALTRUIST_GB',
-    notes: 'Garvebhavi palya branch process placement & seat billing.',
+    notes: 'Altruist Garvebhavi palya branch process placement & seat billing.',
     status: 'Active',
   },
   {
     name: 'One Point One Solutions Ltd',
-    contactPerson: 'Finance & Billing',
-    email: 'billing@1point1.in',
+    contactPerson: 'Sandeep K., Shibabrata Lenka',
+    email: 'Sandeep.k@1point1.com, shibabrata.lenka@1point1.com',
     phone: '+91 80 6790 3300',
     gstin: '29AACCD9158MIZZ',
     address: '3rd Floor, AKR Infinity, Sy No. 113, Krishna Reddy Industrial Area, 7th Mile Hosur Road Bangalore, Karnataka 560068 India.',
@@ -143,8 +143,8 @@ const INITIAL_CLIENTS = [
   },
   {
     name: 'Radical Minds Technologies Pvt Ltd',
-    contactPerson: 'Finance & Accounts',
-    email: 'accounts@radicalminds.in',
+    contactPerson: 'Vishal Yadawad, Rupak Chatterjee',
+    email: 'vishal.yadawad@radicalminds.net, rupak.chatterjee@radicalminds.net',
     phone: '+91 80 4321 8800',
     gstin: '29AAFCR0597P1ZJ',
     address: 'Krimson Square, 31/9, Aayee Matha Temple Rd, Muneswara Nagar, Sector 6, HSR Layout, Bengaluru, Karnataka 560102',
@@ -154,6 +154,21 @@ const INITIAL_CLIENTS = [
     paymentTerms: 'Net 30',
     templateType: 'RADICAL_MINDS',
     notes: 'HSR Layout Krimson Square candidate placement billing.',
+    status: 'Active',
+  },
+  {
+    name: 'Startek',
+    contactPerson: 'Rohit Pal, Sangana Bala',
+    email: 'rohit.pal@startek.com, Sangana.bala@startek.com',
+    phone: '+91 80 4000 6000',
+    gstin: '29AAECS4930J1ZO',
+    address: 'Novel Tech Park, 46/4, Garvebhavipalya, Kudlu Gate, Bengaluru, Karnataka 560068',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & Customer Experience',
+    paymentTerms: 'Net 30',
+    templateType: 'MODERN',
+    notes: 'Startek Bangalore Operations candidate placement billing.',
     status: 'Active',
   },
 ];
@@ -170,12 +185,13 @@ export async function GET(request) {
     if (count === 0) {
       await ClientCompany.insertMany(INITIAL_CLIENTS);
     } else {
-      // Ensure all official client templates are seeded if missing
+      // Ensure all official client templates & contacts are seeded and updated
       for (const cl of INITIAL_CLIENTS) {
-        const exists = await ClientCompany.findOne({ name: { $regex: new RegExp(`^${cl.name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } });
-        if (!exists) {
-          await ClientCompany.create(cl);
-        }
+        await ClientCompany.findOneAndUpdate(
+          { name: { $regex: new RegExp(`^${cl.name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } },
+          { $set: { email: cl.email, contactPerson: cl.contactPerson } },
+          { upsert: true, new: true }
+        );
       }
     }
     const clients = await ClientCompany.find({}).sort({ name: 1 }).lean();
