@@ -2,6 +2,10 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
+import { WeeklyUpdateSection } from './WeeklyUpdateSection';
+import { BillRaisedSection } from './BillRaisedSection';
+import { BillClearedSection } from './BillClearedSection';
+import { TotalConsolidatedSection } from './TotalConsolidatedSection';
 import {
   Download,
   Plus,
@@ -1759,6 +1763,38 @@ export function FinanceInvoicesView() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
 
+  // 5 Finance Tabs state: 'weekly_update', 'bill_raised', 'bill_cleared', 'total_abcd', 'payments_invoices'
+  const [activeFinanceTab, setActiveFinanceTab] = useState('payments_invoices');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab === 'weekly') setActiveFinanceTab('weekly_update');
+      else if (tab === 'raised') setActiveFinanceTab('bill_raised');
+      else if (tab === 'cleared') setActiveFinanceTab('bill_cleared');
+      else if (tab === 'total') setActiveFinanceTab('total_abcd');
+      else if (tab === 'invoices') setActiveFinanceTab('payments_invoices');
+    }
+  }, []);
+
+  const handleTabChange = (newTab) => {
+    setActiveFinanceTab(newTab);
+    if (typeof window !== 'undefined') {
+      const tabSlugMap = {
+        weekly_update: 'weekly',
+        bill_raised: 'raised',
+        bill_cleared: 'cleared',
+        total_abcd: 'total',
+        payments_invoices: 'invoices',
+      };
+      const slug = tabSlugMap[newTab] || 'invoices';
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('tab', slug);
+      window.history.pushState(null, '', newUrl.toString());
+    }
+  };
+
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('ALL');
@@ -3023,7 +3059,7 @@ export function FinanceInvoicesView() {
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: 16,
-          marginBottom: 24,
+          marginBottom: 18,
         }}
       >
         <div>
@@ -3043,8 +3079,9 @@ export function FinanceInvoicesView() {
           </p>
         </div>
 
-        {/* TOP ACTION BUTTONS (Export CSV, Month-Wise File, + Add Client, Manage Clients, Generate Invoice) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        {/* TOP ACTION BUTTONS (VISIBLE IN PAYMENTS & INVOICES TAB) */}
+        {activeFinanceTab === 'payments_invoices' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {/* EXPORT CSV BUTTON */}
           <button
             type="button"
@@ -3178,10 +3215,168 @@ export function FinanceInvoicesView() {
             <span>Generate Invoice</span>
           </button>
         </div>
+        )}
       </div>
 
-      {/* METRIC STAT CARDS (EXACTLY 3 SECTIONS: 1. Revenue All Time, 2. Revenue This Month, 3. Pending Invoices - NO OVERDUE SECTION) */}
+      {/* 5 FINANCE MODULE TABS (MATCHING RECRUITMENT MODULE PILL NAVIGATION PATTERN) */}
       <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          marginBottom: 24,
+        }}
+      >
+        {/* TAB 1: Weekly Update (A) */}
+        <button
+          type="button"
+          onClick={() => handleTabChange('weekly_update')}
+          style={{
+            background: activeFinanceTab === 'weekly_update' ? '#0D9488' : '#FFFFFF',
+            color: activeFinanceTab === 'weekly_update' ? '#FFFFFF' : '#374151',
+            border: activeFinanceTab === 'weekly_update' ? '1px solid #0F766E' : '1px solid #E5E7EB',
+            borderRadius: 99,
+            padding: '9px 18px',
+            fontSize: 12.5,
+            fontWeight: 800,
+            cursor: 'pointer',
+            boxShadow:
+              activeFinanceTab === 'weekly_update'
+                ? '0 4px 12px rgba(13, 148, 136, 0.25)'
+                : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          Weekly Update (A) (147)
+        </button>
+
+        {/* TAB 2: Bill Raised (B) */}
+        <button
+          type="button"
+          onClick={() => handleTabChange('bill_raised')}
+          style={{
+            background: activeFinanceTab === 'bill_raised' ? '#D97706' : '#FFFFFF',
+            color: activeFinanceTab === 'bill_raised' ? '#FFFFFF' : '#374151',
+            border: activeFinanceTab === 'bill_raised' ? '1px solid #B45309' : '1px solid #E5E7EB',
+            borderRadius: 99,
+            padding: '9px 18px',
+            fontSize: 12.5,
+            fontWeight: 800,
+            cursor: 'pointer',
+            boxShadow:
+              activeFinanceTab === 'bill_raised'
+                ? '0 4px 12px rgba(217, 119, 6, 0.25)'
+                : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          Bill Raised (B) (8)
+        </button>
+
+        {/* TAB 3: Bill Cleared */}
+        <button
+          type="button"
+          onClick={() => handleTabChange('bill_cleared')}
+          style={{
+            background: activeFinanceTab === 'bill_cleared' ? '#10B981' : '#FFFFFF',
+            color: activeFinanceTab === 'bill_cleared' ? '#FFFFFF' : '#374151',
+            border: activeFinanceTab === 'bill_cleared' ? '1px solid #059669' : '1px solid #E5E7EB',
+            borderRadius: 99,
+            padding: '9px 18px',
+            fontSize: 12.5,
+            fontWeight: 800,
+            cursor: 'pointer',
+            boxShadow:
+              activeFinanceTab === 'bill_cleared'
+                ? '0 4px 12px rgba(16, 185, 129, 0.25)'
+                : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          Bill Cleared (95)
+        </button>
+
+        {/* TAB 4: Total (A+B+C+D) */}
+        <button
+          type="button"
+          onClick={() => handleTabChange('total_abcd')}
+          style={{
+            background: activeFinanceTab === 'total_abcd' ? '#7C3AED' : '#FFFFFF',
+            color: activeFinanceTab === 'total_abcd' ? '#FFFFFF' : '#374151',
+            border: activeFinanceTab === 'total_abcd' ? '1px solid #6D28D9' : '1px solid #E5E7EB',
+            borderRadius: 99,
+            padding: '9px 18px',
+            fontSize: 12.5,
+            fontWeight: 800,
+            cursor: 'pointer',
+            boxShadow:
+              activeFinanceTab === 'total_abcd'
+                ? '0 4px 12px rgba(124, 58, 237, 0.25)'
+                : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          Total (A+B+C+D) (₹14.07L)
+        </button>
+
+        {/* TAB 5: Payments & Invoices */}
+        <button
+          type="button"
+          onClick={() => handleTabChange('payments_invoices')}
+          style={{
+            background: activeFinanceTab === 'payments_invoices' ? '#2563EB' : '#FFFFFF',
+            color: activeFinanceTab === 'payments_invoices' ? '#FFFFFF' : '#374151',
+            border: activeFinanceTab === 'payments_invoices' ? '1px solid #1D4ED8' : '1px solid #E5E7EB',
+            borderRadius: 99,
+            padding: '9px 18px',
+            fontSize: 12.5,
+            fontWeight: 800,
+            cursor: 'pointer',
+            boxShadow:
+              activeFinanceTab === 'payments_invoices'
+                ? '0 4px 12px rgba(37, 99, 235, 0.25)'
+                : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          Payments &amp; Invoices ({invoices.length})
+        </button>
+      </div>
+
+      {/* SECTION 1: WEEKLY UPDATE (A) */}
+      {activeFinanceTab === 'weekly_update' && (
+        <WeeklyUpdateSection
+          onNavigateToRaised={() => handleTabChange('bill_raised')}
+          onMoveCandidatesToRaised={() => handleTabChange('bill_raised')}
+        />
+      )}
+
+      {/* SECTION 2: BILL RAISED (B) */}
+      {activeFinanceTab === 'bill_raised' && (
+        <BillRaisedSection onInvoiceCleared={() => handleTabChange('bill_cleared')} />
+      )}
+
+      {/* SECTION 3: BILL CLEARED */}
+      {activeFinanceTab === 'bill_cleared' && <BillClearedSection />}
+
+      {/* SECTION 4: TOTAL (A+B+C+D) */}
+      {activeFinanceTab === 'total_abcd' && (
+        <TotalConsolidatedSection
+          onDrillDownTab={(target) => {
+            if (target === 'weekly') handleTabChange('weekly_update');
+            else if (target === 'raised') handleTabChange('bill_raised');
+            else if (target === 'cleared') handleTabChange('bill_cleared');
+            else if (target === 'invoices') handleTabChange('payments_invoices');
+          }}
+        />
+      )}
+
+      {/* SECTION 5: PAYMENTS & INVOICES (EXISTING DASHBOARD) */}
+      {activeFinanceTab === 'payments_invoices' && (
+        <>
+          {/* METRIC STAT CARDS (EXACTLY 3 SECTIONS: 1. Revenue All Time, 2. Revenue This Month, 3. Pending Invoices - NO OVERDUE SECTION) */}
+          <div
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
@@ -3847,6 +4042,8 @@ export function FinanceInvoicesView() {
           </table>
         </div>
       </div>
+        </>
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL 1: ADD CLIENT COMPANY MODAL */}
