@@ -8,6 +8,7 @@ import { getAuthUser } from '@/lib/auth';
 const updateCandidateSchema = z.object({
   slNo: z.number().optional(),
   date: z.string().optional(),
+  time: z.string().optional(),
   name: z.string().optional(),
   number: z.string().optional(),
   languages: z.string().optional(),

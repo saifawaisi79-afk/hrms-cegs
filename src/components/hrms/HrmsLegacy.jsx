@@ -20,6 +20,7 @@ import {
 import { isOversightOnly, getRecruiters } from '@/lib/nav';
 import { WalkinsSelectionsSection } from '@/components/recruitment/WalkinsSelectionsSection';
 import { JoinerSheetSection } from '@/components/recruitment/JoinerSheetSection';
+import { TeamVisitsSection, formatVisitTime } from '@/components/attendance/TeamVisitsMonitor';
 import {
   allocateLeavePay,
   calcLeaveBalance,
@@ -3521,6 +3522,7 @@ export function AttendancePage({ db, save, user }) {
  // Strip invented sheet punches so the live timer does not start
  const isSheet = source === 'sheet';
  return {
+ ...a,
  id: a.id || a._id,
  uid: a.uid || a.user_id,
  date: a.date,
@@ -3530,6 +3532,10 @@ export function AttendancePage({ db, save, user }) {
  hrs: isSheet ? 0 : (a.hrs ?? a.work_hours ?? 0),
  auto: source === 'auto' || source === 'sheet',
  source,
+ visit_status: a.visit_status || 'in_office',
+ company_visit_out_time: a.company_visit_out_time || null,
+ company_visit_in_time: a.company_visit_in_time || null,
+ visit_logs: Array.isArray(a.visit_logs) ? a.visit_logs : [],
  };
  });
  const byKey = new Map();
@@ -3890,6 +3896,11 @@ export function AttendancePage({ db, save, user }) {
  </div>
  </div>
 
+ {/* HR & Finance Live Team Office Visits Section */}
+ {isAdmin && (
+   <TeamVisitsSection db={db} currentUser={user} onRefresh={() => {}} />
+ )}
+
  <div style={{display:'grid',gridTemplateColumns:'5fr 3fr',gap:20}}>
  <div className="card">
  <div className="card-hdr"><div className="section-title">Attendance Log</div></div>
@@ -3930,16 +3941,15 @@ export function AttendancePage({ db, save, user }) {
  ) : (
  <span className={`badge ${a.status==='present'?'b-success':a.status==='late'?'b-pending':'b-error'}`}><span className="badge-dot"/>{a.status}</span>
  )}
- {a.visit_status === 'company_visit' && (
- <span style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)', padding: '1px 6px', borderRadius: 99, fontSize: 10, fontWeight: 700 }}>
- 🚗 Visit
+ {a.visit_status === 'company_visit' ? (
+ <span style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', padding: '2px 8px', borderRadius: 8, fontSize: 10.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+ 🚗 Out (Went: {formatVisitTime(a.company_visit_out_time)})
  </span>
- )}
- {Array.isArray(a.visit_logs) && a.visit_logs.length > 0 && a.visit_status !== 'company_visit' && (
- <span title={`${a.visit_logs.length} official company visits`} style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '1px 6px', borderRadius: 99, fontSize: 10, fontWeight: 700 }}>
- 🏢 {a.visit_logs.length} visit{a.visit_logs.length > 1 ? 's' : ''}
+ ) : (a.company_visit_out_time || (Array.isArray(a.visit_logs) && a.visit_logs.length > 0)) ? (
+ <span style={{ background: '#EFF6FF', color: '#1E40AF', border: '1px solid #BFDBFE', padding: '2px 8px', borderRadius: 8, fontSize: 10.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+ 🚗 Visit: {formatVisitTime(a.company_visit_out_time)} → {formatVisitTime(a.company_visit_in_time)}
  </span>
- )}
+ ) : null}
  </div>
  </td>
  </tr>;
@@ -8430,6 +8440,58 @@ export const getRecruitmentTargets = (isFinance) => {
   };
 };
 
+export function getLiveTime12() {
+  try {
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date()).toUpperCase();
+  } catch {
+    const d = new Date();
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+  }
+}
+
+export function formatCandidateTime(timeStr, createdAt) {
+  if (timeStr && String(timeStr).trim()) {
+    const raw = String(timeStr).trim();
+    if (/am|pm/i.test(raw)) {
+      return raw.replace(/:\d{2}(\s*[ap]m)/i, '$1');
+    }
+    const parts = raw.split(':');
+    if (parts.length >= 2) {
+      let h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+      }
+    }
+    return raw;
+  }
+  if (createdAt) {
+    try {
+      const dt = new Date(createdAt);
+      if (!isNaN(dt.getTime())) {
+        return new Intl.DateTimeFormat('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }).format(dt).toUpperCase();
+      }
+    } catch {}
+  }
+  return '—';
+}
+
 export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTargetUser, openChatWithUser, initialSheet = 'calls', variant = 'full' }) {
  const isSA = isOversightOnly(user);
  const isHR = user?.role === 'admin' || user?.role === 'finance' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
@@ -8625,7 +8687,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  
  // Inline Excel-style add / edit state (no modal)
  const emptyCandidateForm = {
- name: '', number: '', languages: 'English', qualification: '', response: '', callStatus: 'Select Status', location: 'Bengaluru', company: 'Select Company', experience: 0, followUp1: '', followUp2: '', followUp3: ''
+ name: '', number: '', time: '', languages: 'English', qualification: '', response: '', callStatus: 'Select Status', location: 'Bengaluru', company: 'Select Company', experience: 0, followUp1: '', followUp2: '', followUp3: ''
  };
  const [isAdding, setIsAdding] = useState(false);
  const [editingId, setEditingId] = useState(null);
@@ -9014,7 +9076,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  setEditingId(null);
  setEditForm(null);
  setFormError('');
- setCandidateForm(emptyCandidateForm);
+ setCandidateForm({ ...emptyCandidateForm, time: getLiveTime12() });
  setIsAdding(true);
  setTimeout(() => {
  try { tableScrollRef.current?.scrollTo?.({ left: 0, behavior: 'smooth' }); } catch {}
@@ -9050,10 +9112,12 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return candidateMatchesTask(c, activeTaskCategory);
  });
 
+ const autoTime = getLiveTime12();
  const draftRow = {
  ...candidateForm,
  slNo: categoryRows.length + 1,
  date: formatSheetDateDisplay(sheetDate),
+ time: candidateForm.time || autoTime,
  category: activeTaskCategory,
  company: candidateForm.company === 'Select Company' ? '' : candidateForm.company,
  employee: (selectedEmployeeFilter && selectedEmployeeFilter !== 'ALL')
@@ -9113,6 +9177,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  setEditForm({
  name: row.name || '',
  number: row.number || '',
+ time: row.time || formatCandidateTime(row.time, row.createdAt),
  languages: row.languages || 'English',
  qualification: row.qualification || '',
  response: row.response || '',
@@ -9164,6 +9229,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  experience: Number(editForm.experience) || 0,
  category: editForm.category || activeTaskCategory,
  date: editForm.date || formatSheetDateDisplay(sheetDate),
+ time: editForm.time || formatCandidateTime(editForm.time, editForm.createdAt) || getLiveTime12(),
  company: editForm.company === 'Select Company' ? '' : (editForm.company || ''),
  };
 
@@ -9278,11 +9344,15 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  const rawStatus = String(findVal(['callstatus', 'status']) || '').trim();
  const rawDate = findVal(['date', 'dt']);
+ const rawTime = String(findVal(['time', 'calltime', 'entrytime', 'timestamp', 'hour']) || '').trim();
+ const autoTime = getLiveTime12();
+ const fileTime = rawTime ? formatCandidateTime(rawTime) : autoTime;
  const normalizedFromFile = normalizeCandidateDate(rawDate);
 
  return {
  slNo: baseSl + idx + 1,
  date: sheetDisplay,
+ time: fileTime,
  category: activeTaskCategory,
  name: String(findVal(['name', 'candidate']) || 'IMPORTED CANDIDATE').toUpperCase(),
  number: String(findVal(['number', 'contact', 'phone']) || ''),
@@ -9812,19 +9882,36 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <table className="datasheet-table">
  <thead>
  <tr>
- {(isSA
-   ? ['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Company', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3']
-   : ['SL No', 'Date', 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Company', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3', 'Action']
- ).map(h => (
- <th key={h} style={{ textAlign: h === 'Action' ? 'center' : 'left' }}>{h}</th>
- ))}
+ {(() => {
+   const isCallsSheet = activeTaskCategory === 'calls';
+   const secondCol = isCallsSheet ? 'Time' : 'Date';
+   const headers = isSA
+     ? ['SL No', secondCol, 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Company', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3']
+     : ['SL No', secondCol, 'Candidate Name', 'Contact Number', 'Languages', 'Qualification', 'Response', 'Call Status', 'Location', 'Company', 'Experience', 'Follow Up 1', 'Follow Up 2', 'Follow Up 3', 'Action'];
+   return headers.map(h => (
+     <th key={h} style={{ textAlign: h === 'Action' ? 'center' : 'left' }}>{h}</th>
+   ));
+ })()}
  </tr>
  </thead>
  <tbody>
  {isAdding && !isSA && (
  <tr className="datasheet-entry-row">
  <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{categoryCandidates.length + 1}</td>
+ {activeTaskCategory === 'calls' ? (
+ <td>
+ <input
+ className="cell-input"
+ value={candidateForm.time || getLiveTime12()}
+ readOnly
+ title="Auto-logged entry time (no manual entry required)"
+ style={{ fontWeight: 800, color: '#0284C7', background: 'rgba(2, 132, 199, 0.08)', cursor: 'default' }}
+ aria-label="Time"
+ />
+ </td>
+ ) : (
  <td><input className="cell-input" value={formatSheetDateDisplay(sheetDate)} readOnly aria-label="Date" /></td>
+ )}
  <td><input className="cell-input" autoFocus value={candidateForm.name} onChange={e => setCandidateForm({ ...candidateForm, name: e.target.value.toUpperCase() })} placeholder="NAME" aria-label="Candidate name" /></td>
  <td><input className="cell-input" value={candidateForm.number} onChange={e => setCandidateForm({ ...candidateForm, number: e.target.value })} placeholder="Phone" aria-label="Contact number" /></td>
  <td>
@@ -9891,7 +9978,20 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return (
  <tr key={rid} className="datasheet-entry-row datasheet-editing-row">
  <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{displaySl}</td>
+ {activeTaskCategory === 'calls' ? (
+ <td>
+ <input
+ className="cell-input"
+ value={editForm.time || formatCandidateTime(editForm.time, editForm.createdAt) || getLiveTime12()}
+ readOnly
+ title="Auto-logged entry time (no manual entry required)"
+ style={{ fontWeight: 800, color: '#0284C7', background: 'rgba(2, 132, 199, 0.08)', cursor: 'default' }}
+ aria-label="Time"
+ />
+ </td>
+ ) : (
  <td><input className="cell-input" value={editForm.date || ''} onChange={e => setEditForm({ ...editForm, date: e.target.value })} aria-label="Date" /></td>
+ )}
  <td><input className="cell-input" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value.toUpperCase() })} aria-label="Candidate name" /></td>
  <td><input className="cell-input" value={editForm.number} onChange={e => setEditForm({ ...editForm, number: e.target.value })} aria-label="Contact number" /></td>
  <td>
@@ -9943,7 +10043,18 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return (
  <tr key={rid}>
  <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{displaySl}</td>
- {cell(row.date)}
+ {activeTaskCategory === 'calls' ? (
+ <td
+ style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 700, color: '#0369A1', whiteSpace: 'nowrap', fontFamily: 'JetBrains Mono, monospace' }}
+ title={`Logged at ${formatCandidateTime(row.time, row.createdAt)} (Sheet date: ${row.date || formatSheetDateDisplay(sheetDate)})`}
+ >
+ <span style={{ background: '#E0F2FE', color: '#0284C7', padding: '3px 8px', borderRadius: 8, fontSize: 11.5, fontWeight: 800, border: '1px solid #BAE6FD', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+ <Clock size={11} /> {formatCandidateTime(row.time, row.createdAt)}
+ </span>
+ </td>
+ ) : (
+ cell(row.date)
+ )}
  {cell(row.name)}
  {cell(row.number)}
  {cell(row.languages)}

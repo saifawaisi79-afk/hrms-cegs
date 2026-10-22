@@ -5,9 +5,44 @@ import Candidate from '@/lib/models/Candidate';
 import { getAuthUser } from '@/lib/auth';
 import { candidateDateMongoQuery } from '@/lib/candidate-dates';
 
+function getCurrentTime12(): string {
+  try {
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date()).toUpperCase();
+  } catch {
+    const d = new Date();
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+  }
+}
+
+function formatTimeFromDate(d: Date | string | null | undefined): string {
+  if (!d) return '';
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return '';
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }).format(dt).toUpperCase();
+  } catch {
+    return '';
+  }
+}
+
 const candidateSchema = z.object({
   slNo: z.number().optional().default(0),
   date: z.string().optional().default(''),
+  time: z.string().optional().default(''),
   name: z.string().optional().default(''),
   number: z.string().optional().default(''),
   languages: z.string().optional().default(''),
@@ -63,7 +98,8 @@ export async function GET(request: Request) {
     return NextResponse.json(candidates.map(c => ({
       ...c,
       id: c._id?.toString(),
-      _id: c._id?.toString()
+      _id: c._id?.toString(),
+      time: c.time || formatTimeFromDate((c as any).createdAt) || '',
     })));
   } catch (error: any) {
     console.error('Candidate GET Error:', error);
@@ -81,6 +117,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     await connectDB();
+    const autoNowTime = getCurrentTime12();
     
     // Bulk insert
     if (Array.isArray(body)) {
@@ -88,7 +125,11 @@ export async function POST(request: Request) {
       if (!parsedArray.success) {
         return NextResponse.json({ error: 'Validation failed', details: parsedArray.error.issues }, { status: 400 });
       }
-      const inserted = await Candidate.insertMany(parsedArray.data);
+      const dataWithTime = parsedArray.data.map(item => ({
+        ...item,
+        time: item.time && item.time.trim() ? item.time : autoNowTime,
+      }));
+      const inserted = await Candidate.insertMany(dataWithTime);
       return NextResponse.json(inserted.map(c => ({ ...c.toObject(), id: c._id.toString() })), { status: 201 });
     }
 
@@ -97,7 +138,11 @@ export async function POST(request: Request) {
     if (!parsedSingle.success) {
       return NextResponse.json({ error: 'Validation failed', details: parsedSingle.error.issues }, { status: 400 });
     }
-    const candidate = await Candidate.create(parsedSingle.data);
+    const singleData = {
+      ...parsedSingle.data,
+      time: parsedSingle.data.time && parsedSingle.data.time.trim() ? parsedSingle.data.time : autoNowTime,
+    };
+    const candidate = await Candidate.create(singleData);
     return NextResponse.json({ ...candidate.toObject(), id: candidate._id.toString() }, { status: 201 });
   } catch (error: any) {
     console.error('Candidate POST Error:', error);

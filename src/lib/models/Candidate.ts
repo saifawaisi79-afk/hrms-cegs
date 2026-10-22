@@ -3,6 +3,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export interface ICandidate extends Document {
   slNo: number;
   date: string;
+  time?: string;
   name: string;
   number: string;
   languages: string;
@@ -24,6 +25,7 @@ export interface ICandidate extends Document {
 const CandidateSchema: Schema<ICandidate> = new mongoose.Schema({
   slNo:          { type: Number, default: 0 },
   date:          { type: String, default: '' },
+  time:          { type: String, default: '' },
   name:          { type: String, default: '' },
   number:        { type: String, default: '' },
   languages:     { type: String, default: '' },

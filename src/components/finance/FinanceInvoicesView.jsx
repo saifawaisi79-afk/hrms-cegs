@@ -2,6 +2,8 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
+import { useApp } from '@/contexts/AppContext';
+import { TeamVisitsFinanceCard } from '@/components/attendance/TeamVisitsMonitor';
 import {
   Download,
   Plus,
@@ -1754,6 +1756,7 @@ function ModernInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, tot
 }
 
 export function FinanceInvoicesView() {
+  const { user, db } = useApp();
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3179,6 +3182,9 @@ export function FinanceInvoicesView() {
           </button>
         </div>
       </div>
+
+      {/* TEAM OFFICE & CLIENT VISITS TODAY (DEPARTURE & RETURN TRACKING) */}
+      <TeamVisitsFinanceCard db={db} currentUser={user} />
 
       {/* METRIC STAT CARDS (EXACTLY 3 SECTIONS: 1. Revenue All Time, 2. Revenue This Month, 3. Pending Invoices - NO OVERDUE SECTION) */}
       <div

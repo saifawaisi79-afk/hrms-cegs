@@ -9,6 +9,7 @@ import { IC } from '@/components/hrms/HrmsLegacy';
 import { isNavGroupActive } from '@/lib/nav';
 import { NavDropdown } from './NavDropdown';
 import { CompanyVisitHeaderStatus } from '@/components/attendance/CompanyVisitHeaderStatus';
+import { TeamVisitsHeaderCapsule } from '@/components/attendance/TeamVisitsMonitor';
 
 function MobileNavSection({ title, items, onNavigate }) {
   const [open, setOpen] = useState(true);
@@ -178,6 +179,9 @@ export function AppHeader() {
         <div className="header-right">
           {/* Today's Status: Company Visit > Back to Office */}
           <CompanyVisitHeaderStatus currentUser={user} db={db} save={save} />
+
+          {/* HR & Finance: Office Visits Tracker Capsule (Shows who left & returned) */}
+          <TeamVisitsHeaderCapsule db={db} currentUser={user} />
 
           <button
             type="button"
