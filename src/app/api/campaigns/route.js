@@ -57,7 +57,7 @@ export async function GET(request) {
     .sort({ name: 1 })
     .lean();
 
-  const canManage = requireRole(authUser, ['admin', 'super_admin']);
+  const canManage = requireRole(authUser, ['admin', 'super_admin', 'finance']);
 
   if (!campaign) {
     return NextResponse.json({
@@ -110,7 +110,7 @@ export async function GET(request) {
 export async function POST(request) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
-  if (!requireRole(authUser, ['admin', 'super_admin'])) {
+  if (!requireRole(authUser, ['admin', 'super_admin', 'finance'])) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

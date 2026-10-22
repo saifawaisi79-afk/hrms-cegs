@@ -11,7 +11,8 @@ export async function GET(request) {
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
   await connectDB();
-  const filter = isSelfServiceRole(authUser.role) ? { user_id: authUser.id } : {};
+  // All staff payroll records shifted strictly to super_admin. HR and other roles only see own salary & payslips.
+  const filter = authUser.role === 'super_admin' ? {} : { user_id: authUser.id };
   const slips = await Payroll.find(filter)
     .populate({ path: 'user_id', select: 'name employee_id avatar_url designation department_id', populate: { path: 'department_id', select: 'name' } })
     .sort({ year: -1, month: -1 })
@@ -22,8 +23,8 @@ export async function GET(request) {
 export async function POST(request) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
-  if (!requireRole(authUser, ['admin', 'super_admin'])) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!requireRole(authUser, ['super_admin'])) {
+    return NextResponse.json({ error: 'Forbidden. Only Super Admin can run payroll.' }, { status: 403 });
   }
 
   const { month, year } = await request.json();

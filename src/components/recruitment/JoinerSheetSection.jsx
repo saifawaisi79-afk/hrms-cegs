@@ -63,6 +63,65 @@ function mapJoinedCandidate(cand, index) {
   };
 }
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+function extractRowYearMonth(r) {
+  const candidates = [r.dateOfJoining, r.rawDate, r.interviewDate, r.billingDate, r.createdAt].filter(Boolean);
+  for (const raw of candidates) {
+    if (typeof raw !== 'string' && typeof raw !== 'number') continue;
+    const s = String(raw).trim();
+    if (!s || s === '—' || s === '-') continue;
+
+    // YYYY-MM-DD or YYYY/MM/DD
+    let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (m) {
+      const y = parseInt(m[1], 10);
+      const mo = parseInt(m[2], 10);
+      if (mo >= 1 && mo <= 12) {
+        return {
+          key: `${y}-${String(mo).padStart(2, '0')}`,
+          label: `${MONTH_NAMES[mo - 1]} ${y}`,
+          year: y,
+          month: mo,
+        };
+      }
+    }
+
+    // DD/MM/YYYY or DD-MM-YYYY or DD/MM/YY
+    m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
+    if (m) {
+      let y = parseInt(m[3], 10);
+      if (y < 100) y += 2000;
+      const mo = parseInt(m[2], 10);
+      if (mo >= 1 && mo <= 12) {
+        return {
+          key: `${y}-${String(mo).padStart(2, '0')}`,
+          label: `${MONTH_NAMES[mo - 1]} ${y}`,
+          year: y,
+          month: mo,
+        };
+      }
+    }
+
+    // Fallback Date parser
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const mo = d.getMonth() + 1;
+      return {
+        key: `${y}-${String(mo).padStart(2, '0')}`,
+        label: `${MONTH_NAMES[mo - 1]} ${y}`,
+        year: y,
+        month: mo,
+      };
+    }
+  }
+  return null;
+}
+
 /**
  * Joiner Sheet — Google Sheets style (SL, Name, Phone, Process, DOJ, Billing,
  * Emp ID, Interview date, Recruiter, Week 1–8 follow-ups).
@@ -72,6 +131,7 @@ export function JoinerSheetSection({ db, user, canEdit = true, employeeFilter = 
   const [overlays, setOverlays] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [companyTab, setCompanyTab] = useState('ALL');
+  const [monthFilter, setMonthFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('Ready');
   const [error, setError] = useState('');
@@ -184,11 +244,46 @@ export function JoinerSheetSection({ db, user, canEdit = true, employeeFilter = 
     return merged.map((r, i) => ({ ...r, displaySl: i + 1 }));
   }, [sheetRows, manualOnly]);
 
+  const { availableMonths, monthCounts } = useMemo(() => {
+    const counts = {};
+    const monthMap = new Map();
+
+    allRows.forEach((r) => {
+      const ym = extractRowYearMonth(r);
+      const k = ym ? ym.key : 'unassigned';
+      counts[k] = (counts[k] || 0) + 1;
+      if (ym && !monthMap.has(k)) {
+        monthMap.set(k, ym);
+      }
+    });
+
+    const now = new Date();
+    const curY = now.getFullYear();
+    const curM = now.getMonth() + 1;
+    const curK = `${curY}-${String(curM).padStart(2, '0')}`;
+    if (!monthMap.has(curK)) {
+      monthMap.set(curK, {
+        key: curK,
+        label: `${MONTH_NAMES[curM - 1]} ${curY}`,
+        year: curY,
+        month: curM,
+      });
+    }
+
+    const sortedMonths = [...monthMap.values()].sort((a, b) => b.key.localeCompare(a.key));
+    return { availableMonths: sortedMonths, monthCounts: counts };
+  }, [allRows]);
+
   const filtered = useMemo(() => {
     return allRows.filter((r) => {
       if (companyTab !== 'ALL') {
         const p = String(r.process || '').toUpperCase();
         if (!p.includes(companyTab)) return false;
+      }
+      if (monthFilter !== 'ALL') {
+        const ym = extractRowYearMonth(r);
+        const k = ym ? ym.key : 'unassigned';
+        if (k !== monthFilter) return false;
       }
       const q = search.toLowerCase().trim();
       if (!q) return true;
@@ -200,17 +295,24 @@ export function JoinerSheetSection({ db, user, canEdit = true, employeeFilter = 
         String(r.employeeCode || '').toLowerCase().includes(q)
       );
     });
-  }, [allRows, companyTab, search]);
+  }, [allRows, companyTab, monthFilter, search]);
 
   const tabCounts = useMemo(() => {
-    const counts = { ALL: allRows.length };
+    const baseList = monthFilter === 'ALL'
+      ? allRows
+      : allRows.filter((r) => {
+          const ym = extractRowYearMonth(r);
+          return (ym ? ym.key : 'unassigned') === monthFilter;
+        });
+
+    const counts = { ALL: baseList.length };
     COMPANY_TABS.slice(1).forEach((c) => {
-      counts[c] = allRows.filter((r) =>
+      counts[c] = baseList.filter((r) =>
         String(r.process || '').toUpperCase().includes(c)
       ).length;
     });
     return counts;
-  }, [allRows]);
+  }, [allRows, monthFilter]);
 
   const authHeaders = () => ({
     'Content-Type': 'application/json',
@@ -393,7 +495,7 @@ export function JoinerSheetSection({ db, user, canEdit = true, employeeFilter = 
             <span style={{ color: status.includes('Error') ? '#B45309' : '#059669' }}>{status}</span>
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             type="button"
             className="btn btn-secondary"
@@ -402,6 +504,54 @@ export function JoinerSheetSection({ db, user, canEdit = true, employeeFilter = 
           >
             Refresh
           </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <select
+              className="form-input"
+              style={{
+                borderRadius: 99,
+                padding: '8px 14px',
+                fontSize: 12,
+                fontWeight: 700,
+                minHeight: 40,
+                cursor: 'pointer',
+                background: monthFilter !== 'ALL' ? '#EFF6FF' : '#FFFFFF',
+                borderColor: monthFilter !== 'ALL' ? '#2563EB' : '#D1D5DB',
+                color: monthFilter !== 'ALL' ? '#1D4ED8' : '#374151',
+              }}
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              aria-label="Filter by month"
+            >
+              <option value="ALL">📅 All Months ({allRows.length})</option>
+              {availableMonths.map((m) => (
+                <option key={m.key} value={m.key}>
+                  📅 {m.label} ({monthCounts[m.key] || 0})
+                </option>
+              ))}
+              {monthCounts['unassigned'] > 0 && (
+                <option value="unassigned">📅 Unassigned Date ({monthCounts['unassigned']})</option>
+              )}
+            </select>
+            {monthFilter !== 'ALL' && (
+              <button
+                type="button"
+                onClick={() => setMonthFilter('ALL')}
+                style={{
+                  borderRadius: 99,
+                  padding: '6px 10px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  background: '#F1F5F9',
+                  border: '1px solid #CBD5E1',
+                  color: '#475569',
+                  cursor: 'pointer',
+                }}
+                title="Reset to all months"
+              >
+                ✕ Reset
+              </button>
+            )}
+          </div>
           <input
             className="form-input"
             style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, width: 220, minHeight: 40 }}
@@ -413,7 +563,7 @@ export function JoinerSheetSection({ db, user, canEdit = true, employeeFilter = 
       </div>
 
       {/* Company tabs like Google Sheet (ISON, …) */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
         {COMPANY_TABS.map((tab) => (
           <button
             key={tab}
@@ -433,6 +583,67 @@ export function JoinerSheetSection({ db, user, canEdit = true, employeeFilter = 
             {tab === 'ALL' ? 'All Companies' : tab} ({tabCounts[tab] || 0})
           </button>
         ))}
+      </div>
+
+      {/* Month-wise quick filter pills */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', marginRight: 4 }}>
+          Month:
+        </span>
+        <button
+          type="button"
+          onClick={() => setMonthFilter('ALL')}
+          style={{
+            borderRadius: 99,
+            padding: '5px 12px',
+            fontSize: 11.5,
+            fontWeight: 800,
+            border: monthFilter === 'ALL' ? '2px solid #2563EB' : '1px solid #E2E8F0',
+            background: monthFilter === 'ALL' ? '#2563EB' : '#FFFFFF',
+            color: monthFilter === 'ALL' ? '#FFFFFF' : '#475569',
+            cursor: 'pointer',
+            boxShadow: monthFilter === 'ALL' ? '0 2px 6px rgba(37,99,235,0.2)' : 'none',
+          }}
+        >
+          All Months ({allRows.length})
+        </button>
+        {availableMonths.slice(0, 6).map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            onClick={() => setMonthFilter(m.key)}
+            style={{
+              borderRadius: 99,
+              padding: '5px 12px',
+              fontSize: 11.5,
+              fontWeight: 800,
+              border: monthFilter === m.key ? '2px solid #2563EB' : '1px solid #E2E8F0',
+              background: monthFilter === m.key ? '#2563EB' : '#FFFFFF',
+              color: monthFilter === m.key ? '#FFFFFF' : '#475569',
+              cursor: 'pointer',
+              boxShadow: monthFilter === m.key ? '0 2px 6px rgba(37,99,235,0.2)' : 'none',
+            }}
+          >
+            {m.label} ({monthCounts[m.key] || 0})
+          </button>
+        ))}
+        {availableMonths.length > 6 && monthFilter !== 'ALL' && !availableMonths.slice(0, 6).some((m) => m.key === monthFilter) && (
+          <button
+            type="button"
+            style={{
+              borderRadius: 99,
+              padding: '5px 12px',
+              fontSize: 11.5,
+              fontWeight: 800,
+              border: '2px solid #2563EB',
+              background: '#2563EB',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+            }}
+          >
+            {availableMonths.find((m) => m.key === monthFilter)?.label || monthFilter} ({monthCounts[monthFilter] || 0})
+          </button>
+        )}
       </div>
 
       {error && (

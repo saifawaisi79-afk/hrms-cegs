@@ -11,7 +11,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 function canViewAll(authUser) {
-  return authUser.role === 'admin' || authUser.role === 'super_admin';
+  return authUser.role === 'admin' || authUser.role === 'super_admin' || authUser.role === 'finance';
 }
 
 // GET /api/attendance-warnings

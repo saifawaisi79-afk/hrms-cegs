@@ -24,7 +24,7 @@ export async function GET(request) {
     return NextResponse.json({ assigned: false, monthKey, snapshot: null });
   }
 
-  const canManage = requireRole(authUser, ['admin', 'super_admin']);
+  const canManage = requireRole(authUser, ['admin', 'super_admin', 'finance']);
   const isParticipant = (campaign.participantIds || []).some(
     (id) => String(id) === String(authUser.id)
   );

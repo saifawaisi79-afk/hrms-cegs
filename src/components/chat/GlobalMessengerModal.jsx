@@ -66,6 +66,42 @@ function compressImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) {
   });
 }
 
+function formatChatDividerDate(timeStr) {
+  if (!timeStr) return '';
+  const d = new Date(timeStr);
+  if (isNaN(d.getTime())) return '';
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+  if (isToday) return 'Today';
+  if (isYesterday) return 'Yesterday';
+  return d.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  });
+}
+
+function getMessageDateKey(timeStr) {
+  if (!timeStr) return '';
+  const d = new Date(timeStr);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatMessageInlineDate(timeStr) {
+  if (!timeStr) return '';
+  const d = new Date(timeStr);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
 /**
  * WhatsApp-style message ticks:
  * - One grey tick: Sent
@@ -1366,174 +1402,273 @@ export function GlobalMessengerModal({
                   )}
                 </div>
               ) : (
-                conversation.map((m) => {
+                conversation.map((m, idx) => {
                   const isMe = String(m.fromId) === myId;
                   const senderName = m.fromName || (isMe ? 'You' : 'Member');
                   const nameColor = getUserColor(senderName);
                   const isSystem = m.isSystem || senderName === 'System';
 
+                  const currentDateKey = getMessageDateKey(m.time);
+                  const prevMessage = idx > 0 ? conversation[idx - 1] : null;
+                  const prevDateKey = prevMessage ? getMessageDateKey(prevMessage.time) : null;
+                  const showDateDivider = currentDateKey && currentDateKey !== prevDateKey;
+
                   if (isSystem) {
                     return (
-                      <div key={m.id || `${m.fromId}-${m.time}`} style={{ display: 'flex', justifyContent: 'center' }}>
-                        <div
-                          style={{
-                            background: '#F1F5F9',
-                            color: '#64748B',
-                            padding: '4px 14px',
-                            borderRadius: 99,
-                            fontSize: 11,
-                            fontWeight: 600,
-                          }}
-                        >
-                          {m.text}
+                      <React.Fragment key={m.id || `${m.fromId}-${m.time}`}>
+                        {showDateDivider && (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              margin: '14px 0 10px',
+                              position: 'relative',
+                              width: '100%',
+                            }}
+                          >
+                            <div
+                              style={{
+                                position: 'absolute',
+                                left: '10%',
+                                right: '10%',
+                                top: '50%',
+                                height: 1,
+                                background: 'rgba(0,0,0,0.06)',
+                                zIndex: 0,
+                              }}
+                            />
+                            <span
+                              style={{
+                                position: 'relative',
+                                zIndex: 1,
+                                background: '#FFFFFF',
+                                color: '#475569',
+                                fontSize: 11,
+                                fontWeight: 800,
+                                padding: '3px 14px',
+                                borderRadius: 99,
+                                border: '1px solid #E2E8F0',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
+                            >
+                              <span>📅</span>
+                              <span>{formatChatDividerDate(m.time)}</span>
+                            </span>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          <div
+                            style={{
+                              background: '#F1F5F9',
+                              color: '#64748B',
+                              padding: '4px 14px',
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {m.text}
+                          </div>
                         </div>
-                      </div>
+                      </React.Fragment>
                     );
                   }
 
                   return (
-                    <div
-                      key={m.id || `${m.fromId}-${m.time}`}
-                      style={{
-                        display: 'flex',
-                        justifyContent: isMe ? 'flex-end' : 'flex-start',
-                        alignItems: 'flex-start',
-                        gap: 8,
-                      }}
-                    >
-                      {!isMe && (
-                        <img
-                          src={
-                            m.fromAvatar ||
-                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(senderName)}`
-                          }
-                          alt=""
+                    <React.Fragment key={m.id || `${m.fromId}-${m.time}`}>
+                      {showDateDivider && (
+                        <div
                           style={{
-                            width: 30,
-                            height: 30,
-                            borderRadius: '50%',
-                            marginTop: 2,
-                            border: '1.5px solid #E2E8F0',
-                            flexShrink: 0,
-                            objectFit: 'cover',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '14px 0 10px',
+                            position: 'relative',
+                            width: '100%',
                           }}
-                        />
-                      )}
-
-                      <div
-                        style={{
-                          maxWidth: '75%',
-                          padding: '10px 14px',
-                          borderRadius: isMe ? '18px 18px 2px 18px' : '18px 18px 18px 2px',
-                          background: isMe ? 'var(--accent, #7C3AED)' : 'var(--bg-surface, #F1F5F9)',
-                          color: isMe ? '#FFFFFF' : 'var(--text-main, #0F172A)',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
-                          fontSize: 13.5,
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {!isMe && (
+                        >
                           <div
                             style={{
+                              position: 'absolute',
+                              left: '10%',
+                              right: '10%',
+                              top: '50%',
+                              height: 1,
+                              background: 'rgba(0,0,0,0.06)',
+                              zIndex: 0,
+                            }}
+                          />
+                          <span
+                            style={{
+                              position: 'relative',
+                              zIndex: 1,
+                              background: '#FFFFFF',
+                              color: '#475569',
                               fontSize: 11,
-                              fontWeight: 900,
-                              color: nameColor,
-                              marginBottom: 3,
-                              display: 'flex',
+                              fontWeight: 800,
+                              padding: '3px 14px',
+                              borderRadius: 99,
+                              border: '1px solid #E2E8F0',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                              display: 'inline-flex',
                               alignItems: 'center',
                               gap: 6,
                             }}
                           >
-                            <span>{senderName}</span>
-                            {m.fromRole && (
-                              <span
-                                style={{
-                                  fontSize: 9,
-                                  fontWeight: 800,
-                                  background: 'rgba(0,0,0,0.06)',
-                                  padding: '1px 5px',
-                                  borderRadius: 4,
-                                  color: '#475569',
-                                }}
-                              >
-                                {m.fromRole}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* ATTACHED IMAGE (Clickable Lightbox) */}
-                        {m.imageUrl && (
-                          <div
-                            onClick={() => setPreviewImage(m.imageUrl)}
+                            <span>📅</span>
+                            <span>{formatChatDividerDate(m.time)}</span>
+                          </span>
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: isMe ? 'flex-end' : 'flex-start',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                        }}
+                      >
+                        {!isMe && (
+                          <img
+                            src={
+                              m.fromAvatar ||
+                              `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(senderName)}`
+                            }
+                            alt=""
                             style={{
-                              borderRadius: 12,
-                              overflow: 'hidden',
-                              marginBottom: m.text ? 8 : 4,
-                              cursor: 'pointer',
-                              position: 'relative',
+                              width: 30,
+                              height: 30,
+                              borderRadius: '50%',
+                              marginTop: 2,
+                              border: '1.5px solid #E2E8F0',
+                              flexShrink: 0,
+                              objectFit: 'cover',
                             }}
-                          >
-                            <img
-                              src={m.imageUrl}
-                              alt="Photo"
-                              style={{
-                                display: 'block',
-                                maxWidth: '100%',
-                                maxHeight: 260,
-                                borderRadius: 10,
-                                objectFit: 'cover',
-                              }}
-                            />
-                            <div
-                              style={{
-                                position: 'absolute',
-                                bottom: 6,
-                                right: 6,
-                                background: 'rgba(0,0,0,0.6)',
-                                color: '#FFF',
-                                borderRadius: 6,
-                                padding: '2px 6px',
-                                fontSize: 10,
-                                fontWeight: 700,
-                              }}
-                            >
-                              🔍 View
-                            </div>
-                          </div>
+                          />
                         )}
 
-                        {/* TEXT MESSAGE */}
-                        {m.text && <div style={{ wordBreak: 'break-word' }}>{m.text}</div>}
-
-                        {/* TIMESTAMP & WHATSAPP TICKS */}
                         <div
                           style={{
-                            fontSize: 10,
-                            opacity: 0.8,
-                            marginTop: 4,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'flex-end',
-                            gap: 3,
-                            fontFamily: 'JetBrains Mono, monospace',
+                            maxWidth: '75%',
+                            padding: '10px 14px',
+                            borderRadius: isMe ? '18px 18px 2px 18px' : '18px 18px 18px 2px',
+                            background: isMe ? 'var(--accent, #7C3AED)' : 'var(--bg-surface, #F1F5F9)',
+                            color: isMe ? '#FFFFFF' : 'var(--text-main, #0F172A)',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+                            fontSize: 13.5,
+                            lineHeight: 1.4,
                           }}
                         >
-                          <span>
-                            {new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                          {!isMe && (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 900,
+                                color: nameColor,
+                                marginBottom: 3,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}
+                            >
+                              <span>{senderName}</span>
+                              {m.fromRole && (
+                                <span
+                                  style={{
+                                    fontSize: 9,
+                                    fontWeight: 800,
+                                    background: 'rgba(0,0,0,0.06)',
+                                    padding: '1px 5px',
+                                    borderRadius: 4,
+                                    color: '#475569',
+                                  }}
+                                >
+                                  {m.fromRole}
+                                </span>
+                              )}
+                            </div>
+                          )}
 
-                          {/* ONE TICK, TWO TICK, BLUE TICK */}
-                          <WhatsAppTicks
-                            isMe={isMe}
-                            read={m.read}
-                            readBy={m.readBy || m.read_by}
-                            isGroup={activeTab === 'groups'}
-                            myId={myId}
-                          />
+                          {/* ATTACHED IMAGE (Clickable Lightbox) */}
+                          {m.imageUrl && (
+                            <div
+                              onClick={() => setPreviewImage(m.imageUrl)}
+                              style={{
+                                borderRadius: 12,
+                                overflow: 'hidden',
+                                marginBottom: m.text ? 8 : 4,
+                                cursor: 'pointer',
+                                position: 'relative',
+                              }}
+                            >
+                              <img
+                                src={m.imageUrl}
+                                alt="Photo"
+                                style={{
+                                  display: 'block',
+                                  maxWidth: '100%',
+                                  maxHeight: 260,
+                                  borderRadius: 10,
+                                  objectFit: 'cover',
+                                }}
+                              />
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  bottom: 6,
+                                  right: 6,
+                                  background: 'rgba(0,0,0,0.6)',
+                                  color: '#FFF',
+                                  borderRadius: 6,
+                                  padding: '2px 6px',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                🔍 View
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TEXT MESSAGE */}
+                          {m.text && <div style={{ wordBreak: 'break-word' }}>{m.text}</div>}
+
+                          {/* TIMESTAMP & WHATSAPP TICKS */}
+                          <div
+                            style={{
+                              fontSize: 10,
+                              opacity: 0.8,
+                              marginTop: 4,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'flex-end',
+                              gap: 3,
+                              fontFamily: 'JetBrains Mono, monospace',
+                            }}
+                          >
+                            <span title={new Date(m.time).toLocaleDateString([], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}>
+                              <span style={{ opacity: 0.85, marginRight: 4, fontWeight: 700 }}>
+                                {formatMessageInlineDate(m.time)} ·
+                              </span>
+                              {new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+
+                            {/* ONE TICK, TWO TICK, BLUE TICK */}
+                            <WhatsAppTicks
+                              isMe={isMe}
+                              read={m.read}
+                              readBy={m.readBy || m.read_by}
+                              isGroup={activeTab === 'groups'}
+                              myId={myId}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </React.Fragment>
                   );
                 })
               )}

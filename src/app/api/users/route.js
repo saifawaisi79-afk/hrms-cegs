@@ -8,10 +8,10 @@ export async function GET(request) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
-  const elevated = ['admin', 'super_admin'].includes(authUser.role);
+  const elevated = ['admin', 'super_admin', 'finance'].includes(authUser.role);
   await connectDB();
   let q = elevated ? User.find({}) : User.find({ status: 'active' });
-  if (!elevated) q = q.select('employee_id name email role department_id designation joining_date status avatar_url');
+  if (!elevated) q = q.select('employee_id name email role department_id designation joining_date status avatar_url dob');
   const users = await q.populate('department_id', 'name').lean();
   return NextResponse.json(users.map(u => ({
     ...u,

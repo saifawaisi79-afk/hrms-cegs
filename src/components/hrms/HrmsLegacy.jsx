@@ -897,7 +897,7 @@ export function EmployeeQuickViewModal({ targetUser, currentUser, db, onClose, o
 
 export function LunchBreakWidget({ user, db, save }) {
  const lunchAllowedMins = getLunchAllowedMinutes(user);
- const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
+ const isHR = user?.role === 'admin' || user?.role === 'finance' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
  const isSA = user?.role === 'super_admin';
 
  const todayStr = new Date().toLocaleDateString('en-GB');
@@ -1581,25 +1581,156 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [user?.id]);
 
- // Merge approved leaves dynamically from db.leaves
- const approvedLeavesEvents = (db.leaves || []).filter(l => l.status === 'approved').map(l => ({
- id: `leave_${l.id}`,
- title: `Approved Leave - ${l.employee_name || l.person || 'Staff Member'}`,
- type: 'leave',
- date: l.start_date || l.start,
- person: l.employee_name || 'Staff Member',
- icon: '',
- badgeColor: '#EF4444',
- badgeBg: '#FEE2E2',
- notes: `${l.type || l.leave_type || 'Leave'} (${l.start || l.start_date} to ${l.end || l.end_date})`
- }));
+ // Only keep true custom events in db.events (filter out previously duplicated dynamic leaves, absents, birthdays)
+ const customEvents = useMemo(() => {
+   return (db.events || []).filter(e => 
+     e && 
+     !String(e.id || '').startsWith('leave_') && 
+     !String(e.id || '').startsWith('absent_') && 
+     !String(e.id || '').startsWith('bday_') &&
+     e.type !== 'absent'
+   );
+ }, [db.events]);
 
- const absentEvents = buildAbsentCalendarEvents(
- (db.attendance || []).filter((a) => String(a.status).toLowerCase() === 'absent'),
- db.users || []
- );
+ const baseEvents = customEvents.length > 0 ? customEvents : defaultEvents.filter(e => e.type !== 'birthday' && e.type !== 'leave');
 
- const allEventsCombined = [...eventsList, ...approvedLeavesEvents, ...absentEvents];
+ // Automatic clean-up of corrupt duplicate events in db.events
+ useEffect(() => {
+   if (Array.isArray(db.events) && db.events.some(e => e?.id?.startsWith('absent_') || e?.id?.startsWith('leave_') || e?.id?.startsWith('bday_') || e?.type === 'absent')) {
+     const cleaned = (db.events || []).filter(e => e && !e.id?.startsWith('absent_') && !e.id?.startsWith('leave_') && !e.id?.startsWith('bday_') && e.type !== 'absent');
+     save('events', cleaned);
+   }
+ }, [db.events, save]);
+
+ // Merge approved leaves dynamically from db.leaves (deduplicated)
+ const approvedLeavesEvents = useMemo(() => {
+   const map = new Map();
+   (db.leaves || []).filter(l => l.status === 'approved').forEach(l => {
+     const start = l.start_date || l.start;
+     const person = l.employee_name || l.person || 'Staff Member';
+     const key = `${start}_${person}`.toLowerCase();
+     if (!map.has(key)) {
+       map.set(key, {
+         id: `leave_${l.id || l._id || key}`,
+         title: `Approved Leave - ${person}`,
+         type: 'leave',
+         date: start,
+         person,
+         icon: 'calendar',
+         badgeColor: '#EF4444',
+         badgeBg: '#FEE2E2',
+         notes: `${l.type || l.leave_type || 'Leave'} (${start} to ${l.end || l.end_date || start})`
+       });
+     }
+   });
+   return [...map.values()];
+ }, [db.leaves]);
+
+ // Deduplicate absents (strictly 1 absent event per staff per date)
+ const absentEvents = useMemo(() => {
+   const absentMap = new Map();
+   (db.attendance || []).forEach((a) => {
+     if (String(a.status || '').toLowerCase() === 'absent') {
+       const uid = String(a.uid || a.user_id || '');
+       const dateStr = String(a.date || '').slice(0, 10);
+       if (uid && dateStr) {
+         const key = `${uid}_${dateStr}`;
+         if (!absentMap.has(key)) {
+           absentMap.set(key, a);
+         }
+       }
+     }
+   });
+   return buildAbsentCalendarEvents([...absentMap.values()], db.users || []);
+ }, [db.attendance, db.users]);
+
+ // Auto Team Event & Schedule Calendar: analyze entire users birthdays from db.users
+ const birthdayEvents = useMemo(() => {
+   const curYear = new Date().getFullYear();
+   const bdayMap = new Map();
+
+   const parseDobToMonthDay = (dobStr) => {
+     if (!dobStr || typeof dobStr !== 'string') return null;
+     const s = dobStr.trim();
+     if (!s) return null;
+     let m = s.match(/^\d{4}[-/](\d{1,2})[-/](\d{1,2})/);
+     if (m) {
+       const mo = parseInt(m[1], 10);
+       const dy = parseInt(m[2], 10);
+       if (mo >= 1 && mo <= 12 && dy >= 1 && dy <= 31) return { month: mo, day: dy };
+     }
+     m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/]\d{2,4}/);
+     if (m) {
+       const dy = parseInt(m[1], 10);
+       const mo = parseInt(m[2], 10);
+       if (mo >= 1 && mo <= 12 && dy >= 1 && dy <= 31) return { month: mo, day: dy };
+     }
+     const d = new Date(s);
+     if (!isNaN(d.getTime())) {
+       return { month: d.getMonth() + 1, day: d.getDate() };
+     }
+     return null;
+   };
+
+   const knownBirthdays = {
+     'saif': { month: 8, day: 12 },
+     'madiha': { month: 8, day: 22 },
+     'raheel': { month: 8, day: 28 },
+   };
+
+   (db.users || []).forEach((u) => {
+     if (!u || !u.name) return;
+     const uKey = String(u.id || u._id || u.name).toLowerCase();
+     if (bdayMap.has(uKey)) return;
+
+     let md = parseDobToMonthDay(u.dob);
+     if (!md) {
+       const lower = u.name.toLowerCase();
+       for (const [k, v] of Object.entries(knownBirthdays)) {
+         if (lower.includes(k)) {
+           md = { month: v.month, day: v.day };
+           break;
+         }
+       }
+     }
+
+     if (md) {
+       const dateStr = `${curYear}-${String(md.month).padStart(2, '0')}-${String(md.day).padStart(2, '0')}`;
+       bdayMap.set(uKey, {
+         id: `bday_${u.id || u._id || u.name}_${curYear}`,
+         title: `${u.name}'s Birthday 🎂`,
+         type: 'birthday',
+         date: dateStr,
+         person: u.name,
+         icon: 'cake',
+         badgeColor: '#EC4899',
+         badgeBg: '#FCE7F3',
+         notes: `${u.designation || u.role || 'Team Member'} Birthday Celebration`,
+       });
+     }
+   });
+
+   return [...bdayMap.values()];
+ }, [db.users]);
+
+ // Canonical deduplicated events collection
+ const allEventsCombined = useMemo(() => {
+   const eventMap = new Map();
+   const addEvt = (e) => {
+     if (!e || !e.type || !e.date) return;
+     const key = `${e.type}_${e.date}_${String(e.person || '').trim().toLowerCase()}_${String(e.title || '').trim().toLowerCase()}`;
+     if (!eventMap.has(key)) {
+       eventMap.set(key, e);
+     }
+   };
+
+   baseEvents.forEach(addEvt);
+   approvedLeavesEvents.forEach(addEvt);
+   absentEvents.forEach(addEvt);
+   birthdayEvents.forEach(addEvt);
+
+   return [...eventMap.values()];
+ }, [baseEvents, approvedLeavesEvents, absentEvents, birthdayEvents]);
 
  const handleAddEventSubmit = (e) => {
  e.preventDefault();
@@ -1625,7 +1756,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  notes: newEventForm.notes || ''
  };
 
- save('events', [...allEventsCombined, createdEvent]);
+ save('events', [...customEvents.filter(e => e.id !== createdEvent.id), createdEvent]);
  setShowAddEventModal(false);
  setNewEventForm({ title: '', type: 'leave', date: new Date().toISOString().split('T')[0], person: user?.name || '', notes: '' });
  };
@@ -3345,6 +3476,7 @@ export function AttendancePage({ db, save, user }) {
  if (!u) return 'employee';
  if (u.role === 'super_admin') return 'super_admin';
  if (u.role === 'admin') return 'admin';
+ if (u.role === 'finance') return 'finance';
  const title = (u.title || '').toLowerCase();
  if (title.includes('manager')) return 'manager';
  if (title.includes('recruiter')) return 'recruiter';
@@ -3353,7 +3485,7 @@ export function AttendancePage({ db, save, user }) {
  };
 
  const currentPermRole = getUserPermissionRole(user);
- const isAdmin = db.permissions?.[currentPermRole]?.attendance ?? ['admin','super_admin'].includes(user.role);
+ const isAdmin = db.permissions?.[currentPermRole]?.attendance ?? ['admin','super_admin','finance'].includes(user.role);
  const today = toIsoDate(new Date());
  const todayRec = (db.attendance || []).find(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today);
  // Live timer only for a real clock punch (not sheet-inferred / auto present)
@@ -3881,13 +4013,19 @@ export function PayrollPage({ db, save, user, setView }) {
  const [month, setMonth] = useState(now.getMonth() + 1);
  const [year] = useState(now.getFullYear());
  const [payslip, setPayslip] = useState(null);
- const [payrollTab, setPayrollTab] = useState('all'); // 'all' | 'mine'
+ const isSuperAdmin = user?.role === 'super_admin';
+ const isHR = user?.role === 'admin' || user?.role === 'finance' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
+ const canRunPayroll = isSuperAdmin;
+ const canViewAllStaff = isSuperAdmin; // Shifted exclusively to Super Admin. HR only gets authority to see My Salary & Payslips.
+
+ const [payrollTab, setPayrollTab] = useState(isSuperAdmin ? 'all' : 'mine'); // 'all' | 'mine'
  const [search, setSearch] = useState('');
 
- const isSuperAdmin = user?.role === 'super_admin';
- const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
- const canRunPayroll = isSuperAdmin;
- const canViewAllStaff = isSuperAdmin || isHR;
+ useEffect(() => {
+   if (!canViewAllStaff && payrollTab !== 'mine') {
+     setPayrollTab('mine');
+   }
+ }, [canViewAllStaff, payrollTab]);
 
  const profileUser =
  (db.users || []).find(
@@ -4975,7 +5113,7 @@ export function DocumentsPage({ db, save, user }) {
  ONBOARDING PAGE
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 export function OnboardingPage({ db, save, user }) {
- const isHRorSA = user?.role === 'super_admin' || user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
+ const isHRorSA = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'finance' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
 
  const [tab, setTab] = useState('onboard_dir'); // 'onboard_dir' | 'checklists' | 'audit'
  const [onboardModal, setOnboardModal] = useState(false);
@@ -5986,7 +6124,7 @@ export function NotificationsPage({ db, save, user }) {
  const [autoBirthday, setAutoBirthday] = useState(db.settings?.notifAutoBirthday ?? true);
  const [autoAppraisal, setAutoAppraisal] = useState(db.settings?.notifAutoAppraisal ?? true);
 
- const isHR = user.role === 'admin';
+ const isHR = user.role === 'admin' || user.role === 'finance';
  const isSA = user.role === 'super_admin';
  const canManage = isHR || isSA;
 
@@ -8294,7 +8432,7 @@ export const getRecruitmentTargets = (isFinance) => {
 
 export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, setChatTargetUser, openChatWithUser, initialSheet = 'calls', variant = 'full' }) {
  const isSA = isOversightOnly(user);
- const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
+ const isHR = user?.role === 'admin' || user?.role === 'finance' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
  const isEmp = !isSA && !isHR;
 
  const candidateDupKey = (c) => {
@@ -11203,7 +11341,7 @@ export function MeetingSchedulerPage({ db, save, user }) {
  const [slackNotif, setSlackNotif] = useState(db.settings?.calSlack ?? true);
  const [maxDuration, setMaxDuration] = useState(db.settings?.calMaxDuration ?? 30);
 
- const isHR = user.role === 'admin';
+ const isHR = user.role === 'admin' || user.role === 'finance';
  const isSA = user.role === 'super_admin';
  const canManage = isHR || isSA;
 
@@ -11568,7 +11706,7 @@ export function InternalJobPortalPage({ db, save, user }) {
  const [minTenure, setMinTenure] = useState(db.settings?.jobPortalMinTenure || 6);
  const [autoApproveHR, setAutoApproveHR] = useState(db.settings?.jobPortalAutoApproveHR || false);
 
- const isHR = user.role === 'admin';
+ const isHR = user.role === 'admin' || user.role === 'finance';
  const isSA = user.role === 'super_admin';
  const canManage = isHR || isSA;
 
@@ -12034,7 +12172,7 @@ export function RewardsPage({ db, save, user }) {
  const [requireApprove, setRequireApprove] = useState(db.rewardsSettings?.requireApproval ?? true);
  const [defaultPts, setDefaultPts] = useState(db.rewardsSettings?.defaultPoints ?? 50);
 
- const isHR = user.role === 'admin';
+ const isHR = user.role === 'admin' || user.role === 'finance';
  const isSA = user.role === 'super_admin';
  const canManage = isHR || isSA;
  

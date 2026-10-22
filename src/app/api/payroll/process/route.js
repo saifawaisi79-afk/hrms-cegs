@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic';
 export async function POST(request) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
-  if (!requireRole(authUser, ['admin', 'super_admin'])) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!requireRole(authUser, ['super_admin'])) {
+    return NextResponse.json({ error: 'Forbidden. Only Super Admin can process payroll.' }, { status: 403 });
   }
 
   const { month, year } = await request.json();

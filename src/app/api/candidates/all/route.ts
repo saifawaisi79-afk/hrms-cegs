@@ -22,7 +22,7 @@ export async function DELETE(request: Request) {
     const employeeParam = (url.searchParams.get('employee') || '').trim();
     const sheetDate = normalizeCandidateDate(dateParam) || todayIsoDate();
 
-    const isAdmin = requireRole(authUser, ['admin', 'super_admin']);
+    const isAdmin = requireRole(authUser, ['admin', 'super_admin', 'finance']);
     const selfName = String(authUser.name || '').trim();
 
     await connectDB();

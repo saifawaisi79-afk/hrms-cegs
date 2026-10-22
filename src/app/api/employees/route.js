@@ -48,7 +48,7 @@ export async function GET(request) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
-  const elevated = ['admin', 'super_admin'].includes(authUser.role);
+  const elevated = ['admin', 'super_admin', 'finance'].includes(authUser.role);
   await connectDB();
 
   let query = User.find(elevated ? {} : { status: 'active' })
@@ -87,7 +87,7 @@ export async function GET(request) {
 export async function POST(request) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
-  if (!requireRole(authUser, ['admin', 'super_admin'])) {
+  if (!requireRole(authUser, ['admin', 'super_admin', 'finance'])) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
