@@ -414,3 +414,102 @@ export function getClientPocs() {
 export function getClientPayouts() {
   return seedData.payouts || [];
 }
+
+/**
+ * Extract YYYY-MM key from any date string or period in the application
+ */
+export function extractMonthKey(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return '';
+  const str = dateStr.trim();
+
+  // 1. Direct YYYY-MM match (e.g. 2026-10 or 2026-10-20)
+  const isoMatch = str.match(/^(\d{4})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}`;
+
+  // 2. en-GB DD/MM/YYYY or DD-MM-YYYY
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (dmyMatch) {
+    let y = parseInt(dmyMatch[3], 10);
+    if (y < 100) y += 2000;
+    const m = String(parseInt(dmyMatch[2], 10)).padStart(2, '0');
+    return `${y}-${m}`;
+  }
+
+  // 3. Textual month with year, e.g. "19 Sept 2026", "19th Feb 2025", "Mach 2026", "2nd Feb-7th Feb"
+  const monthMap = {
+    jan: '01', feb: '02', mar: '03', mach: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', sept: '09', oct: '10', nov: '11', dec: '12',
+  };
+  const lower = str.toLowerCase();
+
+  const yearMatch = str.match(/\b(20\d{2})\b/);
+  const year = yearMatch ? yearMatch[1] : '2026';
+
+  for (const [mName, mNum] of Object.entries(monthMap)) {
+    if (lower.includes(mName)) {
+      return `${year}-${mNum}`;
+    }
+  }
+
+  // Fallback Date.parse
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    if (y >= 2020 && y <= 2035) return `${y}-${m}`;
+  }
+
+  return '';
+}
+
+/**
+ * Get current system/operational month key (e.g. "2026-10")
+ */
+export function getCurrentMonthKey() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+/**
+ * Format YYYY-MM key to friendly label (e.g. "October 2026")
+ */
+export function formatMonthLabel(key) {
+  if (!key || typeof key !== 'string') return key || '';
+  const parts = key.split('-');
+  if (parts.length === 2) {
+    const y = Number(parts[0]);
+    const m = Number(parts[1]) - 1;
+    const d = new Date(y, m, 1);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    }
+  }
+  return key;
+}
+
+/**
+ * Sort items so that entries for the current month appear first,
+ * followed by the rest in descending chronological order (newest first).
+ */
+export function sortItemsByCurrentMonthFirst(items, getDateFn) {
+  const currentKey = getCurrentMonthKey();
+  return [...items].sort((a, b) => {
+    const rawA = getDateFn ? getDateFn(a) || '' : (a?.date || '');
+    const rawB = getDateFn ? getDateFn(b) || '' : (b?.date || '');
+    const keyA = extractMonthKey(rawA);
+    const keyB = extractMonthKey(rawB);
+
+    const isCurrentA = keyA === currentKey;
+    const isCurrentB = keyB === currentKey;
+
+    if (isCurrentA && !isCurrentB) return -1;
+    if (!isCurrentA && isCurrentB) return 1;
+
+    // Both current or both non-current: sort newest month first
+    if (keyA !== keyB) {
+      return keyB.localeCompare(keyA);
+    }
+    // Secondary sort: compare raw string values descending
+    return String(rawB).localeCompare(String(rawA));
+  });
+}
+

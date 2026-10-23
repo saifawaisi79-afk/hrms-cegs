@@ -25,9 +25,13 @@ import {
   getInitialRaisedInvoices,
   saveRaisedInvoices,
   getClientPocs,
+  extractMonthKey,
+  getCurrentMonthKey,
+  formatMonthLabel,
+  sortItemsByCurrentMonthFirst,
 } from '@/lib/finance-data';
 
-export function BillRaisedSection({ onInvoiceCleared }) {
+export function BillRaisedSection({ onInvoiceCleared, onNavigateToCleared }) {
   const [invoices, setInvoices] = useState(getInitialRaisedInvoices);
   const pocs = useMemo(() => getClientPocs(), []);
 
@@ -35,6 +39,7 @@ export function BillRaisedSection({ onInvoiceCleared }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
 
   // Modals
   const [viewInvoice, setViewInvoice] = useState(null);
@@ -60,9 +65,21 @@ export function BillRaisedSection({ onInvoiceCleared }) {
     return Array.from(set).sort();
   }, [invoices]);
 
-  // Filtered Invoices
+  // Available billing months from invoices
+  const availableMonths = useMemo(() => {
+    const set = new Set();
+    const curKey = getCurrentMonthKey();
+    set.add(curKey);
+    invoices.forEach((inv) => {
+      const k = extractMonthKey(inv.invoiceDate || inv.dueDate);
+      if (k) set.add(k);
+    });
+    return Array.from(set).sort().reverse();
+  }, [invoices]);
+
+  // Filtered Invoices (Current Month entries shown first)
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
+    const list = invoices.filter((inv) => {
       const matchSearch =
         !searchQuery ||
         inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -70,9 +87,13 @@ export function BillRaisedSection({ onInvoiceCleared }) {
         inv.remarks?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchClient = selectedClient === 'ALL' || inv.client?.toLowerCase() === selectedClient.toLowerCase();
       const matchStatus = selectedStatus === 'ALL' || inv.status?.toLowerCase() === selectedStatus.toLowerCase();
-      return matchSearch && matchClient && matchStatus;
+      const invMonth = extractMonthKey(inv.invoiceDate || inv.dueDate);
+      const matchMonth = selectedMonth === 'ALL' || invMonth === selectedMonth;
+      return matchSearch && matchClient && matchStatus && matchMonth;
     });
-  }, [invoices, searchQuery, selectedClient, selectedStatus]);
+
+    return sortItemsByCurrentMonthFirst(list, (inv) => inv.invoiceDate || inv.dueDate);
+  }, [invoices, searchQuery, selectedClient, selectedStatus, selectedMonth]);
 
   // Metrics
   const metrics = useMemo(() => {
@@ -453,6 +474,32 @@ export function BillRaisedSection({ onInvoiceCleared }) {
           </select>
         </div>
 
+        {/* Month Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Month:</span>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 10,
+              border: '1px solid #CBD5E1',
+              fontSize: 12.5,
+              background: '#FFFFFF',
+              color: '#0F172A',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="ALL">All Months</option>
+            {availableMonths.map((m) => (
+              <option key={m} value={m}>
+                {formatMonthLabel(m)} {m === getCurrentMonthKey() ? '• Current' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Status:</span>
           <select
@@ -474,6 +521,29 @@ export function BillRaisedSection({ onInvoiceCleared }) {
             <option value="Cleared">Cleared</option>
           </select>
         </div>
+
+        {(searchQuery || selectedClient !== 'ALL' || selectedStatus !== 'ALL' || selectedMonth !== 'ALL') && (
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setSelectedClient('ALL');
+              setSelectedStatus('ALL');
+              setSelectedMonth('ALL');
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 8,
+              border: '1px solid #E2E8F0',
+              background: '#F1F5F9',
+              color: '#475569',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Clear Filters
+          </button>
+        )}
       </div>
 
       {/* INVOICES DATA TABLE */}

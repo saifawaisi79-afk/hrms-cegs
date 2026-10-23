@@ -14,15 +14,20 @@ import {
   X,
   Clock,
   Layers,
+  ArrowRight,
 } from 'lucide-react';
 import {
   inr,
   getInitialClearedInvoices,
   saveClearedInvoices,
   detectDuplicateInvoices,
+  extractMonthKey,
+  getCurrentMonthKey,
+  formatMonthLabel,
+  sortItemsByCurrentMonthFirst,
 } from '@/lib/finance-data';
 
-export function BillClearedSection() {
+export function BillClearedSection({ onNavigateToPayments }) {
   const [clearedInvoices, setClearedInvoices] = useState(getInitialClearedInvoices);
 
   // Search & Filter
@@ -58,9 +63,21 @@ export function BillClearedSection() {
     return Array.from(set).sort();
   }, [clearedInvoices]);
 
-  // Filtered Cleared Invoices
+  // Available Months for Monthly Filter (Current Month included)
+  const availableMonths = useMemo(() => {
+    const set = new Set();
+    const curKey = getCurrentMonthKey();
+    set.add(curKey);
+    clearedInvoices.forEach((inv) => {
+      const k = extractMonthKey(inv.clearedDate || inv.invoiceDate);
+      if (k) set.add(k);
+    });
+    return Array.from(set).sort().reverse();
+  }, [clearedInvoices]);
+
+  // Filtered Cleared Invoices (Current Month entries shown first)
   const filteredInvoices = useMemo(() => {
-    return clearedInvoices.filter((inv) => {
+    const list = clearedInvoices.filter((inv) => {
       const matchSearch =
         !searchQuery ||
         inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -69,9 +86,13 @@ export function BillClearedSection() {
         inv.remarks?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchClient = selectedClient === 'ALL' || inv.client?.toLowerCase() === selectedClient.toLowerCase();
       const matchGst = selectedGstStatus === 'ALL' || inv.gstStatus?.toLowerCase() === selectedGstStatus.toLowerCase();
-      return matchSearch && matchClient && matchGst;
+      const invMonth = extractMonthKey(inv.clearedDate || inv.invoiceDate);
+      const matchMonth = selectedMonth === 'ALL' || invMonth === selectedMonth;
+      return matchSearch && matchClient && matchGst && matchMonth;
     });
-  }, [clearedInvoices, searchQuery, selectedClient, selectedGstStatus]);
+
+    return sortItemsByCurrentMonthFirst(list, (inv) => inv.clearedDate || inv.invoiceDate);
+  }, [clearedInvoices, searchQuery, selectedClient, selectedGstStatus, selectedMonth]);
 
   // Summary Metrics
   const metrics = useMemo(() => {
@@ -451,6 +472,35 @@ export function BillClearedSection() {
           </select>
         </div>
 
+        {/* Month Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Month:</span>
+          <select
+            value={selectedMonth}
+            onChange={(e) => {
+              setSelectedMonth(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 10,
+              border: '1px solid #CBD5E1',
+              fontSize: 12.5,
+              background: '#FFFFFF',
+              color: '#0F172A',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="ALL">All Months</option>
+            {availableMonths.map((m) => (
+              <option key={m} value={m}>
+                {formatMonthLabel(m)} {m === getCurrentMonthKey() ? '• Current' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>GST Reconciliation:</span>
           <select
@@ -474,6 +524,30 @@ export function BillClearedSection() {
             <option value="Raised">Raised</option>
           </select>
         </div>
+
+        {(searchQuery || selectedClient !== 'ALL' || selectedGstStatus !== 'ALL' || selectedMonth !== 'ALL') && (
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setSelectedClient('ALL');
+              setSelectedGstStatus('ALL');
+              setSelectedMonth('ALL');
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 8,
+              border: '1px solid #E2E8F0',
+              background: '#F1F5F9',
+              color: '#475569',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Clear Filters
+          </button>
+        )}
       </div>
 
       {/* DATA TABLE */}
@@ -577,20 +651,44 @@ export function BillClearedSection() {
                         <div style={{ fontSize: 10.5, color: '#64748B' }}>Verified Bank Settlement</div>
                       </td>
                       <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                        <button
-                          onClick={() => setViewInvoice(inv)}
-                          title="View Verified Record"
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            border: '1px solid #CBD5E1',
-                            background: '#FFFFFF',
-                            color: '#334155',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Eye size={13} />
-                        </button>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <button
+                            onClick={() => setViewInvoice(inv)}
+                            title="View Verified Record"
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 6,
+                              border: '1px solid #CBD5E1',
+                              background: '#FFFFFF',
+                              color: '#334155',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Eye size={13} />
+                          </button>
+                          {onNavigateToPayments && (
+                            <button
+                              onClick={() => onNavigateToPayments(inv)}
+                              title="Post / View in Payments & Invoices (Stage 4 Final Settlement)"
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                                border: '1px solid #93C5FD',
+                                background: '#EFF6FF',
+                                color: '#1D4ED8',
+                                cursor: 'pointer',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                              }}
+                            >
+                              <span>Invoices</span>
+                              <ArrowRight size={11} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

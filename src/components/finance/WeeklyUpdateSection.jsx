@@ -27,6 +27,10 @@ import {
   saveOctoberCandidates,
   getClientPocs,
   getClientPayouts,
+  extractMonthKey,
+  getCurrentMonthKey,
+  formatMonthLabel,
+  sortItemsByCurrentMonthFirst,
 } from '@/lib/finance-data';
 
 export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRaised }) {
@@ -43,6 +47,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
   const [selectedClient, setSelectedClient] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedPeriod, setSelectedPeriod] = useState('ALL');
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -91,7 +96,23 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     return Array.from(list).sort();
   }, [viewMode, candidates, batches]);
 
-  // Period / Month Options
+  // Available Months for Monthly Filter (Current Month included)
+  const availableMonths = useMemo(() => {
+    const set = new Set();
+    const curKey = getCurrentMonthKey();
+    set.add(curKey);
+    candidates.forEach((c) => {
+      const k = c.monthKey || extractMonthKey(c.billingDate) || extractMonthKey(c.joiningDate);
+      if (k) set.add(k);
+    });
+    batches.forEach((b) => {
+      const k = extractMonthKey(b.dateToBeRaised) || extractMonthKey(b.period);
+      if (k) set.add(k);
+    });
+    return Array.from(set).sort().reverse();
+  }, [candidates, batches]);
+
+  // Period / Month Options (for legacy batch filter)
   const periodOptions = useMemo(() => {
     const set = new Set();
     if (viewMode === 'batches') {
@@ -100,9 +121,9 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     return Array.from(set).slice(0, 20);
   }, [viewMode, batches]);
 
-  // Filtered Candidates
+  // Filtered Candidates (Current Month entries shown first)
   const filteredCandidates = useMemo(() => {
-    return candidates.filter((item) => {
+    const list = candidates.filter((item) => {
       const matchSearch =
         !searchQuery ||
         item.candidateName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -112,13 +133,17 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
         item.empId?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchClient = selectedClient === 'ALL' || item.client?.toLowerCase() === selectedClient.toLowerCase();
       const matchStatus = selectedStatus === 'ALL' || item.billingStatus?.toLowerCase() === selectedStatus.toLowerCase();
-      return matchSearch && matchClient && matchStatus;
+      const candMonth = item.monthKey || extractMonthKey(item.billingDate) || extractMonthKey(item.joiningDate);
+      const matchMonth = selectedMonth === 'ALL' || candMonth === selectedMonth;
+      return matchSearch && matchClient && matchStatus && matchMonth;
     });
-  }, [candidates, searchQuery, selectedClient, selectedStatus]);
 
-  // Filtered Batches
+    return sortItemsByCurrentMonthFirst(list, (c) => c.billingDate || c.joiningDate || c.monthKey);
+  }, [candidates, searchQuery, selectedClient, selectedStatus, selectedMonth]);
+
+  // Filtered Batches (Current Month entries shown first)
   const filteredBatches = useMemo(() => {
-    return batches.filter((item) => {
+    const list = batches.filter((item) => {
       const matchSearch =
         !searchQuery ||
         item.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -126,9 +151,13 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
       const matchClient = selectedClient === 'ALL' || item.company?.toLowerCase() === selectedClient.toLowerCase();
       const matchPeriod = selectedPeriod === 'ALL' || item.period === selectedPeriod;
       const matchStatus = selectedStatus === 'ALL' || item.status?.toLowerCase() === selectedStatus.toLowerCase();
-      return matchSearch && matchClient && matchPeriod && matchStatus;
+      const batchMonth = extractMonthKey(item.dateToBeRaised) || extractMonthKey(item.period);
+      const matchMonth = selectedMonth === 'ALL' || batchMonth === selectedMonth;
+      return matchSearch && matchClient && matchPeriod && matchStatus && matchMonth;
     });
-  }, [batches, searchQuery, selectedClient, selectedPeriod, selectedStatus]);
+
+    return sortItemsByCurrentMonthFirst(list, (b) => b.dateToBeRaised || b.period);
+  }, [batches, searchQuery, selectedClient, selectedPeriod, selectedStatus, selectedMonth]);
 
   // Summary KPI Metrics
   const metrics = useMemo(() => {
@@ -714,13 +743,43 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
           </select>
         </div>
 
+        {/* Month Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Month:</span>
+          <select
+            value={selectedMonth}
+            onChange={(e) => {
+              setSelectedMonth(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 10,
+              border: '1px solid #CBD5E1',
+              fontSize: 12.5,
+              background: '#FFFFFF',
+              color: '#0F172A',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="ALL">All Months</option>
+            {availableMonths.map((m) => (
+              <option key={m} value={m}>
+                {formatMonthLabel(m)} {m === getCurrentMonthKey() ? '• Current' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Reset Filter Button */}
-        {(searchQuery || selectedClient !== 'ALL' || selectedStatus !== 'ALL') && (
+        {(searchQuery || selectedClient !== 'ALL' || selectedStatus !== 'ALL' || selectedMonth !== 'ALL') && (
           <button
             onClick={() => {
               setSearchQuery('');
               setSelectedClient('ALL');
               setSelectedStatus('ALL');
+              setSelectedMonth('ALL');
               setCurrentPage(1);
             }}
             style={{
@@ -932,13 +991,12 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                   <th style={{ padding: '12px 14px' }}>AI (AFTER INCENTIVE)</th>
                   <th style={{ padding: '12px 14px' }}>DATE TO BE RAISED</th>
                   <th style={{ padding: '12px 14px' }}>STATUS / DROPS</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'center' }}>ACTION</th>
                 </tr>
               </thead>
               <tbody>
                 {pagedItems.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ padding: 40, textAlign: 'center', color: '#64748B' }}>
+                    <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#64748B' }}>
                       No weekly batches found matching your filters.
                     </td>
                   </tr>
@@ -983,27 +1041,6 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                         >
                           {batch.status || 'Active'}
                         </span>
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                        <button
-                          onClick={() => {
-                            setSelectedClient(batch.company);
-                            setViewMode('candidates');
-                          }}
-                          title="View all candidates in this company"
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: 8,
-                            border: '1px solid #CBD5E1',
-                            background: '#FFFFFF',
-                            color: '#0284C7',
-                            fontSize: 11.5,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Inspect Candidates
-                        </button>
                       </td>
                     </tr>
                   ))

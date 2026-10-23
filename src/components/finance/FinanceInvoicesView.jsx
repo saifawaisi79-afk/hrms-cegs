@@ -6,6 +6,7 @@ import { WeeklyUpdateSection } from './WeeklyUpdateSection';
 import { BillRaisedSection } from './BillRaisedSection';
 import { BillClearedSection } from './BillClearedSection';
 import { TotalConsolidatedSection } from './TotalConsolidatedSection';
+import { sortItemsByCurrentMonthFirst } from '@/lib/finance-data';
 import {
   Download,
   Plus,
@@ -2385,6 +2386,9 @@ export function FinanceInvoicesView() {
 
       return true;
     });
+
+    // Current month entries shown first, rest descending chronologically
+    return sortItemsByCurrentMonthFirst(list, (inv) => inv.paidDate || inv.invoiceDate || inv.dueDate || inv.createdAt || '');
   }, [invoices, selectedCompany, selectedStatus, selectedMonth, searchQuery]);
 
   // Action: Mark Invoice as Paid
@@ -3218,7 +3222,95 @@ export function FinanceInvoicesView() {
         )}
       </div>
 
-      {/* 5 FINANCE MODULE TABS (MATCHING RECRUITMENT MODULE PILL NAVIGATION PATTERN) */}
+      {/* CANDIDATE JOURNEY PIPELINE STEPPER (4 CONNECTED STAGES) */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
+          borderRadius: 16,
+          padding: '12px 18px',
+          border: '1px solid #E2E8F0',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span
+            style={{
+              padding: '3px 8px',
+              borderRadius: 6,
+              background: '#0F172A',
+              color: '#FFFFFF',
+              fontSize: 10.5,
+              fontWeight: 800,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Candidate Flow
+          </span>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: '#334155' }}>
+            4-Stage Pipeline Journey:
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {[
+            { key: 'weekly_update', step: '1', title: 'Weekly Update', color: '#0D9488' },
+            { key: 'bill_raised', step: '2', title: 'Bill Raised', color: '#D97706' },
+            { key: 'bill_cleared', step: '3', title: 'Bill Cleared', color: '#10B981' },
+            { key: 'payments_invoices', step: '4', title: 'Payments & Invoices', color: '#2563EB' },
+          ].map((item, idx) => {
+            const isActive = activeFinanceTab === item.key;
+            return (
+              <React.Fragment key={item.key}>
+                {idx > 0 && <span style={{ color: '#94A3B8', fontSize: 12, fontWeight: 800 }}>→</span>}
+                <button
+                  type="button"
+                  onClick={() => handleTabChange(item.key)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '5px 12px',
+                    borderRadius: 10,
+                    border: isActive ? `1.5px solid ${item.color}` : '1px solid #CBD5E1',
+                    background: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.75)',
+                    cursor: 'pointer',
+                    boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 99,
+                      background: isActive ? item.color : '#64748B',
+                      color: '#FFFFFF',
+                      fontSize: 10,
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {item.step}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: isActive ? 800 : 600, color: isActive ? '#0F172A' : '#475569' }}>
+                    {item.title}
+                  </span>
+                </button>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 5 FINANCE MODULE TABS */}
       <div
         style={{
           display: 'flex',
@@ -3228,7 +3320,7 @@ export function FinanceInvoicesView() {
           marginBottom: 24,
         }}
       >
-        {/* TAB 1: Weekly Update (A) */}
+        {/* TAB 1: Weekly Update (Stage 1) */}
         <button
           type="button"
           onClick={() => handleTabChange('weekly_update')}
@@ -3251,7 +3343,7 @@ export function FinanceInvoicesView() {
           Weekly Update (A) (147)
         </button>
 
-        {/* TAB 2: Bill Raised (B) */}
+        {/* TAB 2: Bill Raised (Stage 2) */}
         <button
           type="button"
           onClick={() => handleTabChange('bill_raised')}
@@ -3274,7 +3366,7 @@ export function FinanceInvoicesView() {
           Bill Raised (B) (8)
         </button>
 
-        {/* TAB 3: Bill Cleared */}
+        {/* TAB 3: Bill Cleared (Stage 3) */}
         <button
           type="button"
           onClick={() => handleTabChange('bill_cleared')}
@@ -3297,30 +3389,7 @@ export function FinanceInvoicesView() {
           Bill Cleared (95)
         </button>
 
-        {/* TAB 4: Total (A+B+C+D) */}
-        <button
-          type="button"
-          onClick={() => handleTabChange('total_abcd')}
-          style={{
-            background: activeFinanceTab === 'total_abcd' ? '#7C3AED' : '#FFFFFF',
-            color: activeFinanceTab === 'total_abcd' ? '#FFFFFF' : '#374151',
-            border: activeFinanceTab === 'total_abcd' ? '1px solid #6D28D9' : '1px solid #E5E7EB',
-            borderRadius: 99,
-            padding: '9px 18px',
-            fontSize: 12.5,
-            fontWeight: 800,
-            cursor: 'pointer',
-            boxShadow:
-              activeFinanceTab === 'total_abcd'
-                ? '0 4px 12px rgba(124, 58, 237, 0.25)'
-                : '0 1px 3px rgba(0,0,0,0.03)',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          Total (A+B+C+D) (₹14.07L)
-        </button>
-
-        {/* TAB 5: Payments & Invoices */}
+        {/* TAB 4: Payments & Invoices (Stage 4) */}
         <button
           type="button"
           onClick={() => handleTabChange('payments_invoices')}
@@ -3342,9 +3411,48 @@ export function FinanceInvoicesView() {
         >
           Payments &amp; Invoices ({invoices.length})
         </button>
+
+        {/* TAB 5: Total (A+B+C+D) - ON HOLD */}
+        <button
+          type="button"
+          onClick={() => handleTabChange('total_abcd')}
+          style={{
+            background: activeFinanceTab === 'total_abcd' ? '#7C3AED' : '#F8FAFC',
+            color: activeFinanceTab === 'total_abcd' ? '#FFFFFF' : '#64748B',
+            border: activeFinanceTab === 'total_abcd' ? '1px solid #6D28D9' : '1px dashed #CBD5E1',
+            borderRadius: 99,
+            padding: '9px 18px',
+            fontSize: 12.5,
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow:
+              activeFinanceTab === 'total_abcd'
+                ? '0 4px 12px rgba(124, 58, 237, 0.25)'
+                : 'none',
+            transition: 'all 0.2s ease',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <span>Total (A+B+C+D)</span>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              padding: '2px 6px',
+              borderRadius: 6,
+              background: activeFinanceTab === 'total_abcd' ? 'rgba(255,255,255,0.25)' : '#FEF3C7',
+              color: activeFinanceTab === 'total_abcd' ? '#FFFFFF' : '#B45309',
+              letterSpacing: '0.03em',
+            }}
+          >
+            HOLD
+          </span>
+        </button>
       </div>
 
-      {/* SECTION 1: WEEKLY UPDATE (A) */}
+      {/* SECTION 1: WEEKLY UPDATE (STAGE 1) */}
       {activeFinanceTab === 'weekly_update' && (
         <WeeklyUpdateSection
           onNavigateToRaised={() => handleTabChange('bill_raised')}
@@ -3352,24 +3460,139 @@ export function FinanceInvoicesView() {
         />
       )}
 
-      {/* SECTION 2: BILL RAISED (B) */}
+      {/* SECTION 2: BILL RAISED (STAGE 2) */}
       {activeFinanceTab === 'bill_raised' && (
-        <BillRaisedSection onInvoiceCleared={() => handleTabChange('bill_cleared')} />
+        <BillRaisedSection
+          onInvoiceCleared={() => handleTabChange('bill_cleared')}
+          onNavigateToCleared={() => handleTabChange('bill_cleared')}
+        />
       )}
 
-      {/* SECTION 3: BILL CLEARED */}
-      {activeFinanceTab === 'bill_cleared' && <BillClearedSection />}
+      {/* SECTION 3: BILL CLEARED (STAGE 3) */}
+      {activeFinanceTab === 'bill_cleared' && (
+        <BillClearedSection onNavigateToPayments={() => handleTabChange('payments_invoices')} />
+      )}
 
-      {/* SECTION 4: TOTAL (A+B+C+D) */}
+      {/* SECTION 4: TOTAL (A+B+C+D) - PAGE ON HOLD WITH BLUR */}
       {activeFinanceTab === 'total_abcd' && (
-        <TotalConsolidatedSection
-          onDrillDownTab={(target) => {
-            if (target === 'weekly') handleTabChange('weekly_update');
-            else if (target === 'raised') handleTabChange('bill_raised');
-            else if (target === 'cleared') handleTabChange('bill_cleared');
-            else if (target === 'invoices') handleTabChange('payments_invoices');
-          }}
-        />
+        <div style={{ position: 'relative', minHeight: 480, overflow: 'hidden', borderRadius: 20 }}>
+          {/* Blurred background view */}
+          <div style={{ filter: 'blur(8px)', pointerEvents: 'none', userSelect: 'none', opacity: 0.45 }}>
+            <TotalConsolidatedSection
+              onDrillDownTab={(target) => {
+                if (target === 'weekly') handleTabChange('weekly_update');
+                else if (target === 'raised') handleTabChange('bill_raised');
+                else if (target === 'cleared') handleTabChange('bill_cleared');
+                else if (target === 'invoices') handleTabChange('payments_invoices');
+              }}
+            />
+          </div>
+
+          {/* Centered On-Hold Banner Overlay */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(248, 250, 252, 0.72)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 25,
+              padding: 24,
+            }}
+          >
+            <div
+              style={{
+                background: '#FFFFFF',
+                borderRadius: 22,
+                padding: '36px 40px',
+                maxWidth: 520,
+                textAlign: 'center',
+                boxShadow: '0 20px 45px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04)',
+                border: '1.5px solid #E2E8F0',
+              }}
+            >
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '5px 14px',
+                  borderRadius: 99,
+                  background: '#FEF3C7',
+                  color: '#B45309',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  marginBottom: 14,
+                }}
+              >
+                <Lock size={13} />
+                <span>Page On Hold</span>
+              </div>
+              <h3
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: '#0F172A',
+                  margin: '0 0 10px',
+                  fontFamily: "'Outfit', 'Inter', sans-serif",
+                }}
+              >
+                Total (A+B+C+D) Temporarily On Hold
+              </h3>
+              <p
+                style={{
+                  fontSize: 13.5,
+                  color: '#64748B',
+                  lineHeight: 1.6,
+                  margin: '0 0 24px',
+                }}
+              >
+                This consolidated reconciliation ledger is placed on standby while operational flow is prioritized across the 4 active sequential stages:
+                <br />
+                <strong>Weekly Update → Bill Raised → Bill Cleared → Payments & Invoices</strong>.
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('weekly_update')}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 12,
+                    background: '#0D9488',
+                    color: '#FFFFFF',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)',
+                  }}
+                >
+                  Go to Weekly Update (Stage 1)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('payments_invoices')}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 12,
+                    background: '#EFF6FF',
+                    color: '#1D4ED8',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    border: '1px solid #BFDBFE',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Payments & Invoices (Stage 4)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* SECTION 5: PAYMENTS & INVOICES (EXISTING DASHBOARD) */}
