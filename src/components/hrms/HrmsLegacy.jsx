@@ -9811,7 +9811,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <JoinerSheetSection
  db={db}
  user={user}
- canEdit={!isSA}
+ canEdit={true}
  employeeFilter={isEmp ? (user?.name || '') : selectedEmployeeFilter}
  />
  ) : (

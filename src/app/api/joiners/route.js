@@ -61,6 +61,90 @@ export async function POST(request) {
     }
 
     const body = await request.json();
+    await connectDB();
+
+    if (Array.isArray(body)) {
+      const results = [];
+      const last = await JoinerEntry.findOne({}).sort({ slNo: -1 }).lean();
+      let currentSlNo = last?.slNo || 0;
+
+      for (const item of body) {
+        const parsed = schema.safeParse(item);
+        if (!parsed.success) continue;
+
+        const data = {
+          ...parsed.data,
+          createdBy: parsed.data.createdBy || authUser.name || authUser.email || '',
+        };
+
+        if (data.candidateId) {
+          const existing = await JoinerEntry.findOne({ candidateId: data.candidateId });
+          if (existing) {
+            Object.assign(existing, {
+              name: data.name || existing.name,
+              phone: data.phone || existing.phone,
+              process: data.process ?? existing.process,
+              dateOfJoining: data.dateOfJoining ?? existing.dateOfJoining,
+              billingDate: data.billingDate ?? existing.billingDate,
+              employeeCode: data.employeeCode ?? existing.employeeCode,
+              interviewDate: data.interviewDate ?? existing.interviewDate,
+              recruiterName: data.recruiterName || existing.recruiterName,
+              week1: data.week1 ?? existing.week1,
+              week2: data.week2 ?? existing.week2,
+              week3: data.week3 ?? existing.week3,
+              week4: data.week4 ?? existing.week4,
+              week5: data.week5 ?? existing.week5,
+              week6: data.week6 ?? existing.week6,
+              week7: data.week7 ?? existing.week7,
+              week8: data.week8 ?? existing.week8,
+            });
+            await existing.save();
+            results.push(flatten(existing));
+            continue;
+          }
+        } else if (data.name && data.phone) {
+          const existing = await JoinerEntry.findOne({
+            name: new RegExp(`^${data.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+            phone: data.phone,
+          });
+          if (existing) {
+            Object.assign(existing, {
+              process: data.process || existing.process,
+              dateOfJoining: data.dateOfJoining || existing.dateOfJoining,
+              billingDate: data.billingDate || existing.billingDate,
+              employeeCode: data.employeeCode || existing.employeeCode,
+              interviewDate: data.interviewDate || existing.interviewDate,
+              recruiterName: data.recruiterName || existing.recruiterName,
+              week1: data.week1 || existing.week1,
+              week2: data.week2 || existing.week2,
+              week3: data.week3 || existing.week3,
+              week4: data.week4 || existing.week4,
+              week5: data.week5 || existing.week5,
+              week6: data.week6 || existing.week6,
+              week7: data.week7 || existing.week7,
+              week8: data.week8 || existing.week8,
+            });
+            await existing.save();
+            results.push(flatten(existing));
+            continue;
+          }
+        }
+
+        currentSlNo += 1;
+        const created = await JoinerEntry.create({
+          ...data,
+          slNo: data.slNo || currentSlNo,
+        });
+        results.push(flatten(created));
+      }
+
+      return NextResponse.json({
+        message: `Successfully processed ${results.length} joiner entries`,
+        count: results.length,
+        entries: results,
+      }, { status: 201 });
+    }
+
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -69,7 +153,6 @@ export async function POST(request) {
       );
     }
 
-    await connectDB();
     const data = {
       ...parsed.data,
       createdBy: parsed.data.createdBy || authUser.name || authUser.email || '',

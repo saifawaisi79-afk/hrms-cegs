@@ -74,12 +74,21 @@ export async function DELETE(request, { params }) {
     }
 
     const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
+    await connectDB();
+
+    let deleted = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      deleted = await JoinerEntry.findByIdAndDelete(id);
+    }
+    if (!deleted) {
+      deleted = await JoinerEntry.findOneAndDelete({ candidateId: id });
+    }
+    if (!deleted) {
+      try {
+        deleted = await JoinerEntry.findOneAndDelete({ _id: id });
+      } catch {}
     }
 
-    await connectDB();
-    const deleted = await JoinerEntry.findByIdAndDelete(id);
     if (!deleted) {
       return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
     }
