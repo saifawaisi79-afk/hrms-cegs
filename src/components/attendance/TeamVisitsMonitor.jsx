@@ -648,7 +648,7 @@ export function TeamVisitsFinanceCard({ db, currentUser, onRefresh }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#FFFFFF', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  Staff Office &amp; Field Visits Today
+                  Staff Attendance &amp; Field Visits Today
                 </h4>
                 {activeCount > 0 && (
                   <span
@@ -673,6 +673,27 @@ export function TeamVisitsFinanceCard({ db, currentUser, onRefresh }) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <a
+              href="/billing/attendance"
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                color: '#FFFFFF',
+                borderRadius: 99,
+                padding: '6px 12px',
+                fontSize: 11.5,
+                fontWeight: 700,
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+              title="Open full Attendance Module"
+            >
+              <Clock size={12} />
+              <span>Attendance Module</span>
+            </a>
+
             <button
               type="button"
               onClick={() => refreshVisits()}

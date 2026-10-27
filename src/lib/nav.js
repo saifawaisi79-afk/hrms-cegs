@@ -198,6 +198,8 @@ export function buildNavConfig(user, db) {
     );
     billing.push(
       { href: '/billing/workstation', label: 'IT & Dev Workstation', icon: 'help' },
+      { href: '/billing/attendance', label: 'Attendance', icon: 'clock' },
+      { href: '/billing/leaves', label: 'Leave', icon: 'calendar' },
       { href: '/billing/payroll', label: 'All Staff Payroll Records', icon: 'card' },
       { href: '/billing/organizations', label: 'Organizations', icon: 'building' },
       { href: '/billing/permissions', label: 'Roles & Permissions', icon: 'shield' },
@@ -229,9 +231,9 @@ export function buildNavConfig(user, db) {
     );
     billing.push(
       { href: '/billing/workstation', label: 'IT Support & Assets', icon: 'help' },
+      { href: '/billing/attendance', label: 'Attendance', icon: 'clock' },
       { href: '/billing/payroll', label: 'My Salary & Payslips', icon: 'card' },
       { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
-      ...(canEditAttendance ? [{ href: '/billing/attendance', label: 'Attendance', icon: 'clock' }] : []),
       ...(canApproveLeaves ? [{ href: '/billing/leaves', label: 'Leave', icon: 'calendar' }] : []),
       { href: '/billing/documents', label: 'Documents', icon: 'file' },
       { href: '/billing/assets', label: 'Assets', icon: 'monitor' },
