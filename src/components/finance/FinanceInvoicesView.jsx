@@ -1021,7 +1021,7 @@ function AltruistInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, t
     <div style={{ background: '#FFFFFF', color: '#000000', fontSize: 11, fontFamily: 'Arial, "Helvetica Neue", sans-serif', border: '1.5px solid #000000' }}>
       {/* ROW 1: HEADER TITLE */}
       <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 13, padding: '7px 10px', borderBottom: '1.5px solid #000000' }}>
-        Tax Invoice
+        Invoice
       </div>
 
       {/* ROW 2: SUPPLIER DETAILS & SERIAL / DATE */}
@@ -1473,7 +1473,7 @@ function IsonInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, total
           CAREER EXPERTS GLOBAL SOLUTIONS
         </div>
         <div style={{ fontSize: 11.5, fontWeight: 600 }}>
-          #1, Masjid Street neelasandra, Bengaluru, Karnataka-560047. <strong>TAX INVOICE</strong>
+          #1, Masjid Street neelasandra, Bengaluru, Karnataka-560047. <strong>INVOICE</strong>
         </div>
       </div>
 
@@ -1866,6 +1866,7 @@ export function FinanceInvoicesView() {
   });
   const [savingInvoice, setSavingInvoice] = useState(false);
   const [savingEditInvoice, setSavingEditInvoice] = useState(false);
+  const [deletingInvoiceId, setDeletingInvoiceId] = useState(null);
 
   // Toast feedback helper
   const showToast = (msg) => {
@@ -1894,43 +1895,66 @@ export function FinanceInvoicesView() {
 
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const dataUrl = ev.target.result;
+      const rawDataUrl = ev.target.result;
 
-      if (previewInvoice) {
-        setPreviewInvoice((prev) => (prev ? { ...prev, signatureImage: dataUrl } : prev));
-        setInvoices((prev) =>
-          prev.map((it) =>
-            (it.id === previewInvoice.id || it._id === previewInvoice.id)
-              ? { ...it, signatureImage: dataUrl }
-              : it
-          )
-        );
-        fetch('/api/client-invoices', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({
-            action: 'edit_invoice',
-            id: previewInvoice.id || previewInvoice._id,
-            signatureImage: dataUrl,
-          }),
-        }).catch(() => {});
-      }
-
-      if (targetMode === 'editing' || targetMode === 'all' || targetMode === true) {
-        setEditingInvoice((prev) => (prev ? { ...prev, signatureImage: dataUrl } : prev));
-      }
-      if (targetMode === 'form' || targetMode === 'all' || targetMode === false) {
-        setInvoiceForm((prev) => ({ ...prev, signatureImage: dataUrl }));
-      }
-
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('cegs_signature_stamp', dataUrl);
-        } catch (err) {
-          console.warn('localStorage signature save failed', err);
+      const applyStamp = (finalDataUrl) => {
+        if (previewInvoice) {
+          setPreviewInvoice((prev) => (prev ? { ...prev, signatureImage: finalDataUrl } : prev));
+          setInvoices((prev) =>
+            prev.map((it) =>
+              (it.id === previewInvoice.id || it._id === previewInvoice.id)
+                ? { ...it, signatureImage: finalDataUrl }
+                : it
+            )
+          );
+          fetch('/api/client-invoices', {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({
+              action: 'edit_invoice',
+              id: previewInvoice.id || previewInvoice._id,
+              signatureImage: finalDataUrl,
+            }),
+          }).catch(() => {});
         }
+
+        if (targetMode === 'editing' || targetMode === 'all' || targetMode === true) {
+          setEditingInvoice((prev) => (prev ? { ...prev, signatureImage: finalDataUrl } : prev));
+        }
+        if (targetMode === 'form' || targetMode === 'all' || targetMode === false) {
+          setInvoiceForm((prev) => ({ ...prev, signatureImage: finalDataUrl }));
+        }
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('cegs_signature_stamp', finalDataUrl);
+          } catch (err) {
+            console.warn('localStorage signature save failed', err);
+          }
+        }
+        showToast('✓ Digital signature stamp uploaded and applied!');
+      };
+
+      try {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || img.width || 400;
+            canvas.height = img.naturalHeight || img.height || 120;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const pngDataUrl = canvas.toDataURL('image/png');
+            applyStamp(pngDataUrl);
+          } catch {
+            applyStamp(rawDataUrl);
+          }
+        };
+        img.onerror = () => applyStamp(rawDataUrl);
+        img.src = rawDataUrl;
+      } catch {
+        applyStamp(rawDataUrl);
       }
-      showToast('✓ Digital signature stamp uploaded and applied!');
     };
     reader.readAsDataURL(file);
   };
@@ -1995,14 +2019,26 @@ export function FinanceInvoicesView() {
     }
   }, []);
 
-  // Combined list of companies (strictly deduplicated across all sources)
+  // Available active client options for invoice creation & editing (strictly from active database clients)
+  const availableClientOptions = useMemo(() => {
+    const canonicalMap = new Map();
+    clients.forEach((c) => {
+      const canonical = normalizeClientName(c.name);
+      if (!canonical) return;
+      const key = canonical.toLowerCase();
+      if (!canonicalMap.has(key)) {
+        canonicalMap.set(key, canonical);
+      }
+    });
+    return Array.from(canonicalMap.values()).sort((a, b) => a.localeCompare(b));
+  }, [clients]);
+
+  // Combined list of companies for invoices filter dropdown
   const companyOptions = useMemo(() => {
     const canonicalMap = new Map();
     const rawList = [
-      ...invoices.map((i) => i.client),
       ...clients.map((c) => c.name),
-      ...Object.values(CLIENT_CONFIGS).map((c) => c.name),
-      'Apex Corp',
+      ...invoices.map((i) => i.client),
     ].filter(Boolean);
 
     rawList.forEach((raw) => {
@@ -2059,8 +2095,8 @@ export function FinanceInvoicesView() {
     setEmailForm({
       recipients: defaultEmail,
       cc: '',
-      subject: `[TAX INVOICE] ${inv.invoiceNo || 'INV'} - Career Experts Global Solutions - ${clientNorm}`,
-      message: `Dear ${clientNorm} Accounts & Finance Team,\n\nPlease find the tax invoice details for candidate placement and process seat billing services delivered by Career Experts Global Solutions.\n\n• Invoice No: ${inv.invoiceNo || 'N/A'}\n• Amount Due: ${amtStr} (${inv.amountInWords || ''})\n• Due Date: ${inv.dueDate || '30 days'}\n\nBank Remittance Details:\n• Beneficiary: Career Experts Global Solutions\n• Bank: HDFC Bank\n• Account No: 50200080303100\n• IFSC Code: HDFC0000509\n\nKindly acknowledge receipt and confirm the payment disbursement schedule.\n\nWarm regards,\nFinance & Accounts Department\nCareer Experts Global Solutions`,
+      subject: `[INVOICE] ${inv.invoiceNo || 'INV'} - Career Experts Global Solutions - ${clientNorm}`,
+      message: `Dear ${clientNorm} Accounts & Finance Team,\n\nPlease find the invoice details for candidate placement and process seat billing services delivered by Career Experts Global Solutions.\n\n• Invoice No: ${inv.invoiceNo || 'N/A'}\n• Amount Due: ${amtStr} (${inv.amountInWords || ''})\n• Due Date: ${inv.dueDate || '30 days'}\n\nBank Remittance Details:\n• Beneficiary: Career Experts Global Solutions\n• Bank: HDFC Bank\n• Account No: 50200080303100\n• IFSC Code: HDFC0000509\n\nKindly acknowledge receipt and confirm the payment disbursement schedule.\n\nWarm regards,\nFinance & Accounts Department\nCareer Experts Global Solutions`,
       sending: false,
       lastResponse: '',
     });
@@ -2069,10 +2105,15 @@ export function FinanceInvoicesView() {
 
   // Handler: Download official PDF invoice file directly with multi-tier fallback
   const handleDownloadInvoicePdf = async (inv) => {
-    const target = inv || sendEmailInvoice || previewInvoice;
-    if (!target) return;
+    const rawTarget = inv || sendEmailInvoice || previewInvoice;
+    if (!rawTarget) return;
+    const stamp = (typeof window !== 'undefined' && localStorage.getItem('cegs_signature_stamp')) || undefined;
+    const target = {
+      ...rawTarget,
+      signatureImage: rawTarget.signatureImage || stamp || DEFAULT_SIGNATURE_STAMP,
+    };
     const safeInvNo = String(target.invoiceNo || 'INV').replace(/[^a-zA-Z0-9_-]/g, '_');
-    const fileName = `TAX_INVOICE_${safeInvNo}.pdf`;
+    const fileName = `INVOICE_${safeInvNo}.pdf`;
 
     try {
       showToast(`Generating ${fileName}...`);
@@ -2147,7 +2188,7 @@ export function FinanceInvoicesView() {
     const safeInvNo = String(sendEmailInvoice?.invoiceNo || 'INV').replace(/[^a-zA-Z0-9_-]/g, '_');
     const directDownloadUrl = `${origin}/api/client-invoices/download-pdf?invoiceNo=${encodeURIComponent(sendEmailInvoice?.invoiceNo || '')}`;
 
-    const enrichedMessage = `${emailForm.message}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📎 ATTACHED OFFICIAL TAX INVOICE:\n• Document: TAX_INVOICE_${safeInvNo}.pdf\n• Direct Download Link: ${directDownloadUrl}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    const enrichedMessage = `${emailForm.message}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📎 ATTACHED OFFICIAL INVOICE:\n• Document: INVOICE_${safeInvNo}.pdf\n• Direct Download Link: ${directDownloadUrl}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
     const body = encodeURIComponent(enrichedMessage);
 
@@ -2155,7 +2196,7 @@ export function FinanceInvoicesView() {
     if (cc) gmailUrl += `&cc=${encodeURIComponent(cc)}`;
 
     window.open(gmailUrl, '_blank');
-    showToast(`✓ Opened Gmail & downloaded TAX_INVOICE_${safeInvNo}.pdf! Simply drag the file into your email.`);
+    showToast(`✓ Opened Gmail & downloaded INVOICE_${safeInvNo}.pdf! Simply drag the file into your email.`);
   };
 
   // Handler: Save & Test SMTP credentials directly to database
@@ -2767,6 +2808,18 @@ export function FinanceInvoicesView() {
       if (normalizeClientName(selectedCompany).toLowerCase() === normTarget) {
         setSelectedCompany('ALL');
       }
+      setInvoiceForm((prev) => {
+        if (normalizeClientName(prev.client).toLowerCase() === normTarget) {
+          return { ...prev, client: '' };
+        }
+        return prev;
+      });
+      setEditingInvoice((prev) => {
+        if (prev && normalizeClientName(prev.client).toLowerCase() === normTarget) {
+          return { ...prev, client: '' };
+        }
+        return prev;
+      });
 
       const query = cId && cId !== 'undefined' ? `id=${encodeURIComponent(cId)}` : `name=${encodeURIComponent(cName)}`;
       await fetch(`/api/clients?${query}`, {
@@ -2779,6 +2832,37 @@ export function FinanceInvoicesView() {
       console.error('Failed to delete client:', err);
     } finally {
       setDeletingClientId(null);
+    }
+  };
+
+  // Action: Delete Invoice (User Requirement 1)
+  const handleDeleteInvoice = async (inv) => {
+    const invId = inv.id || inv._id;
+    const invNo = inv.invoiceNo || 'this invoice';
+    if (!window.confirm(`Are you sure you want to delete invoice ${invNo}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingInvoiceId(invId || invNo);
+    try {
+      // Optimistic removal from table
+      setInvoices((prev) => prev.filter((i) => (i.id || i._id) !== invId && i.invoiceNo !== invNo));
+      showToast(`Invoice ${invNo} deleted successfully.`);
+
+      await fetch('/api/client-invoices', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          action: 'delete_invoice',
+          id: invId,
+          invoiceNo: inv.invoiceNo,
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to delete invoice:', err);
+      showToast(`Failed to delete invoice ${invNo}.`, 'error');
+    } finally {
+      setDeletingInvoiceId(null);
     }
   };
 
@@ -4255,6 +4339,40 @@ export function FinanceInvoicesView() {
                           >
                             <Eye size={14} />
                           </button>
+
+                          {/* DELETE INVOICE */}
+                          <button
+                            type="button"
+                            title="Delete Invoice"
+                            disabled={deletingInvoiceId === (inv.id || inv._id || inv.invoiceNo)}
+                            onClick={() => handleDeleteInvoice(inv)}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 8,
+                              border: '1.5px solid #FEE2E2',
+                              background: '#FEF2F2',
+                              color: '#EF4444',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.15s ease',
+                              opacity: deletingInvoiceId === (inv.id || inv._id || inv.invoiceNo) ? 0.5 : 1,
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#EF4444';
+                              e.currentTarget.style.color = '#FFFFFF';
+                              e.currentTarget.style.borderColor = '#DC2626';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#FEF2F2';
+                              e.currentTarget.style.color = '#EF4444';
+                              e.currentTarget.style.borderColor = '#FEE2E2';
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -4791,11 +4909,15 @@ export function FinanceInvoicesView() {
                         background: '#FFFFFF',
                       }}
                     >
-                      {companyOptions.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
+                      {availableClientOptions.length === 0 ? (
+                        <option value="">No clients configured</option>
+                      ) : (
+                        availableClientOptions.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -5470,11 +5592,15 @@ export function FinanceInvoicesView() {
                         background: '#FFF',
                       }}
                     >
-                      {companyOptions.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
+                      {availableClientOptions.length === 0 ? (
+                        <option value="">No clients configured</option>
+                      ) : (
+                        availableClientOptions.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -6693,7 +6819,7 @@ export function FinanceInvoicesView() {
                       </span>
                     </div>
                     <div style={{ fontSize: 11.5, color: '#166534', marginTop: 2 }}>
-                      Opens your logged-in Gmail in browser with pre-filled recipients, subject, and tax invoice cover letter. Zero setup required!
+                      Opens your logged-in Gmail in browser with pre-filled recipients, subject, and invoice cover letter. Zero setup required!
                     </div>
                   </div>
                 </div>

@@ -172,14 +172,14 @@ export async function POST(request) {
     const dueDate = String(body.dueDate || '30 days').trim();
     const invoiceDate = String(body.invoiceDate || new Date().toISOString().slice(0, 10)).trim();
     const subject = String(
-      body.subject || `[TAX INVOICE] ${invoiceNo} - Career Experts Global Solutions - ${clientName}`
+      body.subject || `[INVOICE] ${invoiceNo} - Career Experts Global Solutions - ${clientName}`
     ).trim();
     const customMessage = String(body.message || '').trim();
 
     const formattedAmount = `₹${amount.toLocaleString('en-IN')}`;
 
     const textContent = `
-TAX INVOICE: ${invoiceNo}
+INVOICE: ${invoiceNo}
 Client: ${clientName}
 Amount Due: ${formattedAmount}
 Due Date: ${dueDate}
@@ -225,7 +225,7 @@ finance@cegs.in
   <div class="card">
     <div class="header">
       <h1>CAREER EXPERTS GLOBAL SOLUTIONS</h1>
-      <p>Official Tax Invoice & Candidate Billing Transmission</p>
+      <p>Official Invoice & Candidate Billing Transmission</p>
     </div>
     <div class="body">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -234,7 +234,7 @@ finance@cegs.in
       </div>
 
       <div style="font-size: 14px; line-height: 1.6; color: #334155; margin-bottom: 18px; white-space: pre-wrap;">
-${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find the tax invoice details for candidate placement and process seat billing services delivered by Career Experts Global Solutions. Kindly verify and process payment before the due date.`}
+${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find the invoice details for candidate placement and process seat billing services delivered by Career Experts Global Solutions. Kindly verify and process payment before the due date.`}
       </div>
 
       <div class="inv-summary">
@@ -270,7 +270,7 @@ ${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find t
       <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 14px 18px; margin: 18px 0; display: flex; align-items: center; gap: 10px;">
         <span style="font-size: 20px;">📎</span>
         <div>
-          <div style="font-size: 13px; font-weight: 800; color: #166534;">Official Invoice Attached (TAX_INVOICE_${invoiceNo}.pdf)</div>
+          <div style="font-size: 13px; font-weight: 800; color: #166534;">Official Invoice Attached (INVOICE_${invoiceNo}.pdf)</div>
           <div style="font-size: 11.5px; color: #15803d; margin-top: 2px;">Please find attached the formal PDF invoice containing candidate placement itemization, SAC code, GST breakdown, and digital certification.</div>
         </div>
       </div>
@@ -357,7 +357,7 @@ ${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find t
       const pdfBuffer = await generateInvoicePdfBuffer(invoicePayload);
       if (pdfBuffer && pdfBuffer.length > 0) {
         attachments.push({
-          filename: `TAX_INVOICE_${safeInvNo}.pdf`,
+          filename: `INVOICE_${safeInvNo}.pdf`,
           content: pdfBuffer,
           contentType: 'application/pdf',
         });

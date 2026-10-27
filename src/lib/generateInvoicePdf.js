@@ -1,7 +1,9 @@
 import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
 
 /**
- * Generates an official Tax Invoice PDF buffer using PDFKit.
+ * Generates an official Invoice PDF buffer using PDFKit.
  * Uses standard Helvetica fonts compatible with all PDF engines.
  */
 export function generateInvoicePdfBuffer(invoice) {
@@ -11,10 +13,10 @@ export function generateInvoicePdfBuffer(invoice) {
         size: 'A4',
         margin: 36,
         info: {
-          Title: `Tax Invoice ${invoice.invoiceNo || 'INV'} - Career Experts Global Solutions`,
+          Title: `Invoice ${invoice.invoiceNo || 'INV'} - Career Experts Global Solutions`,
           Author: 'Career Experts Global Solutions',
-          Subject: `Official Tax Invoice for ${invoice.client || 'Client'}`,
-          Keywords: 'Tax Invoice, GST, CEGS, HRMS, Placement Billing',
+          Subject: `Official Invoice for ${invoice.client || 'Client'}`,
+          Keywords: 'Invoice, GST, CEGS, HRMS, Placement Billing',
         },
       });
 
@@ -65,7 +67,7 @@ export function generateInvoicePdfBuffer(invoice) {
       doc.rect(36, 36, 523, 72).fillAndStroke('#EFF6FF', '#BFDBFE');
 
       doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(16).text('CAREER EXPERTS GLOBAL SOLUTIONS', 48, 48);
-      doc.fillColor(accentColor).font('Helvetica-Bold').fontSize(11).text('OFFICIAL TAX INVOICE & BILLING TRANSMISSION', 48, 68);
+      doc.fillColor(accentColor).font('Helvetica-Bold').fontSize(11).text('OFFICIAL INVOICE & BILLING TRANSMISSION', 48, 68);
       doc.fillColor(mutedColor).font('Helvetica').fontSize(8.5).text(
         '#1, Masjid Street, Neelasandra, Bengaluru - 560047, Karnataka | GSTIN: 29DWCPM8081C2ZB | PAN: DWCPM8081C',
         48,
@@ -199,7 +201,7 @@ export function generateInvoicePdfBuffer(invoice) {
         doc.rect(36, currentY, totalsBoxX - 42, 76).fillAndStroke('#FFFBEB', '#FDE68A');
         doc.fillColor('#92400E').font('Helvetica-Bold').fontSize(8.5).text('AMOUNT IN WORDS:', 44, currentY + 10);
         doc.fillColor(darkColor).font('Helvetica-Bold').fontSize(9).text(amountInWords, 44, currentY + 24, { width: totalsBoxX - 58 });
-        doc.fillColor(mutedColor).font('Helvetica').fontSize(8).text('Computer generated official GST tax invoice.', 44, currentY + 56);
+        doc.fillColor(mutedColor).font('Helvetica').fontSize(8).text('Computer generated official invoice.', 44, currentY + 56);
       }
 
       currentY += 84;
@@ -221,10 +223,44 @@ export function generateInvoicePdfBuffer(invoice) {
       doc.rect(366, currentY, 193, bottomBoxHeight).fillAndStroke('#FFFFFF', '#CBD5E1');
       doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(8.5).text('FOR CAREER EXPERTS GLOBAL SOLUTIONS', 374, currentY + 8);
 
-      doc.rect(385, currentY + 22, 155, 34).stroke('#0284C7');
-      doc.fillColor(accentColor).font('Helvetica-Bold').fontSize(8).text('MOHAMMED USMAN ZABI', 388, currentY + 26, { align: 'center', width: 150 });
-      doc.fillColor(mutedColor).font('Helvetica').fontSize(7.5).text('Digitally Signed & Certified', 388, currentY + 36, { align: 'center', width: 150 });
-      doc.text(`Date: ${invoiceDate}`, 388, currentY + 45, { align: 'center', width: 150 });
+      let imageRendered = false;
+      const sigImg = invoice.signatureImage;
+
+      if (sigImg && typeof sigImg === 'string') {
+        try {
+          if (sigImg.startsWith('data:image/')) {
+            const base64Data = sigImg.replace(/^data:image\/[a-zA-Z0-9+]+;base64,/, '');
+            const imgBuffer = Buffer.from(base64Data, 'base64');
+            doc.image(imgBuffer, 376, currentY + 18, {
+              fit: [173, 46],
+              align: 'center',
+              valign: 'center',
+            });
+            imageRendered = true;
+          } else if (!sigImg.startsWith('http://') && !sigImg.startsWith('https://')) {
+            const cleanPath = sigImg.startsWith('/') ? sigImg.slice(1) : sigImg;
+            const fsPath = path.join(process.cwd(), 'public', cleanPath);
+            if (fs.existsSync(fsPath)) {
+              doc.image(fsPath, 376, currentY + 18, {
+                fit: [173, 46],
+                align: 'center',
+                valign: 'center',
+              });
+              imageRendered = true;
+            }
+          }
+        } catch (imgErr) {
+          console.warn('Could not render signature stamp image in PDF, falling back to vector signature:', imgErr.message);
+          imageRendered = false;
+        }
+      }
+
+      if (!imageRendered) {
+        doc.rect(385, currentY + 22, 155, 34).stroke('#0284C7');
+        doc.fillColor(accentColor).font('Helvetica-Bold').fontSize(8).text('MOHAMMED USMAN ZABI', 388, currentY + 26, { align: 'center', width: 150 });
+        doc.fillColor(mutedColor).font('Helvetica').fontSize(7.5).text('Digitally Signed & Certified', 388, currentY + 36, { align: 'center', width: 150 });
+        doc.text(`Date: ${invoiceDate}`, 388, currentY + 45, { align: 'center', width: 150 });
+      }
 
       doc.fillColor(darkColor).font('Helvetica-Bold').fontSize(8).text('Authorised Signatory & Stamp', 374, currentY + 68, { align: 'center', width: 175 });
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import connectDB from '@/lib/db';
 import ClientInvoice from '@/lib/models/ClientInvoice';
@@ -551,8 +552,15 @@ export async function POST(request) {
   if (body.action === 'delete_invoice') {
     await connectDB();
     const id = body.id || body._id;
-    if (!id) return NextResponse.json({ error: 'Invoice ID is required' }, { status: 400 });
-    await ClientInvoice.findByIdAndDelete(id);
+    const invoiceNo = body.invoiceNo;
+    if (!id && !invoiceNo) return NextResponse.json({ error: 'Invoice ID or invoiceNo is required' }, { status: 400 });
+    if (id && mongoose.Types.ObjectId.isValid(id)) {
+      await ClientInvoice.findByIdAndDelete(id);
+    } else if (invoiceNo) {
+      await ClientInvoice.findOneAndDelete({ invoiceNo });
+    } else if (id) {
+      await ClientInvoice.findOneAndDelete({ $or: [{ _id: id }, { invoiceNo: id }] });
+    }
     return NextResponse.json({ success: true, message: 'Invoice deleted successfully' });
   }
 

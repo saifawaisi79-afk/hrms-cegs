@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import ClientCompany from '@/lib/models/ClientCompany';
+import SystemSetting from '@/lib/models/SystemSetting';
 import { getAuthUser, requireRole } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -181,19 +183,15 @@ function flatten(doc) {
 export async function GET(request) {
   try {
     await connectDB();
-    let count = await ClientCompany.countDocuments();
-    if (count === 0) {
-      await ClientCompany.insertMany(INITIAL_CLIENTS);
-    } else {
-      // Ensure all official client templates & contacts are seeded and updated
-      for (const cl of INITIAL_CLIENTS) {
-        await ClientCompany.findOneAndUpdate(
-          { name: { $regex: new RegExp(`^${cl.name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } },
-          { $set: { email: cl.email, contactPerson: cl.contactPerson } },
-          { upsert: true, new: true }
-        );
+    const seeded = await SystemSetting.findOne({ key: 'clients_seeded' });
+    if (!seeded) {
+      const count = await ClientCompany.countDocuments();
+      if (count === 0) {
+        await ClientCompany.insertMany(INITIAL_CLIENTS);
       }
+      await SystemSetting.create({ key: 'clients_seeded', value: 'true' }).catch(() => {});
     }
+
     const clients = await ClientCompany.find({}).sort({ name: 1 }).lean();
     // Guarantee strict deduplication by normalized lowercase name
     const seenNames = new Map();
@@ -207,14 +205,7 @@ export async function GET(request) {
     return NextResponse.json(Array.from(seenNames.values()));
   } catch (err) {
     console.error('Error fetching clients:', err);
-    const seenFallback = new Map();
-    INITIAL_CLIENTS.forEach((c, i) => {
-      const key = c.name.trim().toLowerCase();
-      if (!seenFallback.has(key)) {
-        seenFallback.set(key, { ...c, id: `seed-${i}`, _id: `seed-${i}` });
-      }
-    });
-    return NextResponse.json(Array.from(seenFallback.values()));
+    return NextResponse.json([]);
   }
 }
 
@@ -275,11 +266,14 @@ export async function DELETE(request) {
     const name = url.searchParams.get('name');
 
     await connectDB();
-    if (id && id !== 'undefined') {
+    if (id && id !== 'undefined' && mongoose.Types.ObjectId.isValid(id)) {
       await ClientCompany.findByIdAndDelete(id);
-    } else if (name) {
-      await ClientCompany.findOneAndDelete({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
-    } else {
+    }
+    if (name) {
+      const escapedName = name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      await ClientCompany.deleteMany({ name: { $regex: new RegExp(`^${escapedName}$`, 'i') } });
+    }
+    if (!id && !name) {
       return NextResponse.json({ error: 'Client ID or name required' }, { status: 400 });
     }
 

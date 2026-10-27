@@ -45,7 +45,7 @@ export async function GET(request) {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="TAX_INVOICE_${safeInvNo}.pdf"`,
+        'Content-Disposition': `attachment; filename="INVOICE_${safeInvNo}.pdf"`,
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
@@ -80,7 +80,7 @@ export async function POST(request) {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="TAX_INVOICE_${safeInvNo}.pdf"`,
+        'Content-Disposition': `attachment; filename="INVOICE_${safeInvNo}.pdf"`,
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
