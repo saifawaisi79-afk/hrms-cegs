@@ -18,6 +18,7 @@ import {
   Target, Cake, Palmtree, Rocket, CircleDot, Timer
 } from 'lucide-react';
 import { isOversightOnly, getRecruiters } from '@/lib/nav';
+import { employeeNamesMatch } from '@/lib/recruiter-names';
 import { WalkinsSelectionsSection } from '@/components/recruitment/WalkinsSelectionsSection';
 import { JoinerSheetSection } from '@/components/recruitment/JoinerSheetSection';
 import { TeamVisitsSection, formatVisitTime } from '@/components/attendance/TeamVisitsMonitor';
@@ -8890,10 +8891,10 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  if (isEmp) {
  const candEmp = (c.employee || '').trim().toLowerCase();
  const me = (user?.name || '').trim().toLowerCase();
- return candEmp && candEmp !== me;
+ return candEmp && candEmp !== me && !employeeNamesMatch(c.employee, user?.name);
  }
  if (selectedEmployeeFilter !== 'ALL') {
- return (c.employee || '').trim().toLowerCase() !== selectedEmployeeFilter.toLowerCase();
+ return !employeeNamesMatch(c.employee, selectedEmployeeFilter);
  }
  return false;
  });
@@ -8930,7 +8931,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  return !candEmp || candEmp === currentEmp;
  }
  if ((isHR || isSA) && selectedEmployeeFilter !== 'ALL') {
- return (c.employee || '').trim().toLowerCase() === selectedEmployeeFilter.toLowerCase();
+ return employeeNamesMatch(c.employee, selectedEmployeeFilter);
  }
  return true;
  });
@@ -9020,8 +9021,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const empTargets = getRecruitmentTargets(isFin);
 
  const empCands = candidates.filter(c => {
- const candEmp = (c.employee || '').trim().toLowerCase();
- if (candEmp !== empName.trim().toLowerCase()) return false;
+ if (!employeeNamesMatch(c.employee, empName)) return false;
  return matchesSheetDate(c, sheetDate);
  });
  const calls = empCands.filter(c => candidateMatchesTask(c, 'calls')).length;
@@ -9047,7 +9047,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  let teamJoinTarget = 0;
  employeeList.forEach(empName => {
  const isFin = isFinanceUserOrEmployee(
- (db?.users || []).find(u => (u?.name || '').trim().toLowerCase() === empName.trim().toLowerCase()) || empName,
+ (db?.users || []).find(u => employeeNamesMatch(u?.name, empName)) || empName,
  db?.users
  );
  const t = getRecruitmentTargets(isFin);
@@ -9705,7 +9705,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  ))}
  </div>
  )}
- {isSA && selectedEmployeeFilter !== 'ALL' && (
+ {(isSA || isHR) && selectedEmployeeFilter !== 'ALL' && (
  <button
  type="button"
  onClick={() => setSelectedEmployeeFilter('ALL')}

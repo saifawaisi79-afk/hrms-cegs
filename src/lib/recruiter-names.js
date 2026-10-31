@@ -6,6 +6,8 @@
 const FIRST_NAME_ALIASES = {
   aswin: 'ashwin',
   ashwin: 'ashwin',
+  nushrath: 'nusrath',
+  nusrath: 'nusrath',
 };
 
 export function normalizePersonName(name) {

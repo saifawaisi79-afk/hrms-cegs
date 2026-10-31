@@ -123,8 +123,9 @@ export function isOversightOnly(user) {
 import { employeeNamesMatch, canonicalRecruiterName } from '@/lib/recruiter-names';
 
 /**
- * Active employee recruiters for team progress views.
- * Prefers db.users with role=employee; merges candidate.employee names that are not admin/SA.
+ * Active recruiters for team progress views.
+ * Includes employees, finance recruiters, and HR admins (e.g. Madiha Mehak, Nusrath Hussain) who make/manage candidate calls.
+ * Super Admin accounts are excluded as oversight-only.
  */
 export function getRecruiters(db, candidates = []) {
   const names = [];
@@ -143,13 +144,12 @@ export function getRecruiters(db, candidates = []) {
     if (!name) return;
     const status = String(u.status || 'active').toLowerCase();
     if (status && status !== 'active') return;
-    if (u.role === 'super_admin' || u.role === 'admin') {
+    if (u.role === 'super_admin') {
       pushUnique(elevatedNames, name);
       return;
     }
-    if (u.role === 'employee' || u.role === 'finance') {
-      pushUnique(names, name);
-    }
+    // Include employees, finance, and HR admins (e.g. Madiha Mehak, Nusrath Hussain)
+    pushUnique(names, name);
   });
 
   (candidates || []).forEach((c) => {
