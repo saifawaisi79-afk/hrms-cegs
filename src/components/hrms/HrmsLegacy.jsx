@@ -4707,383 +4707,446 @@ export function AttendancePage({ db, save, user }) {
  PAYROLL PAGE
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 export function PayrollPage({ db, save, user, setView }) {
- const now = new Date();
- const [month, setMonth] = useState(now.getMonth() + 1);
- const [year] = useState(now.getFullYear());
- const [payslip, setPayslip] = useState(null);
- const isSuperAdmin = user?.role === 'super_admin';
- const isHR = user?.role === 'admin' || user?.role === 'finance' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
- const canRunPayroll = isSuperAdmin;
- const canViewAllStaff = isSuperAdmin; // Shifted exclusively to Super Admin. HR only gets authority to see My Salary & Payslips.
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const [payslip, setPayslip] = useState(null);
+  const isSuperAdmin = user?.role === 'super_admin';
+  const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
+  const isFinance = user?.role === 'finance';
+  const canViewAllStaff = isSuperAdmin || isHR || isFinance;
+  const canRunPayroll = canViewAllStaff;
 
- const [payrollTab, setPayrollTab] = useState(isSuperAdmin ? 'all' : 'mine'); // 'all' | 'mine'
- const [search, setSearch] = useState('');
+  const [payrollTab, setPayrollTab] = useState(canViewAllStaff ? 'all' : 'mine'); // 'all' | 'mine'
+  const [search, setSearch] = useState('');
 
- useEffect(() => {
-   if (!canViewAllStaff && payrollTab !== 'mine') {
-     setPayrollTab('mine');
-   }
- }, [canViewAllStaff, payrollTab]);
+  useEffect(() => {
+    if (!canViewAllStaff && payrollTab !== 'mine') {
+      setPayrollTab('mine');
+    }
+  }, [canViewAllStaff, payrollTab]);
 
- const profileUser =
- (db.users || []).find(
- (u) =>
- String(u.id) === String(user?.id) ||
- String(u.email || '').toLowerCase() === String(user?.email || '').toLowerCase()
- ) || user;
+  const profileUser =
+    (db.users || []).find(
+      (u) =>
+        String(u.id || u._id) === String(user?.id) ||
+        String(u.email || '').toLowerCase() === String(user?.email || '').toLowerCase()
+    ) || user;
 
- const buildPayParts = (emp, payrollMonth, payrollYear) => {
- const basic = Number(emp?.salary ?? emp?.basic_salary) || 0;
- const allowances = Math.max(0, Number(emp?.allowances) || 0);
- const warningCount = countMonthlyAttendanceWarnings(
- db.attendanceWarnings || [],
- emp?.id,
- payrollMonth,
- payrollYear
- );
- const earlyWarningCount = countMonthlyEarlyLogoutWarnings(
- db.attendanceWarnings || [],
- emp?.id,
- payrollMonth,
- payrollYear
- );
- const halfDays = calcTotalHalfDaysCut(warningCount, earlyWarningCount);
- const attendancePenalty = calcCombinedAttendancePenalty(basic, warningCount, earlyWarningCount);
- const deductions = attendancePenalty;
- const net = basic + allowances - deductions;
- return {
- basic,
- allowances,
- deductions,
- attendancePenalty,
- attendanceWarnings: warningCount + earlyWarningCount,
- earlyWarnings: earlyWarningCount,
- lateWarnings: warningCount,
- halfDaysCut: halfDays,
- deductionTaxPf: 0,
- net,
- };
- };
+  const buildPayParts = (emp, payrollMonth, payrollYear) => {
+    const basic = Number(emp?.salary ?? emp?.basic_salary) || 0;
+    const allowances = Math.max(0, Number(emp?.allowances) || 0);
+    const empId = emp?.id || emp?._id;
+    const warningCount = countMonthlyAttendanceWarnings(
+      db.attendanceWarnings || [],
+      empId,
+      payrollMonth,
+      payrollYear
+    );
+    const earlyWarningCount = countMonthlyEarlyLogoutWarnings(
+      db.attendanceWarnings || [],
+      empId,
+      payrollMonth,
+      payrollYear
+    );
+    const halfDays = calcTotalHalfDaysCut(warningCount, earlyWarningCount);
+    const attendancePenalty = calcCombinedAttendancePenalty(basic, warningCount, earlyWarningCount);
+    const deductions = attendancePenalty;
+    const net = basic + allowances - deductions;
+    return {
+      basic,
+      allowances,
+      deductions,
+      attendancePenalty,
+      attendanceWarnings: warningCount + earlyWarningCount,
+      earlyWarnings: earlyWarningCount,
+      lateWarnings: warningCount,
+      halfDaysCut: halfDays,
+      deductionTaxPf: 0,
+      net,
+    };
+  };
 
- const runPayroll = async () => {
- const payrollMonth = parseInt(month, 10);
- try {
- const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : '';
- const res = await fetch(`${GLOBAL_API_BASE}/payroll`, {
- method: 'POST',
- headers: {
- 'Content-Type': 'application/json',
- ...(token ? { Authorization: `Bearer ${token}` } : {}),
- },
- body: JSON.stringify({ month: payrollMonth, year }),
- });
- const data = await res.json().catch(() => ({}));
- if (res.ok && Array.isArray(data.slips)) {
- const mapped = data.slips.map((p) => ({
- ...p,
- uid: p.uid || p.user_id,
- basic: p.basic ?? p.basic_salary,
- net: p.net ?? p.net_salary,
- }));
- save('payroll', [
- ...(db.payroll || []).filter((p) => !(Number(p.month) === payrollMonth && Number(p.year) === year)),
- ...mapped,
- ]);
- alert(`Payroll processed for ${data.processed_count || mapped.length} employees for month ${payrollMonth}/${year}`);
- return;
- }
- } catch {}
- const active = (db.users || []).filter(u => ['active', 'on_leave'].includes(u.status));
- const recs = active.map((emp, i) => {
- const parts = buildPayParts(emp, payrollMonth, year);
- return {
- id: Date.now() + i,
- uid: emp.id,
- month: payrollMonth,
- year,
- ...parts,
- overtime: 0,
- bonus: 0,
- status: 'processed',
- date: new Date().toISOString().split('T')[0]
- };
- });
- const old = (db.payroll || []).filter(p => !(p.month === payrollMonth && p.year === year));
- save('payroll', [...old, ...recs]);
- alert(` Payroll processed for ${recs.length} employees for month ${payrollMonth}/${year}`);
- };
+  const runPayroll = async () => {
+    const payrollMonth = parseInt(month, 10);
+    const payrollYear = parseInt(year, 10);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : '';
+      const res = await fetch(`${GLOBAL_API_BASE}/payroll`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ month: payrollMonth, year: payrollYear }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && Array.isArray(data.slips)) {
+        const mapped = data.slips.map((p) => ({
+          ...p,
+          uid: p.uid || p.user_id,
+          basic: p.basic ?? p.basic_salary,
+          net: p.net ?? p.net_salary,
+        }));
+        save('payroll', [
+          ...(db.payroll || []).filter((p) => !(Number(p.month) === payrollMonth && Number(p.year) === payrollYear)),
+          ...mapped,
+        ]);
+        alert(`Payroll successfully processed for ${data.processed_count || mapped.length} employees for ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][payrollMonth - 1]} ${payrollYear}`);
+        return;
+      }
+    } catch (e) {
+      console.warn('Run payroll API warning:', e);
+    }
 
- // Determine list based on tab or role
- const rawList = (canViewAllStaff && payrollTab === 'all') ? (db.payroll || []) : (db.payroll || []).filter(p => String(p.uid) === String(user.id) || String(p.uid) === String(profileUser?.id));
- 
- const filteredList = rawList.filter(p => {
- const emp = (db.users || []).find(u => String(u.id) === String(p.uid));
- const empName = emp?.name || '';
- const empEid = emp?.eid || emp?.employee_id || '';
- const monthName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(p.month || 7) - 1];
- 
- return empName.toLowerCase().includes(search.toLowerCase()) || 
- empEid.toLowerCase().includes(search.toLowerCase()) ||
- monthName.toLowerCase().includes(search.toLowerCase());
- });
+    const active = (db.users || []).filter(u => ['active', 'on_leave'].includes(u.status) || !u.status);
+    const recs = active.map((emp, i) => {
+      const parts = buildPayParts(emp, payrollMonth, payrollYear);
+      return {
+        id: Date.now() + i,
+        uid: emp.id || emp._id,
+        user_id: emp.id || emp._id,
+        month: payrollMonth,
+        year: payrollYear,
+        ...parts,
+        overtime: 0,
+        bonus: 0,
+        status: 'processed',
+        date: new Date().toISOString().split('T')[0]
+      };
+    });
+    const old = (db.payroll || []).filter(p => !(Number(p.month) === payrollMonth && Number(p.year) === payrollYear));
+    save('payroll', [...old, ...recs]);
+    alert(`Payroll processed for ${recs.length} employees for ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][payrollMonth - 1]} ${payrollYear}`);
+  };
 
- const totalNet = filteredList.reduce((s, p) => s + (p.net || 0), 0);
- const myRecord =
- (db.payroll || []).find(
- (p) =>
- (String(p.uid) === String(user?.id) || String(p.uid) === String(profileUser?.id)) &&
- Number(p.month) === Number(month) &&
- Number(p.year) === Number(year)
- ) ||
- (db.payroll || []).find(
- (p) => String(p.uid) === String(user?.id) || String(p.uid) === String(profileUser?.id)
- );
+  const selectedMonthNum = Number(month);
+  const selectedYearNum = Number(year);
 
- // Live preview from onboarding compensation + warning deductions when no slip yet
- const liveMine = buildPayParts(profileUser, Number(month), year);
- const displayBasic = myRecord?.basic ?? myRecord?.basic_salary ?? liveMine.basic;
- const displayAllowances = myRecord?.allowances ?? liveMine.allowances;
- const savedDeduct = Number(myRecord?.attendancePenalty ?? myRecord?.deductions) || 0;
- const displayDeductions = Math.max(savedDeduct, liveMine.deductions);
- const displayNet = (Number(displayBasic) || 0) + (Number(displayAllowances) || 0) - displayDeductions;
- const displayWarnings = Math.max(Number(myRecord?.attendanceWarnings) || 0, liveMine.attendanceWarnings);
- const displayHalfDays = Math.max(Number(myRecord?.halfDaysCut) || 0, liveMine.halfDaysCut);
+  // Active employees
+  const activeStaff = (db.users || []).filter(u => ['active', 'on_leave'].includes(u.status) || !u.status);
 
- return (
- <div className="anim-fadeup">
- <PageHdr title="Payroll & Salary Slips" sub="Salary from HR onboarding · allowances if set · attendance warning deductions · net take-home">
- {canRunPayroll ? (
- <div style={{ display: 'flex', gap: 10 }}>
- <select className="form-input" style={{ width: 130 }} value={month} onChange={e => setMonth(e.target.value)}>
- {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
- <option key={i} value={i + 1}>{m}</option>
- ))}
- </select>
- <button className="btn btn-amber" onClick={runPayroll}> Run Payroll</button>
- </div>
- ) : (
- <div style={{ background: '#ECFDF5', color: '#047857', padding: '6px 14px', borderRadius: 99, fontSize: 12, fontWeight: 800, border: '1px solid #A7F3D0' }}>
- Onboarded salary · warning deductions applied
- </div>
- )}
- </PageHdr>
+  // Saved slips in db.payroll for the selected month and year
+  const savedMonthPayrolls = (db.payroll || []).filter(p => 
+    Number(p.month) === selectedMonthNum && 
+    Number(p.year) === selectedYearNum
+  );
 
- {/* HR MANAGER & SUPER ADMIN TAB SWITCHER */}
- {canViewAllStaff && (
- <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
- <button 
- type="button" 
- style={{
- padding: '9px 18px',
- borderRadius: 99,
- fontSize: 12.5,
- fontWeight: 800,
- border: 'none',
- cursor: 'pointer',
- background: payrollTab === 'all' ? 'var(--accent)' : '#FFFFFF',
- color: payrollTab === 'all' ? '#FFFFFF' : '#4B5563',
- boxShadow: payrollTab === 'all' ? '0 4px 14px rgba(124,92,252,0.3)' : '0 2px 8px rgba(0,0,0,0.04)'
- }}
- onClick={() => setPayrollTab('all')}
- >
- All Staff Payroll Records
- </button>
- <button 
- type="button" 
- style={{
- padding: '9px 18px',
- borderRadius: 99,
- fontSize: 12.5,
- fontWeight: 800,
- border: 'none',
- cursor: 'pointer',
- background: payrollTab === 'mine' ? 'var(--accent)' : '#FFFFFF',
- color: payrollTab === 'mine' ? '#FFFFFF' : '#4B5563',
- boxShadow: payrollTab === 'mine' ? '0 4px 14px rgba(124,92,252,0.3)' : '0 2px 8px rgba(0,0,0,0.04)'
- }}
- onClick={() => setPayrollTab('mine')}
- >
- My Salary & Payslips
- </button>
- </div>
- )}
+  // Build clean comprehensive list for all active employees for this month
+  const allStaffMonthRecords = activeStaff.map(emp => {
+    const empIdStr = String(emp.id || emp._id);
+    const saved = savedMonthPayrolls.find(p => 
+      String(p.uid || p.user_id) === empIdStr || 
+      (p.employee_id && (emp.employee_id === p.employee_id || emp.eid === p.employee_id))
+    );
 
- {/* STAT CARDS */}
- <div className="stats-grid stagger" style={{ marginBottom: 24 }}>
- {canViewAllStaff && payrollTab === 'all' ? (
- [
- { l: 'Total Disbursed', v: `₹${totalNet.toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'card' },
- { l: 'Employees Paid', v: new Set(filteredList.map(p => p.uid)).size, bg: '#DBEAFE', ic: '#2563EB', icon: 'users' },
- { l: 'Avg Salary', v: `₹${Math.round(totalNet / Math.max(filteredList.length, 1)).toLocaleString()}`, bg: '#FEF3C7', ic: '#D97706', icon: 'trending' }
- ].map((s, i) => (
- <div key={i} className="stat-c">
- <div className="stat-icon-wrap" style={{ background: s.bg }}><IC n={s.icon} s={20} c={s.ic}/></div>
- <div><div className="stat-label">{s.l}</div><div className="stat-value">{s.v}</div></div>
- </div>
- ))
- ) : (
- [
- { l: 'Basic Monthly Pay', v: `₹${Number(displayBasic).toLocaleString()}`, bg: '#DBEAFE', ic: '#2563EB', icon: 'card' },
- { l: 'Allowances', v: `+₹${Number(displayAllowances).toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'trending' },
- { l: displayHalfDays > 0 ? `Warning Deductions (${displayHalfDays} half-day)` : 'Warning Deductions', v: `-₹${Number(displayDeductions).toLocaleString()}`, bg: '#FEE2E2', ic: '#DC2626', icon: 'file' },
- { l: 'Net Take-Home', v: `₹${Number(displayNet).toLocaleString()}`, bg: '#F3E8FF', ic: 'var(--accent)', icon: 'card' }
- ].map((s, i) => (
- <div key={i} className="stat-c">
- <div className="stat-icon-wrap" style={{ background: s.bg }}><IC n={s.icon} s={20} c={s.ic}/></div>
- <div><div className="stat-label">{s.l}</div><div className="stat-value">{s.v}</div></div>
- </div>
- ))
- )}
- </div>
+    if (saved) {
+      const basic = Number(saved.basic ?? saved.basic_salary ?? emp.basic_salary ?? emp.salary) || 0;
+      const allowances = Number(saved.allowances ?? emp.allowances) || 0;
+      const deductions = Number(saved.deductions ?? saved.attendancePenalty) || 0;
+      const net = Number(saved.net ?? saved.net_salary ?? (basic + allowances - deductions)) || 0;
+      return {
+        ...saved,
+        id: saved.id || saved._id || empIdStr,
+        uid: empIdStr,
+        user_id: empIdStr,
+        month: selectedMonthNum,
+        year: selectedYearNum,
+        emp,
+        basic,
+        allowances,
+        deductions,
+        net,
+        status: saved.status || 'processed',
+      };
+    }
 
- {!(canViewAllStaff && payrollTab === 'all') && (
- <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: '10px 14px', marginBottom: 16, fontSize: 12.5, fontWeight: 650, color: '#1E40AF' }}>
- Based on HR onboarding: basic ₹{Number(displayBasic).toLocaleString()}
- {Number(displayAllowances) > 0 ? ` + allowances ₹${Number(displayAllowances).toLocaleString()}` : ' (no allowances)'}
- {'. '}
- {displayWarnings > 0
- ? `${displayWarnings} attendance warning(s) this month → ${displayHalfDays} half-day pay cut(s).`
- : 'No attendance warning deductions this month.'}
- </div>
- )}
+    // Live preview from onboarding compensation + warning deductions when no slip yet
+    const live = buildPayParts(emp, selectedMonthNum, selectedYearNum);
+    return {
+      id: `live-${empIdStr}-${selectedMonthNum}-${selectedYearNum}`,
+      uid: empIdStr,
+      user_id: empIdStr,
+      emp,
+      month: selectedMonthNum,
+      year: selectedYearNum,
+      ...live,
+      overtime: 0,
+      bonus: 0,
+      status: 'draft',
+      date: null,
+      isLivePreview: true,
+    };
+  });
 
- {/* SEARCH TOOLBAR FOR STAFF LIST */}
- {canViewAllStaff && payrollTab === 'all' && (
- <div style={{ marginBottom: 16 }}>
- <input 
- className="form-input" 
- style={{ borderRadius: 99, padding: '10px 18px', maxWidth: 360, fontSize: 12.5 }}
- placeholder=" Search employee name, EID or period..." 
- value={search}
- onChange={e => setSearch(e.target.value)}
- />
- </div>
- )}
+  // Also include any saved record for past/deactivated employee if it exists for this month
+  savedMonthPayrolls.forEach(saved => {
+    const sUid = String(saved.uid || saved.user_id);
+    if (!activeStaff.some(emp => String(emp.id || emp._id) === sUid)) {
+      const pastEmp = (db.users || []).find(u => String(u.id || u._id) === sUid);
+      allStaffMonthRecords.push({
+        ...saved,
+        id: saved.id || saved._id || sUid,
+        uid: sUid,
+        user_id: sUid,
+        emp: pastEmp,
+        month: selectedMonthNum,
+        year: selectedYearNum,
+        basic: Number(saved.basic ?? saved.basic_salary) || 0,
+        allowances: Number(saved.allowances) || 0,
+        deductions: Number(saved.deductions ?? saved.attendancePenalty) || 0,
+        net: Number(saved.net ?? saved.net_salary) || 0,
+        status: saved.status || 'processed',
+      });
+    }
+  });
 
- {/* SALARY RECORDS TABLE */}
- <div className="card" style={{ borderRadius: 20, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
- <div className="tbl-wrap">
- <table className="tbl">
- <thead><tr><th>Employee</th><th>Period</th><th>Basic</th><th>Allowances</th><th>Deductions</th><th>Net Salary</th><th>Status</th><th>Payslip</th></tr></thead>
- <tbody>
- {filteredList.length === 0 && !(canViewAllStaff && payrollTab === 'all') && liveMine.basic > 0 && (
- <tr>
- <td>
- <div className="emp-cell">
- <img src={profileUser?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Staff'} className="tbl-av" alt=""/>
- <div>
- <div style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{profileUser?.name || 'You'}</div>
- <div style={{ fontSize: 11, color: '#6B7280' }}>{profileUser?.eid || profileUser?.employee_id || 'EMP'} • {profileUser?.title || profileUser?.designation || 'Staff'}</div>
- </div>
- </div>
- </td>
- <td style={{ fontSize: 13, color: '#4B5563', fontWeight: 600 }}>{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(month) - 1]} {year}</td>
- <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>₹{liveMine.basic.toLocaleString()}</td>
- <td style={{ color: '#059669', fontWeight: 700, fontSize: 13 }}>+₹{liveMine.allowances.toLocaleString()}</td>
- <td style={{ color: '#DC2626', fontWeight: 700, fontSize: 13 }}>-₹{liveMine.deductions.toLocaleString()}</td>
- <td style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 17, color: '#111827' }}>₹{liveMine.net.toLocaleString()}</td>
- <td><span className="badge b-warning"><span className="badge-dot"/>Live preview</span></td>
- <td>
- <button
- className="btn btn-sm btn-ghost"
- style={{ borderRadius: 10, fontWeight: 800, fontSize: 11.5, color: 'var(--accent)' }}
- onClick={() => setPayslip({
- id: 'live-preview',
- uid: profileUser?.id || user?.id,
- month: Number(month),
- year,
- ...liveMine,
- overtime: 0,
- bonus: 0,
- status: 'preview',
- date: new Date().toISOString().split('T')[0],
- })}
- >
- View / Print Slip
- </button>
- </td>
- </tr>
- )}
- {filteredList.length === 0 && ((canViewAllStaff && payrollTab === 'all') || liveMine.basic <= 0) && (
- <tr>
- <td colSpan={8}>
- <div className="empty-state" style={{ padding: 30 }}>
- <span className="empty-state-icon"><IC n="card" s={48} style={{ color: 'var(--text-muted)' }}/></span>
- <h3>No payroll records found</h3>
- <p>{canViewAllStaff && payrollTab === 'all' ? 'Super Admin can run payroll for this period' : 'Onboarded salary will appear here once HR sets your basic pay'}</p>
- </div>
- </td>
- </tr>
- )}
- {filteredList.map(p => {
- const emp = (db.users || []).find(u => u.id === p.uid);
- const monthName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(p.month || 7) - 1];
- return (
- <tr key={p.id}>
- <td>
- <div className="emp-cell">
- <img src={emp?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Staff'} className="tbl-av" alt=""/>
- <div>
- <div style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{emp?.name || 'Employee'}</div>
- <div style={{ fontSize: 11, color: '#6B7280' }}>{emp?.eid || 'EMP'} • {emp?.title || 'Staff'}</div>
- </div>
- </div>
- </td>
- <td style={{ fontSize: 13, color: '#4B5563', fontWeight: 600 }}>{monthName} {p.year}</td>
- <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>₹{p.basic?.toLocaleString()}</td>
- <td style={{ color: '#059669', fontWeight: 700, fontSize: 13 }}>+₹{p.allowances?.toLocaleString()}</td>
- <td style={{ color: '#DC2626', fontWeight: 700, fontSize: 13 }}>-₹{p.deductions?.toLocaleString()}</td>
- <td style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 17, color: '#111827' }}>₹{p.net?.toLocaleString()}</td>
- <td><span className="badge b-success"><span className="badge-dot"/>{p.status}</span></td>
- <td>
- <button 
- className="btn btn-sm btn-ghost" 
- style={{ borderRadius: 10, fontWeight: 800, fontSize: 11.5, color: 'var(--accent)' }} 
- onClick={() => setPayslip(p)}
- >
- View / Print Slip
- </button>
- </td>
- </tr>
- );
- })}
- </tbody>
- </table>
- </div>
- </div>
+  const myEmployeeRecord = allStaffMonthRecords.filter(p => 
+    String(p.uid) === String(user?.id) || 
+    String(p.uid) === String(profileUser?.id || profileUser?._id)
+  );
 
- <Modal open={!!payslip} onClose={()=>setPayslip(null)} title="Payslip Document" subtitle="Official salary statement">
- {payslip&&<>
- <div className="payslip-doc">
- <div className="payslip-hdr">
- <div className="payslip-company">CEGS Corp.</div>
- <div className="payslip-addr">42 Wall Street, Suite 1800, New York, NY 10005</div>
- <div className="payslip-period">SALARY SLIP - {['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][(payslip.month||7)-1]} {payslip.year}</div>
- </div>
- <div style={{marginBottom:16,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,fontSize:13}}>
- <div><span style={{color:'var(--text-muted)'}}>Employee:</span> <strong>{db.users.find(u=>u.id===payslip.uid)?.name}</strong></div>
- <div><span style={{color:'var(--text-muted)'}}>Employee ID:</span> <strong className="mono">{db.users.find(u=>u.id===payslip.uid)?.eid}</strong></div>
- <div><span style={{color:'var(--text-muted)'}}>Designation:</span> <strong>{db.users.find(u=>u.id===payslip.uid)?.title}</strong></div>
- <div><span style={{color:'var(--text-muted)'}}>Pay Date:</span> <strong>{payslip.date}</strong></div>
- </div>
- <div className="payslip-row"><span>Basic Salary</span><span>₹{payslip.basic?.toLocaleString()}</span></div>
- <div className="payslip-row"><span>Allowances</span><span style={{color:'var(--green-dark)'}}>+₹{(payslip.allowances || 0).toLocaleString()}</span></div>
- <div className="payslip-row"><span>Overtime</span><span style={{color:'var(--green-dark)'}}>+₹{payslip.overtime||0}</span></div>
- <div className="payslip-row"><span>Performance Bonus</span><span style={{color:'var(--green-dark)'}}>+₹{payslip.bonus||0}</span></div>
- {(payslip.deductionTaxPf > 0) && (
- <div className="payslip-row"><span>Tax & Provident Fund</span><span style={{color:'var(--red-dark)'}}>-₹{payslip.deductionTaxPf.toLocaleString()}</span></div>
- )}
- <div className="payslip-row"><span>Attendance Warning Deductions{payslip.halfDaysCut ? ` (${payslip.halfDaysCut} half-day)` : ''}{payslip.attendanceWarnings ? ` · ${payslip.attendanceWarnings} warnings` : ''}</span><span style={{color:'var(--red-dark)'}}>-₹{(payslip.attendancePenalty ?? payslip.deductions ?? 0).toLocaleString()}</span></div>
- <div className="payslip-total"><span>Net Salary</span><span style={{color:'var(--green-dark)'}}>₹{payslip.net?.toLocaleString()}</span></div>
- </div>
- <div className="btn-row">
- <button className="btn btn-ghost" onClick={()=>setPayslip(null)}>Close</button>
- <button className="btn btn-dark" onClick={()=>window.print()}><IC n="print" s={14}/> Print / Download</button>
- </div>
- </>}
- </Modal>
- </div>
- );
+  const rawList = (canViewAllStaff && payrollTab === 'all') ? allStaffMonthRecords : myEmployeeRecord;
+
+  const filteredList = rawList.filter(p => {
+    const emp = p.emp || (db.users || []).find(u => String(u.id || u._id) === String(p.uid));
+    const empName = emp?.name || p.employee_name || '';
+    const empEid = emp?.employee_id || emp?.eid || p.employee_id || '';
+    const s = search.toLowerCase();
+    return empName.toLowerCase().includes(s) || empEid.toLowerCase().includes(s);
+  });
+
+  const totalNet = (canViewAllStaff && payrollTab === 'all' ? allStaffMonthRecords : filteredList).reduce((s, p) => s + (Number(p.net) || 0), 0);
+  const totalEmployeesCount = (canViewAllStaff && payrollTab === 'all' ? allStaffMonthRecords : filteredList).length;
+  const avgSalary = totalEmployeesCount > 0 ? Math.round(totalNet / totalEmployeesCount) : 0;
+
+  const myCurrentRec = myEmployeeRecord[0] || allStaffMonthRecords.find(p => String(p.uid) === String(user?.id));
+  const liveMine = buildPayParts(profileUser, selectedMonthNum, selectedYearNum);
+  const displayBasic = myCurrentRec?.basic ?? liveMine.basic;
+  const displayAllowances = myCurrentRec?.allowances ?? liveMine.allowances;
+  const displayDeductions = myCurrentRec?.deductions ?? liveMine.deductions;
+  const displayNet = myCurrentRec?.net ?? liveMine.net;
+  const displayWarnings = myCurrentRec?.attendanceWarnings ?? liveMine.attendanceWarnings;
+  const displayHalfDays = myCurrentRec?.halfDaysCut ?? liveMine.halfDaysCut;
+
+  return (
+    <div className="anim-fadeup">
+      <PageHdr title="Payroll & Salary Slips" sub={`Month-wise employee compensation, warning deductions, and take-home · Selected: ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][selectedMonthNum - 1]} ${selectedYearNum}`}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <select className="form-input" style={{ width: 130 }} value={month} onChange={e => setMonth(Number(e.target.value))}>
+            {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+              <option key={i} value={i + 1}>{m}</option>
+            ))}
+          </select>
+          {canRunPayroll && (
+            <button className="btn btn-amber" onClick={runPayroll}> Run Payroll</button>
+          )}
+        </div>
+      </PageHdr>
+
+      {/* HR MANAGER, FINANCE & SUPER ADMIN TAB SWITCHER */}
+      {canViewAllStaff && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+          <button 
+            type="button" 
+            style={{
+              padding: '9px 18px',
+              borderRadius: 99,
+              fontSize: 12.5,
+              fontWeight: 800,
+              border: 'none',
+              cursor: 'pointer',
+              background: payrollTab === 'all' ? 'var(--accent)' : '#FFFFFF',
+              color: payrollTab === 'all' ? '#FFFFFF' : '#4B5563',
+              boxShadow: payrollTab === 'all' ? '0 4px 14px rgba(124,92,252,0.3)' : '0 2px 8px rgba(0,0,0,0.04)'
+            }}
+            onClick={() => setPayrollTab('all')}
+          >
+            All Staff Payroll Records
+          </button>
+          <button 
+            type="button" 
+            style={{
+              padding: '9px 18px',
+              borderRadius: 99,
+              fontSize: 12.5,
+              fontWeight: 800,
+              border: 'none',
+              cursor: 'pointer',
+              background: payrollTab === 'mine' ? 'var(--accent)' : '#FFFFFF',
+              color: payrollTab === 'mine' ? '#FFFFFF' : '#4B5563',
+              boxShadow: payrollTab === 'mine' ? '0 4px 14px rgba(124,92,252,0.3)' : '0 2px 8px rgba(0,0,0,0.04)'
+            }}
+            onClick={() => setPayrollTab('mine')}
+          >
+            My Salary & Payslips
+          </button>
+        </div>
+      )}
+
+      {/* STAT CARDS */}
+      <div className="stats-grid stagger" style={{ marginBottom: 24 }}>
+        {canViewAllStaff && payrollTab === 'all' ? (
+          [
+            { l: 'Total Disbursed', v: `₹${totalNet.toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'card' },
+            { l: 'Employees Paid', v: totalEmployeesCount, bg: '#DBEAFE', ic: '#2563EB', icon: 'users' },
+            { l: 'Avg Salary', v: `₹${avgSalary.toLocaleString()}`, bg: '#FEF3C7', ic: '#D97706', icon: 'trending' }
+          ].map((s, i) => (
+            <div key={i} className="stat-c">
+              <div className="stat-icon-wrap" style={{ background: s.bg }}><IC n={s.icon} s={20} c={s.ic}/></div>
+              <div><div className="stat-label">{s.l}</div><div className="stat-value">{s.v}</div></div>
+            </div>
+          ))
+        ) : (
+          [
+            { l: 'Basic Monthly Pay', v: `₹${Number(displayBasic).toLocaleString()}`, bg: '#DBEAFE', ic: '#2563EB', icon: 'card' },
+            { l: 'Allowances', v: `+₹${Number(displayAllowances).toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'trending' },
+            { l: displayHalfDays > 0 ? `Warning Deductions (${displayHalfDays} half-day)` : 'Warning Deductions', v: `-₹${Number(displayDeductions).toLocaleString()}`, bg: '#FEE2E2', ic: '#DC2626', icon: 'file' },
+            { l: 'Net Take-Home', v: `₹${Number(displayNet).toLocaleString()}`, bg: '#F3E8FF', ic: 'var(--accent)', icon: 'card' }
+          ].map((s, i) => (
+            <div key={i} className="stat-c">
+              <div className="stat-icon-wrap" style={{ background: s.bg }}><IC n={s.icon} s={20} c={s.ic}/></div>
+              <div><div className="stat-label">{s.l}</div><div className="stat-value">{s.v}</div></div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {!(canViewAllStaff && payrollTab === 'all') && (
+        <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: '10px 14px', marginBottom: 16, fontSize: 12.5, fontWeight: 650, color: '#1E40AF' }}>
+          Based on HR onboarding: basic ₹{Number(displayBasic).toLocaleString()}
+          {Number(displayAllowances) > 0 ? ` + allowances ₹${Number(displayAllowances).toLocaleString()}` : ' (no allowances)'}
+          {'. '}
+          {displayWarnings > 0
+            ? `${displayWarnings} attendance warning(s) this month → ${displayHalfDays} half-day pay cut(s).`
+            : 'No attendance warning deductions this month.'}
+        </div>
+      )}
+
+      {/* SEARCH TOOLBAR FOR STAFF LIST */}
+      {canViewAllStaff && payrollTab === 'all' && (
+        <div style={{ marginBottom: 16 }}>
+          <input 
+            className="form-input" 
+            style={{ borderRadius: 99, padding: '10px 18px', maxWidth: 360, fontSize: 12.5 }}
+            placeholder="Search employee name or EID..." 
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* SALARY RECORDS TABLE */}
+      <div className="card" style={{ borderRadius: 20, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead><tr><th>Employee</th><th>Period</th><th>Basic</th><th>Allowances</th><th>Deductions</th><th>Net Salary</th><th>Status</th><th>Payslip</th></tr></thead>
+            <tbody>
+              {filteredList.length === 0 && (
+                <tr>
+                  <td colSpan={8}>
+                    <div className="empty-state" style={{ padding: 30 }}>
+                      <span className="empty-state-icon"><IC n="card" s={48} style={{ color: 'var(--text-muted)' }}/></span>
+                      <h3>No payroll records found</h3>
+                      <p>No records matched your search query for this month.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {filteredList.map(p => {
+                const emp = p.emp || (db.users || []).find(u => String(u.id || u._id) === String(p.uid));
+                const monthName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(p.month || selectedMonthNum) - 1];
+                const basicVal = Number(p.basic ?? p.basic_salary ?? emp?.basic_salary ?? emp?.salary ?? 0);
+                const allowVal = Number(p.allowances ?? emp?.allowances ?? 0);
+                const deductVal = Number(p.deductions ?? p.attendancePenalty ?? 0);
+                const netVal = Number(p.net ?? p.net_salary ?? (basicVal + allowVal - deductVal));
+                const isProcessed = String(p.status).toLowerCase() === 'processed';
+
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      <div className="emp-cell">
+                        <img src={emp?.avatar_url || emp?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Staff'} className="tbl-av" alt=""/>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{emp?.name || p.employee_name || 'Employee'}</div>
+                          <div style={{ fontSize: 11, color: '#6B7280' }}>{emp?.employee_id || emp?.eid || p.employee_id || 'EMP'} • {emp?.designation || emp?.title || 'Staff'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ fontSize: 13, color: '#4B5563', fontWeight: 600 }}>{monthName} {p.year || selectedYearNum}</td>
+                    <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>₹{basicVal.toLocaleString()}</td>
+                    <td style={{ color: '#059669', fontWeight: 700, fontSize: 13 }}>+₹{allowVal.toLocaleString()}</td>
+                    <td style={{ color: '#DC2626', fontWeight: 700, fontSize: 13 }}>-₹{deductVal.toLocaleString()}</td>
+                    <td style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 17, color: '#111827' }}>₹{netVal.toLocaleString()}</td>
+                    <td>
+                      <span className={`badge ${isProcessed ? 'b-success' : 'b-warning'}`}>
+                        <span className="badge-dot"/>{isProcessed ? 'PROCESSED' : 'DRAFT'}
+                      </span>
+                    </td>
+                    <td>
+                      <button 
+                        className="btn btn-sm btn-ghost" 
+                        style={{ borderRadius: 10, fontWeight: 800, fontSize: 11.5, color: 'var(--accent)' }} 
+                        onClick={() => setPayslip({
+                          ...p,
+                          basic: basicVal,
+                          allowances: allowVal,
+                          deductions: deductVal,
+                          net: netVal,
+                          month: selectedMonthNum,
+                          year: selectedYearNum,
+                          emp,
+                        })}
+                      >
+                        View / Print Slip
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <Modal open={!!payslip} onClose={()=>setPayslip(null)} title="Payslip Document" subtitle="Official salary statement">
+        {payslip && (() => {
+          const slipEmp = payslip.emp || (db.users || []).find(u => String(u.id || u._id) === String(payslip.uid || payslip.user_id));
+          const pMonthName = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][(payslip.month || selectedMonthNum) - 1];
+          return (
+            <>
+              <div className="payslip-doc">
+                <div className="payslip-hdr">
+                  <div className="payslip-company">CEGS Career Expert Global Solutions</div>
+                  <div className="payslip-addr">Jaganatha Arcade, Hebbal, Bengaluru, Karnataka 560032</div>
+                  <div className="payslip-period">SALARY SLIP - {pMonthName} {payslip.year || selectedYearNum}</div>
+                </div>
+                <div style={{marginBottom:16,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,fontSize:13}}>
+                  <div><span style={{color:'var(--text-muted)'}}>Employee:</span> <strong>{slipEmp?.name || payslip.employee_name || 'Staff'}</strong></div>
+                  <div><span style={{color:'var(--text-muted)'}}>Employee ID:</span> <strong className="mono">{slipEmp?.employee_id || slipEmp?.eid || payslip.employee_id || 'EMP'}</strong></div>
+                  <div><span style={{color:'var(--text-muted)'}}>Designation:</span> <strong>{slipEmp?.designation || slipEmp?.title || payslip.designation || 'Staff'}</strong></div>
+                  <div><span style={{color:'var(--text-muted)'}}>Pay Date:</span> <strong>{payslip.date || new Date().toISOString().split('T')[0]}</strong></div>
+                </div>
+                <div className="payslip-row"><span>Basic Salary</span><span>₹{(Number(payslip.basic) || 0).toLocaleString()}</span></div>
+                <div className="payslip-row"><span>Allowances</span><span style={{color:'var(--green-dark)'}}>+₹{(Number(payslip.allowances) || 0).toLocaleString()}</span></div>
+                <div className="payslip-row"><span>Overtime</span><span style={{color:'var(--green-dark)'}}>+₹{Number(payslip.overtime || 0)}</span></div>
+                <div className="payslip-row"><span>Performance Bonus</span><span style={{color:'var(--green-dark)'}}>+₹{Number(payslip.bonus || 0)}</span></div>
+                {(payslip.deductionTaxPf > 0) && (
+                  <div className="payslip-row"><span>Tax & Provident Fund</span><span style={{color:'var(--red-dark)'}}>-₹{payslip.deductionTaxPf.toLocaleString()}</span></div>
+                )}
+                <div className="payslip-row"><span>Attendance Warning Deductions{payslip.halfDaysCut ? ` (${payslip.halfDaysCut} half-day)` : ''}{payslip.attendanceWarnings ? ` · ${payslip.attendanceWarnings} warnings` : ''}</span><span style={{color:'var(--red-dark)'}}>-₹{(Number(payslip.attendancePenalty ?? payslip.deductions) || 0).toLocaleString()}</span></div>
+                <div className="payslip-total"><span>Net Salary</span><span style={{color:'var(--green-dark)'}}>₹{(Number(payslip.net) || 0).toLocaleString()}</span></div>
+              </div>
+              <div className="btn-row">
+                <button className="btn btn-ghost" onClick={()=>setPayslip(null)}>Close</button>
+                <button className="btn btn-dark" onClick={()=>window.print()}><IC n="print" s={14}/> Print / Download</button>
+              </div>
+            </>
+          );
+        })()}
+      </Modal>
+    </div>
+  );
 }
 
 /* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================

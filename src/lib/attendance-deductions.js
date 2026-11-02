@@ -305,9 +305,10 @@ export async function processMonthlyPayroll(month, year) {
     })
     .lean();
 
+  const validSlips = slips.filter(s => s.user_id != null);
   return {
     processed_count: count,
-    slips: slips.map(flattenPayrollSlip),
+    slips: validSlips.map(flattenPayrollSlip),
   };
 }
 

@@ -242,13 +242,13 @@ export function buildNavConfig(user, db) {
     );
   } else if (isFinance) {
     main.push(
-      { href: '/finance/invoices', label: 'Finance & Invoices', icon: 'card' },
       { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
       { href: '/billing/permissions', label: 'Permissions', icon: 'shield' },
       ...(canAccessReports ? [{ href: '/reports', label: 'Reports', icon: 'trending' }] : []),
       { href: '/helpdesk', label: 'Help Desk', icon: 'help' },
     );
     campaign.push(
+      { href: '/finance/invoices', label: 'Finance & Invoices', icon: 'card' },
       { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
       { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Targets', icon: 'trending' },

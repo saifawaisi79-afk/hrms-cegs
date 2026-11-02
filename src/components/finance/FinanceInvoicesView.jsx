@@ -3711,9 +3711,6 @@ export function FinanceInvoicesView() {
       {/* SECTION 5: PAYMENTS & INVOICES (EXISTING DASHBOARD) */}
       {activeFinanceTab === 'payments_invoices' && (
         <>
-          {/* TEAM ATTENDANCE & OFFICE VISITS TODAY (DEPARTURE & RETURN TRACKING) */}
-          <TeamVisitsFinanceCard db={db} currentUser={user} />
-
           {/* METRIC STAT CARDS (EXACTLY 3 SECTIONS: 1. Revenue All Time, 2. Revenue This Month, 3. Pending Invoices - NO OVERDUE SECTION) */}
           <div
         style={{
