@@ -571,7 +571,7 @@ export function LoginPage({ login, db }) {
  <div className="login-pro-wfo-strip">
  <div className="login-pro-wfo-text">
  <strong>Office check</strong>
- <span>GPS within 100m of Novel Office Koramangala required.</span>
+ <span>GPS within 100m of Jaganatha Arcade, Hebbal required.</span>
  {geoDistance != null && locationToken && (
  <span className="login-pro-wfo-ok">Verified · {geoDistance}m away</span>
  )}
@@ -4144,7 +4144,7 @@ export function AttendancePage({ db, save, user }) {
       <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#065F46', fontWeight: 700 }}>
           <span style={{ fontSize: 16 }}>🎯</span>
-          <span>GPS Location Security Active — Office Verified (Novel Office Koramangala) | <strong>9-Hour Shift Cycle Active</strong></span>
+          <span>GPS Location Security Active — Office Verified (Jaganatha Arcade, Hebbal) | <strong>9-Hour Shift Cycle Active</strong></span>
         </div>
         <span style={{ background: '#10B981', color: '#fff', padding: '2px 8px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>LOCATION VERIFIED</span>
       </div>

@@ -8,14 +8,14 @@ export type OfficeConfig = {
 };
 
 export function getOfficeConfig(): OfficeConfig {
-  const lat = Number(process.env.OFFICE_LAT ?? 12.951361);
-  const lng = Number(process.env.OFFICE_LNG ?? 77.608194);
+  const lat = Number(process.env.OFFICE_LAT ?? 13.029861);
+  const lng = Number(process.env.OFFICE_LNG ?? 77.589167);
   const radiusM = Number(process.env.OFFICE_RADIUS_M ?? 100);
-  const name = process.env.OFFICE_NAME || 'Novel Office Koramangala';
+  const name = process.env.OFFICE_NAME || 'Jaganatha Arcade, Hebbal, Bengaluru';
 
   return {
-    lat: Number.isFinite(lat) ? lat : 12.951361,
-    lng: Number.isFinite(lng) ? lng : 77.608194,
+    lat: Number.isFinite(lat) ? lat : 13.029861,
+    lng: Number.isFinite(lng) ? lng : 77.589167,
     radiusM: Number.isFinite(radiusM) && radiusM > 0 ? radiusM : 100,
     name,
   };
