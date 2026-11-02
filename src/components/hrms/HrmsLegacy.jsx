@@ -23,6 +23,7 @@ import { WalkinsSelectionsSection } from '@/components/recruitment/WalkinsSelect
 import { JoinerSheetSection } from '@/components/recruitment/JoinerSheetSection';
 import { TeamVisitsSection, formatVisitTime } from '@/components/attendance/TeamVisitsMonitor';
 import { PermissionsSection } from '@/components/permissions/PermissionsSection';
+import { ItDashboardSection } from '@/components/it/ItDashboardSection';
 import {
   allocateLeavePay,
   calcLeaveBalance,
@@ -500,6 +501,7 @@ export function LoginPage({ login, db }) {
  { id: 'admin', label: 'HR Admin' },
  { id: 'super_admin', label: 'Super Admin' },
  { id: 'finance', label: 'Finance & Invoices' },
+  { id: 'IT_TEAM', label: 'IT Team' },
  ];
 
  return (
@@ -1419,6 +1421,9 @@ export function LunchBreakWidget({ user, db, save }) {
 }
 
 export function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTargetUser, openChatWithUser, openChatWithGroup, setChatTargetGroup, setShowMessengerInbox }) {
+  if ((user?.role || '').toLowerCase() === 'it_team') {
+    return <ItDashboardSection user={user} db={db} save={save} setView={setView} />;
+  }
  const getUserPermissionRole = (u) => {
  if (!u) return 'employee';
  if (u.role === 'super_admin') return 'super_admin';
@@ -2916,7 +2921,7 @@ export function EmployeesPage({ db, save, user, setView, setQuickViewUser, setCh
             <div className="form-group"><label className="form-label">Email Address</label><input type="email" className="form-input" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} required /></div>
           </div>
           <div className="form-row">
-            <div className="form-group"><label className="form-label">Role</label><select className="form-input" value={form.role || 'employee'} onChange={e => setForm({ ...form, role: e.target.value })}><option value="employee">Employee</option><option value="admin">Admin (HR)</option><option value="super_admin">Super Admin</option><option value="finance">Finance & Invoices</option></select></div>
+            <div className="form-group"><label className="form-label">Role</label><select className="form-input" value={form.role || 'employee'} onChange={e => setForm({ ...form, role: e.target.value })}><option value="employee">Employee</option><option value="admin">Admin (HR)</option><option value="super_admin">Super Admin</option><option value="finance">Finance & Invoices</option><option value="IT_TEAM">IT Team</option></select></div>
             <div className="form-group"><label className="form-label">Department</label><select className="form-input" value={form.deptId || 1} onChange={e => setForm({ ...form, deptId: parseInt(e.target.value) })}>{(db.departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
           </div>
           <div className="form-group"><label className="form-label">Job Title</label><input className="form-input" value={form.title || form.designation || ''} onChange={e => setForm({ ...form, title: e.target.value, designation: e.target.value })} placeholder="e.g. Senior Software Engineer" required /></div>
@@ -6678,6 +6683,7 @@ export function OnboardingPage({ db, save, user }) {
  <option value="admin">Admin (HR) Portal</option>
  <option value="super_admin">Super Admin Portal</option>
  <option value="finance">Finance & Invoices</option>
+ <option value="IT_TEAM">IT Team Portal</option>
  </select>
  </div>
  </div>
@@ -6821,6 +6827,7 @@ export function OnboardingPage({ db, save, user }) {
  <option value="admin">Admin (HR) Portal</option>
  <option value="super_admin">Super Admin Portal</option>
  <option value="finance">Finance & Invoices</option>
+ <option value="IT_TEAM">IT Team Portal</option>
  </select>
  </div>
  </div>
@@ -7302,7 +7309,7 @@ export function UsersPage({ db, save, user }) {
  <td style={{fontSize:12,color:'var(--text-muted)',fontFamily:'JetBrains Mono,monospace'}}>{u.lastLogin?new Date(u.lastLogin).toLocaleDateString():'-'}</td>
  <td>
  <select className="form-input" style={{width:140,fontSize:12}} value={u.role} onChange={e=>changeRole(u.id,e.target.value)} disabled={u.id===user.id}>
- <option value="employee">Employee</option><option value="admin">Admin</option><option value="super_admin">Super Admin</option><option value="finance">Finance & Invoices</option>
+ <option value="employee">Employee</option><option value="admin">Admin</option><option value="super_admin">Super Admin</option><option value="finance">Finance & Invoices</option><option value="IT_TEAM">IT Team</option>
  </select>
  </td>
  <td>

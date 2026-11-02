@@ -49,6 +49,8 @@ export const VIEW_TO_PATH = {
   systemhealth: '/admin/system-health',
   apimonitor: '/admin/api-monitor',
   queryterminal: '/admin/query-terminal',
+  ittasks: '/it/tasks',
+  adminittasks: '/admin/it-tasks',
 };
 
 export const TARGET_SHEETS = [
@@ -69,6 +71,8 @@ export const PORTAL_HOME = {
   admin: { role: 'admin', path: '/employees', label: 'HR Admin Panel' },
   super_admin: { role: 'super_admin', path: '/dashboard', label: 'Super Admin' },
   finance: { role: 'finance', path: '/finance/invoices', label: 'Finance & Invoices' },
+  it_team: { role: 'it_team', path: '/dashboard', label: 'IT Team Portal' },
+  IT_TEAM: { role: 'IT_TEAM', path: '/dashboard', label: 'IT Team Portal' },
 };
 
 export function portalMatchesRole(portal, role) {
@@ -94,13 +98,17 @@ export const DEFAULT_PERMISSIONS = {
   employee: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: false, onboard: false },
   recruiter: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: true, onboard: false },
   finance: { payroll: true, attendance: true, deleteEmp: true, approveLeave: true, reports: true, onboard: true },
+  it_team: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: false, onboard: false },
+  IT_TEAM: { payroll: true, attendance: false, deleteEmp: false, approveLeave: false, reports: false, onboard: false },
 };
 
 function getPermissionRole(u) {
   if (!u) return 'employee';
-  if (u.role === 'super_admin') return 'super_admin';
-  if (u.role === 'admin') return 'admin';
-  if (u.role === 'finance') return 'finance';
+  const roleLower = String(u.role || '').toLowerCase();
+  if (roleLower === 'super_admin') return 'super_admin';
+  if (roleLower === 'admin') return 'admin';
+  if (roleLower === 'finance') return 'finance';
+  if (roleLower === 'it_team') return 'it_team';
   const title = (u.title || u.designation || '').toLowerCase();
   if (title.includes('manager')) return 'manager';
   if (title.includes('recruiter')) return 'recruiter';
@@ -169,7 +177,8 @@ export function buildNavConfig(user, db) {
   const isSA = user?.role === 'super_admin';
   const isHR = user?.role === 'admin';
   const isFinance = user?.role === 'finance';
-  const isEmp = user?.role === 'employee' || (!isSA && !isHR && !isFinance);
+  const isIT = (user?.role || '').toLowerCase() === 'it_team';
+  const isEmp = !isSA && !isHR && !isFinance && !isIT;
   const perms = getUserPerms(user, db);
   const canAccessReports = perms.reports;
   const canEditAttendance = perms.attendance;
@@ -184,6 +193,7 @@ export function buildNavConfig(user, db) {
     main.push(
       { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
       { href: '/users', label: 'Users', icon: 'users' },
+      { href: '/admin/it-tasks', label: 'IT Team Task Management', icon: 'wrench' },
       { href: '/billing/permissions', label: 'Permissions', icon: 'shield' },
       { href: '/settings', label: 'System Settings', icon: 'settings' },
     );
@@ -216,6 +226,7 @@ export function buildNavConfig(user, db) {
     main.push(
       { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
       { href: '/employees', label: 'Employees', icon: 'users' },
+      { href: '/admin/it-tasks', label: 'IT Team Task Management', icon: 'wrench' },
       { href: '/billing/permissions', label: 'Permissions', icon: 'shield' },
       ...(canAccessReports ? [{ href: '/reports', label: 'Reports', icon: 'trending' }] : []),
       { href: '/helpdesk', label: 'Help Desk', icon: 'help' },
@@ -265,6 +276,32 @@ export function buildNavConfig(user, db) {
       { href: '/billing/documents', label: 'Documents', icon: 'file' },
       { href: '/billing/assets', label: 'Assets', icon: 'monitor' },
     );
+  } else if (isIT) {
+    main.push(
+      { href: '/dashboard', label: 'IT Dashboard', icon: 'dashboard' },
+      { href: '/it/tasks', label: 'My Daily Tasks', icon: 'activity' },
+      { href: '/profile', label: 'My Profile', icon: 'users' },
+      { href: '/directory', label: 'Directory', icon: 'users' },
+      { href: '/announcements', label: 'Announcements', icon: 'bell' },
+      { href: '/helpdesk', label: 'Help Desk', icon: 'help' },
+      { href: '/exit', label: 'Exit', icon: 'logout' },
+    );
+    campaign.push(
+      { href: '/campaign/meetings', label: 'Meeting Scheduler', icon: 'video' },
+      { href: '/campaign/jobs', label: 'Internal Job Portal', icon: 'briefcase' },
+      { href: '/campaign/learning', label: 'Learning & Dev', icon: 'help' },
+      { href: '/campaign/timesheets', label: 'Timesheets', icon: 'file' },
+      { href: '/campaign/rewards', label: 'Rewards & Recognition', icon: 'star' },
+    );
+    billing.push(
+      { href: '/it/tasks', label: 'My Daily Tasks', icon: 'activity' },
+      { href: '/billing/attendance', label: 'Attendance', icon: 'clock' },
+      { href: '/billing/leaves', label: 'Leave Management', icon: 'calendar' },
+      { href: '/billing/payroll', label: 'My Payroll & Payslips', icon: 'card' },
+      { href: '/billing/documents', label: 'Documents', icon: 'file' },
+      { href: '/billing/assets', label: 'My Assets', icon: 'monitor' },
+      { href: '/it/support', label: 'Workstation & IT Support', icon: 'help' },
+    );
   } else if (isEmp) {
     main.push(
       { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -302,7 +339,7 @@ export function buildNavConfig(user, db) {
     billing,
     itSupport: { href: '/it/support', label: 'IT Cell Support', icon: 'help' },
     perms,
-    roles: { isSA, isHR, isFinance, isEmp },
+    roles: { isSA, isHR, isFinance, isIT, isEmp },
   };
 }
 

@@ -152,5 +152,6 @@ export function requireRole(user: AuthUserPayload | null, allowedRoles: string[]
 
 /** Only employee portal is restricted to self-service. Finance has operational administrative authority. */
 export function isSelfServiceRole(role: string | undefined | null): boolean {
-  return role === 'employee';
+  const r = (role || '').toLowerCase();
+  return r === 'employee' || r === 'it_team';
 }

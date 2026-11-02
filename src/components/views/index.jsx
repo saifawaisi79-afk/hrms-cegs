@@ -43,6 +43,9 @@ import {
   QueryTerminalPage,
 } from '@/components/hrms/HrmsLegacy';
 
+import { ItMyTasksSection } from '@/components/it/ItMyTasksSection';
+import { HrItTaskManagementSection } from '@/components/it/HrItTaskManagementSection';
+
 export const DashboardView = withAppPage(DashboardPage);
 export const UsersView = withAppPage(UsersPage);
 export const SettingsView = withAppPage(SettingsPage);
@@ -83,3 +86,6 @@ export const BackupsView = withAppPage(BackupsPage);
 export const SystemHealthView = withAppPage(SystemHealthPage);
 export const APIMonitorView = withAppPage(APIMonitorPage);
 export const QueryTerminalView = withAppPage(QueryTerminalPage);
+
+export const ItMyTasksView = withAppPage(ItMyTasksSection);
+export const HrItTaskManagementView = withAppPage(HrItTaskManagementSection);

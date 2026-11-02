@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 const loginSchema = z.object({
   email: z.string().email({ message: 'Invalid email address' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-  portal: z.enum(['employee', 'admin', 'super_admin', 'finance']).optional(),
+  portal: z.enum(['employee', 'admin', 'super_admin', 'finance', 'it_team', 'IT_TEAM']).optional(),
   workMode: z.enum(['WFO', 'WFH']).default('WFH'),
   locationToken: z.string().optional(),
 });
@@ -84,6 +84,36 @@ export async function POST(request: Request) {
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+    }
+
+    // Role-based portal check if specific portal was selected on login screen
+    if (portal) {
+      const p = String(portal).toLowerCase();
+      const userRole = String(user.role || '').toLowerCase();
+      if (p === 'it_team' && userRole !== 'it_team') {
+        return NextResponse.json(
+          { error: 'Access denied: You do not have permission to access the IT Team portal.' },
+          { status: 403 }
+        );
+      }
+      if (p === 'finance' && userRole !== 'finance' && userRole !== 'admin' && userRole !== 'super_admin') {
+        return NextResponse.json(
+          { error: 'Access denied: You do not have permission to access the Finance portal.' },
+          { status: 403 }
+        );
+      }
+      if (p === 'admin' && userRole !== 'admin' && userRole !== 'super_admin') {
+        return NextResponse.json(
+          { error: 'Access denied: You do not have permission to access the HR Admin portal.' },
+          { status: 403 }
+        );
+      }
+      if (p === 'super_admin' && userRole !== 'super_admin') {
+        return NextResponse.json(
+          { error: 'Access denied: You do not have permission to access the Super Admin portal.' },
+          { status: 403 }
+        );
+      }
     }
 
     // Check HRMS Stop status (Admins and Super Admins can still log in to manage)

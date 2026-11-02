@@ -65,6 +65,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   try {
     const authUser = getAuthUser(request);
+    if (authUser && (authUser.role || '').toLowerCase() === 'it_team') {
+      return NextResponse.json({ error: 'Forbidden: Recruitment and calling modules are restricted for IT Team accounts' }, { status: 403 });
+    }
     if (!authUser) {
       return NextResponse.json({ error: 'Access token required' }, { status: 401 });
     }
@@ -111,6 +114,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const authUser = getAuthUser(request);
+    if (authUser && (authUser.role || '').toLowerCase() === 'it_team') {
+      return NextResponse.json({ error: 'Forbidden: Recruitment and calling modules are restricted for IT Team accounts' }, { status: 403 });
+    }
     if (!authUser) {
       return NextResponse.json({ error: 'Access token required' }, { status: 401 });
     }
