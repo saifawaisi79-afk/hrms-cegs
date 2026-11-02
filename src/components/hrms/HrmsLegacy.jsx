@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import confetti from 'canvas-confetti';
 import {
@@ -1421,9 +1422,79 @@ export function LunchBreakWidget({ user, db, save }) {
 }
 
 export function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTargetUser, openChatWithUser, openChatWithGroup, setChatTargetGroup, setShowMessengerInbox }) {
-  if ((user?.role || '').toLowerCase() === 'it_team') {
-    return <ItDashboardSection user={user} db={db} save={save} setView={setView} />;
-  }
+  const isIT = (user?.role || '').toLowerCase() === 'it_team';
+
+  // IT Team Tasks State
+  const [itTasks, setItTasks] = useState([]);
+  const [itStats, setItStats] = useState({ total: 0, pending: 0, in_progress: 0, completed: 0, overdue: 0, review: 0 });
+  const [submitTaskModal, setSubmitTaskModal] = useState(null);
+  const [submitComment, setSubmitComment] = useState('');
+  const [submitLink, setSubmitLink] = useState('');
+  const [submitAttachments, setSubmitAttachments] = useState([]);
+  const [isSubmittingWork, setIsSubmittingWork] = useState(false);
+
+  const fetchItTasks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/it/tasks');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.tasks) setItTasks(data.tasks);
+        if (data.stats) setItStats(data.stats);
+      }
+    } catch (e) {
+      console.error('Failed to fetch IT tasks in dashboard:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isIT) {
+      fetchItTasks();
+    }
+  }, [isIT, fetchItTasks]);
+
+  const updateItTaskStatus = async (taskId, newStatus, comment = '') => {
+    try {
+      const res = await fetch(`/api/it/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus, comment }),
+      });
+      if (res.ok) {
+        fetchItTasks();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleItSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!submitTaskModal) return;
+    const targetId = submitTaskModal.id || submitTaskModal._id;
+    setIsSubmittingWork(true);
+    try {
+      const res = await fetch(`/api/it/tasks/${targetId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'Submitted for Review',
+          comment: submitComment.trim(),
+          attachments: submitAttachments,
+        }),
+      });
+      if (res.ok) {
+        setSubmitTaskModal(null);
+        setSubmitComment('');
+        setSubmitAttachments([]);
+        fetchItTasks();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSubmittingWork(false);
+    }
+  };
+
  const getUserPermissionRole = (u) => {
  if (!u) return 'employee';
  if (u.role === 'super_admin') return 'super_admin';
@@ -1842,8 +1913,15 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  const progressTasks = userTasks.filter(t => t.status === 'in_progress');
  const completedTasks = userTasks.filter(t => t.status === 'completed');
  const incompleteTasks = userTasks.filter(t => t.status === 'incomplete');
- const taskTotal = userTasks.length;
- const taskDone = completedTasks.length;
+
+ // IT Team tasks breakdown
+ const itTodoTasks = (itTasks || []).filter(t => ['Assigned', 'Acknowledged'].includes(t.status));
+ const itProgressTasks = (itTasks || []).filter(t => t.status === 'In Progress');
+ const itReviewTasks = (itTasks || []).filter(t => t.status === 'Submitted for Review');
+ const itCompletedTasks = (itTasks || []).filter(t => t.status === 'Completed');
+
+ const taskTotal = isIT ? itTasks.length : userTasks.length;
+ const taskDone = isIT ? itCompletedTasks.length : completedTasks.length;
  const taskPct = taskTotal ? Math.round((taskDone / taskTotal) * 100) : 0;
  const ordinalSuffix = (n) => {
   const v = n % 100;
@@ -1854,11 +1932,17 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
   return 'th';
  };
  const currentTaskNum = Math.min(taskDone + 1, taskTotal || 1);
- const progressLine = !taskTotal
-  ? 'No tasks assigned'
-  : taskDone === taskTotal
-  ? 'All tasks complete'
-  : `On ${currentTaskNum}${ordinalSuffix(currentTaskNum)} task`;
+ const progressLine = isIT
+  ? (!taskTotal
+      ? 'No technical tasks assigned'
+      : taskDone === taskTotal
+      ? 'All technical tasks completed'
+      : `On ${currentTaskNum}${ordinalSuffix(currentTaskNum)} technical task (${itProgressTasks.length} in progress)`)
+  : (!taskTotal
+      ? 'No tasks assigned'
+      : taskDone === taskTotal
+      ? 'All tasks complete'
+      : `On ${currentTaskNum}${ordinalSuffix(currentTaskNum)} task`);
 
  const moveTask = (id, newStatus) => {
  save('workTasks', db.workTasks.map(t => t.id === id ? { ...t, status: newStatus } : t));
@@ -1875,8 +1959,9 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  {user.avatar ? <img src={user.avatar} className="welcome-avatar" alt="" /> : null}
  <div className="welcome-head-text">
  <div className="welcome-title">{greeting}, {firstName}</div>
- {(designation || employeeId || statusLabel) ? (
+ {(designation || employeeId || statusLabel || isIT) ? (
  <div className="welcome-meta">
+ {isIT ? <span style={{ background: '#0284C7', color: '#FFFFFF', padding: '2px 8px', borderRadius: 6, fontWeight: 800, fontSize: 11 }}>IT Team Portal</span> : null}
  {designation ? <span>{designation}</span> : null}
  {employeeId ? <span>ID {employeeId}</span> : null}
  {statusLabel ? (
@@ -1906,8 +1991,21 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  </div>
  <div className="profile-card-detail-item">
  <span className="profile-card-detail-label">Bio / Focus Area</span>
- <span className="profile-card-detail-value">{user.bio || designation || '—'}</span>
+ <span className="profile-card-detail-value">{user.bio || designation || (isIT ? 'IT Engineering & Operations' : '—')}</span>
  </div>
+ </div>
+ )}
+ {isIT && (
+ <div style={{ display: 'flex', gap: 8, marginTop: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+ <Link href="/it/tasks" className="btn btn-sm" style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#fff', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)' }}>
+ ⚡ My Daily Tasks ({itTasks.length}) →
+ </Link>
+ <button type="button" onClick={() => setView ? setView('attendance') : null} className="btn btn-sm btn-ghost" style={{ borderRadius: 99, padding: '7px 14px', fontSize: 12, fontWeight: 700 }}>
+ Clock-in & Attendance
+ </button>
+ <button type="button" onClick={() => setView ? setView('leaves') : null} className="btn btn-sm btn-ghost" style={{ borderRadius: 99, padding: '7px 14px', fontSize: 12, fontWeight: 700 }}>
+ Leave Balance
+ </button>
  </div>
  )}
  <div className="welcome-sub" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
@@ -2126,8 +2224,49 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
 
  {/* ROW 3: Summary Boxes */}
  <div className="summary-widget-container">
- <div className="summary-title">Summary metrics</div>
+ <div className="summary-title">{isIT ? 'IT Technical Tasks Performance' : 'Summary metrics'}</div>
  <div className="summary-cards-grid">
+ {isIT ? (
+ <>
+ <div className="summary-box-card">
+ <div className="summary-box-icon" style={{ background: 'rgba(2, 132, 199, 0.1)', color: '#0284C7' }}>
+ <IC n="tasks" s={18} />
+ </div>
+ <div className="summary-box-details">
+ <span className="summary-box-value">{itStats.total} Tasks</span>
+ <span className="summary-box-label">Total Assigned</span>
+ </div>
+ </div>
+ <div className="summary-box-card">
+ <div className="summary-box-icon" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#D97706' }}>
+ <IC n="clock" s={18} />
+ </div>
+ <div className="summary-box-details">
+ <span className="summary-box-value">{itStats.pending} Pending</span>
+ <span className="summary-box-label">To Do & Ack</span>
+ </div>
+ </div>
+ <div className="summary-box-card">
+ <div className="summary-box-icon" style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#7C3AED' }}>
+ <IC n="activity" s={18} />
+ </div>
+ <div className="summary-box-details">
+ <span className="summary-box-value">{itStats.in_progress} In Progress</span>
+ <span className="summary-box-label">Underway</span>
+ </div>
+ </div>
+ <div className="summary-box-card">
+ <div className="summary-box-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#059669' }}>
+ <IC n="check2" s={18} />
+ </div>
+ <div className="summary-box-details">
+ <span className="summary-box-value">{itStats.completed} Completed</span>
+ <span className="summary-box-label">HR Verified</span>
+ </div>
+ </div>
+ </>
+ ) : (
+ <>
  <div className="summary-box-card">
  <div className="summary-box-icon" style={{ background: 'rgba(16, 185, 129, 0.08)', color: 'var(--green-dark)' }}>
  <IC n="check2" s={18} />
@@ -2164,6 +2303,8 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  <span className="summary-box-label">Backlogs</span>
  </div>
  </div>
+ </>
+ )}
  </div>
  </div>
 
@@ -2208,10 +2349,122 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  {/* ROW 5: Task Board Kanban list & Lunch Break Stopwatch */}
  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2.2fr) minmax(320px, 1fr)', gap: 20, marginBottom: 28, alignItems: 'stretch' }}>
  <div className="taskboard-widget" style={{ marginBottom: 0 }}>
- <div className="taskboard-header">
- <div className="taskboard-title">Task Board</div>
+ <div className="taskboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+ <div className="taskboard-title">{isIT ? 'IT Daily Task Board' : 'Task Board'}</div>
+ {isIT && (
+ <Link href="/it/tasks" style={{ fontSize: 12, fontWeight: 700, color: '#0284c7', textDecoration: 'none' }}>
+ Full Workspace →
+ </Link>
+ )}
  </div>
  <div className="taskboard-columns-grid">
+ {isIT ? (
+ <>
+ {/* COLUMN 1: TO DO */}
+ <div className="taskboard-column">
+ <div className="taskboard-column-header">
+ <span className="taskboard-column-name">To Do</span>
+ <span className="taskboard-column-count">{itTodoTasks.length}</span>
+ </div>
+ {itTodoTasks.length === 0 ? (
+ <div style={{ padding: '24px 8px', textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>No tasks to do</div>
+ ) : (
+ itTodoTasks.map(t => (
+ <div key={t.id || t._id} className="taskboard-card">
+ <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+ <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: t.priority === 'Critical' ? '#fee2e2' : t.priority === 'High' ? '#ffedd5' : '#e0f2fe', color: t.priority === 'Critical' ? '#dc2626' : t.priority === 'High' ? '#ea580c' : '#0284c7' }}>
+ {t.priority || 'Normal'}
+ </span>
+ <span style={{ fontSize: 10, color: '#9ca3af' }}>{t.category}</span>
+ </div>
+ <div className="taskboard-card-title">{t.title}</div>
+ <div className="taskboard-card-desc">{t.description || 'Assigned by HR Admin'}</div>
+ <div className="taskboard-card-footer">
+ <span className="taskboard-card-id">{t.dueDate ? `Due: ${String(t.dueDate).slice(0, 10)}` : '#IT'}</span>
+ <button type="button" className="btn btn-xs btn-ghost" style={{ color: '#0284c7', fontWeight: 800 }} onClick={() => updateItTaskStatus(t.id || t._id, 'In Progress', 'Started task')}>
+ Start →
+ </button>
+ </div>
+ </div>
+ ))
+ )}
+ </div>
+
+ {/* COLUMN 2: IN PROGRESS */}
+ <div className="taskboard-column">
+ <div className="taskboard-column-header">
+ <span className="taskboard-column-name">In Progress</span>
+ <span className="taskboard-column-count">{itProgressTasks.length}</span>
+ </div>
+ {itProgressTasks.length === 0 ? (
+ <div style={{ padding: '24px 8px', textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>No active tasks</div>
+ ) : (
+ itProgressTasks.map(t => (
+ <div key={t.id || t._id} className="taskboard-card">
+ <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+ <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#ede9fe', color: '#7c3aed' }}>
+ {t.category || 'Development'}
+ </span>
+ </div>
+ <div className="taskboard-card-title">{t.title}</div>
+ <div className="taskboard-card-desc">{t.description || 'Working on this task'}</div>
+ <div className="taskboard-card-footer">
+ <span className="taskboard-card-id">{t.dueDate ? `Due: ${String(t.dueDate).slice(0, 10)}` : '#IT'}</span>
+ <button type="button" className="btn btn-xs" style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#fff', borderRadius: 6, fontWeight: 800, padding: '3px 8px', border: 'none', cursor: 'pointer' }} onClick={() => setSubmitTaskModal(t)}>
+ Submit 🚀
+ </button>
+ </div>
+ </div>
+ ))
+ )}
+ </div>
+
+ {/* COLUMN 3: SUBMITTED / IN REVIEW */}
+ <div className="taskboard-column">
+ <div className="taskboard-column-header">
+ <span className="taskboard-column-name">In Review</span>
+ <span className="taskboard-column-count">{itReviewTasks.length}</span>
+ </div>
+ {itReviewTasks.length === 0 ? (
+ <div style={{ padding: '24px 8px', textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>None in review</div>
+ ) : (
+ itReviewTasks.map(t => (
+ <div key={t.id || t._id} className="taskboard-card" style={{ borderLeft: '3px solid #f59e0b' }}>
+ <div className="taskboard-card-title">{t.title}</div>
+ <div className="taskboard-card-desc" style={{ fontSize: 11, color: '#6b7280' }}>Submitted for HR approval</div>
+ <div className="taskboard-card-footer">
+ <span className="taskboard-card-id">#{t.id ? String(t.id).slice(-4) : 'IT'}</span>
+ <span className="badge b-warning" style={{ fontSize: 10 }}>Awaiting HR</span>
+ </div>
+ </div>
+ ))
+ )}
+ </div>
+
+ {/* COLUMN 4: COMPLETED */}
+ <div className="taskboard-column">
+ <div className="taskboard-column-header">
+ <span className="taskboard-column-name">Completed</span>
+ <span className="taskboard-column-count">{itCompletedTasks.length}</span>
+ </div>
+ {itCompletedTasks.length === 0 ? (
+ <div style={{ padding: '24px 8px', textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>No completed tasks</div>
+ ) : (
+ itCompletedTasks.map(t => (
+ <div key={t.id || t._id} className="taskboard-card">
+ <div className="taskboard-card-title" style={{ textDecoration: 'line-through', opacity: 0.6 }}>{t.title}</div>
+ <div className="taskboard-card-desc" style={{ opacity: 0.6 }}>{t.category}</div>
+ <div className="taskboard-card-footer">
+ <span className="taskboard-card-id">#{t.id ? String(t.id).slice(-4) : 'IT'}</span>
+ <span className="badge b-success">Closed</span>
+ </div>
+ </div>
+ ))
+ )}
+ </div>
+ </>
+ ) : (
+ <>
  {/* COLUMN 1: TO DO */}
  <div className="taskboard-column">
  <div className="taskboard-column-header">
@@ -2283,6 +2536,8 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  </div>
  ))}
  </div>
+ </>
+ )}
  </div>
  </div>
 
@@ -2447,7 +2702,67 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  </button>
  </div>
 
- {/* WIDGET 2: Interactive Checklist Tracker */}
+ {/* WIDGET 2: Checklist Tracker or IT Operational Status */}
+ {isIT ? (
+ <>
+ <div className="card" style={{ padding: 20, borderRadius: 24, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+ <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+ <div>
+ <div style={{ fontSize: 15, fontWeight: 900, color: '#111827' }}>Attendance & Shift</div>
+ <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>Office GPS & Daily Schedule</div>
+ </div>
+ <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '3px 10px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>
+ Active Session
+ </span>
+ </div>
+ <div style={{ background: '#F8FAFC', borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid #E2E8F0', fontSize: 12 }}>
+ <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+ <span style={{ color: '#64748B', fontWeight: 600 }}>Work Mode:</span>
+ <span style={{ fontWeight: 800, color: '#0F172A' }}>WFO (Office GPS)</span>
+ </div>
+ <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+ <span style={{ color: '#64748B', fontWeight: 600 }}>Daily Shift:</span>
+ <span style={{ fontWeight: 800, color: '#0F172A' }}>9h (Mon-Fri) / 6h (Sat)</span>
+ </div>
+ <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+ <span style={{ color: '#64748B', fontWeight: 600 }}>Shift Time:</span>
+ <span style={{ fontWeight: 800, color: '#0284C7' }}>09:30 AM - 06:30 PM</span>
+ </div>
+ </div>
+ <div style={{ display: 'flex', gap: 8 }}>
+ <button type="button" onClick={() => setView ? setView('attendance') : null} className="btn btn-sm btn-ghost" style={{ flex: 1, padding: '7px', fontSize: 11.5, fontWeight: 800, borderRadius: 10 }}>
+ Punches & Times
+ </button>
+ <button type="button" onClick={() => setView ? setView('leaves') : null} className="btn btn-sm" style={{ flex: 1, padding: '7px', fontSize: 11.5, fontWeight: 800, borderRadius: 10, background: '#0284c7', color: '#fff', border: 'none' }}>
+ Apply Leave
+ </button>
+ </div>
+ </div>
+
+ <div className="card" style={{ padding: 20, borderRadius: 24, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+ <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+ <div style={{ fontSize: 15, fontWeight: 900, color: '#111827' }}>Leave Balance</div>
+ <button type="button" onClick={() => setView ? setView('leaves') : null} style={{ border: 'none', background: 'transparent', fontSize: 11.5, fontWeight: 800, color: '#0284c7', cursor: 'pointer' }}>
+ Manage →
+ </button>
+ </div>
+ <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, textAlign: 'center' }}>
+ <div style={{ background: '#F0FDF4', padding: '10px 4px', borderRadius: 12, border: '1px solid #BBF7D0' }}>
+ <div style={{ fontSize: 18, fontWeight: 900, color: '#15803D' }}>12</div>
+ <div style={{ fontSize: 10, color: '#166534', fontWeight: 700, marginTop: 2 }}>Available</div>
+ </div>
+ <div style={{ background: '#EFF6FF', padding: '10px 4px', borderRadius: 12, border: '1px solid #BFDBFE' }}>
+ <div style={{ fontSize: 18, fontWeight: 900, color: '#1D4ED8' }}>0</div>
+ <div style={{ fontSize: 10, color: '#1E40AF', fontWeight: 700, marginTop: 2 }}>Taken</div>
+ </div>
+ <div style={{ background: '#FFFBEB', padding: '10px 4px', borderRadius: 12, border: '1px solid #FDE68A' }}>
+ <div style={{ fontSize: 18, fontWeight: 900, color: '#B45309' }}>0</div>
+ <div style={{ fontSize: 10, color: '#92400E', fontWeight: 700, marginTop: 2 }}>Pending HR</div>
+ </div>
+ </div>
+ </div>
+ </>
+ ) : (
  <div className="checklist-card">
  <div className="checklist-header" style={{ marginBottom: 12 }}>
  <div>
@@ -2520,28 +2835,33 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  <button className="btn btn-sm btn-red" style={{ padding: '6px 12px' }} onClick={deleteLastCheckItem}>- Delete</button>
  </div>
  </div>
+ )}
 
  {/* WIDGET 3: Progress Donut Graph */}
  <div className="donut-graph-widget">
- <div style={{ fontWeight: 800, fontSize: 14 }}>Graph Status Overview</div>
+ <div style={{ fontWeight: 800, fontSize: 14 }}>{isIT ? 'IT Tasks Completion' : 'Graph Status Overview'}</div>
  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '20px 0' }}>
  <svg className="donut-chart-svg">
  <circle className="donut-ring-track" cx="70" cy="70" r="54" />
  <circle className="donut-ring-fill" cx="70" cy="70" r="54" 
- stroke="var(--purple)" 
- strokeDasharray={`${(60 / 100) * (2 * Math.PI * 54)} ${2 * Math.PI * 54}`} />
+ stroke={isIT ? '#0284c7' : 'var(--purple)'} 
+ strokeDasharray={`${((isIT ? taskPct : 60) / 100) * (2 * Math.PI * 54)} ${2 * Math.PI * 54}`} />
+ {!isIT && (
  <circle className="donut-ring-fill" cx="70" cy="70" r="54" 
  stroke="var(--amber)" 
  strokeDasharray={`${(20 / 100) * (2 * Math.PI * 54)} ${2 * Math.PI * 54}`}
  strokeDashoffset={`-${(60 / 100) * (2 * Math.PI * 54)}`} />
+ )}
  </svg>
  <div className="donut-inner-text">
- <div className="donut-value">60%</div>
- <div className="donut-label">Total Progress</div>
+ <div className="donut-value">{isIT ? `${taskPct}%` : '60%'}</div>
+ <div className="donut-label">{isIT ? 'Resolved' : 'Total Progress'}</div>
  </div>
  </div>
  <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
- Verification targets are computed from checklist items and credential auditor compliance logs.
+ {isIT 
+ ? `${itStats.completed} of ${itStats.total} technical and operational tasks completed & verified by HR.`
+ : 'Verification targets are computed from checklist items and credential auditor compliance logs.'}
  </div>
  </div>
 
@@ -2745,6 +3065,75 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  </div>
  </form>
  </Modal>
+
+ {/* IT WORK SUBMISSION MODAL */}
+ {submitTaskModal && (
+ <Modal open={Boolean(submitTaskModal)} onClose={() => setSubmitTaskModal(null)} title="Submit IT Work for HR Review">
+ <form onSubmit={handleItSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+ <div style={{ background: '#f8fafc', padding: 12, borderRadius: 12, border: '1px solid #e2e8f0' }}>
+ <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{submitTaskModal.title}</div>
+ <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Category: {submitTaskModal.category || 'Development'} • Priority: {submitTaskModal.priority}</div>
+ </div>
+
+ <div className="form-group">
+ <label className="form-label" style={{ fontWeight: 700 }}>Work Description / Resolution Notes *</label>
+ <textarea
+ className="form-input"
+ rows="3"
+ placeholder="Explain what was implemented, fixed, or deployed..."
+ value={submitComment}
+ onChange={e => setSubmitComment(e.target.value)}
+ required
+ />
+ </div>
+
+ <div className="form-group">
+ <label className="form-label" style={{ fontWeight: 700 }}>Deliverable URL / Pull Request / Proof Link (optional)</label>
+ <div style={{ display: 'flex', gap: 8 }}>
+ <input
+ type="url"
+ className="form-input"
+ placeholder="https://github.com/... or staging URL"
+ value={submitLink}
+ onChange={e => setSubmitLink(e.target.value)}
+ />
+ <button
+ type="button"
+ className="btn btn-sm btn-ghost"
+ onClick={() => {
+ if (submitLink.trim()) {
+ setSubmitAttachments(prev => [...prev, { name: 'Deliverable Link', url: submitLink.trim(), type: 'link' }]);
+ setSubmitLink('');
+ }
+ }}
+ >
+ Add
+ </button>
+ </div>
+ </div>
+
+ {submitAttachments.length > 0 && (
+ <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+ {submitAttachments.map((att, i) => (
+ <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f1f5f9', padding: '6px 10px', borderRadius: 8, fontSize: 12 }}>
+ <a href={att.url} target="_blank" rel="noopener noreferrer" style={{ color: '#0284c7', textDecoration: 'underline' }}>{att.url}</a>
+ <button type="button" onClick={() => setSubmitAttachments(prev => prev.filter((_, idx) => idx !== i))} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontWeight: 800 }}>✕</button>
+ </div>
+ ))}
+ </div>
+ )}
+
+ <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+ <button type="submit" disabled={isSubmittingWork} className="btn btn-dark" style={{ flex: 1, padding: 10, background: '#0284c7', borderRadius: 99, fontWeight: 800 }}>
+ {isSubmittingWork ? 'Submitting...' : 'Submit to HR for Review 🚀'}
+ </button>
+ <button type="button" className="btn btn-ghost" style={{ padding: '10px 18px', borderRadius: 99, fontWeight: 700 }} onClick={() => setSubmitTaskModal(null)}>
+ Cancel
+ </button>
+ </div>
+ </form>
+ </Modal>
+ )}
  </div>
  </div>
  );
