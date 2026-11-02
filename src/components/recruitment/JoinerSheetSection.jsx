@@ -50,6 +50,8 @@ function dupKey(name, phone) {
 
 function mapJoinedCandidate(cand, index) {
   const id = cand.id || cand._id;
+  const companyVal = cand.company || cand.client || '';
+  const processVal = cand.process || '';
   return {
     id: `sheet_${id}`,
     source: 'sheet',
@@ -57,7 +59,8 @@ function mapJoinedCandidate(cand, index) {
     slNo: cand.slNo || index + 1,
     name: cand.name || '',
     phone: cand.number || '',
-    process: cand.company || '',
+    process: processVal,
+    company: companyVal,
     recruiterName: cand.employee || '',
     dateOfJoining: '',
     billingDate: '',
@@ -275,7 +278,8 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
       if (!ov) return base;
       return {
         ...base,
-        process: ov.process || base.process,
+        process: ov.process || base.process || '',
+        company: ov.company || base.company || '',
         dateOfJoining: ov.dateOfJoining || '',
         billingDate: ov.billingDate || '',
         employeeCode: ov.employeeCode || '',
@@ -317,6 +321,8 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
       id: r.id || r._id,
       source: 'manual',
       phone: r.phone || '',
+      company: r.company || '',
+      process: r.process || '',
     }));
   }, [overlays, sheetRows, employeeFilter]);
 
@@ -358,8 +364,9 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
   const filtered = useMemo(() => {
     return allRows.filter((r) => {
       if (companyTab !== 'ALL') {
-        const p = String(r.process || '').toUpperCase();
-        if (!p.includes(companyTab)) return false;
+        const comp = String(r.company || '').toUpperCase();
+        const proc = String(r.process || '').toUpperCase();
+        if (!comp.includes(companyTab) && !proc.includes(companyTab)) return false;
       }
       if (monthFilter !== 'ALL') {
         const ym = extractRowYearMonth(r);
@@ -372,6 +379,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
         String(r.name || '').toLowerCase().includes(q) ||
         String(r.phone || '').includes(q) ||
         String(r.process || '').toLowerCase().includes(q) ||
+        String(r.company || '').toLowerCase().includes(q) ||
         String(r.recruiterName || '').toLowerCase().includes(q) ||
         String(r.employeeCode || '').toLowerCase().includes(q)
       );
@@ -388,9 +396,11 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
 
     const counts = { ALL: baseList.length };
     COMPANY_TABS.slice(1).forEach((c) => {
-      counts[c] = baseList.filter((r) =>
-        String(r.process || '').toUpperCase().includes(c)
-      ).length;
+      counts[c] = baseList.filter((r) => {
+        const comp = String(r.company || '').toUpperCase();
+        const proc = String(r.process || '').toUpperCase();
+        return comp.includes(c) || proc.includes(c);
+      }).length;
     });
     return counts;
   }, [allRows, monthFilter]);
@@ -404,10 +414,12 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
   const startEdit = (row) => {
     if (!canEditEntry) return;
     setEditingId(row.id || row._id);
+    const matchedCompany = row.company || (COMPANY_TABS.slice(1).find(c => String(row.process || '').toUpperCase().includes(c)) || '');
     setEditForm({
       name: row.name || '',
       phone: row.phone || '',
       process: row.process || '',
+      company: matchedCompany,
       dateOfJoining: row.dateOfJoining || '',
       billingDate: row.billingDate || '',
       employeeCode: row.employeeCode || '',
@@ -445,6 +457,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
       name: editForm.name.trim().toUpperCase(),
       phone: editForm.phone.trim(),
       process: editForm.process.trim(),
+      company: (editForm.company || '').trim(),
       dateOfJoining: editForm.dateOfJoining.trim(),
       billingDate: editForm.billingDate.trim(),
       employeeCode: editForm.employeeCode.trim(),
@@ -484,11 +497,14 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
           );
           return [...without, saved];
         });
-        if (editForm.candidateId && payload.process) {
+        if (editForm.candidateId && (payload.company || payload.process)) {
           await fetch(`${GLOBAL_API_BASE}/candidates/${editForm.candidateId}`, {
             method: 'PUT',
             headers: authHeaders(),
-            body: JSON.stringify({ company: payload.process }),
+            body: JSON.stringify({
+              company: payload.company || payload.process,
+              process: payload.process,
+            }),
           }).catch(() => {});
         }
       } else {
@@ -653,7 +669,20 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
           // Ignore blank rows
           if (!name && !phone) return;
 
-          const process = getVal(['process', 'company', 'client', 'account']);
+          const detectedTab = companyTab !== 'ALL' ? companyTab : '';
+          const rawCompany = getVal(['company', 'client', 'account', 'employer', 'comp']);
+          const rawProcess = getVal(['process', 'subprocess', 'project', 'domain', 'role']);
+
+          let company = rawCompany || detectedTab || '';
+          let process = rawProcess || '';
+
+          if (!company && process) {
+            const matched = COMPANY_TABS.slice(1).find(c => process.toUpperCase().includes(c));
+            if (matched) {
+              company = matched;
+            }
+          }
+
           const dateOfJoining = getVal(['dateofjoining', 'joiningdate', 'doj', 'joining']);
           const billingDate = getVal(['billingdate', 'billing', 'billdate']);
           const employeeCode = getVal(['employeeidcode', 'employeecode', 'employeeid', 'empid', 'empcode', 'code', 'id']);
@@ -676,6 +705,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
             name: name || 'IMPORTED CANDIDATE',
             phone: phone || '',
             process: process || '',
+            company: company || '',
             dateOfJoining: dateOfJoining || '',
             billingDate: billingDate || '',
             employeeCode: employeeCode || '',
@@ -753,7 +783,8 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
         'SL.NO': 1,
         'Name': 'SUMAN V GOWDA',
         'Phone Number': '7022350100',
-        'Process': 'ALTRUIST',
+        'Process': 'Customer Support Voice',
+        'Company': 'ALTRUIST',
         'Date of Joining': '20/10/2026',
         'Billing Date': '25/10/2026',
         'Employee ID/Code': 'EMP-1029',
@@ -772,7 +803,8 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
         'SL.NO': 2,
         'Name': 'RAMYA TEST',
         'Phone Number': '9876543210',
-        'Process': 'TRIO',
+        'Process': 'Operations',
+        'Company': 'TRIO',
         'Date of Joining': '22/10/2026',
         'Billing Date': '28/10/2026',
         'Employee ID/Code': 'EMP-1030',
@@ -1103,7 +1135,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
 
       {/* Main Google-Sheets Style Table */}
       <div className="datasheet-scroll" style={{ maxHeight: '70vh' }}>
-        <table className="datasheet-table" style={{ minWidth: 1400 }}>
+        <table className="datasheet-table" style={{ minWidth: 1480 }}>
           <thead>
             <tr>
               {[
@@ -1111,6 +1143,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                 'Name',
                 'Phone Number',
                 'Process',
+                'Company',
                 'Date of Joining',
                 'Billing Date',
                 'Employee ID/Code',
@@ -1136,7 +1169,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
             {filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={canEditEntry || canDelete ? 18 : 17}
+                  colSpan={canEditEntry || canDelete ? 19 : 18}
                   style={{ padding: 32, textAlign: 'center', color: '#64748B' }}
                 >
                   <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>
@@ -1169,20 +1202,21 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                       </td>
                       <td>{inp('name', 'NAME')}</td>
                       <td>{inp('phone', 'Phone')}</td>
+                      <td>{inp('process', 'Process')}</td>
                       <td>
                         <select
                           className="cell-select"
-                          value={editForm.process || ''}
-                          onChange={(e) => setEditForm({ ...editForm, process: e.target.value })}
+                          value={editForm.company || ''}
+                          onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
                         >
-                          <option value="">Select Process</option>
+                          <option value="">Select Company</option>
                           {COMPANY_TABS.slice(1).map((c) => (
                             <option key={c} value={c}>
                               {c}
                             </option>
                           ))}
-                          {editForm.process && !COMPANY_TABS.includes(editForm.process) ? (
-                            <option value={editForm.process}>{editForm.process}</option>
+                          {editForm.company && !COMPANY_TABS.includes(editForm.company) ? (
+                            <option value={editForm.company}>{editForm.company}</option>
                           ) : null}
                         </select>
                       </td>
@@ -1267,6 +1301,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                     {cell(row.name)}
                     {cell(row.phone)}
                     {cell(row.process)}
+                    {cell(row.company || (COMPANY_TABS.slice(1).find(c => String(row.process || '').toUpperCase().includes(c)) || '—'))}
                     {cell(row.dateOfJoining)}
                     {cell(row.billingDate)}
                     {cell(row.employeeCode)}
@@ -1490,6 +1525,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                       <th style={{ padding: '8px 10px', fontWeight: 800, color: '#334155' }}>Name</th>
                       <th style={{ padding: '8px 10px', fontWeight: 800, color: '#334155' }}>Phone</th>
                       <th style={{ padding: '8px 10px', fontWeight: 800, color: '#334155' }}>Process</th>
+                      <th style={{ padding: '8px 10px', fontWeight: 800, color: '#334155' }}>Company</th>
                       <th style={{ padding: '8px 10px', fontWeight: 800, color: '#334155' }}>DOJ</th>
                       <th style={{ padding: '8px 10px', fontWeight: 800, color: '#334155' }}>Billing</th>
                       <th style={{ padding: '8px 10px', fontWeight: 800, color: '#334155' }}>Recruiter</th>
@@ -1508,6 +1544,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                         <td style={{ padding: '8px 10px', fontWeight: 800, color: '#0F172A' }}>{row.name}</td>
                         <td style={{ padding: '8px 10px', color: '#475569' }}>{row.phone || '—'}</td>
                         <td style={{ padding: '8px 10px', color: '#1E293B' }}>{row.process || '—'}</td>
+                        <td style={{ padding: '8px 10px', color: '#1E293B', fontWeight: 700 }}>{row.company || '—'}</td>
                         <td style={{ padding: '8px 10px', color: '#475569' }}>{row.dateOfJoining || '—'}</td>
                         <td style={{ padding: '8px 10px', color: '#475569' }}>{row.billingDate || '—'}</td>
                         <td style={{ padding: '8px 10px', color: '#475569' }}>{row.recruiterName || '—'}</td>
@@ -1658,7 +1695,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                   {deleteConfirmRow.name}
                 </div>
                 <div style={{ color: '#64748B', marginTop: 4 }}>
-                  Phone: <strong style={{ color: '#1E293B' }}>{deleteConfirmRow.phone || '—'}</strong> • Process: <strong style={{ color: '#1E293B' }}>{deleteConfirmRow.process || '—'}</strong>
+                  Phone: <strong style={{ color: '#1E293B' }}>{deleteConfirmRow.phone || '—'}</strong> • Process: <strong style={{ color: '#1E293B' }}>{deleteConfirmRow.process || '—'}</strong> • Company: <strong style={{ color: '#1E293B' }}>{deleteConfirmRow.company || '—'}</strong>
                 </div>
                 <div style={{ color: '#64748B', marginTop: 2 }}>
                   Recruiter: <strong style={{ color: '#1E293B' }}>{deleteConfirmRow.recruiterName || '—'}</strong> • DOJ: <strong style={{ color: '#1E293B' }}>{deleteConfirmRow.dateOfJoining || '—'}</strong>

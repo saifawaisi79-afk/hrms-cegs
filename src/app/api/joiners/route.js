@@ -9,6 +9,7 @@ const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   phone: z.string().optional().default(''),
   process: z.string().optional().default(''),
+  company: z.string().optional().default(''),
   dateOfJoining: z.string().optional().default(''),
   billingDate: z.string().optional().default(''),
   employeeCode: z.string().optional().default(''),
@@ -84,6 +85,7 @@ export async function POST(request) {
               name: data.name || existing.name,
               phone: data.phone || existing.phone,
               process: data.process ?? existing.process,
+              company: data.company ?? existing.company,
               dateOfJoining: data.dateOfJoining ?? existing.dateOfJoining,
               billingDate: data.billingDate ?? existing.billingDate,
               employeeCode: data.employeeCode ?? existing.employeeCode,
@@ -110,6 +112,7 @@ export async function POST(request) {
           if (existing) {
             Object.assign(existing, {
               process: data.process || existing.process,
+              company: data.company || existing.company,
               dateOfJoining: data.dateOfJoining || existing.dateOfJoining,
               billingDate: data.billingDate || existing.billingDate,
               employeeCode: data.employeeCode || existing.employeeCode,
@@ -165,6 +168,7 @@ export async function POST(request) {
           name: data.name || existing.name,
           phone: data.phone || existing.phone,
           process: data.process ?? existing.process,
+          company: data.company ?? existing.company,
           dateOfJoining: data.dateOfJoining ?? existing.dateOfJoining,
           billingDate: data.billingDate ?? existing.billingDate,
           employeeCode: data.employeeCode ?? existing.employeeCode,

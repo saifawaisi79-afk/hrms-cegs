@@ -6,8 +6,10 @@ const JoinerEntrySchema = new mongoose.Schema(
     slNo: { type: Number, default: 0 },
     name: { type: String, default: '' },
     phone: { type: String, default: '' },
-    /** Process / client company (ISON, ALTRUIST, …) */
+    /** Process / domain (Voice, Blended, etc.) */
     process: { type: String, default: '' },
+    /** Client company (ISON, ALTRUIST, ONE POINT ONE, STARTEK, etc.) */
+    company: { type: String, default: '' },
     dateOfJoining: { type: String, default: '' },
     billingDate: { type: String, default: '' },
     employeeCode: { type: String, default: '' },
@@ -30,5 +32,6 @@ const JoinerEntrySchema = new mongoose.Schema(
 
 JoinerEntrySchema.index({ candidateId: 1 });
 JoinerEntrySchema.index({ process: 1 });
+JoinerEntrySchema.index({ company: 1 });
 
 export default mongoose.models.JoinerEntry || mongoose.model('JoinerEntry', JoinerEntrySchema);

@@ -10,6 +10,7 @@ const updateSchema = z.object({
   name: z.string().optional(),
   phone: z.string().optional(),
   process: z.string().optional(),
+  company: z.string().optional(),
   dateOfJoining: z.string().optional(),
   billingDate: z.string().optional(),
   employeeCode: z.string().optional(),
