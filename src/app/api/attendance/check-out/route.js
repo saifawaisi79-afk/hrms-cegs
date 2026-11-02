@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Attendance from '@/lib/models/Attendance';
+import SystemSetting from '@/lib/models/SystemSetting';
 import { getAuthUser } from '@/lib/auth';
 import { toIsoDate } from '@/lib/auto-absent';
 import { persistAttendanceWarning } from '@/lib/attendance-deductions';
@@ -27,7 +28,23 @@ export async function POST(request) {
   if (existing.check_out_time) return NextResponse.json({ error: 'Already checked out for today' }, { status: 400 });
 
   const workHours = calcWorkHours(existing.check_in_time, nowTimeStr);
-  const isEarly = workHours < 9;
+  const requiredHours = getRequiredShiftHours(todayStr);
+
+  // Check if Early Logout permission was granted by HR
+  let earlyLogoutAllowed = !!existing.early_logout_allowed;
+  if (!earlyLogoutAllowed) {
+    try {
+      const setting = await SystemSetting.findOne({ key: `early_logout_waivers_${todayStr}` }).lean();
+      if (setting?.value) {
+        const ids = JSON.parse(setting.value);
+        if (ids.includes('ALL') || ids.includes(String(authUser.id))) {
+          earlyLogoutAllowed = true;
+        }
+      }
+    } catch {}
+  }
+
+  const isEarly = workHours < requiredHours && !earlyLogoutAllowed;
 
   let warningResult = null;
   if (isEarly) {
@@ -51,11 +68,15 @@ export async function POST(request) {
   existing.time_zone = OFFICE_TZ;
   if (isHalfDay) {
     existing.status = 'half_day';
+  } else if (existing.status === 'half_day' && earlyLogoutAllowed) {
+    existing.status = 'present';
   }
   await existing.save();
 
   let message = 'Checked out successfully';
-  if (isEarly) {
+  if (earlyLogoutAllowed) {
+    message = `Early Clock-Out authorized by HR Permission (${existing.early_logout_reason || 'Approved early departure'}).`;
+  } else if (isEarly) {
     if (isHalfDay) {
       message = `Early Clock-Out (${workHours}h of ${requiredHours}h completed). This is warning #${earlyWarningsCount} this month — marked as Half-Day Absent with salary deduction.`;
     } else {
@@ -68,6 +89,7 @@ export async function POST(request) {
     check_out_time: nowTimeStr,
     work_hours: workHours,
     is_early: isEarly,
+    early_logout_allowed: earlyLogoutAllowed,
     early_warnings: earlyWarningsCount,
     is_half_day: isHalfDay,
     status: existing.status,
@@ -77,4 +99,3 @@ export async function POST(request) {
     payroll: warningResult?.payroll || null,
   });
 }
-

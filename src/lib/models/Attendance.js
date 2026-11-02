@@ -9,7 +9,7 @@ const AttendanceSchema = new mongoose.Schema({
   check_in_lng:      { type: Number, default: null },
   status:            { type: String, enum: ['present', 'late', 'absent', 'half_day'], default: 'present' },
   /** clock = real punch · sheet = inferred from Targets work · auto = system absent */
-  source:            { type: String, enum: ['clock', 'sheet', 'auto'], default: 'clock' },
+  source:            { type: String, enum: ['clock', 'sheet', 'auto', 'override'], default: 'clock' },
   location_verified: { type: Boolean, default: false },
   work_hours:        { type: Number, default: 0 },
   /** Official company visit presence state (attendance timer continues ticking) */
@@ -24,6 +24,11 @@ const AttendanceSchema = new mongoose.Schema({
       at:       { type: Date, default: Date.now },
     }
   ],
+  /** HR Permissions on date: Early Logout & 40% performance clause waivers */
+  early_logout_allowed: { type: Boolean, default: false },
+  early_logout_reason:  { type: String, default: '' },
+  clause40_waived:      { type: Boolean, default: false },
+  clause40_reason:      { type: String, default: '' },
   /** Wall-clock timezone for check_in/out strings — Asia/Kolkata once set (legacy rows lack this) */
   time_zone:         { type: String, default: null },
 }, { timestamps: true });
