@@ -90,11 +90,18 @@ export async function POST(request: Request) {
     if (portal) {
       const p = String(portal).toLowerCase();
       const userRole = String(user.role || '').toLowerCase();
-      if (p === 'it_team' && userRole !== 'it_team') {
-        return NextResponse.json(
-          { error: 'Access denied: You do not have permission to access the IT Team portal.' },
-          { status: 403 }
-        );
+      if (p === 'it_team') {
+        const isItDesignation = /developer|architect|software|system|engineer|it|programmer|tech/i.test(String(user.designation || ''));
+        if (userRole !== 'it_team' && !isItDesignation) {
+          return NextResponse.json(
+            { error: 'Access denied: You do not have permission to access the IT Team portal.' },
+            { status: 403 }
+          );
+        }
+        if (userRole !== 'it_team' && isItDesignation) {
+          user.role = 'IT_TEAM';
+          await User.findByIdAndUpdate(user._id, { role: 'IT_TEAM' });
+        }
       }
       if (p === 'finance' && userRole !== 'finance' && userRole !== 'admin' && userRole !== 'super_admin') {
         return NextResponse.json(
