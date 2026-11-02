@@ -249,6 +249,7 @@ export function buildNavConfig(user, db) {
       { href: '/helpdesk', label: 'Help Desk', icon: 'help' },
     );
     campaign.push(
+      { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
       { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Targets', icon: 'trending' },
       { href: '/campaign/performance', label: 'Performance', icon: 'trending' },
@@ -274,6 +275,7 @@ export function buildNavConfig(user, db) {
       { href: '/exit', label: 'Exit', icon: 'logout' },
     );
     campaign.push(
+      { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
       { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Recruitment Targets', icon: 'adduser' },
       { href: '/campaign/performance', label: 'Performance', icon: 'trending' },
