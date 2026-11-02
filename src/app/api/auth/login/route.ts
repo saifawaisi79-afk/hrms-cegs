@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
+import SystemSetting from '@/lib/models/SystemSetting';
 import { signToken, getClientIp, checkIpAllowed, verifyLocationToken } from '@/lib/auth';
 import { PORTAL_HOME } from '@/lib/nav';
 import { resolveLoginTime } from '@/lib/attendance-policy';
@@ -85,6 +86,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
+    // Check HRMS Stop status (Admins and Super Admins can still log in to manage)
+    try {
+      const hrmsStopSetting = await (SystemSetting as any).findOne({ key: 'hrms_stopped' }).lean();
+      if (hrmsStopSetting?.value === 'true' && !['admin', 'super_admin'].includes(user.role)) {
+        const annSetting = await (SystemSetting as any).findOne({ key: 'hrms_announcement' }).lean();
+        return NextResponse.json(
+          { error: annSetting?.value || 'HRMS operations are currently paused by administration. Please check back later.' },
+          { status: 503 }
+        );
+      }
+    } catch (e) {
+      console.warn('HRMS stop check warning:', e);
+    }
+
+    // Check Work From Home (WFH) permission for employees
+    if (workMode === 'WFH') {
+      const isPrivileged = ['admin', 'super_admin', 'finance'].includes(user.role);
+      if (!isPrivileged && !user.wfh_allowed) {
+        return NextResponse.json(
+          { error: 'Work From Home (WFH) is not enabled for your account. Please select Work From Office (WFO) or contact HR.' },
+          { status: 403 }
+        );
+      }
+    }
+
     // Auto-resolve user's actual role and authorized home portal
     const resolvedPortal = user.role || 'employee';
     const targetHome = PORTAL_HOME[resolvedPortal]?.path || '/dashboard';
@@ -131,6 +157,7 @@ export async function POST(request: Request) {
         emergency_contact: user.emergency_contact || '',
         must_change_password: user.must_change_password ? 1 : 0,
         last_login: nowStr,
+        wfh_allowed: !!user.wfh_allowed,
         workMode,
       },
     });

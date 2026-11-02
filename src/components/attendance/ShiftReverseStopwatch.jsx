@@ -8,8 +8,13 @@ import { toIsoDate } from '@/lib/auto-absent';
 import { getAuthToken, API_BASE } from '@/lib/auth-client';
 import { countMonthlyEarlyLogoutWarnings } from '@/lib/attendance-policy';
 
-const SHIFT_HOURS = 9;
-const SHIFT_MS = SHIFT_HOURS * 60 * 60 * 1000; // 32,400,000 ms
+export function getShiftHours(date = new Date()) {
+  const d = typeof date === 'string' ? new Date(date + 'T12:00:00Z') : new Date(date);
+  return d.getDay() === 6 ? 6 : 9;
+}
+
+const DEFAULT_SHIFT_HOURS = 9;
+const DEFAULT_SHIFT_MS = DEFAULT_SHIFT_HOURS * 60 * 60 * 1000;
 
 /**
  * Flexible punch time parser for multiple formats:
@@ -174,15 +179,18 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
     return parseClockInTime(todayRec.date || todayIso, todayRec.in || todayRec.check_in_time);
   }, [isClockedIn, todayRec, todayIso]);
 
+  const currentShiftHours = useMemo(() => getShiftHours(todayRec?.date || todayIso), [todayRec, todayIso]);
+  const currentShiftMs = currentShiftHours * 60 * 60 * 1000;
+
   const clockOutDt = useMemo(() => {
     if (!isClockedOut) return null;
     return parseClockInTime(todayRec.date || todayIso, todayRec.out || todayRec.check_out_time);
   }, [isClockedOut, todayRec, todayIso]);
 
-  // Target shift end timestamp: Clock-in + 9 hours
+  // Target shift end timestamp: Clock-in + ${currentShiftHours} hours
   const targetEndDt = useMemo(() => {
     if (!clockInDt) return null;
-    return new Date(clockInDt.getTime() + SHIFT_MS);
+    return new Date(clockInDt.getTime() + currentShiftMs);
   }, [clockInDt]);
 
   // Ticking timer: 1-second interval
@@ -198,7 +206,7 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
   const calculation = useMemo(() => {
     if (!clockInDt || !targetEndDt) {
       return {
-        remainingSecs: SHIFT_HOURS * 3600,
+        remainingSecs: currentShiftHours * 3600,
         elapsedSecs: 0,
         progressPct: 0,
         isCompleted: false,
@@ -214,7 +222,7 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
     const isCompleted = remainingMs <= 0;
     const remainingSecs = Math.max(0, Math.floor(remainingMs / 1000));
     const overtimeSecs = isCompleted ? Math.floor(Math.abs(remainingMs) / 1000) : 0;
-    const progressPct = Math.min(100, Math.max(0, (elapsedMs / SHIFT_MS) * 100));
+    const progressPct = Math.min(100, Math.max(0, (elapsedMs / currentShiftMs) * 100));
 
     return {
       remainingSecs,
@@ -226,7 +234,7 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
     };
   }, [clockInDt, targetEndDt, isClockedOut, clockOutDt, liveNow]);
 
-  // Confetti trigger once 9 hours is reached
+  // Confetti trigger once ${currentShiftHours} hours is reached
   useEffect(() => {
     if (calculation.isCompleted && !hasCelebrated && isClockedIn) {
       setHasCelebrated(true);
@@ -418,7 +426,7 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
           if (data?.is_half_day) {
             alert(`🚨 Half-Day Absent Penalty Applied!\nYou have ${data.early_warnings} early logout warnings this month. You have been marked Half-Day Absent and an automatic half-day deduction has been applied to your payroll.`);
           } else {
-            alert(`⚠️ Early Logout Warning (${data.early_warnings} of 2)\nYou clocked out before completing 9 hours. Note: after 2 warnings, from your 3rd warning onward you will be marked as Half-Day Absent with a payroll deduction.`);
+            alert(`⚠️ Early Logout Warning (${data.early_warnings} of 2)\nYou clocked out before completing ${currentShiftHours} hours. Note: after 2 warnings, from your 3rd warning onward you will be marked as Half-Day Absent with a payroll deduction.`);
           }
         }
       }
@@ -570,7 +578,7 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
       title={
         isClockedIn
           ? `${portalLabelText} • Clocked In: ${clockInDisplay} • Target Out: ${targetEndDisplay}${todayRec?.visit_status === 'company_visit' ? ' • 🚗 On Company Visit (Attendance Running)' : ''} (9h Shift)\nDrag to move anywhere`
-          : `${portalLabelText} • Click Clock In to start your 9-hour shift timer\nDrag to move anywhere`
+          : `${portalLabelText} • Click Clock In to start your ${currentShiftHours}-hour shift timer\nDrag to move anywhere`
       }
     >
       {/* Left indicator: live pulse & clock icon */}
@@ -775,14 +783,14 @@ export function ShiftReverseStopwatch({ currentUser, db, save }) {
                       ⚠️ You already have {earlyWarningsCount} early logout warning{earlyWarningsCount > 1 ? 's' : ''} this month!
                     </p>
                     <p style={{ margin: 0, color: '#7f1d1d' }}>
-                      Clocking out before completing your 9 hours will trigger your <strong>{nextWarningNum}th early departure</strong>.
+                      Clocking out before completing your ${currentShiftHours} hours will trigger your <strong>{nextWarningNum}th early departure</strong>.
                       You will be marked as <strong>Half-Day Absent</strong> and an automatic <strong>half-day salary deduction will be applied to your monthly payroll</strong>!
                     </p>
                   </>
                 ) : (
                   <>
                     <p style={{ margin: '0 0 6px 0', color: '#b45309', fontWeight: 800 }}>
-                      You have not completed your required 9-hour cycle.
+                      You have not completed your required ${currentShiftHours}-hour cycle.
                     </p>
                     <p style={{ margin: 0, color: '#78350f' }}>
                       Clocking out early will record an <strong>Early Logout Warning ({nextWarningNum} of 2)</strong>.

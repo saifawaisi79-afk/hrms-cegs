@@ -188,3 +188,23 @@ export function isLateLunchReturn(user, endTime = new Date(), durationSecs, allo
   const lateByClock = endTime.getTime() > windowEnd.getTime();
   return exceeded || lateByClock;
 }
+
+/**
+ * Required shift duration:
+ * - Saturday: 6 hours
+ * - Monday through Friday: 9 hours
+ */
+export function getRequiredShiftHours(date = new Date()) {
+  let day;
+  if (typeof date === 'string') {
+    const parts = date.slice(0, 10).split('-').map(Number);
+    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+      day = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+    } else {
+      day = new Date(date).getDay();
+    }
+  } else {
+    day = date.getDay();
+  }
+  return day === 6 ? 6 : 9;
+}

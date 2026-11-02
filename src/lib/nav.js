@@ -184,6 +184,7 @@ export function buildNavConfig(user, db) {
     main.push(
       { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
       { href: '/users', label: 'Users', icon: 'users' },
+      { href: '/billing/permissions', label: 'Permissions', icon: 'shield' },
       { href: '/settings', label: 'System Settings', icon: 'settings' },
     );
     campaign.push(
@@ -215,6 +216,7 @@ export function buildNavConfig(user, db) {
     main.push(
       { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
       { href: '/employees', label: 'Employees', icon: 'users' },
+      { href: '/billing/permissions', label: 'Permissions', icon: 'shield' },
       ...(canAccessReports ? [{ href: '/reports', label: 'Reports', icon: 'trending' }] : []),
       { href: '/helpdesk', label: 'Help Desk', icon: 'help' },
     );
@@ -242,6 +244,7 @@ export function buildNavConfig(user, db) {
     main.push(
       { href: '/finance/invoices', label: 'Finance & Invoices', icon: 'card' },
       { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+      { href: '/billing/permissions', label: 'Permissions', icon: 'shield' },
       ...(canAccessReports ? [{ href: '/reports', label: 'Reports', icon: 'trending' }] : []),
       { href: '/helpdesk', label: 'Help Desk', icon: 'help' },
     );

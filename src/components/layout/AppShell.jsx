@@ -42,6 +42,42 @@ export function AppShell({ children }) {
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [nowTime, setNowTime] = useState(() => new Date());
+  const [systemAlert, setSystemAlert] = useState(null);
+  const [dismissedAlert, setDismissedAlert] = useState(false);
+
+  // Poll system announcement / stop status
+  useEffect(() => {
+    let cancel = false;
+    const fetchStatus = async () => {
+      try {
+        const token = getAuthToken();
+        const res = await fetch(`${API_BASE}/settings`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancel) {
+            if (data.hrms_stopped === 'true' || data.hrms_announcement) {
+              setSystemAlert({
+                stopped: data.hrms_stopped === 'true',
+                message: data.hrms_announcement,
+                level: data.hrms_announcement_level || (data.hrms_stopped === 'true' ? 'urgent' : 'info'),
+                updatedAt: data.hrms_announcement_updated_at,
+              });
+            } else {
+              setSystemAlert(null);
+            }
+          }
+        }
+      } catch (e) {}
+    };
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 60000);
+    return () => {
+      cancel = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Today ISO date in IST
   const todayIso = useMemo(() => toIsoDate(new Date()), []);
@@ -171,6 +207,57 @@ export function AppShell({ children }) {
   return (
     <div className="app-shell">
       <AppHeader />
+      {systemAlert && !dismissedAlert && (
+        <div
+          style={{
+            background:
+              systemAlert.stopped || systemAlert.level === 'urgent'
+                ? 'linear-gradient(90deg, #dc2626 0%, #b91c1c 100%)'
+                : systemAlert.level === 'warning'
+                ? 'linear-gradient(90deg, #d97706 0%, #b45309 100%)'
+                : 'linear-gradient(90deg, #0284c7 0%, #0369a1 100%)',
+            color: '#ffffff',
+            padding: '10px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            zIndex: 90,
+            position: 'relative',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+            <span style={{ fontSize: 16 }}>
+              {systemAlert.stopped ? '🚨' : systemAlert.level === 'warning' ? '⚠️' : '📢'}
+            </span>
+            <span>
+              <strong>{systemAlert.stopped ? 'HRMS EMERGENCY PAUSE: ' : 'ANNOUNCEMENT: '}</strong>
+              {systemAlert.message || (systemAlert.stopped ? 'HRMS operations are temporarily paused by administration. All attendance records are protected.' : '')}
+            </span>
+          </div>
+          {!systemAlert.stopped && (
+            <button
+              type="button"
+              onClick={() => setDismissedAlert(true)}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
+                color: '#fff',
+                borderRadius: 4,
+                padding: '3px 8px',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 700,
+              }}
+            >
+              Dismiss
+            </button>
+          )}
+        </div>
+      )}
       <div className="main-area">
         <div className="page-content">{children}</div>
       </div>

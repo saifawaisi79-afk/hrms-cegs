@@ -20,6 +20,7 @@ export interface IUser extends Document {
   /** Official daily login start HH:mm (default 10:00; some staff e.g. Raheel 11:00) */
   login_time: string;
   avatar_url: string;
+  wfh_allowed?: boolean;
   last_login?: string | null;
   emergency_contact: string;
   bank_name: string;
@@ -51,6 +52,7 @@ const UserSchema: Schema<IUser> = new mongoose.Schema({
   employment_type:          { type: String, default: 'full_time' },
   login_time:               { type: String, default: '10:00' },
   avatar_url:               { type: String, default: '' },
+  wfh_allowed:              { type: Boolean, default: false },
   last_login:               { type: String, default: null },
   emergency_contact:        { type: String, default: '' },
   bank_name:                { type: String, default: '' },

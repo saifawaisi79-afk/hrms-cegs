@@ -4,6 +4,7 @@ import Attendance from '@/lib/models/Attendance';
 import { getAuthUser } from '@/lib/auth';
 import { toIsoDate } from '@/lib/auto-absent';
 import { persistAttendanceWarning } from '@/lib/attendance-deductions';
+import { getRequiredShiftHours } from '@/lib/attendance-policy';
 import { OFFICE_TZ, calcWorkHours, istTimeString, normalizePunchTime } from '@/lib/ist-time';
 
 // POST /api/attendance/check-out
@@ -35,7 +36,7 @@ export async function POST(request) {
         userId: authUser.id,
         type: 'early_clock_out',
         date: todayStr,
-        note: `Early clock-out at ${nowTimeStr} (${workHours}h / 9h completed)`,
+        note: `Early clock-out at ${nowTimeStr} (${workHours}h / ${requiredHours}h completed)`,
       });
     } catch (err) {
       console.error('early_clock_out persist warning error:', err);
@@ -56,9 +57,9 @@ export async function POST(request) {
   let message = 'Checked out successfully';
   if (isEarly) {
     if (isHalfDay) {
-      message = `Early Clock-Out (${workHours}h of 9h completed). This is warning #${earlyWarningsCount} this month — marked as Half-Day Absent with salary deduction.`;
+      message = `Early Clock-Out (${workHours}h of ${requiredHours}h completed). This is warning #${earlyWarningsCount} this month — marked as Half-Day Absent with salary deduction.`;
     } else {
-      message = `Early Clock-Out Warning (${earlyWarningsCount} of 2): You completed ${workHours}h of your 9h shift.`;
+      message = `Early Clock-Out Warning (${earlyWarningsCount} of 2): You completed ${workHours}h of your ${requiredHours}h shift.`;
     }
   }
 
