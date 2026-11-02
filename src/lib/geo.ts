@@ -7,17 +7,36 @@ export type OfficeConfig = {
   name: string;
 };
 
+export const HEBBAL_OFFICE: OfficeConfig = {
+  lat: 13.029861,
+  lng: 77.589167,
+  radiusM: 150,
+  name: 'Jaganatha Arcade, Hebbal, Bengaluru',
+};
+
 export function getOfficeConfig(): OfficeConfig {
-  const lat = Number(process.env.OFFICE_LAT ?? 13.029861);
-  const lng = Number(process.env.OFFICE_LNG ?? 77.589167);
-  const radiusM = Number(process.env.OFFICE_RADIUS_M ?? 100);
-  const name = process.env.OFFICE_NAME || 'Jaganatha Arcade, Hebbal, Bengaluru';
+  const envName = (process.env.OFFICE_NAME || '').toLowerCase();
+  const envLat = Number(process.env.OFFICE_LAT);
+  const envLng = Number(process.env.OFFICE_LNG);
+  const envRadius = Number(process.env.OFFICE_RADIUS_M);
+
+  // If environment variable is still set to old Koramangala office or unparseable, force new Hebbal office
+  const isOldKoramangala =
+    envName.includes('novel') ||
+    envName.includes('koramangala') ||
+    (Number.isFinite(envLat) && Math.abs(envLat - 12.951361) < 0.01) ||
+    !Number.isFinite(envLat) ||
+    !Number.isFinite(envLng);
+
+  if (isOldKoramangala) {
+    return HEBBAL_OFFICE;
+  }
 
   return {
-    lat: Number.isFinite(lat) ? lat : 13.029861,
-    lng: Number.isFinite(lng) ? lng : 77.589167,
-    radiusM: Number.isFinite(radiusM) && radiusM > 0 ? radiusM : 100,
-    name,
+    lat: envLat,
+    lng: envLng,
+    radiusM: Number.isFinite(envRadius) && envRadius > 0 ? envRadius : HEBBAL_OFFICE.radiusM,
+    name: process.env.OFFICE_NAME || HEBBAL_OFFICE.name,
   };
 }
 

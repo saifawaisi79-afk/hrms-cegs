@@ -571,7 +571,7 @@ export function LoginPage({ login, db }) {
  <div className="login-pro-wfo-strip">
  <div className="login-pro-wfo-text">
  <strong>Office check</strong>
- <span>GPS within 100m of Jaganatha Arcade, Hebbal required.</span>
+ <span>GPS within 150m of Jaganatha Arcade, Hebbal required.</span>
  {geoDistance != null && locationToken && (
  <span className="login-pro-wfo-ok">Verified · {geoDistance}m away</span>
  )}
