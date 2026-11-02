@@ -93,7 +93,17 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  const url = new URL(request.url);
+  const permanent = url.searchParams.get('permanent') === 'true';
+
   await connectDB();
-  await User.findByIdAndUpdate(params.id, { status: 'inactive' });
-  return NextResponse.json({ message: 'Employee deactivated successfully' });
+  if (permanent) {
+    const deleted = await User.findByIdAndDelete(params.id);
+    if (!deleted) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    return NextResponse.json({ message: 'Employee permanently deleted successfully', deletedId: params.id });
+  } else {
+    const updated = await User.findByIdAndUpdate(params.id, { status: 'inactive' }, { new: true });
+    if (!updated) return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    return NextResponse.json({ message: 'Employee deactivated successfully', id: params.id, status: 'inactive' });
+  }
 }

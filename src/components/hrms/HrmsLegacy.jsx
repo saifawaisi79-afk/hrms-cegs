@@ -2735,131 +2735,334 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  EMPLOYEES PAGE
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 export function EmployeesPage({ db, save, user, setView, setQuickViewUser, setChatTargetUser, openChatWithUser }) {
- const [search, setSearch] = useState('');
- const [deptF, setDeptF] = useState('all');
- const [statusF, setStatusF] = useState('all');
- const [modal, setModal] = useState(null);
- const [form, setForm] = useState({});
- const getUserPermissionRole = (u) => {
- if (!u) return 'employee';
- if (u.role === 'super_admin') return 'super_admin';
- if (u.role === 'admin') return 'admin';
- const title = (u.title || '').toLowerCase();
- if (title.includes('manager')) return 'manager';
- if (title.includes('recruiter')) return 'recruiter';
- if (title.includes('billing') || title.includes('finance') || title.includes('accounts')) return 'finance';
- return 'employee';
- };
- const currentPermRole = getUserPermissionRole(user);
- const canEdit = db.permissions?.[currentPermRole]?.deleteEmp ?? ['admin','super_admin'].includes(user.role);
+  const [search, setSearch] = useState('');
+  const [deptF, setDeptF] = useState('all');
+  const [statusF, setStatusF] = useState('all');
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({});
+  const [actionTarget, setActionTarget] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
- const list = db.users.filter(u=>
- (deptF==='all'||u.deptId===parseInt(deptF)) &&
- (statusF==='all'||u.status===statusF) &&
- (u.name.toLowerCase().includes(search.toLowerCase())||u.email.toLowerCase().includes(search.toLowerCase())||u.eid.toLowerCase().includes(search.toLowerCase()))
- );
+  const getUserPermissionRole = (u) => {
+    if (!u) return 'employee';
+    if (u.role === 'super_admin') return 'super_admin';
+    if (u.role === 'admin') return 'admin';
+    const title = (u.title || '').toLowerCase();
+    if (title.includes('manager')) return 'manager';
+    if (title.includes('recruiter')) return 'recruiter';
+    if (title.includes('billing') || title.includes('finance') || title.includes('accounts')) return 'finance';
+    return 'employee';
+  };
+  const currentPermRole = getUserPermissionRole(user);
+  const canEdit = db.permissions?.[currentPermRole]?.deleteEmp ?? ['admin', 'super_admin'].includes(user.role);
 
- const openAdd = () => { setForm({name:'',email:'',role:'employee',deptId:3,title:'',joined:new Date().toISOString().split('T')[0],phone:'',salary:3500,status:'active',eid:`EMP-00${db.users.length+1}`,avatar:`https://api.dicebear.com/7.x/avataaars/svg?seed=${Date.now()}`,reportsTo:null}); setModal('form'); };
- const openEdit = u => { setForm({...u}); setModal('form'); };
- const save_ = e => {
- e.preventDefault();
- if (form.id) { save('users', db.users.map(u=>u.id===form.id?form:u)); }
- else { save('users', [...db.users, {...form,id:Date.now()}]); }
- setModal(null);
- };
- const deactivate = id => { if(confirm('Deactivate this employee?')) save('users', db.users.map(u=>u.id===id?{...u,status:'inactive'}:u)); };
+  const list = (db.users || []).filter(u =>
+    (deptF === 'all' || u.deptId === parseInt(deptF)) &&
+    (statusF === 'all' || u.status === statusF) &&
+    ((u.name || '').toLowerCase().includes(search.toLowerCase()) ||
+     (u.email || '').toLowerCase().includes(search.toLowerCase()) ||
+     (u.eid || u.employee_id || '').toLowerCase().includes(search.toLowerCase()))
+  );
 
- return (
- <div className="anim-fadeup">
- <PageHdr title="Employee Directory" sub={`${db.users.length} people across ${db.departments.length} departments`}>
- {canEdit && <button className="btn btn-dark" onClick={openAdd}><IC n="plus"/> Add Employee</button>}
- </PageHdr>
+  const openAdd = () => {
+    setForm({
+      name: '', email: '', role: 'employee', deptId: 3, title: '',
+      joined: new Date().toISOString().split('T')[0], phone: '',
+      status: 'active', eid: `EMP-00${(db.users || []).length + 1}`,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${Date.now()}`,
+      reportsTo: null
+    });
+    setModal('form');
+  };
+  const openEdit = u => { setForm({ ...u }); setModal('form'); };
+  const save_ = e => {
+    e.preventDefault();
+    if (form.id) { save('users', (db.users || []).map(u => u.id === form.id ? form : u)); }
+    else { save('users', [...(db.users || []), { ...form, id: Date.now() }]); }
+    setModal(null);
+  };
 
- <div className="card" style={{marginBottom:20}}>
- <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
- <div style={{position:'relative',flex:1,minWidth:200}}>
- <IC n="search" s={14} style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--text-muted)'}}/>
- <input className="form-input" style={{paddingLeft:38}} placeholder="Search by name, email, or ID..." value={search} onChange={e=>setSearch(e.target.value)}/>
- </div>
- <select className="form-input" style={{width:180}} value={deptF} onChange={e=>setDeptF(e.target.value)}>
- <option value="all">All Departments</option>
- {db.departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
- </select>
- <select className="form-input" style={{width:150}} value={statusF} onChange={e=>setStatusF(e.target.value)}>
- <option value="all">All Statuses</option>
- <option value="active">Active</option>
- <option value="on_leave">On Leave</option>
- <option value="inactive">Inactive</option>
- </select>
- </div>
- </div>
+  return (
+    <div className="anim-fadeup">
+      <PageHdr title="Employee Directory" sub={`${(db.users || []).length} people across ${(db.departments || []).length} departments`}>
+        {canEdit && <button className="btn btn-dark" onClick={openAdd}><IC n="plus" /> Add Employee</button>}
+      </PageHdr>
 
- <div className="card">
- <div className="tbl-wrap">
- <table className="tbl">
- <thead><tr><th>Employee</th><th>Role</th><th>Department</th><th>Title</th><th>Joined</th><th>Salary</th><th>Status</th>{canEdit&&<th>Actions</th>}</tr></thead>
- <tbody>
- {list.length===0&&<tr><td colSpan={canEdit?8:7}><div className="empty-state"><span className="empty-state-icon"><IC n="search" s={48} style={{color:'var(--text-muted)'}}/></span><h3>No results</h3><p>Try adjusting your search or filters</p></div></td></tr>}
- {list.map(u=>{
- const dept=db.departments.find(d=>d.id===u.deptId);
- return <tr key={u.id}>
- <td>
- <div className="emp-cell">
- <img src={u.avatar} className="tbl-av" alt=""/>
- <div>
- <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
- <div style={{fontSize:12,color:'var(--text-muted)',fontFamily:'JetBrains Mono,monospace'}}>{u.eid}</div>
- </div>
- </div>
- </td>
- <td><span className={`badge ${u.role==='super_admin'?'b-purple':u.role==='admin'?'b-info':'b-gray'}`}><span className="badge-dot"/>{u.role.replace('_','')}</span></td>
- <td>
- {dept && <span style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:13}}>
- <span style={{width:8,height:8,borderRadius:'50%',background:dept.color,display:'inline-block'}}/>
- {dept.name}
- </span>}
- </td>
- <td style={{fontSize:13}}>{u.title}</td>
- <td style={{fontSize:13,color:'var(--text-muted)'}}>{u.joined}</td>
- <td style={{fontFamily:'JetBrains Mono,monospace',fontWeight:600,fontSize:13}}>₹{u.salary?.toLocaleString()}</td>
- <td><span className={`badge ${u.status==='active'?'b-success':u.status==='on_leave'?'b-pending':'b-error'}`}><span className="badge-dot"/>{u.status.replace('_','')}</span></td>
- {canEdit&&<td>
- <div style={{display:'flex',gap:6}}>
- <button className="btn btn-xs btn-ghost" onClick={()=>openEdit(u)}><IC n="edit" s={12}/></button>
- {u.status==='active'&&u.id!==user.id&&canEdit&&<button className="btn btn-xs btn-red" onClick={()=>deactivate(u.id)}><IC n="trash" s={12}/></button>}
- </div>
- </td>}
- </tr>;
- })}
- </tbody>
- </table>
- </div>
- </div>
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+            <IC n="search" s={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input className="form-input" style={{ paddingLeft: 38 }} placeholder="Search by name, email, or ID..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <select className="form-input" style={{ width: 180 }} value={deptF} onChange={e => setDeptF(e.target.value)}>
+            <option value="all">All Departments</option>
+            {(db.departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+          <select className="form-input" style={{ width: 150 }} value={statusF} onChange={e => setStatusF(e.target.value)}>
+            <option value="all">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="on_leave">On Leave</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
 
- <Modal open={modal==='form'} onClose={()=>setModal(null)} title={form.id?'Edit Employee':'Add New Employee'} subtitle={form.id?`Editing ${form.name}`:'Fill in the details to create a new employee record'}>
- <form onSubmit={save_}>
- <div className="form-row">
- <div className="form-group"><label className="form-label">Full Name</label><input className="form-input" value={form.name||''} onChange={e=>setForm({...form,name:e.target.value})} required /></div>
- <div className="form-group"><label className="form-label">Email Address</label><input type="email" className="form-input" value={form.email||''} onChange={e=>setForm({...form,email:e.target.value})} required /></div>
- </div>
- <div className="form-row">
- <div className="form-group"><label className="form-label">Role</label><select className="form-input" value={form.role||'employee'} onChange={e=>setForm({...form,role:e.target.value})}><option value="employee">Employee</option><option value="admin">Admin (HR)</option><option value="super_admin">Super Admin</option><option value="finance">Finance & Invoices</option></select></div>
- <div className="form-group"><label className="form-label">Department</label><select className="form-input" value={form.deptId||1} onChange={e=>setForm({...form,deptId:parseInt(e.target.value)})}>{db.departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
- </div>
- <div className="form-group"><label className="form-label">Job Title</label><input className="form-input" value={form.title||''} onChange={e=>setForm({...form,title:e.target.value})} placeholder="e.g. Senior Software Engineer" required /></div>
- <div className="form-row">
- <div className="form-group"><label className="form-label">Join Date</label><input type="date" className="form-input" value={form.joined||''} onChange={e=>setForm({...form,joined:e.target.value})} /></div>
- <div className="form-group"><label className="form-label">Monthly Salary (₹)</label><input type="number" className="form-input" value={form.salary||3500} onChange={e=>setForm({...form,salary:parseFloat(e.target.value)})} /></div>
- </div>
- <div className="form-row">
- <div className="form-group"><label className="form-label">Phone</label><input className="form-input" value={form.phone||''} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+1 555 000 0000" /></div>
- <div className="form-group"><label className="form-label">Reports To</label><select className="form-input" value={form.reportsTo||''} onChange={e=>setForm({...form,reportsTo:e.target.value?parseInt(e.target.value):null})}><option value="">- Direct (CEO) -</option>{db.users.filter(u=>u.id!==form.id).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
- </div>
- <div className="btn-row"><button type="button" className="btn btn-ghost" onClick={()=>setModal(null)}>Cancel</button><button type="submit" className="btn btn-dark">Save Employee</button></div>
- </form>
- </Modal>
- </div>
- );
+      <div className="card">
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Role</th>
+                <th>Department</th>
+                <th>Title</th>
+                <th>Joined</th>
+                <th>Status</th>
+                {canEdit && <th>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {list.length === 0 && (
+                <tr>
+                  <td colSpan={canEdit ? 7 : 6}>
+                    <div className="empty-state">
+                      <span className="empty-state-icon"><IC n="search" s={48} style={{ color: 'var(--text-muted)' }} /></span>
+                      <h3>No results</h3>
+                      <p>Try adjusting your search or filters</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {list.map(u => {
+                const dept = (db.departments || []).find(d => d.id === u.deptId);
+                const isSelf = String(u.id) === String(user.id);
+                return (
+                  <tr key={u.id}>
+                    <td>
+                      <div className="emp-cell">
+                        <img src={u.avatar || u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name || 'user')}`} className="tbl-av" alt="" />
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{u.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono,monospace' }}>{u.eid || u.employee_id}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`badge ${u.role === 'super_admin' ? 'b-purple' : u.role === 'admin' ? 'b-info' : 'b-gray'}`}>
+                        <span className="badge-dot" />{String(u.role || 'employee').replace('_', '')}
+                      </span>
+                    </td>
+                    <td>
+                      {dept && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: dept.color, display: 'inline-block' }} />
+                          {dept.name}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ fontSize: 13 }}>{u.title || u.designation}</td>
+                    <td style={{ fontSize: 13, color: 'var(--text-muted)' }}>{u.joined || u.joining_date}</td>
+                    <td>
+                      <span className={`badge ${u.status === 'active' ? 'b-success' : u.status === 'on_leave' ? 'b-pending' : 'b-error'}`}>
+                        <span className="badge-dot" />{u.status}
+                      </span>
+                    </td>
+                    {canEdit && (
+                      <td>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-xs btn-ghost" onClick={() => openEdit(u)} title="Edit Employee">
+                            <IC n="edit" s={12} />
+                          </button>
+                          {!isSelf && (
+                            <button
+                              className={`btn btn-xs ${u.status === 'active' ? 'btn-red' : 'btn-ghost'}`}
+                              onClick={() => setActionTarget(u)}
+                              title="Manage Employee (Deactivate or Delete Permanently)"
+                              style={{ color: u.status === 'inactive' ? '#EF4444' : undefined }}
+                            >
+                              <IC n="trash" s={12} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Edit / Add Modal (Salary field removed from Employee Directory) */}
+      <Modal open={modal === 'form'} onClose={() => setModal(null)} title={form.id ? 'Edit Employee' : 'Add New Employee'} subtitle={form.id ? `Editing ${form.name}` : 'Fill in the details to create a new employee record'}>
+        <form onSubmit={save_}>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Full Name</label><input className="form-input" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} required /></div>
+            <div className="form-group"><label className="form-label">Email Address</label><input type="email" className="form-input" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })} required /></div>
+          </div>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Role</label><select className="form-input" value={form.role || 'employee'} onChange={e => setForm({ ...form, role: e.target.value })}><option value="employee">Employee</option><option value="admin">Admin (HR)</option><option value="super_admin">Super Admin</option><option value="finance">Finance & Invoices</option></select></div>
+            <div className="form-group"><label className="form-label">Department</label><select className="form-input" value={form.deptId || 1} onChange={e => setForm({ ...form, deptId: parseInt(e.target.value) })}>{(db.departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></div>
+          </div>
+          <div className="form-group"><label className="form-label">Job Title</label><input className="form-input" value={form.title || form.designation || ''} onChange={e => setForm({ ...form, title: e.target.value, designation: e.target.value })} placeholder="e.g. Senior Software Engineer" required /></div>
+          <div className="form-row">
+            <div className="form-group"><label className="form-label">Join Date</label><input type="date" className="form-input" value={form.joined || form.joining_date || ''} onChange={e => setForm({ ...form, joined: e.target.value, joining_date: e.target.value })} /></div>
+            <div className="form-group"><label className="form-label">Phone</label><input className="form-input" value={form.phone || form.contact || ''} onChange={e => setForm({ ...form, phone: e.target.value, contact: e.target.value })} placeholder="+91 90000 00000" /></div>
+          </div>
+          <div className="form-group"><label className="form-label">Reports To</label><select className="form-input" value={form.reportsTo || ''} onChange={e => setForm({ ...form, reportsTo: e.target.value ? parseInt(e.target.value) : null })}><option value="">- Direct (CEO) -</option>{(db.users || []).filter(u => u.id !== form.id).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+          <div className="btn-row"><button type="button" className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button><button type="submit" className="btn btn-dark">Save Employee</button></div>
+        </form>
+      </Modal>
+
+      {/* Delete / Manage Employee Modal with 2 clear options: Deactivate or Delete Permanently */}
+      <Modal
+        open={!!actionTarget}
+        onClose={() => !actionBusy && setActionTarget(null)}
+        title="Manage Employee Account"
+        subtitle={actionTarget ? `Account actions for ${actionTarget.name}` : 'Manage Employee'}
+      >
+        {actionTarget && (
+          <div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '14px 18px',
+              background: '#F8FAFC',
+              borderRadius: 14,
+              border: '1px solid #E2E8F0',
+              marginBottom: 20
+            }}>
+              <img src={actionTarget.avatar || actionTarget.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(actionTarget.name)}`} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover' }} alt="" />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: '#111827' }}>{actionTarget.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                  {actionTarget.eid || actionTarget.employee_id} · {actionTarget.email}
+                </div>
+              </div>
+              <span className={`badge ${actionTarget.status === 'active' ? 'b-success' : actionTarget.status === 'on_leave' ? 'b-pending' : 'b-error'}`}>
+                <span className="badge-dot" />{actionTarget.status}
+              </span>
+            </div>
+
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 18 }}>
+              Please select the action you would like to perform on this employee record:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Option 1: Deactivate / Reactivate */}
+              <div style={{
+                padding: 16,
+                borderRadius: 14,
+                border: '1px solid #FDE68A',
+                background: '#FFFBEB',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 14,
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: '#92400E', marginBottom: 3 }}>
+                    {actionTarget.status === 'active' ? '1. Deactivate Employee' : '1. Reactivate Employee'}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#B45309' }}>
+                    {actionTarget.status === 'active'
+                      ? 'Disable login access and mark account as inactive. All historical records, past attendance logs, and candidate sheets are preserved.'
+                      : 'Re-enable login access and mark account as active so this staff member can resume daily work.'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className={`btn ${actionTarget.status === 'active' ? 'btn-amber' : 'btn-dark'}`}
+                  disabled={actionBusy}
+                  style={{ minWidth: 120, justifyContent: 'center' }}
+                  onClick={async () => {
+                    setActionBusy(true);
+                    const newStatus = actionTarget.status === 'active' ? 'inactive' : 'active';
+                    const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+                    try {
+                      if (token) {
+                        await fetch(`${GLOBAL_API_BASE}/admin/users/${actionTarget.id}/status`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ status: newStatus })
+                        });
+                      }
+                    } catch (err) {
+                      console.warn('Status update API error:', err);
+                    }
+                    save('users', (db.users || []).map(u => u.id === actionTarget.id ? { ...u, status: newStatus } : u));
+                    setActionBusy(false);
+                    setActionTarget(null);
+                  }}
+                >
+                  {actionTarget.status === 'active' ? 'Deactivate' : 'Reactivate'}
+                </button>
+              </div>
+
+              {/* Option 2: Delete Permanently */}
+              <div style={{
+                padding: 16,
+                borderRadius: 14,
+                border: '1px solid #FECACA',
+                background: '#FEF2F2',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 14,
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: '#991B1B', marginBottom: 3 }}>
+                    2. Delete Permanently
+                  </div>
+                  <div style={{ fontSize: 12, color: '#B91C1C' }}>
+                    Permanently delete this employee from the database and remove their login account completely. <strong>This action cannot be undone.</strong>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-red"
+                  disabled={actionBusy}
+                  style={{ minWidth: 150, justifyContent: 'center' }}
+                  onClick={async () => {
+                    if (!window.confirm(`⚠️ PERMANENT DELETE WARNING:\n\nAre you sure you want to permanently delete ${actionTarget.name} (${actionTarget.eid || actionTarget.employee_id || ''})?\n\nThis will permanently erase their record from MongoDB and cannot be undone.`)) {
+                      return;
+                    }
+                    setActionBusy(true);
+                    const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+                    try {
+                      if (token) {
+                        await fetch(`${GLOBAL_API_BASE}/employees/${actionTarget.id}?permanent=true`, {
+                          method: 'DELETE',
+                          headers: { Authorization: `Bearer ${token}` }
+                        });
+                      }
+                    } catch (err) {
+                      console.warn('Permanent delete API error:', err);
+                    }
+                    save('users', (db.users || []).filter(u => u.id !== actionTarget.id));
+                    setActionBusy(false);
+                    setActionTarget(null);
+                  }}
+                >
+                  Delete Permanently
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 22 }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setActionTarget(null)} disabled={actionBusy}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
 }
 
 /* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
@@ -3470,550 +3673,1021 @@ export function LeavesPage({ db, save, user }) {
  ATTENDANCE PAGE
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
 export function AttendancePage({ db, save, user }) {
- const [secs, setSecs] = useState(0);
- const [running, setRunning] = useState(false);
- const intRef = useRef(null);
+  const [secs, setSecs] = useState(0);
+  const [running, setRunning] = useState(false);
+  const intRef = useRef(null);
 
- const getUserPermissionRole = (u) => {
- if (!u) return 'employee';
- if (u.role === 'super_admin') return 'super_admin';
- if (u.role === 'admin') return 'admin';
- if (u.role === 'finance') return 'finance';
- const title = (u.title || '').toLowerCase();
- if (title.includes('manager')) return 'manager';
- if (title.includes('recruiter')) return 'recruiter';
- if (title.includes('billing') || title.includes('finance') || title.includes('accounts')) return 'finance';
- return 'employee';
- };
+  // Month & Employee filter state for HR & Finance month-wise overview
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [selectedEmployee, setSelectedEmployee] = useState('ALL');
+  const [attendanceViewTab, setAttendanceViewTab] = useState('daily'); // 'daily' | 'monthly'
+  const [selectedDayFilter, setSelectedDayFilter] = useState(null); // 'YYYY-MM-DD' or null
+  const [summarySearch, setSummarySearch] = useState('');
 
- const currentPermRole = getUserPermissionRole(user);
- const isAdmin = db.permissions?.[currentPermRole]?.attendance ?? ['admin','super_admin','finance'].includes(user.role);
- const today = toIsoDate(new Date());
- const todayRec = (db.attendance || []).find(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today);
- // Live timer only for a real clock punch (not sheet-inferred / auto present)
- const isRealClockIn = !!(
- todayRec &&
- todayRec.in &&
- todayRec.status !== 'absent' &&
- String(todayRec.source || 'clock') !== 'sheet' &&
- String(todayRec.source || '') !== 'auto'
- );
- const isSessionActive = !!(isRealClockIn && !todayRec.out);
+  const getUserPermissionRole = (u) => {
+    if (!u) return 'employee';
+    if (u.role === 'super_admin') return 'super_admin';
+    if (u.role === 'admin') return 'admin';
+    if (u.role === 'finance') return 'finance';
+    const title = (u.title || '').toLowerCase();
+    if (title.includes('manager')) return 'manager';
+    if (title.includes('recruiter')) return 'recruiter';
+    if (title.includes('billing') || title.includes('finance') || title.includes('accounts')) return 'finance';
+    return 'employee';
+  };
 
- // Sync attendance from Mongo; purge false absents when sheet work exists. Do not wipe data.
- useEffect(() => {
- if (!save || !user?.id) return;
- let cancelled = false;
- (async () => {
- const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
- try {
- if (token) {
- await fetch(`${GLOBAL_API_BASE}/attendance/mark-absent`, {
- method: 'POST',
- headers: { Authorization: `Bearer ${token}` },
- });
- const res = await fetch(`${GLOBAL_API_BASE}/attendance`, {
- headers: { Authorization: `Bearer ${token}` },
- });
- if (res.ok) {
- const rows = await res.json();
- if (!cancelled && Array.isArray(rows)) {
- const mapped = rows.map((a) => {
- const source = a.source || (a.status === 'absent' ? 'auto' : 'clock');
- // Strip invented sheet punches so the live timer does not start
- const isSheet = source === 'sheet';
- return {
- ...a,
- id: a.id || a._id,
- uid: a.uid || a.user_id,
- date: a.date,
- in: isSheet ? null : (a.in || a.check_in_time || null),
- out: isSheet ? null : (a.out || a.check_out_time || null),
- status: a.status,
- hrs: isSheet ? 0 : (a.hrs ?? a.work_hours ?? 0),
- auto: source === 'auto' || source === 'sheet',
- source,
- visit_status: a.visit_status || 'in_office',
- company_visit_out_time: a.company_visit_out_time || null,
- company_visit_in_time: a.company_visit_in_time || null,
- visit_logs: Array.isArray(a.visit_logs) ? a.visit_logs : [],
- };
- });
- const byKey = new Map();
- [...(db.attendance || []), ...mapped].forEach((row) => {
- const k = `${row.uid}_${String(row.date).slice(0, 10)}`;
- const prev = byKey.get(k);
- // Prefer real clock rows over sheet/auto
- const rank = (r) => {
- const s = String(r.status || '');
- const src = String(r.source || 'clock');
- if ((s === 'present' || s === 'late') && r.in && src === 'clock') return 3;
- if (s === 'present' || s === 'late') return 2;
- if (s === 'absent') return 0;
- return 1;
- };
- if (!prev || rank(row) >= rank(prev)) byKey.set(k, row);
- });
- const cleaned = purgeFalseAutoAbsents([...byKey.values()], db.users || [], db.candidates || []);
- save('attendance', cleaned);
- }
- }
- } else {
- const cleaned = purgeFalseAutoAbsents(db.attendance || [], db.users || [], db.candidates || []);
- if (cleaned.length !== (db.attendance || []).length) save('attendance', cleaned);
- }
- } catch {}
- })();
- return () => { cancelled = true; };
- // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [user?.id]);
+  const currentPermRole = getUserPermissionRole(user);
+  const isAdmin = db.permissions?.[currentPermRole]?.attendance ?? ['admin', 'super_admin', 'finance'].includes(user.role);
+  const today = toIsoDate(new Date());
+  const todayRec = (db.attendance || []).find(a => String(a.uid || a.user_id) === String(user.id) && String(a.date).slice(0, 10) === today);
 
- const parseClockInDate = (rec) => {
-   if (!rec?.date || !rec?.in) return null;
-   const [y, mo, d] = String(rec.date).split('-').map(Number);
-   const parts = String(rec.in).split(':').map(Number);
-   const h = parts[0] || 0;
-   const m = parts[1] || 0;
-   const s = parts[2] || 0;
-   const start = new Date(y, (mo || 1) - 1, d || 1, h, m, s, 0);
-   return Number.isNaN(start.getTime()) ? null : start;
- };
+  // Live timer only for a real clock punch (not sheet-inferred / auto present)
+  const isRealClockIn = !!(
+    todayRec &&
+    todayRec.in &&
+    todayRec.status !== 'absent' &&
+    String(todayRec.source || 'clock') !== 'sheet' &&
+    String(todayRec.source || '') !== 'auto'
+  );
+  const isSessionActive = !!(isRealClockIn && !todayRec.out);
 
- // End-of-day boundary: clock-out unlock / session day ends at 6:30 PM
- const getDayEndBoundary = (recDate) => {
-   const [y, mo, d] = String(recDate || today).split('-').map(Number);
-   return new Date(y, (mo || 1) - 1, d || 1, 18, 30, 0, 0);
- };
+  // Sync attendance from Mongo; purge false absents when sheet work exists.
+  useEffect(() => {
+    if (!save || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+      try {
+        if (token) {
+          await fetch(`${GLOBAL_API_BASE}/attendance/mark-absent`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const res = await fetch(`${GLOBAL_API_BASE}/attendance`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const rows = await res.json();
+            if (!cancelled && Array.isArray(rows)) {
+              const mapped = rows.map((a) => {
+                const source = a.source || (a.status === 'absent' ? 'auto' : 'clock');
+                const isSheet = source === 'sheet';
+                return {
+                  ...a,
+                  id: a.id || a._id,
+                  uid: a.uid || a.user_id,
+                  date: a.date,
+                  in: isSheet ? null : (a.in || a.check_in_time || null),
+                  out: isSheet ? null : (a.out || a.check_out_time || null),
+                  status: a.status,
+                  hrs: isSheet ? 0 : (a.hrs ?? a.work_hours ?? 0),
+                  auto: source === 'auto' || source === 'sheet',
+                  source,
+                  visit_status: a.visit_status || 'in_office',
+                  company_visit_out_time: a.company_visit_out_time || null,
+                  company_visit_in_time: a.company_visit_in_time || null,
+                  visit_logs: Array.isArray(a.visit_logs) ? a.visit_logs : [],
+                };
+              });
+              const byKey = new Map();
+              [...(db.attendance || []), ...mapped].forEach((row) => {
+                const k = `${row.uid}_${String(row.date).slice(0, 10)}`;
+                const prev = byKey.get(k);
+                const rank = (r) => {
+                  const s = String(r.status || '');
+                  const src = String(r.source || 'clock');
+                  if ((s === 'present' || s === 'late') && r.in && src === 'clock') return 3;
+                  if (s === 'present' || s === 'late') return 2;
+                  if (s === 'absent') return 0;
+                  return 1;
+                };
+                if (!prev || rank(row) >= rank(prev)) byKey.set(k, row);
+              });
+              const cleaned = purgeFalseAutoAbsents([...byKey.values()], db.users || [], db.candidates || []);
+              save('attendance', cleaned);
+            }
+          }
+        } else {
+          const cleaned = purgeFalseAutoAbsents(db.attendance || [], db.users || [], db.candidates || []);
+          if (cleaned.length !== (db.attendance || []).length) save('attendance', cleaned);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
- const calcElapsedSecs = (rec) => {
-   const start = parseClockInDate(rec);
-   if (!start) return 0;
-   const dayEnd = getDayEndBoundary(rec.date);
-   const now = new Date();
-   // Timer runs from clock-in until now, but does not grow past 6:30 PM that day
-   const end = now.getTime() < dayEnd.getTime() ? now : dayEnd;
-   if (rec.out) {
-     const [oh, om] = String(rec.out).split(':').map(Number);
-     const [y, mo, d] = String(rec.date).split('-').map(Number);
-     const outDt = new Date(y, (mo || 1) - 1, d || 1, oh || 0, om || 0, 0, 0);
-     return Math.max(0, Math.floor((Math.min(outDt.getTime(), dayEnd.getTime()) - start.getTime()) / 1000));
-   }
-   return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
- };
+  const parseClockInDate = (rec) => {
+    if (!rec?.date || !rec?.in) return null;
+    const [y, mo, d] = String(rec.date).split('-').map(Number);
+    const parts = String(rec.in).split(':').map(Number);
+    const h = parts[0] || 0;
+    const m = parts[1] || 0;
+    const s = parts[2] || 0;
+    const start = new Date(y, (mo || 1) - 1, d || 1, h, m, s, 0);
+    return Number.isNaN(start.getTime()) ? null : start;
+  };
 
- // Persist timer: only for a real open clock session (not sheet-inferred present)
- useEffect(() => {
-   clearInterval(intRef.current);
-   if (!isSessionActive) {
-     setRunning(false);
-     if (isRealClockIn && todayRec?.out) setSecs(calcElapsedSecs(todayRec));
-     else setSecs(0);
-     return;
-   }
-   setRunning(true);
-   const tick = () => setSecs(calcElapsedSecs(todayRec));
-   tick();
-   intRef.current = setInterval(tick, 1000);
-   return () => clearInterval(intRef.current);
- // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [todayRec?.id, todayRec?.in, todayRec?.out, todayRec?.date, todayRec?.source, isSessionActive, isRealClockIn]);
+  const getDayEndBoundary = (recDate) => {
+    const [y, mo, d] = String(recDate || today).split('-').map(Number);
+    return new Date(y, (mo || 1) - 1, d || 1, 18, 30, 0, 0);
+  };
 
- const fmt = s=>`${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const calcElapsedSecs = (rec) => {
+    const start = parseClockInDate(rec);
+    if (!start) return 0;
+    const dayEnd = getDayEndBoundary(rec.date);
+    const now = new Date();
+    const end = now.getTime() < dayEnd.getTime() ? now : dayEnd;
+    if (rec.out) {
+      const [oh, om] = String(rec.out).split(':').map(Number);
+      const [y, mo, d] = String(rec.date).split('-').map(Number);
+      const outDt = new Date(y, (mo || 1) - 1, d || 1, oh || 0, om || 0, 0, 0);
+      return Math.max(0, Math.floor((Math.min(outDt.getTime(), dayEnd.getTime()) - start.getTime()) / 1000));
+    }
+    return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
+  };
 
- const clockIn = async () => {
- const existing = (db.attendance || []).find(a => String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today);
- if (existing && String(existing.source || 'clock') === 'clock' && existing.in && !existing.out) {
- alert('Already checked in today!');
- return;
- }
- if (existing && String(existing.source || 'clock') === 'clock' && existing.out) {
- alert('Already completed attendance for today.');
- return;
- }
- const now = new Date();
- const settings = db.settings || SEED_DATA.settings;
- const isLate = isLateClockIn(now, settings, user);
- const deadline = getLateClockDeadline(user, settings);
- const status = isLate ? 'late' : 'present';
- const timeStr = now.toTimeString().substr(0, 8);
- const newRec = {
- id: existing?.id || Date.now(),
- uid: user.id,
- date: today,
- in: timeStr,
- out: null,
- status,
- hrs: 0,
- auto: false,
- source: 'clock',
- };
- save(
- 'attendance',
- [
- newRec,
- ...(db.attendance || []).filter(
- (a) => !(String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today)
- ),
- ]
- );
+  useEffect(() => {
+    clearInterval(intRef.current);
+    if (!isSessionActive) {
+      setRunning(false);
+      if (isRealClockIn && todayRec?.out) setSecs(calcElapsedSecs(todayRec));
+      else setSecs(0);
+      return;
+    }
+    setRunning(true);
+    const tick = () => setSecs(calcElapsedSecs(todayRec));
+    tick();
+    intRef.current = setInterval(tick, 1000);
+    return () => clearInterval(intRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayRec?.id, todayRec?.in, todayRec?.out, todayRec?.date, todayRec?.source, isSessionActive, isRealClockIn]);
 
- try {
- const token = localStorage.getItem('cegs_token') || '';
- const res = await fetch(`${GLOBAL_API_BASE}/attendance/check-in`, {
- method: 'POST',
- headers: {
- 'Content-Type': 'application/json',
- Authorization: `Bearer ${token}`,
- },
- body: JSON.stringify({
- status,
- date: today,
- check_in_time: timeStr,
- }),
- });
- if (res.ok) {
- const data = await res.json().catch(() => ({}));
- const serverIn = data.check_in_time || timeStr;
- const serverId = data.id || newRec.id;
- save(
- 'attendance',
- [
- { ...newRec, id: serverId, in: serverIn, status: data.status || status },
- ...(db.attendance || []).filter(
- (a) => !(String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today)
- ),
- ]
- );
- }
- } catch {}
+  const fmt = s => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
- if (isLate) {
- pushHrmsNotification(save, db, {
- to: user.id,
- title: 'Late Clock-In Warning',
- msg: `You clocked in after ${deadline.deadlineLabel} (login ${deadline.startLabel} + ${deadline.grace} min grace). This warning counts with late lunch returns toward monthly half-day pay cuts (2 warnings = 1 half-day).`,
- type: 'Attendance',
- dedupeKey: `att-warn:${user.id}:${today}:late_clock_in`,
- });
- recordAttendanceWarning(save, db, {
- uid: user.id,
- type: 'late_clock_in',
- date: today,
- note: `Clock-in at ${timeStr} (deadline ${deadline.deadlineLabel})`,
- });
- }
- };
+  const clockIn = async () => {
+    const existing = (db.attendance || []).find(a => String(a.uid || a.user_id) === String(user.id) && String(a.date).slice(0, 10) === today);
+    if (existing && String(existing.source || 'clock') === 'clock' && existing.in && !existing.out) {
+      alert('Already checked in today!');
+      return;
+    }
+    if (existing && String(existing.source || 'clock') === 'clock' && existing.out) {
+      alert('Already completed attendance for today.');
+      return;
+    }
+    const now = new Date();
+    const settings = db.settings || SEED_DATA.settings;
+    const isLate = isLateClockIn(now, settings, user);
+    const deadline = getLateClockDeadline(user, settings);
+    const status = isLate ? 'late' : 'present';
+    const timeStr = now.toTimeString().substr(0, 8);
+    const newRec = {
+      id: existing?.id || Date.now(),
+      uid: user.id,
+      user_id: user.id,
+      date: today,
+      in: timeStr,
+      out: null,
+      status,
+      hrs: 0,
+      auto: false,
+      source: 'clock',
+    };
+    save(
+      'attendance',
+      [
+        newRec,
+        ...(db.attendance || []).filter(
+          (a) => !(String(a.uid || a.user_id) === String(user.id) && String(a.date).slice(0, 10) === today)
+        ),
+      ]
+    );
 
- const nowObj = new Date();
- const curHour = nowObj.getHours();
- const curMin = nowObj.getMinutes();
+    try {
+      const token = localStorage.getItem('cegs_token') || '';
+      const res = await fetch(`${GLOBAL_API_BASE}/attendance/check-in`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status,
+          date: today,
+          check_in_time: timeStr,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const serverIn = data.check_in_time || timeStr;
+        const serverId = data.id || newRec.id;
+        save(
+          'attendance',
+          [
+            { ...newRec, id: serverId, in: serverIn, status: data.status || status },
+            ...(db.attendance || []).filter(
+              (a) => !(String(a.uid || a.user_id) === String(user.id) && String(a.date).slice(0, 10) === today)
+            ),
+          ]
+        );
+      }
+    } catch {}
 
- const clockOut = async () => {
- if (!isSessionActive) {
- alert(!todayRec || todayRec.status === 'absent' || String(todayRec?.source) === 'sheet' ? 'Clock in first!' : 'Already clocked out.');
- return;
- }
+    if (isLate) {
+      pushHrmsNotification(save, db, {
+        to: user.id,
+        title: 'Late Clock-In Warning',
+        msg: `You clocked in after ${deadline.deadlineLabel} (login ${deadline.startLabel} + ${deadline.grace} min grace).`,
+        type: 'Attendance',
+        dedupeKey: `att-warn:${user.id}:${today}:late_clock_in`,
+      });
+      recordAttendanceWarning(save, db, {
+        uid: user.id,
+        type: 'late_clock_in',
+        date: today,
+        note: `Clock-in at ${timeStr} (deadline ${deadline.deadlineLabel})`,
+      });
+    }
+  };
 
- const elapsed = calcElapsedSecs(todayRec);
- const hrs = parseFloat((elapsed / 3600).toFixed(2)) || 0;
- const isUnder9Hours = elapsed < 9 * 3600;
+  const nowObj = new Date();
 
- if (isUnder9Hours) {
- const curMo = nowObj.getMonth() + 1;
- const curYr = nowObj.getFullYear();
- const earlyCount = countMonthlyEarlyLogoutWarnings(db?.attendanceWarnings, user?.id, curMo, curYr);
- const nextEarly = earlyCount + 1;
- const remSecs = 9 * 3600 - elapsed;
- const remH = Math.floor(remSecs / 3600);
- const remM = Math.floor((remSecs % 3600) / 60);
- const remStr = `${remH}h ${remM}m`;
+  const clockOut = async () => {
+    if (!isSessionActive) {
+      alert(!todayRec || todayRec.status === 'absent' || String(todayRec?.source) === 'sheet' ? 'Clock in first!' : 'Already clocked out.');
+      return;
+    }
 
- let confirmMsg = '';
- if (earlyCount >= 2) {
- confirmMsg = `🚨 CRITICAL: Half-Day Absent Deduction Warning!\n\nYou have not completed your 9-hour shift cycle (${remStr} remaining)!\nYou already have ${earlyCount} early logout warning(s) this month.\n\nAre you sure you want to clock out? This will be your ${nextEarly}th early departure and you will be marked as HALF-DAY ABSENT with a salary deduction on your monthly payroll!`;
- } else {
- confirmMsg = `⚠️ Early Clock-Out Warning (${nextEarly} of 2):\n\nYou have not completed your 9-hour shift cycle (${remStr} remaining).\n\nAre you sure you want to clock out?\nThis will record an Early Logout Warning (${nextEarly} of 2).\n\nPolicy: After the first 2 warnings, from your 3rd warning onward you will be marked as Half-Day Absent with a payroll salary deduction.`;
- }
+    const elapsed = calcElapsedSecs(todayRec);
+    const hrs = parseFloat((elapsed / 3600).toFixed(2)) || 0;
+    const isUnder9Hours = elapsed < 9 * 3600;
 
- if (!window.confirm(confirmMsg)) {
- return;
- }
- }
+    if (isUnder9Hours) {
+      const curMo = nowObj.getMonth() + 1;
+      const curYr = nowObj.getFullYear();
+      const earlyCount = countMonthlyEarlyLogoutWarnings(db?.attendanceWarnings, user?.id, curMo, curYr);
+      const nextEarly = earlyCount + 1;
+      const remSecs = 9 * 3600 - elapsed;
+      const remH = Math.floor(remSecs / 3600);
+      const remM = Math.floor((remSecs % 3600) / 60);
+      const remStr = `${remH}h ${remM}m`;
 
- const outStr = new Date().toTimeString().substr(0, 8);
- setRunning(false);
- setSecs(elapsed);
+      let confirmMsg = '';
+      if (earlyCount >= 2) {
+        confirmMsg = `🚨 CRITICAL: Half-Day Absent Deduction Warning!\n\nYou have not completed your 9-hour shift cycle (${remStr} remaining)!\nYou already have ${earlyCount} early logout warning(s) this month.\n\nAre you sure you want to clock out? This will be your ${nextEarly}th early departure and you will be marked as HALF-DAY ABSENT with a salary deduction on your monthly payroll!`;
+      } else {
+        confirmMsg = `⚠️ Early Clock-Out Warning (${nextEarly} of 2):\n\nYou have not completed your 9-hour shift cycle (${remStr} remaining).\n\nAre you sure you want to clock out?\nThis will record an Early Logout Warning (${nextEarly} of 2).\n\nPolicy: After the first 2 warnings, from your 3rd warning onward you will be marked as Half-Day Absent with a payroll salary deduction.`;
+      }
 
- try {
- const token = localStorage.getItem('cegs_token') || '';
- const res = await fetch(`${GLOBAL_API_BASE}/attendance/check-out`, {
- method: 'POST',
- headers: {
- 'Content-Type': 'application/json',
- Authorization: `Bearer ${token}`,
- },
- body: JSON.stringify({
- date: today,
- check_out_time: outStr,
- }),
- });
+      if (!window.confirm(confirmMsg)) {
+        return;
+      }
+    }
 
- const data = await res.json().catch(() => ({}));
- const finalStatus = data?.status || (data?.is_half_day ? 'half_day' : todayRec?.status || 'present');
- const workHours = typeof data?.work_hours === 'number' ? data.work_hours : hrs;
+    const outStr = new Date().toTimeString().substr(0, 8);
+    setRunning(false);
+    setSecs(elapsed);
 
- save('attendance', (db.attendance || []).map(a => 
- String(a.uid) === String(user.id) && String(a.date).slice(0, 10) === today 
- ? { ...a, out: outStr, check_out_time: outStr, hrs: workHours, work_hours: workHours, status: finalStatus, source: 'clock' } 
- : a
- ));
+    try {
+      const token = localStorage.getItem('cegs_token') || '';
+      const res = await fetch(`${GLOBAL_API_BASE}/attendance/check-out`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          date: today,
+          check_out_time: outStr,
+        }),
+      });
 
- if (data?.warning) {
- save('attendanceWarnings', [
- data.warning,
- ...(db?.attendanceWarnings || []).filter((w) => w.id !== data.warning.id),
- ]);
- }
+      const data = await res.json().catch(() => ({}));
+      const finalStatus = data?.status || (data?.is_half_day ? 'half_day' : todayRec?.status || 'present');
+      const workHours = typeof data?.work_hours === 'number' ? data.work_hours : hrs;
 
- if (data?.payroll) {
- save('payroll', [
- data.payroll,
- ...(db?.payroll || []).filter((p) => p.id !== data.payroll.id && p._id !== data.payroll._id),
- ]);
- }
+      save('attendance', (db.attendance || []).map(a =>
+        String(a.uid || a.user_id) === String(user.id) && String(a.date).slice(0, 10) === today
+          ? { ...a, out: outStr, check_out_time: outStr, hrs: workHours, work_hours: workHours, status: finalStatus, source: 'clock' }
+          : a
+      ));
+    } catch (err) {
+      console.error('AttendancePage clockOut error:', err);
+    }
+  };
 
- if (typeof window !== 'undefined') {
- window.dispatchEvent(
- new CustomEvent('hrms:attendance-update', {
- detail: { action: 'clock-out', record: { ...todayRec, out: outStr, status: finalStatus } },
- })
- );
- }
+  // Month parsing & calculations
+  const [selYear, selMonth] = selectedMonth.split('-').map(Number);
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const selMonthName = monthNames[selMonth - 1] || 'Month';
+  const firstDayIndex = new Date(selYear, selMonth - 1, 1).getDay();
+  const totalDaysInMonth = new Date(selYear, selMonth, 0).getDate();
+  const todayNum = (nowObj.getFullYear() === selYear && (nowObj.getMonth() + 1) === selMonth) ? nowObj.getDate() : null;
 
- if (data?.is_early) {
- if (data?.is_half_day) {
- alert(`🚨 Half-Day Absent Penalty Applied!\nYou have ${data.early_warnings} early departures this month. Marked as Half-Day Absent with payroll deduction.`);
- } else {
- alert(`⚠️ Early Logout Warning (${data.early_warnings} of 2)\nWarning recorded. Note: from your 3rd warning onward, you will be marked as Half-Day Absent with payroll deduction.`);
- }
- }
- } catch (err) {
- console.error('AttendancePage clockOut error:', err);
- }
- };
+  const handlePrevMonth = () => {
+    let y = selYear;
+    let m = selMonth - 1;
+    if (m < 1) { m = 12; y -= 1; }
+    setSelectedMonth(`${y}-${String(m).padStart(2, '0')}`);
+    setSelectedDayFilter(null);
+  };
 
- const myAttendance = (db.attendance || []).filter((a) => String(a.uid) === String(user.id));
- const presentDays = myAttendance.filter((a) => a.status === 'present').length;
- const lateDays = myAttendance.filter((a) => a.status === 'late').length;
- const totalHrs = myAttendance
- .filter((a) => String(a.source || 'clock') === 'clock' && (a.hrs || 0) > 0)
- .reduce((s, a) => s + (Number(a.hrs) || 0), 0);
- const myLogs = isAdmin ? (db.attendance || []) : myAttendance;
+  const handleNextMonth = () => {
+    let y = selYear;
+    let m = selMonth + 1;
+    if (m > 12) { m = 1; y += 1; }
+    setSelectedMonth(`${y}-${String(m).padStart(2, '0')}`);
+    setSelectedDayFilter(null);
+  };
 
- // Dynamic Live Calendar calculations
- const curYear = nowObj.getFullYear();
- const curMonth = nowObj.getMonth();
- const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
- const curMonthName = monthNames[curMonth];
- const firstDayIndex = new Date(curYear, curMonth, 1).getDay();
- const totalDaysInMonth = new Date(curYear, curMonth + 1, 0).getDate();
- const todayNum = nowObj.getDate();
+  const handleCurrentMonth = () => {
+    const now = new Date();
+    setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+    setSelectedDayFilter(null);
+  };
 
- return (
- <div className="anim-fadeup">
- <PageHdr title="Attendance" sub={`Track daily work hours · 9-hour shift cycle · 3rd early logout = half-day absent deduction · login ${formatTime12FromHm(resolveLoginTime(user))}`}/>
+  // Active employees list for dropdown & summary
+  const allEmployeesList = (db.users || []).filter(u => u && u.name);
 
- {/* Location Protection & Clock-Out Policy Badge */}
- <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, flexWrap: 'wrap', gap: 8 }}>
- <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#065F46', fontWeight: 700 }}>
- <span style={{ fontSize: 16 }}>🎯</span>
- <span>GPS Location Security Active — Office Verified (Novel Office Koramangala) | <strong>9-Hour Shift Cycle Active</strong> (Early departures &lt;9h trigger warning; 3rd departure = half-day absent deduction)</span>
- </div>
- <span style={{ background: '#10B981', color: '#fff', padding: '2px 8px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>LOCATION VERIFIED</span>
- </div>
+  // Month-filtered records
+  const monthAllRecords = (db.attendance || []).filter(a => {
+    const dStr = String(a.date || '').slice(0, 7);
+    return dStr === selectedMonth;
+  });
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
- <div className="timer-card">
- <div className="timer-label">LIVE WORK TIMER</div>
- <div className="timer-digits">{fmt(secs)}</div>
- <div className="timer-actions">
- <button className="btn btn-amber" onClick={clockIn} style={{ flex: 1 }} disabled={isSessionActive || (isRealClockIn && !!todayRec?.out)}>
- {isSessionActive ? ' Clocked In' : isRealClockIn && todayRec?.out ? ' Completed Today' : 'Clock In'}
- </button>
- <button 
- className="btn btn-ghost" 
- onClick={clockOut} 
- style={{ 
- flex: 1, 
- color: '#fff', 
- borderColor: 'rgba(255,255,255,0.2)', 
- opacity: !isSessionActive ? 0.5 : 1,
- cursor: !isSessionActive ? 'not-allowed' : 'pointer'
- }} 
- disabled={!isSessionActive}
- title={!isSessionActive ? 'Clock in first' : 'Click to Clock Out'}
- >
- {!isSessionActive ? 'Clock Out' : 'Clock Out'}
- </button>
- </div>
- {isSessionActive && (
- <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: 'JetBrains Mono,monospace', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
- <span>IN: {todayRec.in} · 9h Shift Target</span>
- {todayRec.visit_status === 'company_visit' ? (
- <span style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
- <span>🚗 On Company Visit</span>
- </span>
- ) : (
- <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
- <span>🏢 In Office</span>
- </span>
- )}
- </div>
- )}
- {isRealClockIn && todayRec?.out && (
- <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono,monospace' }}>
- IN: {todayRec.in} | OUT: {todayRec.out} · {todayRec.hrs || 0}h
- </div>
- )}
- {todayRec && String(todayRec.source) === 'sheet' && !isRealClockIn && (
- <div style={{ marginTop: 16, fontSize: 12.5, color: 'rgba(255,255,255,0.55)', fontWeight: 650 }}>
- Marked present from Targets sheet work — press Clock In to start the live timer.
- </div>
- )}
- {todayRec && todayRec.status === 'absent' && (
- <div style={{ marginTop: 16, fontSize: 12.5, color: '#FCA5A5', fontWeight: 650 }}>
- Marked absent — press Clock In if you are working today.
- </div>
- )}
- </div>
+  // Effective selected employee ID for scoped views
+  const effectiveEmpId = isAdmin ? selectedEmployee : String(user.id);
 
- <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
- {[{v:presentDays,l:'Days Present',c:'#10B981',bg:'#D1FAE5'},{v:lateDays,l:'Late Arrivals',c:'#F59E0B',bg:'#FEF3C7'},{v:Math.round(totalHrs),l:'Total Hours',c:'#3B82F6',bg:'#DBEAFE'},{v:`${Math.round((presentDays/(presentDays+lateDays||1))*100)}%`,l:'On-Time Rate',c:'var(--accent)',bg:'#EDE9FE'}].map((s,i)=>(
- <div key={i} className="card" style={{padding:20}}>
- <div style={{fontSize:28,fontFamily:'Outfit',fontWeight:900,color:s.c,marginBottom:4}}>{s.v}</div>
- <div style={{fontSize:12,color:'var(--text-muted)',fontWeight:600}}>{s.l}</div>
- </div>
- ))}
- </div>
- </div>
+  // Top 4 Metrics calculation
+  let metricPresentCount = 0;
+  let metricLateCount = 0;
+  let metricTotalHours = 0;
+  let metricOnTimeRate = 0;
 
- {/* HR & Finance Live Team Office Visits Section */}
- {isAdmin && (
-   <TeamVisitsSection db={db} currentUser={user} onRefresh={() => {}} />
- )}
+  if (effectiveEmpId === 'ALL') {
+    metricPresentCount = monthAllRecords.filter(a => a.status === 'present').length;
+    metricLateCount = monthAllRecords.filter(a => a.status === 'late').length;
+    metricTotalHours = monthAllRecords
+      .filter(a => String(a.source || 'clock') === 'clock' && (a.hrs || 0) > 0)
+      .reduce((s, a) => s + (Number(a.hrs) || 0), 0);
+    metricOnTimeRate = Math.round((metricPresentCount / (metricPresentCount + metricLateCount || 1)) * 100);
+  } else {
+    const empMonthRecs = monthAllRecords.filter(a => String(a.uid || a.user_id) === String(effectiveEmpId));
+    metricPresentCount = empMonthRecs.filter(a => a.status === 'present').length;
+    metricLateCount = empMonthRecs.filter(a => a.status === 'late').length;
+    metricTotalHours = empMonthRecs
+      .filter(a => String(a.source || 'clock') === 'clock' && (a.hrs || 0) > 0)
+      .reduce((s, a) => s + (Number(a.hrs) || 0), 0);
+    metricOnTimeRate = Math.round((metricPresentCount / (metricPresentCount + metricLateCount || 1)) * 100);
+  }
 
- <div style={{display:'grid',gridTemplateColumns:'5fr 3fr',gap:20}}>
- <div className="card">
- <div className="card-hdr"><div className="section-title">Attendance Log</div></div>
- <div className="tbl-wrap">
- <table className="tbl">
- <thead>
- <tr>
- <th>Date</th>
- {isAdmin && <th>Employee</th>}
- <th>Clock In</th>
- <th>Clock Out</th>
- <th>Total Hours</th>
- <th>Status</th>
- </tr>
- </thead>
- <tbody>
- {myLogs.length === 0 ? (
- <tr>
- <td colSpan={isAdmin ? 6 : 5} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
- No attendance records found
- </td>
- </tr>
- ) : (
- myLogs.sort((a,b)=>b.date.localeCompare(a.date)).map(a=>{
- const emp=db.users.find(u=>u.id===a.uid);
- return <tr key={a.id}>
- <td style={{fontWeight:700,fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.date}</td>
- {isAdmin&&<td><div className="emp-cell"><img src={emp?.avatar} className="tbl-av" alt=""/>{emp?.name}</div></td>}
- <td style={{fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.in}</td>
- <td style={{fontFamily:'JetBrains Mono,monospace',fontSize:13}}>{a.out||<span style={{color:'var(--amber)',fontWeight:700}}>Active</span>}</td>
- <td style={{fontWeight:700}}>{a.hrs||'-'}h</td>
- <td>
- <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
- {a.status === 'half_day' ? (
- <span className="badge b-error" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.35)', fontWeight: 700 }}>
- <span className="badge-dot" style={{ background: '#ef4444' }}/>half day
- </span>
- ) : (
- <span className={`badge ${a.status==='present'?'b-success':a.status==='late'?'b-pending':'b-error'}`}><span className="badge-dot"/>{a.status}</span>
- )}
- {a.visit_status === 'company_visit' ? (
- <span style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', padding: '2px 8px', borderRadius: 8, fontSize: 10.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
- 🚗 Out (Went: {formatVisitTime(a.company_visit_out_time)})
- </span>
- ) : (a.company_visit_out_time || (Array.isArray(a.visit_logs) && a.visit_logs.length > 0)) ? (
- <span style={{ background: '#EFF6FF', color: '#1E40AF', border: '1px solid #BFDBFE', padding: '2px 8px', borderRadius: 8, fontSize: 10.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
- 🚗 Visit: {formatVisitTime(a.company_visit_out_time)} → {formatVisitTime(a.company_visit_in_time)}
- </span>
- ) : null}
- </div>
- </td>
- </tr>;
- })
- )}
- </tbody>
- </table>
- </div>
- </div>
+  // Daily Log list (filtered by selected month, employee, and optional single day)
+  const dailyLogList = monthAllRecords.filter(a => {
+    if (effectiveEmpId !== 'ALL') {
+      if (String(a.uid || a.user_id) !== String(effectiveEmpId)) return false;
+    }
+    if (selectedDayFilter) {
+      if (String(a.date).slice(0, 10) !== selectedDayFilter) return false;
+    }
+    return true;
+  }).sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
- {/* Live Interactive Calendar with Blurred Sundays */}
- <div className="card">
- <div className="card-hdr">
- <div className="section-title">{curMonthName} {curYear}</div>
- <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>Live Calendar</span>
- </div>
- <div className="cal-grid">
- {['S','M','T','W','T','F','S'].map((d,i)=><div key={i} className="cal-hdr" style={{ color: i === 0 ? '#EF4444' : undefined }}>{d}</div>)}
- {Array.from({length: firstDayIndex}, (_, i) => <div key={'e'+i} className="cal-day empty"/>)}
- {Array.from({length: totalDaysInMonth}, (_, i) => {
- const day = i + 1;
- const dateObj = new Date(curYear, curMonth, day);
- const isSunday = dateObj.getDay() === 0;
- const monthStr = String(curMonth + 1).padStart(2, '0');
- const dayStr = String(day).padStart(2, '0');
- const ds = `${curYear}-${monthStr}-${dayStr}`;
- const rec = (db.attendance || []).find(a => a.uid === user.id && a.date === ds);
- 
- let cls = '';
- if (isSunday) cls = 'sunday-holiday';
- else if (rec) {
- if (rec.status === 'present') cls = 'present';
- else if (rec.status === 'late') cls = 'late';
- else if (rec.status === 'half_day') cls = 'late';
- else if (rec.status === 'absent') cls = 'absent';
- else cls = 'absent';
- }
- 
- const isToday = day === todayNum;
+  // Monthly Employee Summary table data (all employees calculated for selected month)
+  const monthlySummaryList = allEmployeesList.map(emp => {
+    const empRecords = monthAllRecords.filter(a =>
+      String(a.uid || a.user_id) === String(emp.id) ||
+      String(a.uid || a.user_id) === String(emp._id)
+    );
+    const presents = empRecords.filter(a => a.status === 'present').length;
+    const lates = empRecords.filter(a => a.status === 'late').length;
+    const halfDays = empRecords.filter(a => a.status === 'half_day').length;
+    const absents = empRecords.filter(a => a.status === 'absent').length;
+    const hrs = empRecords
+      .filter(a => String(a.source || 'clock') === 'clock' && (a.hrs || 0) > 0)
+      .reduce((s, a) => s + (Number(a.hrs) || 0), 0);
+    const activeDays = presents + lates + halfDays;
+    const avgHrs = activeDays > 0 ? (hrs / activeDays).toFixed(1) : '0.0';
+    const totalRecorded = presents + lates + halfDays + absents;
+    const pct = totalRecorded > 0 ? Math.round(((presents + lates) / totalRecorded) * 100) : 0;
+    const dept = (db.departments || []).find(d => d.id === emp.deptId);
+    return {
+      user: emp,
+      deptName: dept?.name || emp.department_name || emp.deptName || 'General Operations',
+      presents,
+      lates,
+      halfDays,
+      absents,
+      hrs: Math.round(hrs * 10) / 10,
+      avgHrs,
+      pct,
+      hasRecords: empRecords.length > 0
+    };
+  }).filter(item => {
+    if (!summarySearch) return true;
+    const q = summarySearch.toLowerCase();
+    return (item.user.name || '').toLowerCase().includes(q) ||
+      (item.user.eid || item.user.employee_id || '').toLowerCase().includes(q) ||
+      item.deptName.toLowerCase().includes(q);
+  });
 
- return (
- <div 
- key={day} 
- className={`cal-day ${cls} ${isToday ? 'today' : ''}`} 
- title={isSunday ? 'Sunday Holiday (Office Closed)' : rec ? (rec.status === 'half_day' ? `Half-Day Absent (Early departure cut) | In:${rec.in||'—'} Out:${rec.out||'—'}` : rec.status === 'absent' ? `Absent${rec.auto ? ' (auto)' : ''}` : `In:${rec.in || '—'} Out:${rec.out||'ongoing'}`) : 'No record'}
- >
- {day}
- </div>
- );
- })}
- </div>
- <div style={{display:'flex',flexWrap:'wrap',gap:10,marginTop:16,fontSize:11.5}}>
- {[{c:'present',label:'Present'},{c:'late',label:'Late'},{c:'absent',label:'Absent'},{c:'sunday-holiday',label:'Sunday (Holiday)'},{c:'empty',label:'No Record'}].map(item=>(
- <div key={item.c} style={{display:'flex',alignItems:'center',gap:5}}>
- <div className={`cal-day ${item.c}`} style={{width:14,height:14,borderRadius:4,minWidth:14,fontSize:0}}/>
- <span style={{color:'var(--text-muted)'}}>{item.label}</span>
- </div>
- ))}
- </div>
- </div>
- </div>
- </div>
- );
+  // Export Monthly Summary as CSV
+  const handleExportCsv = () => {
+    const headers = ['Employee ID', 'Name', 'Department', 'Role', 'Present Days', 'Late Arrivals', 'Half Days', 'Absent Days', 'Total Hours', 'Avg Daily Hours', 'Attendance Rate %'];
+    const rows = monthlySummaryList.map(r => [
+      r.user.eid || r.user.employee_id || '',
+      `"${r.user.name || ''}"`,
+      `"${r.deptName || ''}"`,
+      r.user.role || '',
+      r.presents,
+      r.lates,
+      r.halfDays,
+      r.absents,
+      r.hrs,
+      r.avgHrs,
+      `${r.pct}%`
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `attendance_summary_${selectedMonth}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="anim-fadeup">
+      <PageHdr
+        title="Attendance & Timesheet Hub"
+        sub={`Month-wise records and live employee work hours · Shift cycle 9h · Selected: ${selMonthName} ${selYear}`}
+      />
+
+      {/* Location Protection Badge */}
+      <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 14, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#065F46', fontWeight: 700 }}>
+          <span style={{ fontSize: 16 }}>🎯</span>
+          <span>GPS Location Security Active — Office Verified (Novel Office Koramangala) | <strong>9-Hour Shift Cycle Active</strong></span>
+        </div>
+        <span style={{ background: '#10B981', color: '#fff', padding: '2px 8px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>LOCATION VERIFIED</span>
+      </div>
+
+      {/* Top Controls: Live Timer (Left) + Month/Employee Filtered Stats (Right) */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+        <div className="timer-card">
+          <div className="timer-label">MY LIVE WORK TIMER</div>
+          <div className="timer-digits">{fmt(secs)}</div>
+          <div className="timer-actions">
+            <button className="btn btn-amber" onClick={clockIn} style={{ flex: 1 }} disabled={isSessionActive || (isRealClockIn && !!todayRec?.out)}>
+              {isSessionActive ? ' Clocked In' : isRealClockIn && todayRec?.out ? ' Completed Today' : 'Clock In'}
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={clockOut}
+              style={{
+                flex: 1,
+                color: '#fff',
+                borderColor: 'rgba(255,255,255,0.2)',
+                opacity: !isSessionActive ? 0.5 : 1,
+                cursor: !isSessionActive ? 'not-allowed' : 'pointer'
+              }}
+              disabled={!isSessionActive}
+              title={!isSessionActive ? 'Clock in first' : 'Click to Clock Out'}
+            >
+              Clock Out
+            </button>
+          </div>
+          {isSessionActive && (
+            <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.7)', fontFamily: 'JetBrains Mono,monospace', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+              <span>IN: {todayRec.in} · 9h Shift Target</span>
+              {todayRec.visit_status === 'company_visit' ? (
+                <span style={{ background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+                  🚗 On Company Visit
+                </span>
+              ) : (
+                <span style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+                  🏢 In Office
+                </span>
+              )}
+            </div>
+          )}
+          {isRealClockIn && todayRec?.out && (
+            <div style={{ marginTop: 16, fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'JetBrains Mono,monospace' }}>
+              IN: {todayRec.in} | OUT: {todayRec.out} · {todayRec.hrs || 0}h
+            </div>
+          )}
+        </div>
+
+        {/* Month & Employee-aware Metrics */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          {[
+            { v: metricPresentCount, l: effectiveEmpId === 'ALL' ? `Team Present (${selMonthName})` : `Days Present (${selMonthName})`, c: '#10B981', bg: '#D1FAE5' },
+            { v: metricLateCount, l: effectiveEmpId === 'ALL' ? `Team Late Arrivals` : `Late Arrivals (${selMonthName})`, c: '#F59E0B', bg: '#FEF3C7' },
+            { v: `${Math.round(metricTotalHours)}h`, l: effectiveEmpId === 'ALL' ? `Team Work Hours` : `Total Hours (${selMonthName})`, c: '#3B82F6', bg: '#DBEAFE' },
+            { v: `${metricOnTimeRate}%`, l: 'On-Time Rate', c: 'var(--accent)', bg: '#EDE9FE' }
+          ].map((s, i) => (
+            <div key={i} className="card" style={{ padding: 20 }}>
+              <div style={{ fontSize: 28, fontFamily: 'Outfit', fontWeight: 900, color: s.c, marginBottom: 4 }}>{s.v}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* HR & Finance Live Team Office Visits Section */}
+      {isAdmin && (
+        <TeamVisitsSection db={db} currentUser={user} onRefresh={() => {}} />
+      )}
+
+      {/* HR & FINANCE ATTENDANCE TOOLBAR: MONTH PICKER + EMPLOYEE DROPDOWN + VIEW TABS */}
+      <div className="card" style={{ marginBottom: 20, padding: '16px 20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+          {/* Month Navigator Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#374151' }}>Month:</span>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={handlePrevMonth}
+              title="Previous Month"
+              style={{ padding: '6px 12px', fontWeight: 800 }}
+            >
+              ◀ Prev
+            </button>
+            <div style={{
+              background: 'var(--accent-soft, #EEF2FF)',
+              color: 'var(--accent, #4F46E5)',
+              padding: '6px 16px',
+              borderRadius: 99,
+              fontWeight: 800,
+              fontSize: 13,
+              letterSpacing: '0.2px'
+            }}>
+              📅 {selMonthName} {selYear}
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={handleNextMonth}
+              title="Next Month"
+              style={{ padding: '6px 12px', fontWeight: 800 }}
+            >
+              Next ▶
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={handleCurrentMonth}
+              style={{ fontSize: 11.5, color: 'var(--text-muted)' }}
+            >
+              Current Month
+            </button>
+          </div>
+
+          {/* Employee Filter (HR, Finance, Super Admin) */}
+          {isAdmin && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#374151' }}>Filter Employee:</span>
+              <select
+                className="form-input"
+                style={{ width: 220, padding: '7px 12px', fontSize: 12.5, fontWeight: 700 }}
+                value={selectedEmployee}
+                onChange={e => {
+                  setSelectedEmployee(e.target.value);
+                  setSelectedDayFilter(null);
+                }}
+              >
+                <option value="ALL">All Employees (Team Overview)</option>
+                {allEmployeesList.map(emp => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name} ({emp.eid || emp.employee_id || 'Staff'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* View Mode Toggle Pills */}
+          {isAdmin && (
+            <div style={{ display: 'flex', background: '#F1F5F9', padding: 4, borderRadius: 99, gap: 4 }}>
+              <button
+                type="button"
+                onClick={() => setAttendanceViewTab('daily')}
+                style={{
+                  background: attendanceViewTab === 'daily' ? '#FFFFFF' : 'transparent',
+                  color: attendanceViewTab === 'daily' ? '#0F172A' : '#64748B',
+                  border: 'none',
+                  borderRadius: 99,
+                  padding: '6px 16px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: attendanceViewTab === 'daily' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                }}
+              >
+                📋 Daily Attendance Log ({dailyLogList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendanceViewTab('monthly')}
+                style={{
+                  background: attendanceViewTab === 'monthly' ? '#FFFFFF' : 'transparent',
+                  color: attendanceViewTab === 'monthly' ? '#0F172A' : '#64748B',
+                  border: 'none',
+                  borderRadius: 99,
+                  padding: '6px 16px',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: attendanceViewTab === 'monthly' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                }}
+              >
+                📊 Monthly Employee Summary ({monthlySummaryList.length})
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* MAIN ATTENDANCE DISPLAY: DAILY LOG / MONTHLY SUMMARY SPLIT WITH CALENDAR */}
+      <div style={{ display: 'grid', gridTemplateColumns: '5fr 3fr', gap: 20 }}>
+        {/* LEFT COLUMN: TABLE (EITHER DAILY LOG OR MONTHLY SUMMARY) */}
+        <div>
+          {attendanceViewTab === 'monthly' && isAdmin ? (
+            /* MONTH-WISE TEAM ATTENDANCE SUMMARY */
+            <div className="card">
+              <div className="card-hdr" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <div className="section-title">Monthly Employee Attendance Summary — {selMonthName} {selYear}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Comprehensive month-wise attendance aggregation across all onboarded team staff.
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    style={{ padding: '6px 12px', fontSize: 12, width: 170 }}
+                    placeholder="Search employee..."
+                    value={summarySearch}
+                    onChange={e => setSummarySearch(e.target.value)}
+                  />
+                  <button className="btn btn-sm btn-ghost" onClick={handleExportCsv} title="Download CSV">
+                    <IC n="file" s={12} /> Export CSV
+                  </button>
+                </div>
+              </div>
+
+              <div className="tbl-wrap">
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Dept & Role</th>
+                      <th style={{ textAlign: 'center' }}>Present</th>
+                      <th style={{ textAlign: 'center' }}>Late</th>
+                      <th style={{ textAlign: 'center' }}>Half-Day</th>
+                      <th style={{ textAlign: 'center' }}>Absent</th>
+                      <th style={{ textAlign: 'center' }}>Total Hrs</th>
+                      <th style={{ textAlign: 'center' }}>Avg/Day</th>
+                      <th style={{ textAlign: 'center' }}>Rate</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlySummaryList.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
+                          No employees found for this search.
+                        </td>
+                      </tr>
+                    ) : (
+                      monthlySummaryList.map(item => (
+                        <tr key={item.user.id}>
+                          <td>
+                            <div className="emp-cell">
+                              <img
+                                src={item.user.avatar || item.user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(item.user.name || 'user')}`}
+                                className="tbl-av"
+                                alt=""
+                              />
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 13.5 }}>{item.user.name}</div>
+                                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                                  {item.user.eid || item.user.employee_id || 'Staff'}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 12.5, fontWeight: 600 }}>{item.deptName}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.user.title || item.user.designation || item.user.role}</div>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ background: '#D1FAE5', color: '#065F46', padding: '3px 8px', borderRadius: 99, fontSize: 11.5, fontWeight: 800 }}>
+                              {item.presents}d
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ background: item.lates > 0 ? '#FEF3C7' : '#F3F4F6', color: item.lates > 0 ? '#92400E' : '#6B7280', padding: '3px 8px', borderRadius: 99, fontSize: 11.5, fontWeight: 800 }}>
+                              {item.lates}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ background: item.halfDays > 0 ? '#FEE2E2' : '#F3F4F6', color: item.halfDays > 0 ? '#991B1B' : '#6B7280', padding: '3px 8px', borderRadius: 99, fontSize: 11.5, fontWeight: 800 }}>
+                              {item.halfDays}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ background: item.absents > 0 ? '#FEE2E2' : '#F3F4F6', color: item.absents > 0 ? '#991B1B' : '#6B7280', padding: '3px 8px', borderRadius: 99, fontSize: 11.5, fontWeight: 800 }}>
+                              {item.absents}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+                            {item.hrs}h
+                          </td>
+                          <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                            {item.avgHrs}h
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={`badge ${item.pct >= 85 ? 'b-success' : item.pct >= 70 ? 'b-pending' : 'b-error'}`}>
+                              {item.pct}%
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-ghost"
+                              style={{ color: 'var(--accent)', fontWeight: 700 }}
+                              onClick={() => {
+                                setSelectedEmployee(item.user.id);
+                                setSelectedDayFilter(null);
+                                setAttendanceViewTab('daily');
+                              }}
+                              title="Inspect this employee's daily punch logs"
+                            >
+                              View Logs →
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* DAILY ATTENDANCE PUNCH LOG TABLE */
+            <div className="card">
+              <div className="card-hdr" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <div className="section-title">
+                    Attendance Log — {selMonthName} {selYear}
+                    {effectiveEmpId !== 'ALL' && (
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', marginLeft: 8 }}>
+                        ({(allEmployeesList.find(u => String(u.id) === String(effectiveEmpId))?.name) || 'Employee'})
+                      </span>
+                    )}
+                  </div>
+                  {selectedDayFilter ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '2px 8px', borderRadius: 99 }}>
+                        Filtered by Day: {selectedDayFilter}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDayFilter(null)}
+                        style={{ border: 'none', background: 'transparent', color: 'var(--accent)', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                      >
+                        Show all days of {selMonthName}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Showing daily punches. Click any day on the calendar to filter to that date.
+                    </div>
+                  )}
+                </div>
+
+                {isAdmin && effectiveEmpId !== 'ALL' && (
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-ghost"
+                    onClick={() => { setSelectedEmployee('ALL'); setSelectedDayFilter(null); }}
+                  >
+                    ← All Employees
+                  </button>
+                )}
+              </div>
+
+              <div className="tbl-wrap">
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      {isAdmin && <th>Employee</th>}
+                      <th>Clock In</th>
+                      <th>Clock Out</th>
+                      <th>Total Hours</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dailyLogList.length === 0 ? (
+                      <tr>
+                        <td colSpan={isAdmin ? 6 : 5} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
+                          No attendance records found for this selection ({selMonthName} {selYear})
+                        </td>
+                      </tr>
+                    ) : (
+                      dailyLogList.map(a => {
+                        const emp = (db.users || []).find(u => String(u.id) === String(a.uid || a.user_id) || String(u._id) === String(a.uid || a.user_id));
+                        return (
+                          <tr key={a.id}>
+                            <td style={{ fontWeight: 700, fontFamily: 'JetBrains Mono,monospace', fontSize: 13 }}>{a.date}</td>
+                            {isAdmin && (
+                              <td>
+                                <div className="emp-cell">
+                                  <img
+                                    src={emp?.avatar || emp?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(emp?.name || 'user')}`}
+                                    className="tbl-av"
+                                    alt=""
+                                  />
+                                  <div>
+                                    <div style={{ fontWeight: 700, fontSize: 13 }}>{emp?.name || 'Staff'}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono,monospace' }}>
+                                      {emp?.eid || emp?.employee_id || ''}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            )}
+                            <td style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: 13 }}>{a.in || '—'}</td>
+                            <td style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: 13 }}>
+                              {a.out || (a.in && String(a.date).slice(0, 10) === today ? <span style={{ color: 'var(--amber)', fontWeight: 700 }}>Active</span> : '—')}
+                            </td>
+                            <td style={{ fontWeight: 700 }}>{a.hrs || '-'}h</td>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                {a.status === 'half_day' ? (
+                                  <span className="badge b-error" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.35)', fontWeight: 700 }}>
+                                    <span className="badge-dot" style={{ background: '#ef4444' }} />half day
+                                  </span>
+                                ) : (
+                                  <span className={`badge ${a.status === 'present' ? 'b-success' : a.status === 'late' ? 'b-pending' : 'b-error'}`}>
+                                    <span className="badge-dot" />{a.status}
+                                  </span>
+                                )}
+                                {a.visit_status === 'company_visit' ? (
+                                  <span style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', padding: '2px 8px', borderRadius: 8, fontSize: 10.5, fontWeight: 800 }}>
+                                    🚗 Out ({formatVisitTime(a.company_visit_out_time)})
+                                  </span>
+                                ) : (a.company_visit_out_time || (Array.isArray(a.visit_logs) && a.visit_logs.length > 0)) ? (
+                                  <span style={{ background: '#EFF6FF', color: '#1E40AF', border: '1px solid #BFDBFE', padding: '2px 8px', borderRadius: 8, fontSize: 10.5, fontWeight: 800 }}>
+                                    🚗 Visit: {formatVisitTime(a.company_visit_out_time)} → {formatVisitTime(a.company_visit_in_time)}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT COLUMN: MONTH-AWARE LIVE INTERACTIVE CALENDAR */}
+        <div className="card">
+          <div className="card-hdr" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div className="section-title">{selMonthName} {selYear}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                {effectiveEmpId !== 'ALL'
+                  ? ((allEmployeesList.find(u => String(u.id) === String(effectiveEmpId))?.name) || 'Employee Calendar')
+                  : 'Team Calendar (Click day to filter)'}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button type="button" className="btn btn-xs btn-ghost" onClick={handlePrevMonth} title="Previous Month">◀</button>
+              <button type="button" className="btn btn-xs btn-ghost" onClick={handleNextMonth} title="Next Month">▶</button>
+            </div>
+          </div>
+
+          <div className="cal-grid">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+              <div key={i} className="cal-hdr" style={{ color: i === 0 ? '#EF4444' : undefined }}>{d}</div>
+            ))}
+            {Array.from({ length: firstDayIndex }, (_, i) => (
+              <div key={'e' + i} className="cal-day empty" />
+            ))}
+            {Array.from({ length: totalDaysInMonth }, (_, i) => {
+              const day = i + 1;
+              const dateObj = new Date(selYear, selMonth - 1, day);
+              const isSunday = dateObj.getDay() === 0;
+              const monthStr = String(selMonth).padStart(2, '0');
+              const dayStr = String(day).padStart(2, '0');
+              const ds = `${selYear}-${monthStr}-${dayStr}`;
+
+              let cls = '';
+              let tooltip = '';
+
+              if (isSunday) {
+                cls = 'sunday-holiday';
+                tooltip = 'Sunday Holiday (Office Closed)';
+              } else if (effectiveEmpId !== 'ALL') {
+                const rec = monthAllRecords.find(a => String(a.uid || a.user_id) === String(effectiveEmpId) && String(a.date).slice(0, 10) === ds);
+                if (rec) {
+                  if (rec.status === 'present') cls = 'present';
+                  else if (rec.status === 'late') cls = 'late';
+                  else if (rec.status === 'half_day') cls = 'late';
+                  else if (rec.status === 'absent') cls = 'absent';
+                  else cls = 'absent';
+                  tooltip = rec.status === 'half_day'
+                    ? `Half-Day Absent | In:${rec.in || '—'} Out:${rec.out || '—'}`
+                    : `Status: ${rec.status} | In:${rec.in || '—'} Out:${rec.out || 'ongoing'}`;
+                } else {
+                  tooltip = 'No record';
+                }
+              } else {
+                // Team-level day overview
+                const dayPunches = monthAllRecords.filter(a => String(a.date).slice(0, 10) === ds);
+                const presents = dayPunches.filter(a => a.status === 'present' || a.status === 'late').length;
+                if (presents > 0) {
+                  cls = 'present';
+                  tooltip = `${presents} staff clocked in on ${ds} (Click to view)`;
+                } else {
+                  tooltip = `No records for ${ds}`;
+                }
+              }
+
+              const isToday = day === todayNum;
+              const isFilteredDay = selectedDayFilter === ds;
+
+              return (
+                <div
+                  key={day}
+                  className={`cal-day ${cls} ${isToday ? 'today' : ''}`}
+                  style={{
+                    cursor: 'pointer',
+                    boxShadow: isFilteredDay ? '0 0 0 2px var(--accent)' : 'none',
+                    fontWeight: isFilteredDay ? 900 : undefined
+                  }}
+                  title={tooltip}
+                  onClick={() => {
+                    if (selectedDayFilter === ds) {
+                      setSelectedDayFilter(null);
+                    } else {
+                      setSelectedDayFilter(ds);
+                      setAttendanceViewTab('daily');
+                    }
+                  }}
+                >
+                  {day}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16, fontSize: 11.5 }}>
+            {[
+              { c: 'present', label: 'Present' },
+              { c: 'late', label: 'Late' },
+              { c: 'absent', label: 'Absent' },
+              { c: 'sunday-holiday', label: 'Sunday (Holiday)' },
+              { c: 'empty', label: 'No Record' }
+            ].map(item => (
+              <div key={item.c} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div className={`cal-day ${item.c}`} style={{ width: 14, height: 14, borderRadius: 4, minWidth: 14, fontSize: 0 }} />
+                <span style={{ color: 'var(--text-muted)' }}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {selectedDayFilter && (
+            <div style={{ marginTop: 14, padding: 10, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: '#92400E', fontWeight: 700 }}>Filtered: {selectedDayFilter}</span>
+              <button
+                type="button"
+                className="btn btn-xs btn-ghost"
+                onClick={() => setSelectedDayFilter(null)}
+                style={{ color: '#B45309', fontWeight: 800 }}
+              >
+                Clear ✕
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
