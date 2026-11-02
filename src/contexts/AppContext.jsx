@@ -194,20 +194,13 @@ export function AppProvider({ children }) {
     const locationToken = options.locationToken || undefined;
 
     if (!cleanEmail) {
-      alert('Please enter your official email address.');
-      return false;
+      return { ok: false, error: 'Please enter your official email address.' };
     }
     if (!cleanPass || cleanPass.length < 6) {
-      alert('Please enter your password (minimum 6 characters).');
-      return false;
-    }
-    if (!selectedPortal) {
-      alert('Please select a portal (Employee, HR Admin, or Super Admin) before signing in.');
-      return false;
+      return { ok: false, error: 'Please enter your password (minimum 6 characters).' };
     }
     if (workMode === 'WFO' && !locationToken) {
-      alert('Verify office location for Work From Office login.');
-      return false;
+      return { ok: false, error: 'Verify office location for Work From Office login.' };
     }
 
     try {
@@ -217,7 +210,7 @@ export function AppProvider({ children }) {
         body: JSON.stringify({
           email: cleanEmail,
           password: cleanPass,
-          portal: selectedPortal,
+          portal: selectedPortal || undefined,
           workMode,
           ...(workMode === 'WFO' ? { locationToken } : {}),
         }),
@@ -226,24 +219,16 @@ export function AppProvider({ children }) {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(data.error || 'Invalid email or password.');
-        return false;
+        return { ok: false, error: data.error || 'Invalid email or password.' };
       }
 
       const apiUser = data.user;
       if (!data.token || !apiUser) {
-        alert('Login failed: no session token returned.');
-        return false;
+        return { ok: false, error: 'Login failed: no session token returned from server.' };
       }
 
       const accountRole = apiUser.role || 'employee';
-      if (!portalMatchesRole(selectedPortal, accountRole)) {
-        clearAuthStorage();
-        alert(
-          `This account (${accountRole.replace('_', ' ')}) cannot access the ${portalLabel(selectedPortal)}. Select the matching portal and try again.`
-        );
-        return false;
-      }
+      const destinationPath = data.homePath || homePathForPortal(accountRole);
 
       setAuthToken(data.token);
 
@@ -293,12 +278,11 @@ export function AppProvider({ children }) {
       save('users', updatedUserList);
       setUser(formattedUser);
       Store.set('currentUser', formattedUser);
-      router.push(homePathForPortal(selectedPortal));
-      return true;
+      router.push(destinationPath);
+      return { ok: true, homePath: destinationPath };
     } catch (err) {
       console.warn('Login request failed:', err);
-      alert('Unable to reach the login server. Check your connection and try again.');
-      return false;
+      return { ok: false, error: 'Unable to reach the login server. Please check your connection and try again.' };
     }
   };
 

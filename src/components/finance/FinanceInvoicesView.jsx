@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
+import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
 import { TeamVisitsFinanceCard } from '@/components/attendance/TeamVisitsMonitor';
 import { WeeklyUpdateSection } from './WeeklyUpdateSection';
@@ -1762,6 +1763,31 @@ function ModernInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, tot
 
 export function FinanceInvoicesView() {
   const { user, db } = useApp();
+  const router = useRouter();
+
+  // Role Guard: Finance portal is strictly for finance & super_admin
+  useEffect(() => {
+    if (user && user.role !== 'finance' && user.role !== 'super_admin') {
+      const destination = user.role === 'admin' ? '/employees' : '/dashboard';
+      router.replace(destination);
+    }
+  }, [user, router]);
+
+  if (user && user.role !== 'finance' && user.role !== 'super_admin') {
+    return (
+      <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, color: '#ef4444', marginBottom: 8 }}>
+          Access Restricted
+        </h3>
+        <p style={{ color: '#64748b', fontSize: 14 }}>
+          This page is reserved strictly for Finance & Invoices personnel.
+        </p>
+        <p style={{ color: '#94a3b8', fontSize: 13, marginTop: 6 }}>
+          Redirecting to your authorized portal...
+        </p>
+      </div>
+    );
+  }
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);

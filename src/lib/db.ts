@@ -60,7 +60,25 @@ if (!cached) {
 }
 
 async function connectDB(): Promise<typeof mongoose> {
-  if (cached!.conn) return cached!.conn;
+  // If already connected and readyState is 1 (connected), reuse the connection
+  if (cached!.conn && mongoose.connection.readyState === 1) {
+    return cached!.conn;
+  }
+
+  // If connection is in progress (readyState === 2), await existing promise
+  if (cached!.promise && mongoose.connection.readyState === 2) {
+    try {
+      cached!.conn = await cached!.promise;
+      return cached!.conn;
+    } catch {
+      cached!.promise = null;
+      cached!.conn = null;
+    }
+  }
+
+  // Reset stale or dropped connection
+  cached!.conn = null;
+  cached!.promise = null;
 
   const MONGODB_URI = getMongoUri();
 
@@ -68,7 +86,7 @@ async function connectDB(): Promise<typeof mongoose> {
     const opts = {
       bufferCommands: false,
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 15000,
+      serverSelectionTimeoutMS: 8000,
       socketTimeoutMS: 45000,
       family: 4,
     };

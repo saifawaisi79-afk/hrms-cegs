@@ -167,8 +167,9 @@ export function getRecruiters(db, candidates = []) {
  */
 export function buildNavConfig(user, db) {
   const isSA = user?.role === 'super_admin';
-  const isHR = user?.role === 'admin' || user?.role === 'finance';
-  const isEmp = user?.role === 'employee';
+  const isHR = user?.role === 'admin';
+  const isFinance = user?.role === 'finance';
+  const isEmp = user?.role === 'employee' || (!isSA && !isHR && !isFinance);
   const perms = getUserPerms(user, db);
   const canAccessReports = perms.reports;
   const canEditAttendance = perms.attendance;
@@ -219,7 +220,6 @@ export function buildNavConfig(user, db) {
     );
     campaign.push(
       { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
-      { href: '/finance/invoices', label: 'Finance & Invoices', icon: 'card' },
       { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Targets', icon: 'trending' },
       ...(canOnboard ? [{ href: '/campaign/onboarding', label: 'Onboarding', icon: 'file' }] : []),
@@ -233,11 +233,33 @@ export function buildNavConfig(user, db) {
       { href: '/billing/workstation', label: 'IT Support & Assets', icon: 'help' },
       { href: '/billing/attendance', label: 'Attendance', icon: 'clock' },
       { href: '/billing/payroll', label: 'My Salary & Payslips', icon: 'card' },
-      { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
       ...(canApproveLeaves ? [{ href: '/billing/leaves', label: 'Leave', icon: 'calendar' }] : []),
       { href: '/billing/documents', label: 'Documents', icon: 'file' },
       { href: '/billing/assets', label: 'Assets', icon: 'monitor' },
       { href: '/billing/auditor', label: 'Compliance', icon: 'shield' },
+    );
+  } else if (isFinance) {
+    main.push(
+      { href: '/finance/invoices', label: 'Finance & Invoices', icon: 'card' },
+      { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+      ...(canAccessReports ? [{ href: '/reports', label: 'Reports', icon: 'trending' }] : []),
+      { href: '/helpdesk', label: 'Help Desk', icon: 'help' },
+    );
+    campaign.push(
+      { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
+      { href: '/campaign/targets', label: 'Targets', icon: 'trending' },
+      { href: '/campaign/performance', label: 'Performance', icon: 'trending' },
+      { href: '/campaign/rewards', label: 'Rewards & Recognition', icon: 'star' },
+      { href: '/campaign/jobs', label: 'Internal Job Portal', icon: 'briefcase' },
+      { href: '/campaign/meetings', label: 'Meeting Scheduler', icon: 'video' },
+    );
+    billing.push(
+      { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
+      { href: '/billing/attendance', label: 'Attendance', icon: 'clock' },
+      { href: '/billing/payroll', label: 'Payroll Records', icon: 'card' },
+      ...(canApproveLeaves ? [{ href: '/billing/leaves', label: 'Leave', icon: 'calendar' }] : []),
+      { href: '/billing/documents', label: 'Documents', icon: 'file' },
+      { href: '/billing/assets', label: 'Assets', icon: 'monitor' },
     );
   } else if (isEmp) {
     main.push(
@@ -275,7 +297,7 @@ export function buildNavConfig(user, db) {
     billing,
     itSupport: { href: '/it/support', label: 'IT Cell Support', icon: 'help' },
     perms,
-    roles: { isSA, isHR, isEmp },
+    roles: { isSA, isHR, isFinance, isEmp },
   };
 }
 

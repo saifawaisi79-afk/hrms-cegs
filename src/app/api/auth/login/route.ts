@@ -59,7 +59,14 @@ export async function POST(request: Request) {
     }
 
     await connectDB();
-    const user = await User.findOne({ email: String(email).trim().toLowerCase() }).lean();
+    let user = null;
+    try {
+      user = await User.findOne({ email: String(email).trim().toLowerCase() }).lean();
+    } catch (dbErr: any) {
+      console.warn('Initial User.findOne failed, reconnecting and retrying...', dbErr.message);
+      await connectDB();
+      user = await User.findOne({ email: String(email).trim().toLowerCase() }).lean();
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
@@ -78,17 +85,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    if (portal) {
-      const required = PORTAL_HOME[portal]?.role;
-      if (required && required !== user.role) {
-        return NextResponse.json(
-          {
-            error: `This account (${user.role.replace('_', ' ')}) cannot access the ${PORTAL_HOME[portal].label}. Select the matching portal.`,
-          },
-          { status: 403 }
-        );
-      }
-    }
+    // Auto-resolve user's actual role and authorized home portal
+    const resolvedPortal = user.role || 'employee';
+    const targetHome = PORTAL_HOME[resolvedPortal]?.path || '/dashboard';
 
     await User.findByIdAndUpdate(user._id, { last_login: nowStr });
 
@@ -105,6 +104,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       token,
+      portal: resolvedPortal,
+      homePath: targetHome,
       user: {
         id: user._id.toString(),
         employee_id: user.employee_id,

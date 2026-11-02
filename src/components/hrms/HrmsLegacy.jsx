@@ -461,25 +461,38 @@ export function LoginPage({ login, db }) {
  setFormError('');
  };
 
- const handleCreds = async (e) => {
- e.preventDefault();
- setFormError('');
- if (!selectedPortal) {
- setFormError('Select a portal before signing in.');
- return;
- }
- if (workMode === 'WFO' && !locationToken) {
- setFormError('Verify office location for WFO, or switch to WFH.');
- return;
- }
- setLoading(true);
- const ok = await login(email, pass, selectedPortal, {
- workMode,
- locationToken: workMode === 'WFO' ? locationToken : undefined,
- });
- if (!ok) setFormError('Sign-in failed. Check portal, email, password, and location.');
- setLoading(false);
- };
+  const handleEmailChange = (val) => {
+    setEmail(val);
+    const low = String(val || '').trim().toLowerCase();
+    if (low.includes('hussain@') || low.includes('ayathsheikh') || low.includes('madiha')) {
+      setSelectedPortal('admin');
+    } else if (low.includes('heena@') || low.includes('finance') || low.includes('accounts')) {
+      setSelectedPortal('finance');
+    } else if (low.includes('saifawaisi') || low.includes('dev_saif')) {
+      setSelectedPortal('super_admin');
+    }
+  };
+
+  const handleCreds = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    if (workMode === 'WFO' && !locationToken) {
+      setFormError('Verify office location for WFO, or switch to WFH.');
+      return;
+    }
+    setLoading(true);
+    const res = await login(email, pass, selectedPortal, {
+      workMode,
+      locationToken: workMode === 'WFO' ? locationToken : undefined,
+    });
+    if (!res || (typeof res === 'object' && !res.ok)) {
+      const errMsg = (res && res.error) || 'Sign-in failed. Check your email and password.';
+      setFormError(errMsg);
+    } else {
+      setFormOk('Sign-in successful. Redirecting...');
+    }
+    setLoading(false);
+  };
 
  const portals = [
  { id: 'employee', label: 'Employee' },
@@ -581,7 +594,7 @@ export function LoginPage({ login, db }) {
  className="login-pro-input"
  type="email"
  value={email}
- onChange={(e) => setEmail(e.target.value)}
+ onChange={(e) => handleEmailChange(e.target.value)}
  placeholder="you@company.com"
  autoFocus
  required
