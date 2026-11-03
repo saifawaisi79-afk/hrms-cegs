@@ -73,7 +73,7 @@ import { formatInOfficeTz } from '@/lib/ist-time';
  GLOBAL API ENDPOINT CONFIGURATION — Next.js App Router API Routes
  ========================================================================================== */
 export const GLOBAL_API_BASE = '/api';
-export const SAIF_AVATAR_URL = '/images/saif-awaisi.png';
+export const SAIF_AVATAR_URL = '/images/saif-awaisi.png?v=2';
 
 /* ==========================================================================================
  GLOBAL FETCH INTERCEPTOR (INJECT JWT TOKEN)
