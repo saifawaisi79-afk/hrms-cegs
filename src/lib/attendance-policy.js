@@ -216,3 +216,79 @@ export function getRequiredShiftHours(date = new Date()) {
   }
   return day === 6 ? 6 : 9;
 }
+
+export function getEmployeeMonthlyDeductionBreakdown(warnings, userId, month, year, basicSalary) {
+  const uidStr = String(userId || '');
+  const m = Number(month);
+  const y = Number(year);
+  const basic = Number(basicSalary) || 0;
+  const halfDayRate = Math.round((basic / 30) / 2);
+
+  const userWarnings = (warnings || []).filter((w) => {
+    const wUid = String(w.uid || w.user_id || '');
+    return wUid === uidStr && Number(w.month) === m && Number(w.year) === y;
+  });
+
+  userWarnings.sort((a, b) => {
+    const dateCmp = String(a.date || '').localeCompare(String(b.date || ''));
+    if (dateCmp !== 0) return dateCmp;
+    return String(a.at || a.createdAt || '').localeCompare(String(b.at || b.createdAt || ''));
+  });
+
+  let totalDeduction = 0;
+  let totalHalfDaysCut = 0;
+
+  const items = userWarnings.map((w, idx) => {
+    const warningNum = idx + 1;
+    const isDeducted = warningNum >= 3;
+    const deduction = isDeducted ? halfDayRate : 0;
+    if (isDeducted) {
+      totalHalfDaysCut += 1;
+      totalDeduction += deduction;
+    }
+
+    let typeLabel = 'Attendance Breach';
+    let typeColor = '#EF4444';
+    let typeBg = '#FEE2E2';
+    if (w.type === 'late_clock_in') {
+      typeLabel = 'Late Clock-in';
+      typeColor = '#D97706';
+      typeBg = '#FEF3C7';
+    } else if (w.type === 'late_lunch_return') {
+      typeLabel = 'Late Lunch Return';
+      typeColor = '#EA580C';
+      typeBg = '#FFEDD5';
+    } else if (w.type === 'early_clock_out') {
+      typeLabel = 'Early Clock-out';
+      typeColor = '#DC2626';
+      typeBg = '#FEE2E2';
+    }
+
+    return {
+      index: warningNum,
+      warningNum,
+      date: w.date,
+      type: w.type,
+      typeLabel,
+      typeColor,
+      typeBg,
+      note: w.note || (w.type === 'late_clock_in' ? 'Late morning clock-in' : w.type === 'late_lunch_return' ? 'Lunch break exceeded allowed window' : 'Shift ended before required hours'),
+      isDeducted,
+      halfDaysCut: isDeducted ? 1 : 0,
+      deductionAmount: deduction,
+      statusLabel: isDeducted 
+        ? `Warning #${warningNum} · Half-Day Cut (-₹${halfDayRate.toLocaleString()})`
+        : `Warning #${warningNum} of 2 · Grace Warning (₹0 cut)`
+    };
+  });
+
+  return {
+    totalWarnings: items.length,
+    freeWarnings: Math.min(items.length, 2),
+    penaltyWarnings: totalHalfDaysCut,
+    halfDaysCut: totalHalfDaysCut,
+    halfDayRate,
+    totalDeduction,
+    items
+  };
+}

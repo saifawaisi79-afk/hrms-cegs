@@ -54,6 +54,7 @@ import {
   formatTime12FromHm,
   DEFAULT_LOGIN_TIME,
   SPECIAL_LOGIN_TIMES,
+  getEmployeeMonthlyDeductionBreakdown,
 } from '@/lib/attendance-policy';
 import { pushHrmsNotification, recordAttendanceWarning } from '@/lib/attendance-warnings-ui';
 import {
@@ -5106,6 +5107,7 @@ export function PayrollPage({ db, save, user, setView }) {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [payslip, setPayslip] = useState(null);
+  const [selectedDeductionEmp, setSelectedDeductionEmp] = useState(null);
   const isSuperAdmin = user?.role === 'super_admin';
   const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
   const isFinance = user?.role === 'finance';
@@ -5415,13 +5417,85 @@ export function PayrollPage({ db, save, user, setView }) {
       </div>
 
       {!(canViewAllStaff && payrollTab === 'all') && (
-        <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: '10px 14px', marginBottom: 16, fontSize: 12.5, fontWeight: 650, color: '#1E40AF' }}>
-          Based on HR onboarding: basic ₹{Number(displayBasic).toLocaleString()}
-          {Number(displayAllowances) > 0 ? ` + allowances ₹${Number(displayAllowances).toLocaleString()}` : ' (no allowances)'}
-          {'. '}
-          {displayWarnings > 0
-            ? `${displayWarnings} attendance warning(s) this month → ${displayHalfDays} half-day pay cut(s).`
-            : 'No attendance warning deductions this month.'}
+        <div style={{ marginBottom: 20 }}>
+          {(() => {
+            const myEmpId = profileUser?.id || profileUser?._id || user?.id;
+            const myBreakdown = getEmployeeMonthlyDeductionBreakdown(
+              db.attendanceWarnings || [],
+              myEmpId,
+              selectedMonthNum,
+              selectedYearNum,
+              displayBasic
+            );
+            return (
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 18, padding: 18, boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <IC n="file" s={18} style={{ color: 'var(--accent)' }}/>
+                      <span>My Attendance Breaches & Deduction Details · {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][selectedMonthNum - 1]} {selectedYearNum}</span>
+                    </h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#64748B' }}>
+                      Company Policy: First 2 warnings in a month have ₹0 deduction. Starting from the 3rd warning onward, each breach incurs 1 half-day salary cut (₹{myBreakdown.halfDayRate.toLocaleString()} per cut).
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ background: '#F1F5F9', color: '#334155', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 700 }}>
+                      Total Breaches: {myBreakdown.totalWarnings}
+                    </span>
+                    <span style={{ background: '#ECFDF5', color: '#059669', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 700 }}>
+                      Grace Warnings (₹0): {myBreakdown.freeWarnings} / 2
+                    </span>
+                    <span style={{ background: myBreakdown.halfDaysCut > 0 ? '#FEF2F2' : '#F1F5F9', color: myBreakdown.halfDaysCut > 0 ? '#DC2626' : '#64748B', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 700 }}>
+                      Half-Day Cuts: {myBreakdown.halfDaysCut} (-₹{myBreakdown.totalDeduction.toLocaleString()})
+                    </span>
+                  </div>
+                </div>
+
+                {myBreakdown.items.length === 0 ? (
+                  <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: '12px 16px', color: '#166534', fontSize: 12.5, fontWeight: 650, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>✨</span>
+                    <span>Clean record! You have zero attendance warnings and no deductions for this month.</span>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: 12 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#64748B' }}>
+                          <th style={{ padding: '8px 10px' }}>#</th>
+                          <th style={{ padding: '8px 10px' }}>Date</th>
+                          <th style={{ padding: '8px 10px' }}>Breach Type</th>
+                          <th style={{ padding: '8px 10px' }}>Why It Got Deducted (Reason / Note)</th>
+                          <th style={{ padding: '8px 10px' }}>Warning Tier</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'right' }}>Deduction</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {myBreakdown.items.map(item => (
+                          <tr key={item.index} style={{ borderBottom: '1px solid #F1F5F9', background: item.isDeducted ? '#FEF2F2' : '#FFFFFF' }}>
+                            <td style={{ padding: '8px 10px', fontWeight: 700, color: item.isDeducted ? '#DC2626' : '#64748B' }}>{item.warningNum}</td>
+                            <td style={{ padding: '8px 10px', fontWeight: 700, whiteSpace: 'nowrap', color: '#1E293B' }}>{item.date}</td>
+                            <td style={{ padding: '8px 10px' }}>
+                              <span style={{ background: item.typeBg, color: item.typeColor, padding: '3px 8px', borderRadius: 6, fontWeight: 700, fontSize: 11 }}>
+                                {item.typeLabel}
+                              </span>
+                            </td>
+                            <td style={{ padding: '8px 10px', color: '#334155', fontWeight: 500 }}>{item.note}</td>
+                            <td style={{ padding: '8px 10px', fontWeight: 700, color: item.isDeducted ? '#DC2626' : '#059669' }}>
+                              {item.statusLabel}
+                            </td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: item.isDeducted ? '#DC2626' : '#64748B' }}>
+                              {item.isDeducted ? `-₹${item.deductionAmount.toLocaleString()}` : '₹0'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -5478,7 +5552,50 @@ export function PayrollPage({ db, save, user, setView }) {
                     <td style={{ fontSize: 13, color: '#4B5563', fontWeight: 600 }}>{monthName} {p.year || selectedYearNum}</td>
                     <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>₹{basicVal.toLocaleString()}</td>
                     <td style={{ color: '#059669', fontWeight: 700, fontSize: 13 }}>+₹{allowVal.toLocaleString()}</td>
-                    <td style={{ color: '#DC2626', fontWeight: 700, fontSize: 13 }}>-₹{deductVal.toLocaleString()}</td>
+                    <td style={{ color: deductVal > 0 ? '#DC2626' : '#6B7280', fontWeight: 700, fontSize: 13 }}>
+                      <div>-₹{deductVal.toLocaleString()}</div>
+                      {(() => {
+                        const b = getEmployeeMonthlyDeductionBreakdown(
+                          db.attendanceWarnings || [],
+                          emp?.id || emp?._id || p.uid || p.user_id,
+                          p.month || selectedMonthNum,
+                          p.year || selectedYearNum,
+                          basicVal
+                        );
+                        if (b.totalWarnings === 0) return null;
+                        return (
+                          <button
+                            type="button"
+                            className="btn btn-xs"
+                            style={{
+                              marginTop: 4,
+                              fontSize: 10,
+                              fontWeight: 750,
+                              padding: '2px 8px',
+                              borderRadius: 99,
+                              background: b.halfDaysCut > 0 ? '#FEE2E2' : '#EFF6FF',
+                              color: b.halfDaysCut > 0 ? '#DC2626' : '#2563EB',
+                              border: `1px solid ${b.halfDaysCut > 0 ? '#FECACA' : '#BFDBFE'}`,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3
+                            }}
+                            title="Click to view exact dates, breach reasons, and deduction breakdown"
+                            onClick={() => setSelectedDeductionEmp({
+                              emp,
+                              basic: basicVal,
+                              month: p.month || selectedMonthNum,
+                              year: p.year || selectedYearNum,
+                              breakdown: b
+                            })}
+                          >
+                            <span>{b.totalWarnings} {b.totalWarnings === 1 ? 'breach' : 'breaches'} ({b.halfDaysCut} cut)</span>
+                            <span style={{ fontSize: 9 }}>▶</span>
+                          </button>
+                        );
+                      })()}
+                    </td>
                     <td style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 17, color: '#111827' }}>₹{netVal.toLocaleString()}</td>
                     <td>
                       <span className={`badge ${isProcessed ? 'b-success' : 'b-warning'}`}>
@@ -5538,12 +5655,156 @@ export function PayrollPage({ db, save, user, setView }) {
                 )}
                 <div className="payslip-row"><span>Attendance Warning Deductions{payslip.halfDaysCut ? ` (${payslip.halfDaysCut} half-day)` : ''}{payslip.attendanceWarnings ? ` · ${payslip.attendanceWarnings} warnings` : ''}</span><span style={{color:'var(--red-dark)'}}>-₹{(Number(payslip.attendancePenalty ?? payslip.deductions) || 0).toLocaleString()}</span></div>
                 <div className="payslip-total"><span>Net Salary</span><span style={{color:'var(--green-dark)'}}>₹{(Number(payslip.net) || 0).toLocaleString()}</span></div>
+                {(() => {
+                  const slipBreakdown = getEmployeeMonthlyDeductionBreakdown(
+                    db.attendanceWarnings || [],
+                    payslip.uid || payslip.user_id || slipEmp?.id || slipEmp?._id,
+                    payslip.month || selectedMonthNum,
+                    payslip.year || selectedYearNum,
+                    payslip.basic
+                  );
+                  if (slipBreakdown.items.length === 0) return null;
+                  return (
+                    <div style={{ marginTop: 18, borderTop: '1px dashed #CBD5E1', paddingTop: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                        <span style={{ fontSize: 11.5, fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Attendance Deduction Log ({slipBreakdown.totalWarnings} breaches recorded)
+                        </span>
+                        <span style={{ fontSize: 10.5, fontWeight: 600, color: '#64748B' }}>
+                          1st & 2nd = ₹0 · 3rd+ = Half-Day Cut (-₹{slipBreakdown.halfDayRate.toLocaleString()})
+                        </span>
+                      </div>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                        <thead>
+                          <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#64748B' }}>
+                            <th style={{ padding: '6px 8px' }}>#</th>
+                            <th style={{ padding: '6px 8px' }}>Date</th>
+                            <th style={{ padding: '6px 8px' }}>Breach</th>
+                            <th style={{ padding: '6px 8px' }}>Reason / Note</th>
+                            <th style={{ padding: '6px 8px' }}>Tier</th>
+                            <th style={{ padding: '6px 8px', textAlign: 'right' }}>Deduction</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {slipBreakdown.items.map(item => (
+                            <tr key={item.index} style={{ borderBottom: '1px solid #F1F5F9', background: item.isDeducted ? '#FEF2F2' : '#FFFFFF' }}>
+                              <td style={{ padding: '6px 8px', fontWeight: 700, color: item.isDeducted ? '#DC2626' : '#64748B' }}>{item.warningNum}</td>
+                              <td style={{ padding: '6px 8px', fontWeight: 600, whiteSpace: 'nowrap' }}>{item.date}</td>
+                              <td style={{ padding: '6px 8px' }}>
+                                <span style={{ background: item.typeBg, color: item.typeColor, padding: '2px 5px', borderRadius: 4, fontWeight: 700, fontSize: 9.5 }}>
+                                  {item.typeLabel}
+                                </span>
+                              </td>
+                              <td style={{ padding: '6px 8px', color: '#334155' }}>{item.note}</td>
+                              <td style={{ padding: '6px 8px', fontWeight: 600, color: item.isDeducted ? '#DC2626' : '#059669' }}>
+                                {item.isDeducted ? `Warning #${item.warningNum} (Half-Day Cut)` : `Warning #${item.warningNum} of 2 (Grace ₹0)`}
+                              </td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700, color: item.isDeducted ? '#DC2626' : '#64748B' }}>
+                                {item.isDeducted ? `-₹${item.deductionAmount.toLocaleString()}` : '₹0'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="btn-row">
                 <button className="btn btn-ghost" onClick={()=>setPayslip(null)}>Close</button>
                 <button className="btn btn-dark" onClick={()=>window.print()}><IC n="print" s={14}/> Print / Download</button>
               </div>
             </>
+          );
+        })()}
+      </Modal>
+
+      {/* DEDICATED DEDUCTION & BREACH DETAILS MODAL */}
+      <Modal 
+        open={!!selectedDeductionEmp} 
+        onClose={() => setSelectedDeductionEmp(null)} 
+        title="Attendance Breaches & Deduction Details"
+        subtitle={selectedDeductionEmp ? `${selectedDeductionEmp.emp?.name || 'Employee'} (${selectedDeductionEmp.emp?.employee_id || selectedDeductionEmp.emp?.eid || 'EMP'}) · ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][selectedDeductionEmp.month - 1]} ${selectedDeductionEmp.year}` : ''}
+      >
+        {selectedDeductionEmp && (() => {
+          const { emp, basic, breakdown, month: sMonth, year: sYear } = selectedDeductionEmp;
+          return (
+            <div>
+              {/* Summary Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Basic Salary</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#0F172A' }}>₹{Number(basic).toLocaleString()}</div>
+                </div>
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Half-Day Rate</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#0F172A' }}>₹{breakdown.halfDayRate.toLocaleString()}</div>
+                </div>
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Grace Warnings</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#059669' }}>{breakdown.freeWarnings} / 2 (₹0)</div>
+                </div>
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 11, color: '#991B1B', fontWeight: 700 }}>Half-Days Cut</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#DC2626' }}>{breakdown.halfDaysCut}</div>
+                </div>
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 11, color: '#991B1B', fontWeight: 700 }}>Total Deducted</div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: '#DC2626' }}>-₹{breakdown.totalDeduction.toLocaleString()}</div>
+                </div>
+              </div>
+
+              {/* Policy Explanatory Note */}
+              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#1E40AF', lineHeight: 1.5 }}>
+                <strong>📌 Company Attendance Policy:</strong> The first 2 warnings in a calendar month are warning-only (<strong>₹0 deduction</strong>). Starting from the <strong>3rd warning onward</strong>, every breach incurs a <strong>1 half-day salary cut</strong> (₹{breakdown.halfDayRate.toLocaleString()} per cut).
+              </div>
+
+              {/* Breach Table */}
+              {breakdown.items.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: '#64748B' }}>
+                  No warnings or deductions recorded for this month.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: 14 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#475569' }}>
+                        <th style={{ padding: '8px 10px' }}>#</th>
+                        <th style={{ padding: '8px 10px' }}>Date</th>
+                        <th style={{ padding: '8px 10px' }}>Breach Type</th>
+                        <th style={{ padding: '8px 10px' }}>Why It Got Deducted (Reason / Note)</th>
+                        <th style={{ padding: '8px 10px' }}>Policy Tier</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Deduction</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {breakdown.items.map(item => (
+                        <tr key={item.index} style={{ borderBottom: '1px solid #F1F5F9', background: item.isDeducted ? '#FEF2F2' : '#FFFFFF' }}>
+                          <td style={{ padding: '8px 10px', fontWeight: 700, color: item.isDeducted ? '#DC2626' : '#64748B' }}>{item.warningNum}</td>
+                          <td style={{ padding: '8px 10px', fontWeight: 700, whiteSpace: 'nowrap', color: '#0F172A' }}>{item.date}</td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <span style={{ background: item.typeBg, color: item.typeColor, padding: '3px 8px', borderRadius: 6, fontWeight: 700, fontSize: 10.5 }}>
+                              {item.typeLabel}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px 10px', color: '#334155', fontWeight: 500 }}>{item.note}</td>
+                          <td style={{ padding: '8px 10px', fontWeight: 700, color: item.isDeducted ? '#DC2626' : '#059669' }}>
+                            {item.statusLabel}
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: item.isDeducted ? '#DC2626' : '#64748B' }}>
+                            {item.isDeducted ? `-₹${item.deductionAmount.toLocaleString()}` : '₹0'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn btn-ghost" onClick={() => setSelectedDeductionEmp(null)}>Close</button>
+              </div>
+            </div>
           );
         })()}
       </Modal>
