@@ -21,7 +21,7 @@ import {
 } from '@/lib/attendance-policy';
 import { istIsoDate } from '@/lib/ist-time';
 
-export const ATTENDANCE_WARNING_TYPES = ['late_clock_in', 'late_lunch_return', 'early_clock_out'];
+export const ATTENDANCE_WARNING_TYPES = ['late_clock_in', 'late_lunch_return', 'early_clock_out', 'below_40_percent', 'performance_below_40', 'clause40'];
 
 export function flattenAttendanceWarning(w) {
   const o = w.toObject ? w.toObject() : w;
@@ -156,6 +156,9 @@ const WARNING_TITLES = {
   late_clock_in: 'Late Clock-In Warning',
   late_lunch_return: 'Late Lunch Return Warning',
   early_clock_out: 'Early Logout Warning',
+  below_40_percent: 'Performance Target <40% Warning',
+  performance_below_40: 'Performance Target <40% Warning',
+  clause40: 'Performance Target <40% Warning',
 };
 
 const WARNING_MSGS = {
