@@ -5236,10 +5236,15 @@ export function PayrollPage({ db, save, user, setView }) {
     );
 
     if (saved) {
-      const basic = Number(saved.basic ?? saved.basic_salary ?? emp.basic_salary ?? emp.salary) || 0;
-      const allowances = Number(saved.allowances ?? emp.allowances) || 0;
-      const deductions = Number(saved.deductions ?? saved.attendancePenalty) || 0;
-      const net = Number(saved.net ?? saved.net_salary ?? (basic + allowances - deductions)) || 0;
+      const basic = Number(emp.basic_salary ?? emp.salary ?? saved.basic ?? saved.basic_salary) || 0;
+      const allowances = Number(emp.allowances ?? saved.allowances) || 0;
+      const overtime = Number(saved.overtime) || 0;
+      const bonus = Number(saved.bonus) || 0;
+      const live = buildPayParts(emp, selectedMonthNum, selectedYearNum);
+      const deductions = (saved.deductions != null && saved.deductions !== 0)
+        ? (basic !== Number(saved.basic ?? saved.basic_salary) ? live.deductions : Number(saved.deductions))
+        : live.deductions;
+      const net = basic + allowances + overtime + bonus - deductions;
       return {
         ...saved,
         id: saved.id || saved._id || empIdStr,
@@ -5279,20 +5284,22 @@ export function PayrollPage({ db, save, user, setView }) {
     const sUid = String(saved.uid || saved.user_id);
     if (!activeStaff.some(emp => String(emp.id || emp._id) === sUid)) {
       const pastEmp = (db.users || []).find(u => String(u.id || u._id) === sUid);
-      allStaffMonthRecords.push({
-        ...saved,
-        id: saved.id || saved._id || sUid,
-        uid: sUid,
-        user_id: sUid,
-        emp: pastEmp,
-        month: selectedMonthNum,
-        year: selectedYearNum,
-        basic: Number(saved.basic ?? saved.basic_salary) || 0,
-        allowances: Number(saved.allowances) || 0,
-        deductions: Number(saved.deductions ?? saved.attendancePenalty) || 0,
-        net: Number(saved.net ?? saved.net_salary) || 0,
-        status: saved.status || 'processed',
-      });
+      if (pastEmp && (pastEmp.name || pastEmp.email)) {
+        allStaffMonthRecords.push({
+          ...saved,
+          id: saved.id || saved._id || sUid,
+          uid: sUid,
+          user_id: sUid,
+          emp: pastEmp,
+          month: selectedMonthNum,
+          year: selectedYearNum,
+          basic: Number(pastEmp.basic_salary ?? pastEmp.salary ?? saved.basic ?? saved.basic_salary) || 0,
+          allowances: Number(pastEmp.allowances ?? saved.allowances) || 0,
+          deductions: Number(saved.deductions ?? saved.attendancePenalty) || 0,
+          net: Number(saved.net ?? saved.net_salary) || 0,
+          status: saved.status || 'processed',
+        });
+      }
     }
   });
 
@@ -5451,10 +5458,10 @@ export function PayrollPage({ db, save, user, setView }) {
               {filteredList.map(p => {
                 const emp = p.emp || (db.users || []).find(u => String(u.id || u._id) === String(p.uid));
                 const monthName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(p.month || selectedMonthNum) - 1];
-                const basicVal = Number(p.basic ?? p.basic_salary ?? emp?.basic_salary ?? emp?.salary ?? 0);
-                const allowVal = Number(p.allowances ?? emp?.allowances ?? 0);
+                const basicVal = Number(emp?.basic_salary ?? emp?.salary ?? p.basic ?? p.basic_salary ?? 0);
+                const allowVal = Number(emp?.allowances ?? p.allowances ?? 0);
                 const deductVal = Number(p.deductions ?? p.attendancePenalty ?? 0);
-                const netVal = Number(p.net ?? p.net_salary ?? (basicVal + allowVal - deductVal));
+                const netVal = Number(basicVal + allowVal - deductVal);
                 const isProcessed = String(p.status).toLowerCase() === 'processed';
 
                 return (

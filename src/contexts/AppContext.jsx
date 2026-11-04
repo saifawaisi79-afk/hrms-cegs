@@ -482,10 +482,15 @@ export function AppProvider({ children }) {
             }));
             setDb((prev) => {
               const byKey = new Map();
+              const validUserIds = new Set((prev.users || []).map((u) => String(u.id || u._id)));
               (prev.payroll || []).forEach((p) => {
+                const uidStr = String(p.uid || p.user_id || '');
+                if (validUserIds.size > 0 && !validUserIds.has(uidStr)) return;
                 byKey.set(`${String(p.uid)}|${p.month}|${p.year}`, p);
               });
               mapped.forEach((p) => {
+                const uidStr = String(p.uid || p.user_id || '');
+                if (validUserIds.size > 0 && !validUserIds.has(uidStr)) return;
                 byKey.set(`${String(p.uid)}|${p.month}|${p.year}`, p);
               });
               const next = [...byKey.values()];

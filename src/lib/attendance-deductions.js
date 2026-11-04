@@ -97,10 +97,10 @@ export async function countSavedMonthlyWarnings(userId, month, year) {
 }
 
 export async function syncPayrollAttendanceDeduction(userId, month, year) {
-  const user = await User.findById(userId).select('basic_salary allowances').lean();
+  const user = await User.findById(userId).select('basic_salary allowances salary').lean();
   const existing = await Payroll.findOne({ user_id: userId, month, year });
-  const basic = Number(existing?.basic_salary ?? user?.basic_salary) || 0;
-  const allowances = Math.max(0, Number(existing?.allowances ?? user?.allowances) || 0);
+  const basic = Number(user?.basic_salary ?? user?.salary ?? existing?.basic_salary) || 0;
+  const allowances = Math.max(0, Number(user?.allowances ?? existing?.allowances) || 0);
   const overtime = Number(existing?.overtime) || 0;
   const bonus = Number(existing?.bonus) || 0;
 

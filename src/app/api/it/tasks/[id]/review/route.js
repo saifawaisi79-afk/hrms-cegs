@@ -77,8 +77,8 @@ export async function POST(request, { params }) {
           message: feedback?.trim()
             ? `HR Feedback: ${feedback.trim()}`
             : isApprove
-            ? `Great job! HR Admin has approved your completed task.`
-            : `HR Admin requested changes on your submission. Please check task details and resubmit.`,
+              ? `Great job! HR Admin has approved your completed task.`
+              : `HR Admin requested changes on your submission. Please check task details and resubmit.`,
           type: isApprove ? 'it_task_approved' : 'it_task_changes_requested',
           is_read: false,
           created_at: nowIso,
