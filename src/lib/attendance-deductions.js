@@ -17,6 +17,7 @@ import {
   calcTotalHalfDaysCut,
   calcCombinedAttendancePenalty,
   calcHalfDayPenalty,
+  halfDaysFromMistakeCount,
 } from '@/lib/attendance-policy';
 import { istIsoDate } from '@/lib/ist-time';
 
@@ -104,9 +105,23 @@ export async function syncPayrollAttendanceDeduction(userId, month, year) {
   const overtime = Number(existing?.overtime) || 0;
   const bonus = Number(existing?.bonus) || 0;
 
-  const { lateCount, earlyCount, totalCount } = await countSavedMonthlyWarnings(userId, month, year);
-  const attendancePenalty = calcCombinedAttendancePenalty(basic, lateCount, earlyCount);
-  const halfDaysCut = calcTotalHalfDaysCut(lateCount, earlyCount);
+  const rows = await AttendanceWarning.find({ user_id: userId, month, year }).lean();
+  const mapped = rows.map((w) => ({ ...w, uid: w.user_id.toString() }));
+  
+  // Per-mistake count
+  const lateClockIns = mapped.filter((w) => w.type === 'late_clock_in').length;
+  const lateLunches = mapped.filter((w) => w.type === 'late_lunch_return').length;
+  const earlyLogouts = mapped.filter((w) => w.type === 'early_clock_out').length;
+  const below40s = mapped.filter((w) => w.type === 'below_40_percent' || w.type === 'performance_below_40' || w.type === 'clause40').length;
+
+  const halfDaysCut = halfDaysFromMistakeCount(lateClockIns) +
+                      halfDaysFromMistakeCount(lateLunches) +
+                      halfDaysFromMistakeCount(earlyLogouts) +
+                      halfDaysFromMistakeCount(below40s);
+
+  const dailyRate = basic > 0 ? (basic / 30) : 0;
+  const halfDayRate = Math.round(dailyRate / 2);
+  const attendancePenalty = Math.round(halfDaysCut * halfDayRate);
   const deductions = attendancePenalty;
   const netSalary = basic + allowances + overtime + bonus - deductions;
 
@@ -120,7 +135,7 @@ export async function syncPayrollAttendanceDeduction(userId, month, year) {
         bonus,
         deductions,
         net_salary: netSalary,
-        attendance_warnings: totalCount,
+        attendance_warnings: mapped.length,
         half_days_cut: halfDaysCut,
         attendance_penalty: attendancePenalty,
       },

@@ -5131,34 +5131,25 @@ export function PayrollPage({ db, save, user, setView }) {
     ) || user;
 
   const buildPayParts = (emp, payrollMonth, payrollYear) => {
-    const basic = Number(emp?.salary ?? emp?.basic_salary) || 0;
+    const basic = Number(emp?.basic_salary ?? emp?.salary) || 0;
     const allowances = Math.max(0, Number(emp?.allowances) || 0);
     const empId = emp?.id || emp?._id;
-    const warningCount = countMonthlyAttendanceWarnings(
+    const b = getEmployeeMonthlyDeductionBreakdown(
       db.attendanceWarnings || [],
       empId,
       payrollMonth,
-      payrollYear
+      payrollYear,
+      basic
     );
-    const earlyWarningCount = countMonthlyEarlyLogoutWarnings(
-      db.attendanceWarnings || [],
-      empId,
-      payrollMonth,
-      payrollYear
-    );
-    const halfDays = calcTotalHalfDaysCut(warningCount, earlyWarningCount);
-    const attendancePenalty = calcCombinedAttendancePenalty(basic, warningCount, earlyWarningCount);
-    const deductions = attendancePenalty;
+    const deductions = b.totalDeduction;
     const net = basic + allowances - deductions;
     return {
       basic,
       allowances,
       deductions,
-      attendancePenalty,
-      attendanceWarnings: warningCount + earlyWarningCount,
-      earlyWarnings: earlyWarningCount,
-      lateWarnings: warningCount,
-      halfDaysCut: halfDays,
+      attendancePenalty: deductions,
+      attendanceWarnings: b.totalWarnings,
+      halfDaysCut: b.halfDaysCut,
       deductionTaxPf: 0,
       net,
     };

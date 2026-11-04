@@ -135,29 +135,36 @@ export function countMonthlyEarlyLogoutWarnings(warnings, uid, month, year) {
   ).length;
 }
 
-export const FREE_WARNINGS_PER_MONTH = 2;
+export const FREE_WARNINGS_PER_MISTAKE = 2;
+export const FREE_WARNINGS_PER_MONTH = 2; // backwards compatibility
+
+/**
+ * Company Deduction Policy:
+ * For EVERY mistake category (fails to score 40%, late lunch, late attendance, early logout, etc.):
+ * The first 2 occurrences/warnings have NO deduction (₹0 cut).
+ * From the 3rd occurrence onward, deductions start at 1 half-day cut per breach.
+ */
+export function halfDaysFromMistakeCount(count) {
+  const n = Number(count) || 0;
+  if (n <= FREE_WARNINGS_PER_MISTAKE) return 0;
+  return n - FREE_WARNINGS_PER_MISTAKE;
+}
 
 export function halfDaysFromTotalWarnings(totalCount) {
-  const count = Number(totalCount) || 0;
-  if (count <= FREE_WARNINGS_PER_MONTH) return 0;
-  return count - FREE_WARNINGS_PER_MONTH;
+  return halfDaysFromMistakeCount(totalCount);
 }
 
 export function halfDaysFromWarnings(warningCount) {
-  return halfDaysFromTotalWarnings(warningCount);
+  return halfDaysFromMistakeCount(warningCount);
 }
 
 /** First 2 early logouts (<9h) are warnings; from 3rd warning onward, each marks a half-day absent deduction */
 export function halfDaysFromEarlyLogouts(earlyCount) {
-  const count = Number(earlyCount) || 0;
-  if (count < 3) return 0;
-  return count - 2; // 3rd warning = 1 half-day, 4th = 2 half-days, etc.
+  return halfDaysFromMistakeCount(earlyCount);
 }
 
 export function calcTotalHalfDaysCut(lateWarningCount, earlyWarningCount) {
-  const total = (Number(lateWarningCount) || 0) + (Number(earlyWarningCount) || 0);
-  return halfDaysFromTotalWarnings(total);
-
+  return halfDaysFromMistakeCount(lateWarningCount) + halfDaysFromMistakeCount(earlyWarningCount);
 }
 
 export function calcCombinedAttendancePenalty(basicSalary, lateWarningCount, earlyWarningCount) {
@@ -235,60 +242,74 @@ export function getEmployeeMonthlyDeductionBreakdown(warnings, userId, month, ye
     return String(a.at || a.createdAt || '').localeCompare(String(b.at || b.createdAt || ''));
   });
 
+  const categoryCounts = {};
   let totalDeduction = 0;
   let totalHalfDaysCut = 0;
+  let totalFreeWarnings = 0;
 
   const items = userWarnings.map((w, idx) => {
-    const warningNum = idx + 1;
-    const isDeducted = warningNum >= 3;
+    const typeKey = String(w.type || 'other');
+    categoryCounts[typeKey] = (categoryCounts[typeKey] || 0) + 1;
+    const countForThisMistake = categoryCounts[typeKey];
+
+    // Independent 2-warning policy per mistake category
+    const isDeducted = countForThisMistake >= 3;
     const deduction = isDeducted ? halfDayRate : 0;
     if (isDeducted) {
       totalHalfDaysCut += 1;
       totalDeduction += deduction;
+    } else {
+      totalFreeWarnings += 1;
     }
 
     let typeLabel = 'Attendance Breach';
     let typeColor = '#EF4444';
     let typeBg = '#FEE2E2';
     if (w.type === 'late_clock_in') {
-      typeLabel = 'Late Clock-in';
+      typeLabel = 'Late Attendance';
       typeColor = '#D97706';
       typeBg = '#FEF3C7';
     } else if (w.type === 'late_lunch_return') {
-      typeLabel = 'Late Lunch Return';
+      typeLabel = 'Late Lunch';
       typeColor = '#EA580C';
       typeBg = '#FFEDD5';
     } else if (w.type === 'early_clock_out') {
-      typeLabel = 'Early Clock-out';
+      typeLabel = 'Early Logout';
       typeColor = '#DC2626';
       typeBg = '#FEE2E2';
+    } else if (w.type === 'below_40_percent' || w.type === 'performance_below_40' || w.type === 'clause40') {
+      typeLabel = '<40% Performance';
+      typeColor = '#9333EA';
+      typeBg = '#F3E8FF';
     }
 
     return {
-      index: warningNum,
-      warningNum,
+      index: idx + 1,
+      overallWarningNum: idx + 1,
+      mistakeCategoryCount: countForThisMistake,
       date: w.date,
       type: w.type,
       typeLabel,
       typeColor,
       typeBg,
-      note: w.note || (w.type === 'late_clock_in' ? 'Late morning clock-in' : w.type === 'late_lunch_return' ? 'Lunch break exceeded allowed window' : 'Shift ended before required hours'),
+      note: w.note || (w.type === 'late_clock_in' ? 'Late morning clock-in' : w.type === 'late_lunch_return' ? 'Lunch break exceeded allowed window' : w.type === 'early_clock_out' ? 'Shift ended before required hours' : 'Failed to score 40% daily target'),
       isDeducted,
       halfDaysCut: isDeducted ? 1 : 0,
       deductionAmount: deduction,
       statusLabel: isDeducted 
-        ? `Warning #${warningNum} · Half-Day Cut (-₹${halfDayRate.toLocaleString()})`
-        : `Warning #${warningNum} of 2 · Grace Warning (₹0 cut)`
+        ? `${typeLabel} #${countForThisMistake} · Half-Day Cut (-₹${halfDayRate.toLocaleString()})`
+        : `${typeLabel} Warning ${countForThisMistake} of 2 · Grace (₹0 cut)`
     };
   });
 
   return {
     totalWarnings: items.length,
-    freeWarnings: Math.min(items.length, 2),
+    freeWarnings: totalFreeWarnings,
     penaltyWarnings: totalHalfDaysCut,
     halfDaysCut: totalHalfDaysCut,
     halfDayRate,
     totalDeduction,
+    categoryCounts,
     items
   };
 }
