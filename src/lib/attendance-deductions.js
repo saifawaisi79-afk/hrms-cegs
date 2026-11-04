@@ -214,12 +214,12 @@ export async function persistAttendanceWarning({ userId, type, note, date }) {
         dedupeKey: `att-early-halfday:${userId}:${year}-${String(month).padStart(2, '0')}:${earlyCount}`,
         type: 'Attendance',
       });
-    } else if (type !== 'early_clock_out' && lateCount > 0 && lateCount % WARNINGS_PER_HALF_DAY === 0) {
+    } else if (type !== 'early_clock_out' && lateCount >= 3) {
       const halfDays = halfDaysFromWarnings(lateCount);
       await notifyOnce({
         recipientId: userId,
         title: 'Half-Day Pay Cut Notice',
-        message: `You have ${lateCount} late clock-in/lunch warnings this month (${halfDays} half-day pay cut${halfDays > 1 ? 's' : ''} applied).`,
+        message: `You have ${lateCount} late clock-in/lunch warnings this month (${halfDays} half-day pay cut${halfDays > 1 ? 's' : ''} applied). Policy: First 2 warnings have no deduction; half-day deduction starts from the 3rd warning.`,
         dedupeKey: `att-halfday:${userId}:${year}-${String(month).padStart(2, '0')}:${lateCount}`,
         type: 'Attendance',
       });

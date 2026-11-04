@@ -85,12 +85,12 @@ export function recordAttendanceWarning(save, db, { uid, type, note, date }) {
   save('attendanceWarnings', all);
 
   const count = countMonthlyAttendanceWarnings(all, uid, month, year);
-  if (count > 0 && count % WARNINGS_PER_HALF_DAY === 0) {
+  if (count >= 3) {
     const halfDays = halfDaysFromWarnings(count);
     pushHrmsNotification(save, db, {
       to: uid,
       title: 'Half-Day Pay Cut Notice',
-      msg: `You have ${count} attendance warnings this month (${halfDays} half-day pay cut${halfDays > 1 ? 's' : ''} will apply on payroll). Late clock-in and late lunch return are counted together (2 warnings = 1 half-day).`,
+      msg: `You have ${count} attendance warnings this month (${halfDays} half-day pay cut${halfDays > 1 ? 's' : ''} applied). Policy: First 2 warnings have no deduction; half-day deduction starts from the 3rd warning.`,
       type: 'Attendance',
       dedupeKey: `att-halfday:${uid}:${year}-${String(month).padStart(2, '0')}:${count}`,
     });

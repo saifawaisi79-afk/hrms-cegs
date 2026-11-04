@@ -135,8 +135,16 @@ export function countMonthlyEarlyLogoutWarnings(warnings, uid, month, year) {
   ).length;
 }
 
+export const FREE_WARNINGS_PER_MONTH = 2;
+
+export function halfDaysFromTotalWarnings(totalCount) {
+  const count = Number(totalCount) || 0;
+  if (count <= FREE_WARNINGS_PER_MONTH) return 0;
+  return count - FREE_WARNINGS_PER_MONTH;
+}
+
 export function halfDaysFromWarnings(warningCount) {
-  return Math.floor(warningCount / WARNINGS_PER_HALF_DAY);
+  return halfDaysFromTotalWarnings(warningCount);
 }
 
 /** First 2 early logouts (<9h) are warnings; from 3rd warning onward, each marks a half-day absent deduction */
@@ -147,9 +155,9 @@ export function halfDaysFromEarlyLogouts(earlyCount) {
 }
 
 export function calcTotalHalfDaysCut(lateWarningCount, earlyWarningCount) {
-  const lateCuts = halfDaysFromWarnings(lateWarningCount);
-  const earlyCuts = halfDaysFromEarlyLogouts(earlyWarningCount);
-  return lateCuts + earlyCuts;
+  const total = (Number(lateWarningCount) || 0) + (Number(earlyWarningCount) || 0);
+  return halfDaysFromTotalWarnings(total);
+
 }
 
 export function calcCombinedAttendancePenalty(basicSalary, lateWarningCount, earlyWarningCount) {
@@ -163,7 +171,7 @@ export function calcCombinedAttendancePenalty(basicSalary, lateWarningCount, ear
 
 export function calcHalfDayPenalty(basicSalary, warningCount) {
   const basic = Number(basicSalary) || 0;
-  if (!basic || warningCount < WARNINGS_PER_HALF_DAY) return 0;
+  if (!basic || Number(warningCount) <= FREE_WARNINGS_PER_MONTH) return 0;
   const dailyRate = basic / 30;
   const halfDays = halfDaysFromWarnings(warningCount);
   return Math.round(halfDays * (dailyRate / 2));
