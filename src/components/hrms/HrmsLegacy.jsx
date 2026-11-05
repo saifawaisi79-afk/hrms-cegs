@@ -10321,24 +10321,31 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const isHalfDayAbsentRisk = totalDayPerformancePct < 40; // below 40% → half-day absent
 
  // Warn employee once per day if performance is under 40% (half-day absent risk)
- useEffect(() => {
- if (!isEmp || !user?.id || !save) return;
- if (!isHalfDayAbsentRisk) return;
- const dayKey = `cegs_perf40_warn_${user.id}_${sheetDate}`;
- try {
- if (localStorage.getItem(dayKey) === '1') return;
- localStorage.setItem(dayKey, '1');
- } catch {
- return;
- }
- pushHrmsNotification(save, db, {
- to: user.id,
- title: 'Half-Day Absent Warning',
- msg: `Your day performance is ${totalDayPerformancePct}% (below 40%). Failing to reach at least 40% performance will mark you as half-day absent. Minimum daily target remains 60%.`,
- type: 'Targets',
- });
- // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [isEmp, user?.id, isHalfDayAbsentRisk, sheetDate, totalDayPerformancePct]);
+  useEffect(() => {
+    if (!isEmp || !user?.id || !save) return;
+    if (!isHalfDayAbsentRisk) return;
+    const dayKey = `cegs_perf40_warn_${user.id}_${sheetDate}`;
+    try {
+      if (localStorage.getItem(dayKey) === '1') return;
+      localStorage.setItem(dayKey, '1');
+    } catch {
+      return;
+    }
+    pushHrmsNotification(save, db, {
+      to: user.id,
+      title: 'Daily Performance <40% Warning',
+      msg: `Your day performance is ${totalDayPerformancePct}% (below 40%). First 2 warnings in a month have no deduction; half-day deduction starts from 3rd warning.`,
+      type: 'Targets',
+      dedupeKey: `perf40:${user.id}:${sheetDate}`,
+    });
+    recordAttendanceWarning(save, db, {
+      uid: user.id,
+      type: 'below_40_percent',
+      date: sheetDate,
+      note: `Daily performance ${totalDayPerformancePct}% (below 40% target)`,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEmp, user?.id, isHalfDayAbsentRisk, sheetDate, totalDayPerformancePct]);
 
  const totalCandidatesCount = roleFilteredCandidates.length;
  const todayAddedCount = todayTargetCandidates.length;
