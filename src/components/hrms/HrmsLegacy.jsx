@@ -5109,10 +5109,9 @@ export function PayrollPage({ db, save, user, setView }) {
   const [payslip, setPayslip] = useState(null);
   const [selectedDeductionEmp, setSelectedDeductionEmp] = useState(null);
   const isSuperAdmin = user?.role === 'super_admin';
-  const isHR = user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
-  const isFinance = user?.role === 'finance';
-  const canViewAllStaff = isSuperAdmin || isHR || isFinance;
-  const canRunPayroll = canViewAllStaff;
+  // All Staff Payroll Records is exclusively restricted to Super Admin portal
+  const canViewAllStaff = isSuperAdmin;
+  const canRunPayroll = isSuperAdmin;
 
   const [payrollTab, setPayrollTab] = useState(canViewAllStaff ? 'all' : 'mine'); // 'all' | 'mine'
   const [search, setSearch] = useState('');
@@ -5326,7 +5325,13 @@ export function PayrollPage({ db, save, user, setView }) {
 
   return (
     <div className="anim-fadeup">
-      <PageHdr title="Payroll & Salary Slips" sub={`Month-wise employee compensation, warning deductions, and take-home · Selected: ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][selectedMonthNum - 1]} ${selectedYearNum}`}>
+      <PageHdr
+        title={canViewAllStaff ? "Payroll & Salary Slips" : "My Salary & Payslips"}
+        sub={canViewAllStaff
+          ? `Month-wise employee compensation, warning deductions, and take-home · Selected: ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][selectedMonthNum - 1]} ${selectedYearNum}`
+          : `View and download your personal monthly compensation, warning deductions, and payslips.`
+        }
+      >
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <select className="form-input" style={{ width: 130 }} value={month} onChange={e => setMonth(Number(e.target.value))}>
             {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (

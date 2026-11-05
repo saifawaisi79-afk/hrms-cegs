@@ -271,7 +271,7 @@ export function buildNavConfig(user, db) {
     billing.push(
       { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
       { href: '/billing/attendance', label: 'Attendance', icon: 'clock' },
-      { href: '/billing/payroll', label: 'Payroll Records', icon: 'card' },
+      { href: '/billing/payroll', label: 'My Salary & Payslips', icon: 'card' },
       ...(canApproveLeaves ? [{ href: '/billing/leaves', label: 'Leave', icon: 'calendar' }] : []),
       { href: '/billing/documents', label: 'Documents', icon: 'file' },
       { href: '/billing/assets', label: 'Assets', icon: 'monitor' },

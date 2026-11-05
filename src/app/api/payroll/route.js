@@ -11,8 +11,8 @@ export async function GET(request) {
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
 
   await connectDB();
-  // Super Admin, HR Admin, and Finance can view all staff payroll records
-  const canViewAll = ['super_admin', 'admin', 'finance'].includes(authUser.role);
+  // Only Super Admin can view all staff payroll records
+  const canViewAll = authUser.role === 'super_admin';
   const filter = canViewAll ? {} : { user_id: authUser.id };
   const slips = await Payroll.find(filter)
     .populate({ path: 'user_id', select: 'name employee_id avatar_url designation department_id', populate: { path: 'department_id', select: 'name' } })
@@ -25,8 +25,8 @@ export async function GET(request) {
 export async function POST(request) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
-  if (!requireRole(authUser, ['super_admin', 'admin', 'finance'])) {
-    return NextResponse.json({ error: 'Forbidden. Only Super Admin, HR Admin, or Finance can run payroll.' }, { status: 403 });
+  if (!requireRole(authUser, ['super_admin'])) {
+    return NextResponse.json({ error: 'Forbidden. Only Super Admin can run payroll.' }, { status: 403 });
   }
 
   const { month, year } = await request.json();
