@@ -17,6 +17,9 @@ import {
   MapPin,
   Calendar,
   ExternalLink,
+  Download,
+  Search,
+  Filter,
 } from 'lucide-react';
 import { toIsoDate } from '@/lib/auto-absent';
 import { getAuthToken, API_BASE } from '@/lib/auth-client';
@@ -62,6 +65,32 @@ export function formatVisitTime(str) {
 }
 
 /**
+ * Format date string (YYYY-MM-DD) into readable format like "Thu, Nov 05, 2026".
+ */
+export function formatVisitDate(dateStr) {
+  if (!dateStr) return '—';
+  const parts = String(dateStr).split('-');
+  if (parts.length === 3) {
+    const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: '2-digit', year: 'numeric' });
+    }
+  }
+  return dateStr;
+}
+
+/**
+ * Format YYYY-MM into readable month name like "November 2026".
+ */
+export function formatMonthLabel(yyyyMm) {
+  if (!yyyyMm || yyyyMm.length < 7) return yyyyMm || 'All Months';
+  const [y, m] = yyyyMm.split('-');
+  const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+  if (isNaN(date.getTime())) return yyyyMm;
+  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+/**
  * Calculate duration between two time strings or dates in minutes.
  */
 export function calcDurationDisplay(outTime, inTime) {
@@ -97,6 +126,39 @@ export function calcDurationDisplay(outTime, inTime) {
   if (hrs > 0 && mins > 0) return `${hrs}h ${mins}m`;
   if (hrs > 0) return `${hrs}h`;
   return `${mins}m`;
+}
+
+/**
+ * Export visits list as a clean CSV file download.
+ */
+export function exportVisitsToCsv(visits, monthLabel) {
+  if (!visits || visits.length === 0) {
+    if (typeof window !== 'undefined') alert('No visit records to export.');
+    return;
+  }
+  const headers = ['Date', 'Employee Name', 'Employee ID', 'Department', 'Went (Departure)', 'Came Back (Return)', 'Duration Away', 'Status', 'Purpose / Remarks'];
+  const rows = visits.map((v) => [
+    `"${v.date || ''}"`,
+    `"${(v.employeeName || '').replace(/"/g, '""')}"`,
+    `"${v.employeeId || ''}"`,
+    `"${(v.department || '').replace(/"/g, '""')}"`,
+    `"${v.outTimeFormatted || ''}"`,
+    `"${v.inTimeFormatted || ''}"`,
+    `"${v.duration || ''}"`,
+    `"${v.isCurrentlyOut ? 'Out on Visit' : v.statusDisplay || 'Returned'}"`,
+    `"${(v.remarks || '').replace(/"/g, '""')}"`,
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  const safeLabel = String(monthLabel || 'All').replace(/\s+/g, '_');
+  link.setAttribute('download', `Staff_Office_Visits_${safeLabel}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 /**
@@ -163,7 +225,7 @@ export function parseVisitSessions(rec) {
 }
 
 /**
- * Hook to extract and organize today's office visit records for all employees.
+ * Hook to extract and organize office visits for today and the entire month for all employees.
  */
 export function useTeamOfficeVisits(db, targetDate = null) {
   const [syncedRecords, setSyncedRecords] = useState([]);
@@ -202,8 +264,8 @@ export function useTeamOfficeVisits(db, targetDate = null) {
     }
   }, [refreshVisits]);
 
-  // Merge db.attendance and syncedRecords
-  const visitsList = useMemo(() => {
+  // Parse all historical visit records
+  const allVisitsHistory = useMemo(() => {
     const sourceList = syncedRecords.length > 0 ? syncedRecords : (db?.attendance || []);
     const userMap = new Map();
     (db?.users || []).forEach((u) => {
@@ -217,7 +279,7 @@ export function useTeamOfficeVisits(db, targetDate = null) {
 
     sourceList.forEach((rec) => {
       const recDate = String(rec.date || '').slice(0, 10);
-      if (recDate !== todayIso) return;
+      if (!recDate) return;
 
       const hasVisit =
         rec.visit_status === 'company_visit' ||
@@ -238,7 +300,8 @@ export function useTeamOfficeVisits(db, targetDate = null) {
         {};
 
       const sessions = parseVisitSessions(rec);
-      const isCurrentlyOut = rec.visit_status === 'company_visit';
+      const isToday = recDate === todayIso;
+      const isCurrentlyOut = isToday && rec.visit_status === 'company_visit';
       const lastSession = sessions[sessions.length - 1];
 
       // Primary departure time (when they went)
@@ -246,9 +309,18 @@ export function useTeamOfficeVisits(db, targetDate = null) {
       // Primary return time (when they came back)
       const inTime = !isCurrentlyOut ? (rec.company_visit_in_time || lastSession?.inTime || null) : null;
 
+      let statusDisplay = 'Returned';
+      if (isCurrentlyOut) {
+        statusDisplay = 'Out on Visit';
+      } else if (rec.visit_status === 'company_visit' && !inTime) {
+        statusDisplay = 'Away (No return punch)';
+      }
+
       results.push({
-        id: rec.id || rec._id || `vis_${uid}`,
+        id: rec.id || rec._id || `vis_${uid}_${recDate}`,
         uid: String(uid || ''),
+        date: recDate,
+        isToday,
         employeeName: userObj.name || rec.employee_name || 'Staff Member',
         employeeId: userObj.employee_id || rec.employee_id || '—',
         avatar: userObj.avatar || rec.avatar_url || null,
@@ -257,54 +329,725 @@ export function useTeamOfficeVisits(db, targetDate = null) {
         outTime,
         inTime,
         outTimeFormatted: formatVisitTime(outTime),
-        inTimeFormatted: inTime ? formatVisitTime(inTime) : (isCurrentlyOut ? 'Still Away' : 'Returned'),
+        inTimeFormatted: inTime ? formatVisitTime(inTime) : (isCurrentlyOut ? 'Still Away' : (rec.visit_status === 'company_visit' ? 'Still Away' : 'Returned')),
         duration: calcDurationDisplay(outTime, inTime),
         sessions,
-        remarks: lastSession?.remarks || (isCurrentlyOut ? 'Company Visit' : 'Back to Office'),
+        statusDisplay,
+        remarks: sessions.map((s) => s.remarks).filter(Boolean).join(' • ') || lastSession?.remarks || (isCurrentlyOut ? 'Company Visit' : 'Back to Office'),
         attendanceRecord: rec,
       });
     });
 
-    // Sort: currently out first, then newest departure
+    // Sort: newest date first, then out-first, then newest departure
     return results.sort((a, b) => {
+      const cmpDate = String(b.date).localeCompare(String(a.date));
+      if (cmpDate !== 0) return cmpDate;
       if (a.isCurrentlyOut && !b.isCurrentlyOut) return -1;
       if (!a.isCurrentlyOut && b.isCurrentlyOut) return 1;
       return String(b.outTime || '').localeCompare(String(a.outTime || ''));
     });
   }, [syncedRecords, db?.attendance, db?.users, todayIso]);
 
+  // Today's visits filter
+  const visitsList = useMemo(() => {
+    return allVisitsHistory.filter((v) => v.date === todayIso);
+  }, [allVisitsHistory, todayIso]);
+
+  // Available months present in data
+  const availableMonths = useMemo(() => {
+    const set = new Set();
+    const currentMonthKey = todayIso.slice(0, 7);
+    set.add(currentMonthKey);
+    allVisitsHistory.forEach((v) => {
+      if (v.date) set.add(v.date.slice(0, 7));
+    });
+    return Array.from(set).sort().reverse();
+  }, [allVisitsHistory, todayIso]);
+
   const activeCount = useMemo(() => visitsList.filter((v) => v.isCurrentlyOut).length, [visitsList]);
   const returnedCount = useMemo(() => visitsList.filter((v) => !v.isCurrentlyOut).length, [visitsList]);
 
   return {
     visitsList,
+    allVisitsHistory,
+    availableMonths,
     activeCount,
     returnedCount,
     totalCount: visitsList.length,
     loading,
     refreshVisits,
+    todayIso,
   };
+}
+
+/**
+ * Reusable Full-Feature Staff Visits Modal with "Today" and "Monthly History" views.
+ */
+export function StaffVisitsDetailModal({
+  open,
+  onClose,
+  visitsList = [],
+  allVisitsHistory = [],
+  availableMonths = [],
+  activeCount = 0,
+  returnedCount = 0,
+  refreshVisits,
+  loading = false,
+  todayIso,
+}) {
+  const currentMonthKey = (todayIso || toIsoDate(new Date())).slice(0, 7);
+  const [activeTab, setActiveTab] = useState('today'); // 'today' | 'month'
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'out' | 'returned'
+  const [expandedId, setExpandedId] = useState(null);
+
+  // Filter for the selected month in monthly history
+  const monthVisits = useMemo(() => {
+    return allVisitsHistory.filter((v) => {
+      if (selectedMonth === 'all') return true;
+      return String(v.date || '').startsWith(selectedMonth);
+    });
+  }, [allVisitsHistory, selectedMonth]);
+
+  // Apply search and status filter to monthVisits
+  const filteredMonthVisits = useMemo(() => {
+    let list = monthVisits;
+    if (statusFilter === 'out') {
+      list = list.filter((v) => v.isCurrentlyOut || (v.statusDisplay && v.statusDisplay.toLowerCase().includes('away')));
+    } else if (statusFilter === 'returned') {
+      list = list.filter((v) => !v.isCurrentlyOut && (!v.statusDisplay || !v.statusDisplay.toLowerCase().includes('away')));
+    }
+
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter(
+      (v) =>
+        v.employeeName.toLowerCase().includes(q) ||
+        v.employeeId.toLowerCase().includes(q) ||
+        v.department.toLowerCase().includes(q) ||
+        (v.remarks && v.remarks.toLowerCase().includes(q)) ||
+        (v.date && v.date.toLowerCase().includes(q))
+    );
+  }, [monthVisits, statusFilter, searchQuery]);
+
+  // Statistics for selected month
+  const monthStats = useMemo(() => {
+    const total = monthVisits.length;
+    const uniqueEmployees = new Set(monthVisits.map((v) => v.employeeId || v.employeeName)).size;
+    const active = monthVisits.filter((v) => v.isCurrentlyOut).length;
+    const returned = total - active;
+    return { total, uniqueEmployees, active, returned };
+  }, [monthVisits]);
+
+  if (!open || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: 'rgba(15, 23, 42, 0.75)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: '#FFFFFF',
+          borderRadius: 20,
+          width: '100%',
+          maxWidth: 860,
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.3)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '16px 22px',
+            borderBottom: '1px solid #E2E8F0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: '#F8FAFC',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 10px rgba(245, 158, 11, 0.3)',
+              }}
+            >
+              <Car size={22} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 800, color: '#0F172A' }}>
+                Staff Office &amp; Field Visits Tracker
+              </h3>
+              <p style={{ margin: '2px 0 0 0', fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>
+                {activeTab === 'today'
+                  ? activeCount > 0
+                    ? `${activeCount} staff member(s) currently out on field visit`
+                    : 'All staff currently in office today'
+                  : `Monthly History · ${monthStats.total} visit record(s) in ${formatMonthLabel(selectedMonth)}`}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={refreshVisits}
+              disabled={loading}
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: 8,
+                padding: '6px 10px',
+                fontSize: 11.5,
+                fontWeight: 700,
+                color: '#475569',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+              title="Refresh attendance records"
+            >
+              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+              <span>{loading ? 'Syncing…' : 'Sync'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{ background: '#F1F5F9', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#475569' }}
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Switcher */}
+        <div style={{ display: 'flex', padding: '10px 22px 0 22px', borderBottom: '1px solid #E2E8F0', background: '#FFFFFF', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('today')}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              background: 'transparent',
+              borderBottom: activeTab === 'today' ? '2.5px solid #D97706' : '2.5px solid transparent',
+              color: activeTab === 'today' ? '#D97706' : '#64748B',
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span>Today&apos;s Live Visits</span>
+            <span
+              style={{
+                background: activeTab === 'today' ? '#FEF3C7' : '#F1F5F9',
+                color: activeTab === 'today' ? '#B45309' : '#64748B',
+                padding: '1px 7px',
+                borderRadius: 99,
+                fontSize: 11,
+                fontWeight: 800,
+              }}
+            >
+              {visitsList.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('month')}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              background: 'transparent',
+              borderBottom: activeTab === 'month' ? '2.5px solid #0284C7' : '2.5px solid transparent',
+              color: activeTab === 'month' ? '#0284C7' : '#64748B',
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Calendar size={14} />
+            <span>Entire Month History</span>
+            <span
+              style={{
+                background: activeTab === 'month' ? '#E0F2FE' : '#F1F5F9',
+                color: activeTab === 'month' ? '#0369A1' : '#64748B',
+                padding: '1px 7px',
+                borderRadius: 99,
+                fontSize: 11,
+                fontWeight: 800,
+              }}
+            >
+              {monthVisits.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Content Body */}
+        <div style={{ padding: 20, overflowY: 'auto', flex: 1, background: '#FAFAFA' }}>
+          {/* TAB 1: TODAY'S VISITS */}
+          {activeTab === 'today' && (
+            <div>
+              {visitsList.length === 0 ? (
+                <div style={{ padding: '36px 20px', textAlign: 'center', color: '#64748B', background: '#FFFFFF', borderRadius: 14, border: '1px dashed #CBD5E1' }}>
+                  <Building2 size={36} style={{ margin: '0 auto 10px', color: '#94A3B8' }} />
+                  <div style={{ fontWeight: 800, fontSize: 14, color: '#1E293B' }}>No office visits logged today</div>
+                  <p style={{ fontSize: 12, marginTop: 4, maxWidth: 400, margin: '6px auto 14px' }}>
+                    When employees mark an official company visit from the header status pill, their departure &amp; return times appear here live.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('month')}
+                    style={{
+                      background: '#0284C7',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      padding: '7px 16px',
+                      borderRadius: 99,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    View Entire Month History ({allVisitsHistory.length} total)
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {visitsList.map((v) => (
+                    <div
+                      key={v.id}
+                      style={{
+                        background: v.isCurrentlyOut ? '#FFFBEB' : '#FFFFFF',
+                        border: v.isCurrentlyOut ? '1px solid #FDE68A' : '1px solid #E2E8F0',
+                        borderRadius: 14,
+                        padding: 16,
+                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.02)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: '50%',
+                              background: v.isCurrentlyOut ? '#FDE68A' : '#E2E8F0',
+                              color: v.isCurrentlyOut ? '#92400E' : '#475569',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 800,
+                              fontSize: 12,
+                            }}
+                          >
+                            {v.employeeName.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <span style={{ fontWeight: 800, fontSize: 14, color: '#0F172A' }}>{v.employeeName}</span>
+                            <span style={{ fontSize: 11.5, color: '#64748B', marginLeft: 8 }}>
+                              {v.employeeId} · {v.department}
+                            </span>
+                          </div>
+                        </div>
+
+                        <span
+                          style={{
+                            background: v.isCurrentlyOut ? '#FEF3C7' : '#ECFDF5',
+                            color: v.isCurrentlyOut ? '#92400E' : '#065F46',
+                            border: v.isCurrentlyOut ? '1px solid #FDE68A' : '1px solid #A7F3D0',
+                            padding: '3px 10px',
+                            borderRadius: 99,
+                            fontSize: 11,
+                            fontWeight: 800,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                          }}
+                        >
+                          {v.isCurrentlyOut ? <Car size={12} /> : <Building2 size={12} />}
+                          <span>{v.isCurrentlyOut ? '🚗 Out on Visit' : '🏢 Back in Office'}</span>
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                        <div style={{ background: '#FFFFFF', padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                          <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Went (Departure)</div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#0284C7', fontFamily: 'JetBrains Mono, monospace', marginTop: 2 }}>
+                            {v.outTimeFormatted}
+                          </div>
+                        </div>
+                        <div style={{ background: '#FFFFFF', padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                          <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Came Back (Return)</div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: v.isCurrentlyOut ? '#D97706' : '#059669', fontFamily: 'JetBrains Mono, monospace', marginTop: 2 }}>
+                            {v.inTimeFormatted}
+                          </div>
+                        </div>
+                        <div style={{ background: '#FFFFFF', padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                          <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Duration Away</div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: '#475569', marginTop: 2 }}>
+                            {v.duration || (v.isCurrentlyOut ? 'In progress' : '—')}
+                          </div>
+                        </div>
+                        <div style={{ background: '#FFFFFF', padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                          <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Purpose / Remarks</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v.remarks}>
+                            {v.remarks || 'Company Visit'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: ENTIRE MONTH HISTORY */}
+          {activeTab === 'month' && (
+            <div>
+              {/* Filter and Control Bar */}
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  borderRadius: 14,
+                  padding: '14px 16px',
+                  border: '1px solid #E2E8F0',
+                  marginBottom: 16,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  {/* Month Dropdown */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Calendar size={15} style={{ color: '#0284C7' }} />
+                    <select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        color: '#0F172A',
+                        background: '#FFFFFF',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {availableMonths.map((m) => (
+                        <option key={m} value={m}>
+                          {formatMonthLabel(m)} {m === currentMonthKey ? '(Current)' : ''}
+                        </option>
+                      ))}
+                      <option value="all">All Months (Full History)</option>
+                    </select>
+                  </div>
+
+                  {/* Status Filter */}
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #CBD5E1',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#475569',
+                      background: '#FFFFFF',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="out">🚗 Out on Visit / Away</option>
+                    <option value="returned">🏢 Returned to Office</option>
+                  </select>
+
+                  {/* Search Query */}
+                  <div style={{ position: 'relative', minWidth: 180 }}>
+                    <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+                    <input
+                      type="text"
+                      placeholder="Search staff, EID, company..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      style={{
+                        padding: '6px 10px 6px 30px',
+                        borderRadius: 8,
+                        border: '1px solid #CBD5E1',
+                        fontSize: 12,
+                        width: '100%',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* CSV Export Button */}
+                <button
+                  type="button"
+                  onClick={() => exportVisitsToCsv(filteredMonthVisits, selectedMonth === 'all' ? 'All_Months' : formatMonthLabel(selectedMonth))}
+                  style={{
+                    background: '#10B981',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                  }}
+                  title="Download CSV report of office visits"
+                >
+                  <Download size={13} />
+                  <span>Download CSV Log</span>
+                </button>
+              </div>
+
+              {/* Month Statistics Overview */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>Total Field Visits</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#0F172A', marginTop: 2 }}>{monthStats.total}</div>
+                </div>
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>Staff Members on Field</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#0284C7', marginTop: 2 }}>{monthStats.uniqueEmployees}</div>
+                </div>
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>Returned to Office</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#059669', marginTop: 2 }}>{monthStats.returned}</div>
+                </div>
+                <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>Currently Active / Out</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: '#D97706', marginTop: 2 }}>{monthStats.active}</div>
+                </div>
+              </div>
+
+              {/* History Table / Cards */}
+              {filteredMonthVisits.length === 0 ? (
+                <div style={{ padding: '36px 20px', textAlign: 'center', color: '#64748B', background: '#FFFFFF', borderRadius: 14, border: '1px dashed #CBD5E1' }}>
+                  <Building2 size={36} style={{ margin: '0 auto 10px', color: '#94A3B8' }} />
+                  <div style={{ fontWeight: 800, fontSize: 14, color: '#1E293B' }}>No visit records found</div>
+                  <div style={{ fontSize: 12, marginTop: 4 }}>
+                    {searchQuery ? 'No visits match your search query.' : `No office visits recorded for ${formatMonthLabel(selectedMonth)}.`}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {filteredMonthVisits.map((v) => {
+                    const isExpanded = expandedId === v.id;
+                    return (
+                      <div
+                        key={v.id}
+                        style={{
+                          background: v.isCurrentlyOut ? '#FFFBEB' : '#FFFFFF',
+                          border: v.isCurrentlyOut ? '1px solid #FDE68A' : '1px solid #E2E8F0',
+                          borderRadius: 14,
+                          padding: 14,
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span
+                              style={{
+                                background: '#F1F5F9',
+                                color: '#334155',
+                                border: '1px solid #CBD5E1',
+                                padding: '2px 8px',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 800,
+                                fontFamily: 'JetBrains Mono, monospace',
+                              }}
+                            >
+                              {formatVisitDate(v.date)}
+                            </span>
+                            <span style={{ fontWeight: 800, fontSize: 13.5, color: '#0F172A' }}>{v.employeeName}</span>
+                            <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>
+                              ({v.employeeId} · {v.department})
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span
+                              style={{
+                                background: v.isCurrentlyOut ? '#FEF3C7' : '#ECFDF5',
+                                color: v.isCurrentlyOut ? '#92400E' : '#065F46',
+                                border: v.isCurrentlyOut ? '1px solid #FDE68A' : '1px solid #A7F3D0',
+                                padding: '2px 8px',
+                                borderRadius: 99,
+                                fontSize: 10.5,
+                                fontWeight: 800,
+                              }}
+                            >
+                              {v.isCurrentlyOut ? '🚗 Out on Visit' : v.statusDisplay === 'Away (No return punch)' ? '⚠️ No Return Punch' : '🏢 Back in Office'}
+                            </span>
+
+                            {v.sessions.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedId(isExpanded ? null : v.id)}
+                                style={{
+                                  background: '#F1F5F9',
+                                  border: '1px solid #CBD5E1',
+                                  borderRadius: 6,
+                                  padding: '2px 6px',
+                                  fontSize: 10.5,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 3,
+                                }}
+                              >
+                                <span>{v.sessions.length} legs</span>
+                                {isExpanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Timing details */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, flexWrap: 'wrap', marginTop: 4 }}>
+                          <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#0284C7', fontWeight: 700 }}>
+                            Went: {v.outTimeFormatted}
+                          </span>
+                          <ArrowRight size={12} style={{ color: '#94A3B8' }} />
+                          <span
+                            style={{
+                              fontFamily: 'JetBrains Mono, monospace',
+                              color: v.isCurrentlyOut ? '#D97706' : '#059669',
+                              fontWeight: 700,
+                            }}
+                          >
+                            Back: {v.inTimeFormatted}
+                          </span>
+                          {v.duration && (
+                            <span style={{ color: '#475569', fontWeight: 700, background: '#F1F5F9', padding: '1px 6px', borderRadius: 4, fontSize: 11 }}>
+                              {v.duration}
+                            </span>
+                          )}
+                          {v.remarks && (
+                            <span style={{ color: '#475569', fontStyle: 'italic', fontSize: 11.5 }}>
+                              — {v.remarks}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Multi-leg accordion */}
+                        {isExpanded && v.sessions.length > 1 && (
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>Multiple Visit Sessions on {v.date}:</div>
+                            {v.sessions.map((sess, idx) => (
+                              <div
+                                key={idx}
+                                style={{
+                                  background: '#F8FAFC',
+                                  border: '1px solid #E2E8F0',
+                                  borderRadius: 6,
+                                  padding: '6px 10px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  fontSize: 11.5,
+                                  gap: 8,
+                                }}
+                              >
+                                <span style={{ fontWeight: 700, color: '#64748B' }}>Leg #{idx + 1}</span>
+                                <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#0284C7', fontWeight: 700 }}>
+                                  Went: {formatVisitTime(sess.outTime)}
+                                </span>
+                                <ArrowRight size={11} style={{ color: '#94A3B8' }} />
+                                <span style={{ fontFamily: 'JetBrains Mono, monospace', color: sess.inTime ? '#059669' : '#D97706', fontWeight: 700 }}>
+                                  Back: {sess.inTime ? formatVisitTime(sess.inTime) : 'Still Away'}
+                                </span>
+                                {sess.remarks && <span style={{ color: '#64748B', fontStyle: 'italic' }}>{sess.remarks}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 }
 
 /**
  * Full-width Live Office Visits Monitor section for HR Portal (Attendance Page).
  */
 export function TeamVisitsSection({ db, currentUser, onRefresh }) {
-  const { visitsList, activeCount, returnedCount, loading, refreshVisits } = useTeamOfficeVisits(db);
+  const { visitsList, allVisitsHistory, availableMonths, activeCount, returnedCount, loading, refreshVisits, todayIso } = useTeamOfficeVisits(db);
+  const currentMonthKey = (todayIso || toIsoDate(new Date())).slice(0, 7);
+  const [sectionTab, setSectionTab] = useState('today'); // 'today' | 'month'
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
   const [expandedId, setExpandedId] = useState(null);
   const [filterQuery, setFilterQuery] = useState('');
 
-  const filtered = useMemo(() => {
-    if (!filterQuery.trim()) return visitsList;
+  // Items to display depending on tab
+  const displayItems = useMemo(() => {
+    let source = sectionTab === 'today' ? visitsList : allVisitsHistory.filter((v) => selectedMonth === 'all' || String(v.date || '').startsWith(selectedMonth));
+    if (!filterQuery.trim()) return source;
     const q = filterQuery.toLowerCase();
-    return visitsList.filter(
+    return source.filter(
       (v) =>
         v.employeeName.toLowerCase().includes(q) ||
         v.department.toLowerCase().includes(q) ||
         v.employeeId.toLowerCase().includes(q) ||
-        (v.remarks && v.remarks.toLowerCase().includes(q))
+        (v.remarks && v.remarks.toLowerCase().includes(q)) ||
+        (v.date && v.date.toLowerCase().includes(q))
     );
-  }, [visitsList, filterQuery]);
+  }, [sectionTab, visitsList, allVisitsHistory, selectedMonth, filterQuery]);
 
   return (
     <div
@@ -339,7 +1082,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Team Office &amp; Field Visits Today
+                Staff Office &amp; Field Visits (Live &amp; Monthly History)
               </h3>
               {activeCount > 0 && (
                 <span
@@ -367,15 +1110,77 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {/* Tab Pill Toggle */}
+          <div style={{ display: 'flex', background: '#F1F5F9', padding: 3, borderRadius: 99 }}>
+            <button
+              type="button"
+              onClick={() => setSectionTab('today')}
+              style={{
+                background: sectionTab === 'today' ? '#FFFFFF' : 'transparent',
+                color: sectionTab === 'today' ? '#0F172A' : '#64748B',
+                boxShadow: sectionTab === 'today' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                border: 'none',
+                borderRadius: 99,
+                padding: '5px 12px',
+                fontSize: 11.5,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              Today ({visitsList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSectionTab('month')}
+              style={{
+                background: sectionTab === 'month' ? '#FFFFFF' : 'transparent',
+                color: sectionTab === 'month' ? '#0284C7' : '#64748B',
+                boxShadow: sectionTab === 'month' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                border: 'none',
+                borderRadius: 99,
+                padding: '5px 12px',
+                fontSize: 11.5,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              Entire Month History
+            </button>
+          </div>
+
+          {sectionTab === 'month' && (
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              style={{
+                borderRadius: 99,
+                padding: '6px 12px',
+                fontSize: 12,
+                fontWeight: 700,
+                border: '1px solid #CBD5E1',
+                background: '#FFFFFF',
+                cursor: 'pointer',
+              }}
+            >
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  {formatMonthLabel(m)}
+                </option>
+              ))}
+              <option value="all">All Months</option>
+            </select>
+          )}
+
           <input
             type="text"
             className="form-input"
-            style={{ borderRadius: 99, padding: '7px 14px', fontSize: 12, minHeight: 36, width: 180 }}
+            style={{ borderRadius: 99, padding: '7px 14px', fontSize: 12, minHeight: 36, width: 170 }}
             placeholder="Search staff visit..."
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
           />
+
           <button
             type="button"
             className="btn btn-secondary"
@@ -387,14 +1192,39 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             <span>{loading ? 'Refreshing…' : 'Sync'}</span>
           </button>
+
+          {sectionTab === 'month' && (
+            <button
+              type="button"
+              onClick={() => exportVisitsToCsv(displayItems, formatMonthLabel(selectedMonth))}
+              style={{
+                background: '#10B981',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: 99,
+                padding: '7px 14px',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <Download size={13} />
+              <span>Export CSV</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Overview Stat Chips */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total Visits Logged:</span>
-          <span style={{ fontSize: 14, fontWeight: 900, color: '#0F172A' }}>{visitsList.length}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>
+            {sectionTab === 'today' ? "Today's Visits Logged:" : `Visits in ${formatMonthLabel(selectedMonth)}:`}
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 900, color: '#0F172A' }}>{displayItems.length}</span>
         </div>
         <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 12, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: '#92400E' }}>Currently Out on Visit:</span>
@@ -407,18 +1237,18 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
       </div>
 
       {/* Visits Table */}
-      {filtered.length === 0 ? (
+      {displayItems.length === 0 ? (
         <div style={{ background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: 14, padding: '32px 16px', textAlign: 'center' }}>
           <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#F1F5F9', color: '#64748B', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
             <Building2 size={22} />
           </div>
           <div style={{ fontWeight: 800, fontSize: 14, color: '#334155' }}>
-            {visitsList.length === 0 ? 'No employees on company visit today' : 'No matching staff visits found'}
+            {filterQuery ? 'No matching staff visits found' : sectionTab === 'today' ? 'No employees on company visit today' : `No office visits logged for ${formatMonthLabel(selectedMonth)}`}
           </div>
           <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
-            {visitsList.length === 0
-              ? 'All clocked-in staff are currently present in the office. When anyone marks an office visit, their departure and return times will appear here automatically.'
-              : 'Try clearing your search query.'}
+            {sectionTab === 'today'
+              ? 'All clocked-in staff are currently present in the office. Switch to "Entire Month History" above to view previous days.'
+              : 'Try selecting another month or clearing your search.'}
           </div>
         </div>
       ) : (
@@ -426,6 +1256,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
           <table className="tbl" style={{ margin: 0 }}>
             <thead style={{ background: '#F8FAFC' }}>
               <tr>
+                {sectionTab === 'month' && <th style={{ padding: '12px 16px' }}>Date</th>}
                 <th style={{ padding: '12px 16px' }}>Employee</th>
                 <th style={{ padding: '12px 16px' }}>Current Status</th>
                 <th style={{ padding: '12px 16px' }}>Went (Departure Time)</th>
@@ -436,11 +1267,16 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((v) => {
+              {displayItems.map((v) => {
                 const isExpanded = expandedId === v.id;
                 return (
                   <React.Fragment key={v.id}>
                     <tr style={{ background: v.isCurrentlyOut ? 'rgba(254, 243, 199, 0.25)' : '#FFFFFF' }}>
+                      {sectionTab === 'month' && (
+                        <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                          {formatVisitDate(v.date)}
+                        </td>
+                      )}
                       <td style={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           {v.avatar ? (
@@ -477,6 +1313,24 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
                           >
                             <Car size={12} />
                             <span>Out on Visit</span>
+                          </span>
+                        ) : v.statusDisplay === 'Away (No return punch)' ? (
+                          <span
+                            style={{
+                              background: '#F1F5F9',
+                              color: '#475569',
+                              border: '1px solid #CBD5E1',
+                              padding: '3px 10px',
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontWeight: 800,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                            }}
+                          >
+                            <AlertCircle size={12} />
+                            <span>No Return Punch</span>
                           </span>
                         ) : (
                           <span
@@ -562,9 +1416,9 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
                     {/* Expandable multi-leg history */}
                     {isExpanded && v.sessions.length > 1 && (
                       <tr style={{ background: '#F8FAFC' }}>
-                        <td colSpan={7} style={{ padding: '12px 24px' }}>
+                        <td colSpan={sectionTab === 'month' ? 8 : 7} style={{ padding: '12px 24px' }}>
                           <div style={{ fontSize: 11.5, fontWeight: 800, color: '#475569', marginBottom: 8 }}>
-                            All Visit Legs for {v.employeeName} Today:
+                            All Visit Legs for {v.employeeName} on {v.date}:
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {v.sessions.map((sess, idx) => (
@@ -612,7 +1466,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
  * Dedicated Card for Finance & Invoices View (/finance/invoices).
  */
 export function TeamVisitsFinanceCard({ db, currentUser, onRefresh }) {
-  const { visitsList, activeCount, returnedCount, loading, refreshVisits } = useTeamOfficeVisits(db);
+  const { visitsList, allVisitsHistory, availableMonths, activeCount, returnedCount, loading, refreshVisits, todayIso } = useTeamOfficeVisits(db);
   const [modalOpen, setModalOpen] = useState(false);
 
   return (
@@ -648,7 +1502,7 @@ export function TeamVisitsFinanceCard({ db, currentUser, onRefresh }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#FFFFFF', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  Staff Attendance &amp; Field Visits Today
+                  Staff Attendance &amp; Field Visits (Live &amp; Monthly)
                 </h4>
                 {activeCount > 0 && (
                   <span
@@ -731,7 +1585,7 @@ export function TeamVisitsFinanceCard({ db, currentUser, onRefresh }) {
                 boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
               }}
             >
-              View All ({visitsList.length})
+              View All History ({allVisitsHistory.length})
             </button>
           </div>
         </div>
@@ -739,7 +1593,7 @@ export function TeamVisitsFinanceCard({ db, currentUser, onRefresh }) {
         {/* Quick inline horizontal preview */}
         {visitsList.length === 0 ? (
           <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: 10, fontSize: 12, color: 'rgba(255, 255, 255, 0.6)' }}>
-            🏢 All staff currently present in office. No field visits recorded yet today.
+            🏢 All staff currently present in office. No field visits recorded yet today. Click &quot;View All History&quot; to see previous days.
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', marginTop: 14, paddingBottom: 4 }}>
@@ -782,140 +1636,28 @@ export function TeamVisitsFinanceCard({ db, currentUser, onRefresh }) {
         )}
       </div>
 
-      {/* Full Modal Viewer for Finance */}
-      {modalOpen && typeof document !== 'undefined' &&
-        createPortal(
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 9999,
-              background: 'rgba(15, 23, 42, 0.75)',
-              backdropFilter: 'blur(8px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 20,
-            }}
-            onClick={() => setModalOpen(false)}
-          >
-            <div
-              style={{
-                background: '#FFFFFF',
-                borderRadius: 20,
-                width: '100%',
-                maxWidth: 800,
-                maxHeight: '85vh',
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ padding: '18px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Car size={20} />
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0F172A' }}>
-                      Today&apos;s Staff Office Visits (Departure &amp; Return)
-                    </h3>
-                    <p style={{ margin: 0, fontSize: 11.5, color: '#64748B' }}>
-                      Finance Movement Log · {visitsList.length} employee(s) logged visits today
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  style={{ background: '#F1F5F9', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#475569' }}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div style={{ padding: 20, overflowY: 'auto' }}>
-                {visitsList.length === 0 ? (
-                  <div style={{ padding: 32, textAlign: 'center', color: '#64748B' }}>No office visits logged today.</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {visitsList.map((v) => (
-                      <div
-                        key={v.id}
-                        style={{
-                          background: v.isCurrentlyOut ? '#FFFBEB' : '#F8FAFC',
-                          border: v.isCurrentlyOut ? '1px solid #FDE68A' : '1px solid #E2E8F0',
-                          borderRadius: 14,
-                          padding: 16,
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontWeight: 800, fontSize: 14, color: '#0F172A' }}>{v.employeeName}</span>
-                            <span style={{ fontSize: 11, color: '#64748B' }}>({v.department})</span>
-                          </div>
-                          <span
-                            style={{
-                              background: v.isCurrentlyOut ? '#FEF3C7' : '#ECFDF5',
-                              color: v.isCurrentlyOut ? '#92400E' : '#065F46',
-                              border: v.isCurrentlyOut ? '1px solid #FDE68A' : '1px solid #A7F3D0',
-                              padding: '2px 8px',
-                              borderRadius: 99,
-                              fontSize: 10.5,
-                              fontWeight: 800,
-                            }}
-                          >
-                            {v.isCurrentlyOut ? '🚗 Out on Visit' : '🏢 Back in Office'}
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 8 }}>
-                          <div style={{ background: '#FFFFFF', padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
-                            <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Went (Departure)</div>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: '#0284C7', fontFamily: 'JetBrains Mono, monospace', marginTop: 2 }}>
-                              {v.outTimeFormatted}
-                            </div>
-                          </div>
-                          <div style={{ background: '#FFFFFF', padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
-                            <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Came Back (Return)</div>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: v.isCurrentlyOut ? '#D97706' : '#059669', fontFamily: 'JetBrains Mono, monospace', marginTop: 2 }}>
-                              {v.inTimeFormatted}
-                            </div>
-                          </div>
-                          <div style={{ background: '#FFFFFF', padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
-                            <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Duration</div>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: '#475569', marginTop: 2 }}>
-                              {v.duration || (v.isCurrentlyOut ? 'In progress' : '—')}
-                            </div>
-                          </div>
-                          <div style={{ background: '#FFFFFF', padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
-                            <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Remarks</div>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', marginTop: 2 }}>
-                              {v.remarks || 'Company Visit'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
+      <StaffVisitsDetailModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        visitsList={visitsList}
+        allVisitsHistory={allVisitsHistory}
+        availableMonths={availableMonths}
+        activeCount={activeCount}
+        returnedCount={returnedCount}
+        refreshVisits={refreshVisits}
+        loading={loading}
+        todayIso={todayIso}
+      />
     </>
   );
 }
 
 /**
- * Global Header capsule button for HR & Finance users to see live office visits from anywhere.
+ * Global Header capsule button for HR & Finance users to see live office visits and full monthly history from anywhere.
  */
 export function TeamVisitsHeaderCapsule({ db, currentUser }) {
   const isAuthorized = currentUser?.role === 'admin' || currentUser?.role === 'finance' || currentUser?.role === 'super_admin';
-  const { visitsList, activeCount, returnedCount, refreshVisits } = useTeamOfficeVisits(db);
+  const { visitsList, allVisitsHistory, availableMonths, activeCount, returnedCount, refreshVisits, loading, todayIso } = useTeamOfficeVisits(db);
   const [modalOpen, setModalOpen] = useState(false);
 
   if (!isAuthorized) return null;
@@ -939,8 +1681,8 @@ export function TeamVisitsHeaderCapsule({ db, currentUser }) {
           cursor: 'pointer',
           transition: 'all 0.2s ease',
         }}
-        title="View Today's Staff Office Visits (Departure & Return Times)"
-        aria-label="View Today's Staff Office Visits"
+        title="View Staff Office Visits (Live Today & Monthly History)"
+        aria-label="View Staff Office Visits"
       >
         <Car size={13} style={{ color: activeCount > 0 ? '#F59E0B' : '#38BDF8' }} />
         <span>Visits</span>
@@ -972,116 +1714,35 @@ export function TeamVisitsHeaderCapsule({ db, currentUser }) {
           >
             {visitsList.length}
           </span>
+        ) : allVisitsHistory.length > 0 ? (
+          <span
+            style={{
+              background: 'rgba(148, 163, 184, 0.2)',
+              color: '#CBD5E1',
+              borderRadius: 99,
+              padding: '1px 6px',
+              fontSize: 10,
+              fontWeight: 700,
+              marginLeft: 2,
+            }}
+          >
+            {allVisitsHistory.length}
+          </span>
         ) : null}
       </button>
 
-      {modalOpen && typeof document !== 'undefined' &&
-        createPortal(
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 9999,
-              background: 'rgba(15, 23, 42, 0.75)',
-              backdropFilter: 'blur(8px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 20,
-            }}
-            onClick={() => setModalOpen(false)}
-          >
-            <div
-              style={{
-                background: '#FFFFFF',
-                borderRadius: 20,
-                width: '100%',
-                maxWidth: 720,
-                maxHeight: '85vh',
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Car size={20} />
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0F172A' }}>
-                      Today&apos;s Staff Office Visits
-                    </h3>
-                    <p style={{ margin: 0, fontSize: 11.5, color: '#64748B' }}>
-                      {activeCount > 0 ? `${activeCount} currently out on field visit` : 'All staff currently in office'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  style={{ background: '#F1F5F9', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#475569' }}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div style={{ padding: 18, overflowY: 'auto' }}>
-                {visitsList.length === 0 ? (
-                  <div style={{ padding: 28, textAlign: 'center', color: '#64748B' }}>
-                    <Building2 size={32} style={{ margin: '0 auto 8px', color: '#94A3B8' }} />
-                    <div style={{ fontWeight: 800, color: '#1E293B' }}>No office visits logged today</div>
-                    <div style={{ fontSize: 12, marginTop: 4 }}>When employees mark a company visit, their departure and return times appear here.</div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {visitsList.map((v) => (
-                      <div
-                        key={v.id}
-                        style={{
-                          background: v.isCurrentlyOut ? '#FFFBEB' : '#F8FAFC',
-                          border: v.isCurrentlyOut ? '1px solid #FDE68A' : '1px solid #E2E8F0',
-                          borderRadius: 12,
-                          padding: 14,
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span style={{ fontWeight: 800, fontSize: 13.5, color: '#0F172A' }}>{v.employeeName}</span>
-                          <span
-                            style={{
-                              background: v.isCurrentlyOut ? '#FEF3C7' : '#ECFDF5',
-                              color: v.isCurrentlyOut ? '#92400E' : '#065F46',
-                              padding: '2px 8px',
-                              borderRadius: 99,
-                              fontSize: 10.5,
-                              fontWeight: 800,
-                            }}
-                          >
-                            {v.isCurrentlyOut ? '🚗 Out on Visit' : '🏢 Back in Office'}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, flexWrap: 'wrap' }}>
-                          <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#0284C7', fontWeight: 700 }}>
-                            Went: {v.outTimeFormatted}
-                          </span>
-                          <ArrowRight size={12} style={{ color: '#94A3B8' }} />
-                          <span style={{ fontFamily: 'JetBrains Mono, monospace', color: v.isCurrentlyOut ? '#D97706' : '#059669', fontWeight: 700 }}>
-                            Back: {v.inTimeFormatted}
-                          </span>
-                          {v.duration && <span style={{ color: '#64748B', fontWeight: 600 }}>({v.duration})</span>}
-                          {v.remarks && <span style={{ color: '#64748B', fontStyle: 'italic' }}>— {v.remarks}</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
+      <StaffVisitsDetailModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        visitsList={visitsList}
+        allVisitsHistory={allVisitsHistory}
+        availableMonths={availableMonths}
+        activeCount={activeCount}
+        returnedCount={returnedCount}
+        refreshVisits={refreshVisits}
+        loading={loading}
+        todayIso={todayIso}
+      />
     </>
   );
 }
