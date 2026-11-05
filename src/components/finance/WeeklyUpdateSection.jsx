@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Download,
@@ -44,6 +44,92 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 1. URL search parameter detection for instant redirection from Joiner Sheet
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const search = params.get('search');
+      if (search) {
+        setViewMode('candidates');
+        setSearchQuery(decodeURIComponent(search));
+      }
+    }
+  }, []);
+
+  // 2. Storage event listener to keep candidates in sync across tabs and updates
+  useEffect(() => {
+    const handleStorageUpdate = (e) => {
+      if (e?.detail?.key === 'cegs_oct_candidates' || !e?.detail) {
+        setCandidates(getInitialOctoberCandidates());
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('finance_storage_update', handleStorageUpdate);
+      return () => window.removeEventListener('finance_storage_update', handleStorageUpdate);
+    }
+  }, []);
+
+  // 3. Auto-load 8-week active joiners from database and ensure they appear in Candidate Details
+  useEffect(() => {
+    fetch('/api/joiners')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        const rows = Array.isArray(data) ? data : (data?.rows || []);
+        if (!rows.length) return;
+
+        const eligibleJoiners = rows.filter((r) => {
+          const w8 = String(r.week8 || '').toLowerCase();
+          if (w8.includes('active') || w8.includes('working')) return true;
+          return ['week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'week8'].every((k) => {
+            const v = String(r[k] || '').toLowerCase();
+            return v.includes('active') || v.includes('working');
+          });
+        });
+
+        if (eligibleJoiners.length > 0) {
+          setCandidates((prev) => {
+            const existingPhones = new Set(prev.map((c) => String(c.phone || '').replace(/\D/g, '')));
+            const existingNames = new Set(prev.map((c) => String(c.candidateName || '').toLowerCase().trim()));
+            const toAdd = [];
+
+            eligibleJoiners.forEach((j) => {
+              const cleanPhone = String(j.phone || '').replace(/\D/g, '');
+              const cleanName = String(j.name || '').toLowerCase().trim();
+              if ((cleanPhone && existingPhones.has(cleanPhone)) || (cleanName && existingNames.has(cleanName))) {
+                return;
+              }
+
+              toAdd.push({
+                id: `joiner_${j._id || j.id || Date.now()}`,
+                candidateName: j.name,
+                phone: j.phone,
+                client: j.company || j.process || 'ISON',
+                process: j.process || j.company || 'Customer Support',
+                joiningDate: j.dateOfJoining || new Date().toISOString().slice(0, 10),
+                billingDate: j.billingDate || new Date().toISOString().slice(0, 10),
+                recruiter: j.recruiterName || '—',
+                empId: j.employeeCode || 'Pending',
+                empStatus: 'ACTIVE',
+                billingStatus: 'Ready to Invoice',
+                bi: 5900,
+                ai: 5400,
+                source: 'joiner_8wks_active',
+                remarks: 'Completed 8-Week Followups in Joiners Sheet',
+              });
+            });
+
+            if (toAdd.length > 0) {
+              const merged = [...toAdd, ...prev];
+              saveOctoberCandidates(merged);
+              return merged;
+            }
+            return prev;
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [selectedClient, setSelectedClient] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedPeriod, setSelectedPeriod] = useState('ALL');

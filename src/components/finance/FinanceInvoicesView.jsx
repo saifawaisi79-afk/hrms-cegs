@@ -9,7 +9,7 @@ import { WeeklyUpdateSection } from './WeeklyUpdateSection';
 import { BillRaisedSection } from './BillRaisedSection';
 import { BillClearedSection } from './BillClearedSection';
 import { TotalConsolidatedSection } from './TotalConsolidatedSection';
-import { sortItemsByCurrentMonthFirst } from '@/lib/finance-data';
+import { sortItemsByCurrentMonthFirst, getInitialRaisedInvoices, saveRaisedInvoices } from '@/lib/finance-data';
 import {
   Download,
   Plus,
@@ -2482,6 +2482,28 @@ export function FinanceInvoicesView() {
           id: invId,
         }),
       });
+
+      // Also sync cleared status to raised invoices in storage
+      try {
+        const existingRaised = getInitialRaisedInvoices();
+        const updatedRaised = existingRaised.map((r) => {
+          if (r.invoiceNo === inv.invoiceNo || r.id === invId) {
+            return {
+              ...r,
+              status: 'Paid / Cleared',
+              actualReceipt: r.expectedReceipt || r.totalInvoiceValue,
+              outstandingBalance: 0,
+            };
+          }
+          return r;
+        });
+        saveRaisedInvoices(updatedRaised);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('finance_storage_update', { detail: { type: 'raised' } }));
+        }
+      } catch (err) {
+        console.warn('Could not sync mark paid to raised storage:', err);
+      }
     } catch (err) {
       console.error('Failed to mark paid:', err);
     }
@@ -3115,6 +3137,51 @@ export function FinanceInvoicesView() {
         : { ...payload, id: `inv-${Date.now()}`, _id: `inv-${Date.now()}` };
 
       setInvoices((prev) => [created, ...prev]);
+
+      // Automatically sync newly generated invoice to Bill Raised (B) register
+      try {
+        const existingRaised = getInitialRaisedInvoices();
+        const bAmt = Number(created.basicAmount) || (created.amount ? Math.round(Number(created.amount) / 1.18) : 0);
+        const tAmt = Number(created.amount) || (bAmt + Math.round(bAmt * 0.18));
+        const gAmt = (created.sgstAmount != null && created.cgstAmount != null)
+          ? (Number(created.sgstAmount) + Number(created.cgstAmount))
+          : (created.gstAmount != null ? Number(created.gstAmount) : Math.round(bAmt * 0.18));
+        const tdsAmt = created.tdsAmount != null ? Number(created.tdsAmount) : Math.round(bAmt * 0.10);
+        const expected = tAmt - tdsAmt;
+
+        const raisedEntry = {
+          id: created._id || created.id || `raised-${created.invoiceNo}`,
+          invoiceNo: created.invoiceNo,
+          rawInvoiceNo: String(created.invoiceNo || '').replace(/^INV-/i, ''),
+          client: created.client,
+          candidateCount: Array.isArray(created.items) && created.items.length > 0 ? created.items.length : 1,
+          invoiceDate: created.invoiceDate || new Date().toISOString().slice(0, 10),
+          revisedRequested: '',
+          revisedSent: '',
+          bi: bAmt,
+          ai: Math.round(bAmt * 0.9),
+          basicAmount: bAmt,
+          gstAmount: gAmt,
+          totalInvoiceValue: tAmt,
+          tdsAmount: tdsAmt,
+          expectedReceipt: expected,
+          actualReceipt: created.status === 'Paid' ? expected : 0,
+          outstandingBalance: created.status === 'Paid' ? 0 : expected,
+          dueDate: created.dueDate || '30 days',
+          status: created.status === 'Paid' ? 'Paid / Cleared' : (created.status || 'Raised'),
+          remarks: created.projectMilestone || created.notes || '',
+          source: 'payments_invoices',
+        };
+
+        const updatedRaised = [raisedEntry, ...existingRaised.filter((r) => r.invoiceNo !== created.invoiceNo)];
+        saveRaisedInvoices(updatedRaised);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('finance_storage_update', { detail: { type: 'raised' } }));
+        }
+      } catch (err) {
+        console.warn('Could not auto-sync invoice to raised register:', err);
+      }
+
       setShowGenerateInvoiceModal(false);
       showToast(`Invoice ${invNo} generated successfully!`);
       setInvoiceForm({
@@ -3374,8 +3441,8 @@ export function FinanceInvoicesView() {
           {[
             { key: 'weekly_update', step: '1', title: 'Weekly Update', color: '#0D9488' },
             { key: 'bill_raised', step: '2', title: 'Bill Raised', color: '#D97706' },
-            { key: 'bill_cleared', step: '3', title: 'Bill Cleared', color: '#10B981' },
-            { key: 'payments_invoices', step: '4', title: 'Payments & Invoices', color: '#2563EB' },
+            { key: 'payments_invoices', step: '3', title: 'Payments & Invoices', color: '#2563EB' },
+            { key: 'bill_cleared', step: '4', title: 'Bill Cleared', color: '#10B981' },
           ].map((item, idx) => {
             const isActive = activeFinanceTab === item.key;
             return (
@@ -3479,30 +3546,7 @@ export function FinanceInvoicesView() {
           Bill Raised (B) (8)
         </button>
 
-        {/* TAB 3: Bill Cleared (Stage 3) */}
-        <button
-          type="button"
-          onClick={() => handleTabChange('bill_cleared')}
-          style={{
-            background: activeFinanceTab === 'bill_cleared' ? '#10B981' : '#FFFFFF',
-            color: activeFinanceTab === 'bill_cleared' ? '#FFFFFF' : '#374151',
-            border: activeFinanceTab === 'bill_cleared' ? '1px solid #059669' : '1px solid #E5E7EB',
-            borderRadius: 99,
-            padding: '9px 18px',
-            fontSize: 12.5,
-            fontWeight: 800,
-            cursor: 'pointer',
-            boxShadow:
-              activeFinanceTab === 'bill_cleared'
-                ? '0 4px 12px rgba(16, 185, 129, 0.25)'
-                : '0 1px 3px rgba(0,0,0,0.03)',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          Bill Cleared (95)
-        </button>
-
-        {/* TAB 4: Payments & Invoices (Stage 4) */}
+        {/* TAB 3: Payments & Invoices (Stage 3) */}
         <button
           type="button"
           onClick={() => handleTabChange('payments_invoices')}
@@ -3522,7 +3566,30 @@ export function FinanceInvoicesView() {
             transition: 'all 0.2s ease',
           }}
         >
-          Payments &amp; Invoices ({invoices.length})
+          Payments &amp; Invoices (C) ({invoices.length})
+        </button>
+
+        {/* TAB 4: Bill Cleared (Stage 4) */}
+        <button
+          type="button"
+          onClick={() => handleTabChange('bill_cleared')}
+          style={{
+            background: activeFinanceTab === 'bill_cleared' ? '#10B981' : '#FFFFFF',
+            color: activeFinanceTab === 'bill_cleared' ? '#FFFFFF' : '#374151',
+            border: activeFinanceTab === 'bill_cleared' ? '1px solid #059669' : '1px solid #E5E7EB',
+            borderRadius: 99,
+            padding: '9px 18px',
+            fontSize: 12.5,
+            fontWeight: 800,
+            cursor: 'pointer',
+            boxShadow:
+              activeFinanceTab === 'bill_cleared'
+                ? '0 4px 12px rgba(16, 185, 129, 0.25)'
+                : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          Bill Cleared (D) (95)
         </button>
 
         {/* TAB 5: Total (A+B+C+D) - ON HOLD */}
@@ -3576,6 +3643,7 @@ export function FinanceInvoicesView() {
       {/* SECTION 2: BILL RAISED (STAGE 2) */}
       {activeFinanceTab === 'bill_raised' && (
         <BillRaisedSection
+          apiInvoices={invoices}
           onInvoiceCleared={() => handleTabChange('bill_cleared')}
           onNavigateToCleared={() => handleTabChange('bill_cleared')}
         />
@@ -3666,7 +3734,7 @@ export function FinanceInvoicesView() {
               >
                 This consolidated reconciliation ledger is placed on standby while operational flow is prioritized across the 4 active sequential stages:
                 <br />
-                <strong>Weekly Update → Bill Raised → Bill Cleared → Payments & Invoices</strong>.
+                <strong>Weekly Update → Bill Raised → Payments & Invoices → Bill Cleared</strong>.
               </p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
@@ -3700,7 +3768,7 @@ export function FinanceInvoicesView() {
                     cursor: 'pointer',
                   }}
                 >
-                  Payments & Invoices (Stage 4)
+                  Payments & Invoices (Stage 3)
                 </button>
               </div>
             </div>

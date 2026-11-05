@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Download,
@@ -31,8 +31,144 @@ import {
   sortItemsByCurrentMonthFirst,
 } from '@/lib/finance-data';
 
-export function BillRaisedSection({ onInvoiceCleared, onNavigateToCleared }) {
-  const [invoices, setInvoices] = useState(getInitialRaisedInvoices);
+/**
+ * Merges raised invoices with client invoices from Payments & Invoices (/api/client-invoices)
+ * Deduplicating by normalized invoice number.
+ */
+export function mergeApiInvoicesWithRaised(localList = [], apiList = []) {
+  const map = new Map();
+  const norm = (no) => String(no || '').trim().toUpperCase();
+
+  (localList || []).forEach((inv) => {
+    const key = norm(inv.invoiceNo);
+    if (key) map.set(key, inv);
+  });
+
+  (apiList || []).forEach((apiInv) => {
+    const invNo = apiInv.invoiceNo;
+    const key = norm(invNo);
+    if (!key) return;
+
+    const bAmt = Number(apiInv.basicAmount) || (apiInv.amount ? Math.round(Number(apiInv.amount) / 1.18) : 0);
+    const tAmt = Number(apiInv.amount) || (bAmt + Math.round(bAmt * 0.18));
+    const gAmt =
+      apiInv.sgstAmount != null && apiInv.cgstAmount != null
+        ? Number(apiInv.sgstAmount) + Number(apiInv.cgstAmount)
+        : apiInv.gstAmount != null
+        ? Number(apiInv.gstAmount)
+        : Math.round(bAmt * 0.18);
+    const tdsAmt = apiInv.tdsAmount != null ? Number(apiInv.tdsAmount) : Math.round(bAmt * 0.1);
+    const expected = tAmt - tdsAmt;
+    const isPaid = String(apiInv.status || '').toLowerCase() === 'paid';
+    const actual = isPaid ? Number(apiInv.actualReceipt) || expected : Number(apiInv.actualReceipt) || 0;
+    const outstanding = isPaid ? 0 : Math.max(0, expected - actual);
+
+    let cCount = 1;
+    if (Array.isArray(apiInv.items) && apiInv.items.length > 0) {
+      cCount = apiInv.items.length;
+    } else if (apiInv.candidateCount) {
+      cCount = Number(apiInv.candidateCount);
+    } else if (apiInv.projectMilestone) {
+      const m = apiInv.projectMilestone.match(/(\d+)\s*(Seats|candidates|seat|candidate)/i);
+      if (m) cCount = parseInt(m[1], 10);
+    }
+
+    const dateStr = apiInv.invoiceDate
+      ? apiInv.invoiceDate
+      : apiInv.createdAt
+      ? new Date(apiInv.createdAt).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+
+    if (map.has(key)) {
+      const existing = map.get(key);
+      map.set(key, {
+        ...existing,
+        client: existing.client || apiInv.client,
+        candidateCount: existing.candidateCount || cCount,
+        basicAmount: existing.basicAmount || bAmt,
+        gstAmount: existing.gstAmount || gAmt,
+        totalInvoiceValue: existing.totalInvoiceValue || tAmt,
+        tdsAmount: existing.tdsAmount || tdsAmt,
+        expectedReceipt: existing.expectedReceipt || expected,
+        actualReceipt: existing.actualReceipt != null ? existing.actualReceipt : actual,
+        outstandingBalance: existing.outstandingBalance != null ? existing.outstandingBalance : outstanding,
+      });
+    } else {
+      map.set(key, {
+        id: apiInv._id || apiInv.id || `raised-api-${invNo}`,
+        invoiceNo: invNo,
+        rawInvoiceNo: String(invNo).replace(/^INV-/i, ''),
+        client: apiInv.client || 'Client',
+        candidateCount: cCount,
+        invoiceDate: dateStr,
+        revisedRequested: apiInv.revisedRequested || '',
+        revisedSent: apiInv.revisedSent || '',
+        bi: bAmt,
+        ai: apiInv.ai ? Number(apiInv.ai) : Math.round(bAmt * 0.9),
+        basicAmount: bAmt,
+        gstAmount: gAmt,
+        totalInvoiceValue: tAmt,
+        tdsAmount: tdsAmt,
+        expectedReceipt: expected,
+        actualReceipt: actual,
+        outstandingBalance: outstanding,
+        dueDate: apiInv.dueDate || '30 days',
+        status: isPaid ? 'Paid / Cleared' : apiInv.status || 'Raised',
+        remarks: apiInv.notes || apiInv.projectMilestone || '',
+        source: 'payments_invoices',
+      });
+    }
+  });
+
+  return Array.from(map.values());
+}
+
+export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNavigateToCleared }) {
+  const [invoices, setInvoices] = useState(() => {
+    const local = getInitialRaisedInvoices();
+    return mergeApiInvoicesWithRaised(local, apiInvoices);
+  });
+
+  // Re-merge when apiInvoices prop updates or fetch directly if empty
+  useEffect(() => {
+    if (apiInvoices && apiInvoices.length > 0) {
+      setInvoices((prev) => {
+        const merged = mergeApiInvoicesWithRaised(prev, apiInvoices);
+        return merged;
+      });
+    } else {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_auth_token') : null;
+      fetch('/api/client-invoices', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setInvoices((prev) => mergeApiInvoicesWithRaised(prev, data));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [apiInvoices]);
+
+  // Listen to finance_storage_update events (triggered on invoice generate/pay)
+  useEffect(() => {
+    const handleUpdate = () => {
+      const fresh = getInitialRaisedInvoices();
+      if (apiInvoices && apiInvoices.length > 0) {
+        setInvoices(mergeApiInvoicesWithRaised(fresh, apiInvoices));
+      } else {
+        setInvoices(fresh);
+      }
+    };
+
+    window.addEventListener('finance_storage_update', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('finance_storage_update', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [apiInvoices]);
   const pocs = useMemo(() => getClientPocs(), []);
 
   // Filter & Search states

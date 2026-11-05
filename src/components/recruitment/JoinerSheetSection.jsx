@@ -849,6 +849,148 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
     XLSX.writeFile(wb, 'CEGS_Joiners_Sheet_Template.xlsx');
   };
 
+  /**
+   * Sync an 8-week active candidate directly into Weekly Update (A) Candidate Details
+   */
+  const syncCandidateToWeeklyTracker = (row) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('cegs_oct_candidates');
+      let existing = [];
+      if (raw) {
+        try { existing = JSON.parse(raw); } catch {}
+      }
+      const cleanPhone = String(row.phone || '').replace(/\D/g, '');
+      const cleanName = String(row.name || '').trim().toLowerCase();
+
+      const foundIdx = existing.findIndex((c) => {
+        const cp = String(c.phone || '').replace(/\D/g, '');
+        const cn = String(c.candidateName || '').trim().toLowerCase();
+        return (cleanPhone && cp === cleanPhone) || (cleanName && cn === cleanName);
+      });
+
+      const newCandidateObj = {
+        id: `joiner_${row.id || row._id || row.candidateId || Date.now()}`,
+        candidateName: row.name,
+        phone: row.phone,
+        client: row.company || row.process || 'ISON',
+        process: row.process || row.company || 'Customer Support',
+        joiningDate: row.dateOfJoining || new Date().toISOString().slice(0, 10),
+        billingDate: row.billingDate || new Date().toISOString().slice(0, 10),
+        recruiter: row.recruiterName || '—',
+        empId: row.employeeCode || 'Pending',
+        empStatus: 'ACTIVE',
+        billingStatus: 'Ready to Invoice',
+        bi: 5900,
+        ai: 5400,
+        remarks: '8-Week Active Followup completed in Joiner Sheet',
+        source: 'joiner_8wks_active',
+      };
+
+      if (foundIdx !== -1) {
+        existing[foundIdx] = { ...existing[foundIdx], ...newCandidateObj, empStatus: 'ACTIVE', billingStatus: 'Ready to Invoice' };
+      } else {
+        existing.unshift(newCandidateObj);
+      }
+
+      localStorage.setItem('cegs_oct_candidates', JSON.stringify(existing));
+      window.dispatchEvent(new CustomEvent('finance_storage_update', { detail: { key: 'cegs_oct_candidates' } }));
+    } catch (err) {
+      console.error('syncCandidateToWeeklyTracker error:', err);
+    }
+  };
+
+  /**
+   * Quick toggle / dropdown selection for follow-up status on any week
+   */
+  const handleQuickFollowupToggle = async (row, wk, newStatus) => {
+    if (!canEditEntry) return;
+    setStatus('Updating followup...');
+    const updatedRow = { ...row, [wk]: newStatus };
+
+    const isWeek8Active = wk === 'week8' ? newStatus === 'Active' : (String(row.week8 || '').toLowerCase().includes('active') || String(row.week8 || '').toLowerCase().includes('working'));
+    const allActive = WEEK_KEYS.every((k) => {
+      const v = k === wk ? newStatus : String(row[k] || '');
+      const s = v.toLowerCase();
+      return s.includes('active') || s.includes('working');
+    });
+    const isNowReadyToBill = isWeek8Active || allActive;
+
+    // 1. Update local state
+    setOverlays((prev) => {
+      const idToMatch = row.overlayId || row.id || row._id;
+      const found = prev.some((r) => String(r.id || r._id) === String(idToMatch) || String(r.candidateId || '') === String(row.candidateId));
+      if (found) {
+        return prev.map((r) => {
+          if (String(r.id || r._id) === String(idToMatch) || String(r.candidateId || '') === String(row.candidateId)) {
+            return { ...r, [wk]: newStatus };
+          }
+          return r;
+        });
+      }
+      return [...prev, updatedRow];
+    });
+
+    // 2. Persist to MongoDB
+    try {
+      const payload = {
+        name: row.name,
+        phone: row.phone,
+        process: row.process,
+        company: row.company,
+        dateOfJoining: row.dateOfJoining,
+        billingDate: row.billingDate,
+        employeeCode: row.employeeCode,
+        interviewDate: row.interviewDate,
+        recruiterName: row.recruiterName,
+        week1: wk === 'week1' ? newStatus : (row.week1 || ''),
+        week2: wk === 'week2' ? newStatus : (row.week2 || ''),
+        week3: wk === 'week3' ? newStatus : (row.week3 || ''),
+        week4: wk === 'week4' ? newStatus : (row.week4 || ''),
+        week5: wk === 'week5' ? newStatus : (row.week5 || ''),
+        week6: wk === 'week6' ? newStatus : (row.week6 || ''),
+        week7: wk === 'week7' ? newStatus : (row.week7 || ''),
+        week8: wk === 'week8' ? newStatus : (row.week8 || ''),
+        candidateId: row.candidateId || '',
+        createdBy: effectiveUser?.name || '',
+      };
+
+      if (row.overlayId) {
+        await fetch(`${GLOBAL_API_BASE}/joiners/${row.overlayId}`, {
+          method: 'PUT',
+          headers: authHeaders(),
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetch(`${GLOBAL_API_BASE}/joiners`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(payload),
+        });
+      }
+
+      // 3. If ready to bill, sync to Weekly Update Candidate Details & redirect
+      if (isNowReadyToBill) {
+        syncCandidateToWeeklyTracker(updatedRow);
+        setToastMessage({
+          type: 'success',
+          text: `🎉 ${row.name} has completed 8-Week Followups (Active)! Marked Ready to Bill. Redirecting to Candidate Details...`,
+        });
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            window.location.href = `/finance/invoices?tab=weekly&search=${encodeURIComponent(row.name)}`;
+          }
+        }, 1200);
+      } else {
+        setToastMessage({ type: 'success', text: `Updated ${wk.replace('week', 'Week ')} to ${newStatus}.` });
+      }
+      setStatus('Synced');
+    } catch (err) {
+      console.error(err);
+      setStatus('Error');
+    }
+  };
+
   const cell = (v) => (
     <td
       style={{
@@ -1286,9 +1428,78 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                           ))}
                         </select>
                       </td>
-                      {WEEK_KEYS.map((wk) => (
-                        <td key={wk}>{inp(wk, wk.replace('week', 'W'))}</td>
-                      ))}
+                      {WEEK_KEYS.map((wk) => {
+                        const currentVal = String(editForm[wk] || '').trim();
+                        const lower = currentVal.toLowerCase();
+                        const isAct = lower.includes('active') || lower.includes('working');
+                        const isInact = lower.includes('inactive') || lower.includes('drop') || lower.includes('left');
+
+                        return (
+                          <td key={wk} style={{ minWidth: 105, padding: '4px 6px', textAlign: 'center' }}>
+                            <select
+                              className="cell-select"
+                              value={isAct ? 'Active' : isInact ? 'Inactive' : currentVal ? 'other' : ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'Active' || val === 'Inactive') {
+                                  setEditForm({ ...editForm, [wk]: val });
+                                } else if (val === '') {
+                                  setEditForm({ ...editForm, [wk]: '' });
+                                }
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '4px 6px',
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                border: isAct ? '1.5px solid #10B981' : isInact ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
+                                background: isAct ? '#ECFDF5' : isInact ? '#FEF2F2' : '#FFFFFF',
+                                color: isAct ? '#065F46' : isInact ? '#991B1B' : '#334155',
+                              }}
+                            >
+                              <option value="">Select</option>
+                              <option value="Active">Active</option>
+                              <option value="Inactive">Inactive</option>
+                              {currentVal && !isAct && !isInact && <option value="other">{currentVal}</option>}
+                            </select>
+                            <div style={{ display: 'flex', gap: 3, marginTop: 4, justifyContent: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => setEditForm({ ...editForm, [wk]: 'Active' })}
+                                style={{
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  fontSize: 9.5,
+                                  fontWeight: 800,
+                                  border: isAct ? '1px solid #059669' : '1px solid #CBD5E1',
+                                  background: isAct ? '#059669' : '#FFFFFF',
+                                  color: isAct ? '#FFFFFF' : '#059669',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Active
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditForm({ ...editForm, [wk]: 'Inactive' })}
+                                style={{
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  fontSize: 9.5,
+                                  fontWeight: 800,
+                                  border: isInact ? '1px solid #DC2626' : '1px solid #CBD5E1',
+                                  background: isInact ? '#DC2626' : '#FFFFFF',
+                                  color: isInact ? '#FFFFFF' : '#DC2626',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Inactive
+                              </button>
+                            </div>
+                          </td>
+                        );
+                      })}
                       <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <div className="datasheet-row-actions" style={{ display: 'inline-flex', gap: 6 }}>
                           <button
@@ -1339,8 +1550,15 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                   );
                 }
 
+                const isW8Active = String(row.week8 || '').toLowerCase().includes('active') || String(row.week8 || '').toLowerCase().includes('working');
+                const allActive = WEEK_KEYS.every((k) => {
+                  const v = String(row[k] || '').toLowerCase();
+                  return v.includes('active') || v.includes('working');
+                });
+                const isReadyToBill = isW8Active || allActive;
+
                 return (
-                  <tr key={rid}>
+                  <tr key={rid} style={{ background: isReadyToBill ? 'rgba(236, 253, 245, 0.35)' : undefined }}>
                     <td style={{ fontWeight: 800, padding: '8px 10px', color: '#64748B' }}>
                       {idx + 1}
                     </td>
@@ -1353,10 +1571,121 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                     {cell(row.employeeCode)}
                     {cell(row.interviewDate)}
                     {cell(row.recruiterName)}
-                    {WEEK_KEYS.map((wk) => cell(row[wk]))}
+                    {WEEK_KEYS.map((wk) => {
+                      const val = String(row[wk] || '').trim();
+                      const lower = val.toLowerCase();
+                      const isActive = lower.includes('active') || lower.includes('working');
+                      const isInactive = lower.includes('inactive') || lower.includes('drop') || lower.includes('left');
+
+                      return (
+                        <td
+                          key={wk}
+                          style={{
+                            padding: '6px 6px',
+                            textAlign: 'center',
+                            minWidth: 100,
+                            verticalAlign: 'middle',
+                            background: isActive ? 'rgba(236, 253, 245, 0.45)' : isInactive ? 'rgba(254, 242, 242, 0.45)' : 'transparent',
+                          }}
+                        >
+                          {/* Dropdown with Active / Inactive */}
+                          <select
+                            value={isActive ? 'Active' : isInactive ? 'Inactive' : val ? 'other' : ''}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === 'Active' || v === 'Inactive') {
+                                handleQuickFollowupToggle(row, wk, v);
+                              }
+                            }}
+                            disabled={!canEditEntry}
+                            style={{
+                              width: '100%',
+                              padding: '3px 4px',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              border: isActive ? '1.5px solid #10B981' : isInactive ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
+                              background: isActive ? '#ECFDF5' : isInactive ? '#FEF2F2' : '#FFFFFF',
+                              color: isActive ? '#065F46' : isInactive ? '#991B1B' : '#475569',
+                              cursor: canEditEntry ? 'pointer' : 'default',
+                            }}
+                          >
+                            <option value="">Select</option>
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                            {val && !isActive && !isInactive && <option value="other">{val}</option>}
+                          </select>
+
+                          {/* Two buttons below follow ups drop down as active or inactive */}
+                          {canEditEntry && (
+                            <div style={{ display: 'flex', gap: 3, marginTop: 4, justifyContent: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickFollowupToggle(row, wk, 'Active')}
+                                style={{
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  fontSize: 9.5,
+                                  fontWeight: 800,
+                                  border: isActive ? '1px solid #059669' : '1px solid #CBD5E1',
+                                  background: isActive ? '#059669' : '#FFFFFF',
+                                  color: isActive ? '#FFFFFF' : '#059669',
+                                  cursor: 'pointer',
+                                  lineHeight: 1.2,
+                                }}
+                                title="Mark Active"
+                              >
+                                Active
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickFollowupToggle(row, wk, 'Inactive')}
+                                style={{
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  fontSize: 9.5,
+                                  fontWeight: 800,
+                                  border: isInactive ? '1px solid #DC2626' : '1px solid #CBD5E1',
+                                  background: isInactive ? '#DC2626' : '#FFFFFF',
+                                  color: isInactive ? '#FFFFFF' : '#DC2626',
+                                  cursor: 'pointer',
+                                  lineHeight: 1.2,
+                                }}
+                                title="Mark Inactive"
+                              >
+                                Inactive
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
                     {(canEditEntry || canDelete) && (
                       <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
+                          {/* Ready to Bill Redirect Badge */}
+                          {isReadyToBill && (
+                            <a
+                              href={`/finance/invoices?tab=weekly&search=${encodeURIComponent(row.name)}`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '4px 10px',
+                                borderRadius: 8,
+                                fontSize: 11,
+                                fontWeight: 800,
+                                background: '#ECFDF5',
+                                color: '#065F46',
+                                border: '1px solid #10B981',
+                                textDecoration: 'none',
+                                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.15)',
+                              }}
+                              title="Candidate completed 8-week follow-up and is Ready to Bill! Click to view in Billing Candidate Details."
+                            >
+                              <span>⚡ Ready to Bill →</span>
+                            </a>
+                          )}
                           {/* Edit button: shown in Employee portal AND HR/Finance portals */}
                           {canEditEntry && (
                             <button
