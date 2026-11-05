@@ -19,6 +19,8 @@ const COMPANY_OPTIONS = [
   'TRIO',
   'ISON',
   'RADICAL MINDS',
+  'iLeads',
+  'Other',
 ];
 
 const emptyForm = {
@@ -280,8 +282,9 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
       setError('Select the CEGS recruiter who scheduled the walk-in.');
       return;
     }
-    if (!form.company || form.company === 'Select Company') {
-      setError('Select a company.');
+    const trimmedCompany = (form.company || '').trim();
+    if (!trimmedCompany || trimmedCompany === 'Select Company' || trimmedCompany === 'Other') {
+      setError('Please select or enter a company name.');
       return;
     }
 
@@ -294,7 +297,7 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
     const payload = {
       name: form.name.trim().toUpperCase(),
       number: form.number.trim(),
-      company: form.company,
+      company: trimmedCompany,
       process: form.process.trim(),
       recruiterName: form.recruiterName,
       rounds: form.rounds.trim(),
@@ -371,7 +374,7 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
     const hrPayload = {
       name: editForm.name.trim().toUpperCase(),
       number: editForm.number,
-      company: editForm.company === 'Select Company' ? '' : editForm.company,
+      company: (editForm.company === 'Select Company' || editForm.company === 'Other') ? '' : (editForm.company || '').trim(),
       process: editForm.process || '',
       recruiterName: editForm.recruiterName || '',
       rounds: editForm.rounds || '',
@@ -729,8 +732,20 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
             <label style={labelStyle}>Company</label>
             <select
               style={inputStyle}
-              value={form.company}
-              onChange={(e) => setForm({ ...form, company: e.target.value })}
+              value={
+                COMPANY_OPTIONS.includes(form.company)
+                  ? form.company
+                  : form.company
+                  ? 'Other'
+                  : 'Select Company'
+              }
+              onChange={(e) => {
+                if (e.target.value === 'Other') {
+                  setForm({ ...form, company: '', _customCompany: true });
+                } else {
+                  setForm({ ...form, company: e.target.value, _customCompany: false });
+                }
+              }}
             >
               {COMPANY_OPTIONS.map((c) => (
                 <option key={c} value={c}>
@@ -738,6 +753,18 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
                 </option>
               ))}
             </select>
+            {(form._customCompany ||
+              (!COMPANY_OPTIONS.includes(form.company) &&
+                form.company &&
+                form.company !== 'Select Company')) && (
+              <input
+                style={{ ...inputStyle, marginTop: 6, borderColor: '#0284C7', background: '#F0F9FF' }}
+                placeholder="Enter company name..."
+                value={form.company === 'Other' ? '' : form.company}
+                onChange={(e) => setForm({ ...form, company: e.target.value, _customCompany: true })}
+                autoFocus
+              />
+            )}
           </div>
           <div>
             <label style={labelStyle}>Recruiter</label>
@@ -880,21 +907,44 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
                         />
                       </td>
                       <td>
-                        <select
-                          className="cell-select"
-                          value={
-                            COMPANY_OPTIONS.includes(editForm.company)
-                              ? editForm.company
-                              : editForm.company || 'Select Company'
-                          }
-                          onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
-                        >
-                          {COMPANY_OPTIONS.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <select
+                            className="cell-select"
+                            value={
+                              COMPANY_OPTIONS.includes(editForm.company)
+                                ? editForm.company
+                                : editForm.company
+                                ? 'Other'
+                                : 'Select Company'
+                            }
+                            onChange={(e) => {
+                              if (e.target.value === 'Other') {
+                                setEditForm({ ...editForm, company: '', _customCompany: true });
+                              } else {
+                                setEditForm({ ...editForm, company: e.target.value, _customCompany: false });
+                              }
+                            }}
+                          >
+                            {COMPANY_OPTIONS.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                          {(editForm._customCompany ||
+                            (!COMPANY_OPTIONS.includes(editForm.company) &&
+                              editForm.company &&
+                              editForm.company !== 'Select Company')) && (
+                            <input
+                              className="cell-input"
+                              placeholder="Enter company name..."
+                              value={editForm.company === 'Other' ? '' : editForm.company}
+                              onChange={(e) => setEditForm({ ...editForm, company: e.target.value, _customCompany: true })}
+                              style={{ marginTop: 2, borderColor: '#0284C7', background: '#F0F9FF' }}
+                              autoFocus
+                            />
+                          )}
+                        </div>
                       </td>
                       <td>
                         <select

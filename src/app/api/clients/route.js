@@ -173,6 +173,21 @@ const INITIAL_CLIENTS = [
     notes: 'Startek Bangalore Operations candidate placement billing.',
     status: 'Active',
   },
+  {
+    name: 'iLeads',
+    contactPerson: 'Operations / HR',
+    email: 'billing@ileads.com',
+    phone: '',
+    gstin: '',
+    address: 'Bengaluru, Karnataka',
+    state: 'Karnataka',
+    stateCode: '29',
+    industry: 'BPO & IT Enabled Services',
+    paymentTerms: 'Net 30',
+    templateType: 'MODERN',
+    notes: 'iLeads candidate placement and billing.',
+    status: 'Active',
+  },
 ];
 
 function flatten(doc) {

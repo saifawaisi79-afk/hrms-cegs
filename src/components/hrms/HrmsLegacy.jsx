@@ -9696,6 +9696,8 @@ export const COMPANY_OPTIONS = [
  'TRIO',
  'ISON',
  'RADICAL MINDS',
+ 'iLeads',
+ 'Other',
 ];
 
 export const INITIAL_CANDIDATE_DATA = [];
@@ -10476,7 +10478,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  date: formatSheetDateDisplay(sheetDate),
  time: candidateForm.time || autoTime,
  category: activeTaskCategory,
- company: candidateForm.company === 'Select Company' ? '' : candidateForm.company,
+ company: (candidateForm.company === 'Select Company' || candidateForm.company === 'Other') ? '' : (candidateForm.company || '').trim(),
  employee: (selectedEmployeeFilter && selectedEmployeeFilter !== 'ALL')
  ? selectedEmployeeFilter
  : (user?.name || 'Recruiter')
@@ -10587,7 +10589,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  category: editForm.category || activeTaskCategory,
  date: editForm.date || formatSheetDateDisplay(sheetDate),
  time: editForm.time || formatCandidateTime(editForm.time, editForm.createdAt) || getLiveTime12(),
- company: editForm.company === 'Select Company' ? '' : (editForm.company || ''),
+ company: (editForm.company === 'Select Company' || editForm.company === 'Other') ? '' : (editForm.company || '').trim(),
  };
 
  if (activeTaskCategory === 'joined' || String(payload.category || '').toLowerCase() === 'joined') {
@@ -11285,9 +11287,38 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </td>
  <td><input className="cell-input" value={candidateForm.location} onChange={e => setCandidateForm({ ...candidateForm, location: e.target.value })} placeholder="Location" aria-label="Location" /></td>
  <td>
- <select className="cell-select" value={candidateForm.company} onChange={e => setCandidateForm({ ...candidateForm, company: e.target.value })} aria-label="Company">
+ <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+ <select
+ className="cell-select"
+ value={
+ COMPANY_OPTIONS.includes(candidateForm.company)
+ ? candidateForm.company
+ : candidateForm.company
+ ? 'Other'
+ : 'Select Company'
+ }
+ onChange={e => {
+ if (e.target.value === 'Other') {
+ setCandidateForm({ ...candidateForm, company: '', _customCompany: true });
+ } else {
+ setCandidateForm({ ...candidateForm, company: e.target.value, _customCompany: false });
+ }
+ }}
+ aria-label="Company"
+ >
  {COMPANY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
  </select>
+ {(candidateForm._customCompany || (!COMPANY_OPTIONS.includes(candidateForm.company) && candidateForm.company && candidateForm.company !== 'Select Company')) && (
+ <input
+ className="cell-input"
+ placeholder="Enter company name..."
+ value={candidateForm.company === 'Other' ? '' : candidateForm.company}
+ onChange={e => setCandidateForm({ ...candidateForm, company: e.target.value, _customCompany: true })}
+ style={{ marginTop: 2, borderColor: '#0284C7', background: '#F0F9FF' }}
+ autoFocus
+ />
+ )}
+ </div>
  </td>
  <td><input type="number" min="0" className="cell-input" value={candidateForm.experience} onChange={e => setCandidateForm({ ...candidateForm, experience: Number(e.target.value) })} aria-label="Experience" /></td>
  <td><input className="cell-input" value={candidateForm.followUp1} onChange={e => setCandidateForm({ ...candidateForm, followUp1: e.target.value })} placeholder="Note 1" aria-label="Follow up 1" /></td>
@@ -11365,17 +11396,38 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </td>
  <td><input className="cell-input" value={editForm.location} onChange={e => setEditForm({ ...editForm, location: e.target.value })} aria-label="Location" /></td>
  <td>
+ <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
  <select
  className="cell-select"
- value={COMPANY_OPTIONS.includes(editForm.company) ? editForm.company : (editForm.company || 'Select Company')}
- onChange={e => setEditForm({ ...editForm, company: e.target.value })}
+ value={
+ COMPANY_OPTIONS.includes(editForm.company)
+ ? editForm.company
+ : editForm.company
+ ? 'Other'
+ : 'Select Company'
+ }
+ onChange={e => {
+ if (e.target.value === 'Other') {
+ setEditForm({ ...editForm, company: '', _customCompany: true });
+ } else {
+ setEditForm({ ...editForm, company: e.target.value, _customCompany: false });
+ }
+ }}
  aria-label="Company"
  >
  {COMPANY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
- {!COMPANY_OPTIONS.includes(editForm.company) && editForm.company ? (
- <option value={editForm.company}>{editForm.company}</option>
- ) : null}
  </select>
+ {(editForm._customCompany || (!COMPANY_OPTIONS.includes(editForm.company) && editForm.company && editForm.company !== 'Select Company')) && (
+ <input
+ className="cell-input"
+ placeholder="Enter company name..."
+ value={editForm.company === 'Other' ? '' : editForm.company}
+ onChange={e => setEditForm({ ...editForm, company: e.target.value, _customCompany: true })}
+ style={{ marginTop: 2, borderColor: '#0284C7', background: '#F0F9FF' }}
+ autoFocus
+ />
+ )}
+ </div>
  </td>
  <td><input type="number" min="0" className="cell-input" value={editForm.experience} onChange={e => setEditForm({ ...editForm, experience: Number(e.target.value) })} aria-label="Experience" /></td>
  <td><input className="cell-input" value={editForm.followUp1} onChange={e => setEditForm({ ...editForm, followUp1: e.target.value })} aria-label="Follow up 1" /></td>

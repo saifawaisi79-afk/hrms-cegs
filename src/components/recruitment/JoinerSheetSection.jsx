@@ -25,6 +25,19 @@ const COMPANY_TABS = [
   'TRIO',
   'ISON',
   'RADICAL MINDS',
+  'iLeads',
+  'OTHER',
+];
+
+const COMPANY_OPTIONS = [
+  'ALTRUIST',
+  'ONE POINT ONE',
+  'STARTEK',
+  'TRIO',
+  'ISON',
+  'RADICAL MINDS',
+  'iLeads',
+  'Other',
 ];
 
 const WEEK_KEYS = ['week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'week8'];
@@ -366,7 +379,12 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
       if (companyTab !== 'ALL') {
         const comp = String(r.company || '').toUpperCase();
         const proc = String(r.process || '').toUpperCase();
-        if (!comp.includes(companyTab) && !proc.includes(companyTab)) return false;
+        if (companyTab === 'OTHER') {
+          const knownCompanies = ['ALTRUIST', 'ONE POINT ONE', 'STARTEK', 'TRIO', 'ISON', 'RADICAL MINDS', 'ILEADS'];
+          if (knownCompanies.some((k) => comp.includes(k) || proc.includes(k))) return false;
+        } else {
+          if (!comp.includes(companyTab.toUpperCase()) && !proc.includes(companyTab.toUpperCase())) return false;
+        }
       }
       if (monthFilter !== 'ALL') {
         const ym = extractRowYearMonth(r);
@@ -395,11 +413,15 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
         });
 
     const counts = { ALL: baseList.length };
+    const knownCompanies = ['ALTRUIST', 'ONE POINT ONE', 'STARTEK', 'TRIO', 'ISON', 'RADICAL MINDS', 'ILEADS'];
     COMPANY_TABS.slice(1).forEach((c) => {
       counts[c] = baseList.filter((r) => {
         const comp = String(r.company || '').toUpperCase();
         const proc = String(r.process || '').toUpperCase();
-        return comp.includes(c) || proc.includes(c);
+        if (c === 'OTHER') {
+          return comp && !knownCompanies.some((k) => comp.includes(k) || proc.includes(k));
+        }
+        return comp.includes(c.toUpperCase()) || proc.includes(c.toUpperCase());
       }).length;
     });
     return counts;
@@ -457,7 +479,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
       name: editForm.name.trim().toUpperCase(),
       phone: editForm.phone.trim(),
       process: editForm.process.trim(),
-      company: (editForm.company || '').trim(),
+      company: (editForm.company === 'Other' || editForm.company === 'Select Company') ? '' : (editForm.company || '').trim(),
       dateOfJoining: editForm.dateOfJoining.trim(),
       billingDate: editForm.billingDate.trim(),
       employeeCode: editForm.employeeCode.trim(),
@@ -1204,21 +1226,45 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                       <td>{inp('phone', 'Phone')}</td>
                       <td>{inp('process', 'Process')}</td>
                       <td>
-                        <select
-                          className="cell-select"
-                          value={editForm.company || ''}
-                          onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
-                        >
-                          <option value="">Select Company</option>
-                          {COMPANY_TABS.slice(1).map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                          {editForm.company && !COMPANY_TABS.includes(editForm.company) ? (
-                            <option value={editForm.company}>{editForm.company}</option>
-                          ) : null}
-                        </select>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <select
+                            className="cell-select"
+                            value={
+                              COMPANY_OPTIONS.includes(editForm.company)
+                                ? editForm.company
+                                : editForm.company
+                                ? 'Other'
+                                : ''
+                            }
+                            onChange={(e) => {
+                              if (e.target.value === 'Other') {
+                                setEditForm({ ...editForm, company: '', _customCompany: true });
+                              } else {
+                                setEditForm({ ...editForm, company: e.target.value, _customCompany: false });
+                              }
+                            }}
+                          >
+                            <option value="">Select Company</option>
+                            {COMPANY_OPTIONS.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                          {(editForm._customCompany ||
+                            (!COMPANY_OPTIONS.includes(editForm.company) &&
+                              editForm.company &&
+                              editForm.company !== 'Select Company')) && (
+                            <input
+                              className="cell-input"
+                              placeholder="Enter company name..."
+                              value={editForm.company === 'Other' ? '' : editForm.company}
+                              onChange={(e) => setEditForm({ ...editForm, company: e.target.value, _customCompany: true })}
+                              style={{ marginTop: 2, borderColor: '#0284C7', background: '#F0F9FF' }}
+                              autoFocus
+                            />
+                          )}
+                        </div>
                       </td>
                       <td>{inp('dateOfJoining', 'DD/MM/YY')}</td>
                       <td>{inp('billingDate', 'DD/MM/YY')}</td>
