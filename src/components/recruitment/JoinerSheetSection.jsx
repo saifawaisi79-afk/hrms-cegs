@@ -1449,13 +1449,14 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                               }}
                               style={{
                                 width: '100%',
-                                padding: '4px 6px',
-                                borderRadius: 6,
-                                fontSize: 11,
+                                padding: '5px 8px',
+                                borderRadius: 8,
+                                fontSize: 11.5,
                                 fontWeight: 700,
                                 border: isAct ? '1.5px solid #10B981' : isInact ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
                                 background: isAct ? '#ECFDF5' : isInact ? '#FEF2F2' : '#FFFFFF',
                                 color: isAct ? '#065F46' : isInact ? '#991B1B' : '#334155',
+                                outline: 'none',
                               }}
                             >
                               <option value="">Select</option>
@@ -1463,40 +1464,6 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                               <option value="Inactive">Inactive</option>
                               {currentVal && !isAct && !isInact && <option value="other">{currentVal}</option>}
                             </select>
-                            <div style={{ display: 'flex', gap: 3, marginTop: 4, justifyContent: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => setEditForm({ ...editForm, [wk]: 'Active' })}
-                                style={{
-                                  padding: '2px 6px',
-                                  borderRadius: 4,
-                                  fontSize: 9.5,
-                                  fontWeight: 800,
-                                  border: isAct ? '1px solid #059669' : '1px solid #CBD5E1',
-                                  background: isAct ? '#059669' : '#FFFFFF',
-                                  color: isAct ? '#FFFFFF' : '#059669',
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                Active
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditForm({ ...editForm, [wk]: 'Inactive' })}
-                                style={{
-                                  padding: '2px 6px',
-                                  borderRadius: 4,
-                                  fontSize: 9.5,
-                                  fontWeight: 800,
-                                  border: isInact ? '1px solid #DC2626' : '1px solid #CBD5E1',
-                                  background: isInact ? '#DC2626' : '#FFFFFF',
-                                  color: isInact ? '#FFFFFF' : '#DC2626',
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                Inactive
-                              </button>
-                            </div>
                           </td>
                         );
                       })}
@@ -1588,26 +1555,31 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                             background: isActive ? 'rgba(236, 253, 245, 0.45)' : isInactive ? 'rgba(254, 242, 242, 0.45)' : 'transparent',
                           }}
                         >
-                          {/* Dropdown with Active / Inactive */}
+                          {/* Clean Followup Status Dropdown (Select / Active / Inactive) */}
                           <select
                             value={isActive ? 'Active' : isInactive ? 'Inactive' : val ? 'other' : ''}
                             onChange={(e) => {
                               const v = e.target.value;
-                              if (v === 'Active' || v === 'Inactive') {
-                                handleQuickFollowupToggle(row, wk, v);
-                              }
+                              handleQuickFollowupToggle(row, wk, v === 'other' ? val : v);
                             }}
                             disabled={!canEditEntry}
                             style={{
                               width: '100%',
-                              padding: '3px 4px',
-                              borderRadius: 6,
-                              fontSize: 11,
+                              padding: '5px 8px',
+                              borderRadius: 8,
+                              fontSize: 11.5,
                               fontWeight: 700,
                               border: isActive ? '1.5px solid #10B981' : isInactive ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
                               background: isActive ? '#ECFDF5' : isInactive ? '#FEF2F2' : '#FFFFFF',
                               color: isActive ? '#065F46' : isInactive ? '#991B1B' : '#475569',
                               cursor: canEditEntry ? 'pointer' : 'default',
+                              outline: 'none',
+                              boxShadow: isActive
+                                ? '0 1px 3px rgba(16, 185, 129, 0.18)'
+                                : isInactive
+                                ? '0 1px 3px rgba(239, 68, 68, 0.18)'
+                                : 'none',
+                              transition: 'all 0.15s ease',
                             }}
                           >
                             <option value="">Select</option>
@@ -1615,48 +1587,6 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                             <option value="Inactive">Inactive</option>
                             {val && !isActive && !isInactive && <option value="other">{val}</option>}
                           </select>
-
-                          {/* Two buttons below follow ups drop down as active or inactive */}
-                          {canEditEntry && (
-                            <div style={{ display: 'flex', gap: 3, marginTop: 4, justifyContent: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleQuickFollowupToggle(row, wk, 'Active')}
-                                style={{
-                                  padding: '2px 6px',
-                                  borderRadius: 4,
-                                  fontSize: 9.5,
-                                  fontWeight: 800,
-                                  border: isActive ? '1px solid #059669' : '1px solid #CBD5E1',
-                                  background: isActive ? '#059669' : '#FFFFFF',
-                                  color: isActive ? '#FFFFFF' : '#059669',
-                                  cursor: 'pointer',
-                                  lineHeight: 1.2,
-                                }}
-                                title="Mark Active"
-                              >
-                                Active
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleQuickFollowupToggle(row, wk, 'Inactive')}
-                                style={{
-                                  padding: '2px 6px',
-                                  borderRadius: 4,
-                                  fontSize: 9.5,
-                                  fontWeight: 800,
-                                  border: isInactive ? '1px solid #DC2626' : '1px solid #CBD5E1',
-                                  background: isInactive ? '#DC2626' : '#FFFFFF',
-                                  color: isInactive ? '#FFFFFF' : '#DC2626',
-                                  cursor: 'pointer',
-                                  lineHeight: 1.2,
-                                }}
-                                title="Mark Inactive"
-                              >
-                                Inactive
-                              </button>
-                            </div>
-                          )}
                         </td>
                       );
                     })}
