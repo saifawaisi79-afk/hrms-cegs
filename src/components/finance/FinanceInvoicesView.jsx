@@ -3440,8 +3440,8 @@ export function FinanceInvoicesView() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           {[
             { key: 'weekly_update', step: '1', title: 'Weekly Update', color: '#0D9488' },
-            { key: 'bill_raised', step: '2', title: 'Bill Raised', color: '#D97706' },
-            { key: 'payments_invoices', step: '3', title: 'Payments & Invoices', color: '#2563EB' },
+            { key: 'payments_invoices', step: '2', title: 'Payments & Invoices', color: '#2563EB' },
+            { key: 'bill_raised', step: '3', title: 'Bill Raised', color: '#D97706' },
             { key: 'bill_cleared', step: '4', title: 'Bill Cleared', color: '#10B981' },
           ].map((item, idx) => {
             const isActive = activeFinanceTab === item.key;
@@ -3523,30 +3523,7 @@ export function FinanceInvoicesView() {
           Weekly Update (A) (147)
         </button>
 
-        {/* TAB 2: Bill Raised (Stage 2) */}
-        <button
-          type="button"
-          onClick={() => handleTabChange('bill_raised')}
-          style={{
-            background: activeFinanceTab === 'bill_raised' ? '#D97706' : '#FFFFFF',
-            color: activeFinanceTab === 'bill_raised' ? '#FFFFFF' : '#374151',
-            border: activeFinanceTab === 'bill_raised' ? '1px solid #B45309' : '1px solid #E5E7EB',
-            borderRadius: 99,
-            padding: '9px 18px',
-            fontSize: 12.5,
-            fontWeight: 800,
-            cursor: 'pointer',
-            boxShadow:
-              activeFinanceTab === 'bill_raised'
-                ? '0 4px 12px rgba(217, 119, 6, 0.25)'
-                : '0 1px 3px rgba(0,0,0,0.03)',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          Bill Raised (B) (8)
-        </button>
-
-        {/* TAB 3: Payments & Invoices (Stage 3) */}
+        {/* TAB 2: Payments & Invoices (Stage 2) */}
         <button
           type="button"
           onClick={() => handleTabChange('payments_invoices')}
@@ -3566,7 +3543,30 @@ export function FinanceInvoicesView() {
             transition: 'all 0.2s ease',
           }}
         >
-          Payments &amp; Invoices (C) ({invoices.length})
+          Payments &amp; Invoices (B) ({invoices.length})
+        </button>
+
+        {/* TAB 3: Bill Raised (Stage 3) */}
+        <button
+          type="button"
+          onClick={() => handleTabChange('bill_raised')}
+          style={{
+            background: activeFinanceTab === 'bill_raised' ? '#D97706' : '#FFFFFF',
+            color: activeFinanceTab === 'bill_raised' ? '#FFFFFF' : '#374151',
+            border: activeFinanceTab === 'bill_raised' ? '1px solid #B45309' : '1px solid #E5E7EB',
+            borderRadius: 99,
+            padding: '9px 18px',
+            fontSize: 12.5,
+            fontWeight: 800,
+            cursor: 'pointer',
+            boxShadow:
+              activeFinanceTab === 'bill_raised'
+                ? '0 4px 12px rgba(217, 119, 6, 0.25)'
+                : '0 1px 3px rgba(0,0,0,0.03)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          Bill Raised (C) (22)
         </button>
 
         {/* TAB 4: Bill Cleared (Stage 4) */}
@@ -3635,12 +3635,12 @@ export function FinanceInvoicesView() {
       {/* SECTION 1: WEEKLY UPDATE (STAGE 1) */}
       {activeFinanceTab === 'weekly_update' && (
         <WeeklyUpdateSection
-          onNavigateToRaised={() => handleTabChange('bill_raised')}
-          onMoveCandidatesToRaised={() => handleTabChange('bill_raised')}
+          onNavigateToRaised={() => handleTabChange('payments_invoices')}
+          onMoveCandidatesToRaised={() => handleTabChange('payments_invoices')}
         />
       )}
 
-      {/* SECTION 2: BILL RAISED (STAGE 2) */}
+      {/* SECTION 3: BILL RAISED (STAGE 3) */}
       {activeFinanceTab === 'bill_raised' && (
         <BillRaisedSection
           apiInvoices={invoices}
@@ -3734,7 +3734,7 @@ export function FinanceInvoicesView() {
               >
                 This consolidated reconciliation ledger is placed on standby while operational flow is prioritized across the 4 active sequential stages:
                 <br />
-                <strong>Weekly Update → Bill Raised → Payments & Invoices → Bill Cleared</strong>.
+                <strong>Weekly Update → Payments & Invoices → Bill Raised → Bill Cleared</strong>.
               </p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
@@ -3768,7 +3768,7 @@ export function FinanceInvoicesView() {
                     cursor: 'pointer',
                   }}
                 >
-                  Payments & Invoices (Stage 3)
+                  Payments & Invoices (Stage 2)
                 </button>
               </div>
             </div>

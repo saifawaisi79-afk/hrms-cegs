@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Download,
@@ -29,6 +29,21 @@ import {
 
 export function BillClearedSection({ onNavigateToPayments }) {
   const [clearedInvoices, setClearedInvoices] = useState(getInitialClearedInvoices);
+
+  // Sync when an invoice is moved/cleared from Bill Raised
+  useEffect(() => {
+    const handleUpdate = () => {
+      setClearedInvoices(getInitialClearedInvoices());
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('finance_storage_update', handleUpdate);
+      window.addEventListener('storage', handleUpdate);
+      return () => {
+        window.removeEventListener('finance_storage_update', handleUpdate);
+        window.removeEventListener('storage', handleUpdate);
+      };
+    }
+  }, []);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');

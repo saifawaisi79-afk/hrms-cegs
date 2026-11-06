@@ -24,6 +24,8 @@ import {
   calculateDraftInvoice,
   getInitialRaisedInvoices,
   saveRaisedInvoices,
+  getInitialClearedInvoices,
+  saveClearedInvoices,
   getClientPocs,
   extractMonthKey,
   getCurrentMonthKey,
@@ -366,6 +368,118 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
     triggerToast(`Created revision ${revNo} successfully! Previous version preserved in audit history.`);
   };
 
+  // Action Handler: Status change between Paid and Pending
+  // If Paid: mark fully cleared, add to Bill Cleared ledger, update API, navigate to Bill Cleared page
+  const handleActionStatusChange = async (inv, newStatus) => {
+    if (newStatus === 'Paid') {
+      const expected = Number(inv.expectedReceipt) || Number(inv.totalInvoiceValue) || 0;
+      const totalVal = Number(inv.totalInvoiceValue) || (Number(inv.basicAmount) + Number(inv.gstAmount)) || expected;
+      const basic = Number(inv.basicAmount) || Number(inv.bi) || Math.round(totalVal / 1.18);
+      const gst = Number(inv.gstAmount) || (totalVal - basic);
+      const tds = Number(inv.tdsAmount) || Math.round(basic * 0.1);
+      const ai = Number(inv.ai) || Math.round(basic * 0.9);
+
+      const updatedInv = {
+        ...inv,
+        status: 'Paid',
+        actualReceipt: expected,
+        outstandingBalance: 0,
+        clearedDate: new Date().toISOString().slice(0, 10),
+      };
+
+      // 1. Update raised invoices in local state and storage
+      const updatedRaised = invoices.map((i) => (i.invoiceNo === inv.invoiceNo ? updatedInv : i));
+      setInvoices(updatedRaised);
+      saveRaisedInvoices(updatedRaised);
+
+      // 2. Add to Cleared Invoices list (Bill Cleared Page)
+      const existingCleared = getInitialClearedInvoices();
+      const clearedItem = {
+        id: `cleared-${inv.invoiceNo || Date.now()}`,
+        invoiceNo: inv.invoiceNo,
+        rawInvoiceNo: String(inv.invoiceNo || '').replace(/^INV-/i, ''),
+        client: inv.client,
+        candidateCount: inv.candidateCount || 1,
+        invoiceDate: inv.invoiceDate || new Date().toISOString().slice(0, 10),
+        clearedDate: new Date().toISOString().slice(0, 10),
+        bi: basic,
+        ai: ai,
+        basicAmount: basic,
+        gstAmount: gst,
+        totalInvoiceValue: totalVal,
+        amountReceived: expected,
+        tdsAmount: tds,
+        status: 'Cleared',
+        gstStatus: 'Reconciled',
+        gstAmtStatus: 'GST Cleared',
+        paymentReference: inv.paymentReference || 'BANK-TRANSFER-' + Date.now(),
+        clearedBy: 'Finance Operations',
+        remarks: inv.remarks ? `${inv.remarks} | Cleared from Bill Raised` : 'Cleared from Bill Raised',
+      };
+      const updatedClearedList = [clearedItem, ...existingCleared.filter((c) => c.invoiceNo !== inv.invoiceNo)];
+      saveClearedInvoices(updatedClearedList);
+
+      // 3. Mark paid on backend MongoDB if it's an API invoice
+      try {
+        const invId = inv.id || inv._id;
+        const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_auth_token') : null;
+        await fetch('/api/client-invoices', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            action: 'mark_paid',
+            id: invId,
+          }),
+        });
+      } catch (err) {
+        console.warn('Backend mark_paid sync error:', err);
+      }
+
+      // 4. Dispatch storage update
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('finance_storage_update', { detail: { type: 'cleared', invoiceNo: inv.invoiceNo } })
+        );
+      }
+
+      triggerToast(`🎉 Invoice ${inv.invoiceNo} marked as Paid! Moved to Bill Cleared.`);
+
+      // 5. Move to Bill Cleared page
+      if (onInvoiceCleared) {
+        onInvoiceCleared(updatedInv);
+      } else if (onNavigateToCleared) {
+        onNavigateToCleared();
+      }
+    } else {
+      // Setting back to Pending
+      const expected = Number(inv.expectedReceipt) || Number(inv.totalInvoiceValue) || 0;
+      const updatedInv = {
+        ...inv,
+        status: 'Pending',
+        actualReceipt: 0,
+        outstandingBalance: expected,
+      };
+      const updatedRaised = invoices.map((i) => (i.invoiceNo === inv.invoiceNo ? updatedInv : i));
+      setInvoices(updatedRaised);
+      saveRaisedInvoices(updatedRaised);
+
+      // Remove from cleared if previously there
+      const existingCleared = getInitialClearedInvoices();
+      const updatedCleared = existingCleared.filter((c) => c.invoiceNo !== inv.invoiceNo);
+      saveClearedInvoices(updatedCleared);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('finance_storage_update', { detail: { type: 'raised', invoiceNo: inv.invoiceNo } })
+        );
+      }
+      triggerToast(`Invoice ${inv.invoiceNo} set to Pending.`);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* TOAST FEEDBACK */}
@@ -406,7 +520,7 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: 0 }}>
-              Bill Raised (B) — Invoices Issued &amp; Outstanding Register
+              Bill Raised (C) — Invoices Issued &amp; Outstanding Register
             </h2>
             <span
               style={{
@@ -420,7 +534,7 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
                 color: '#B45309',
               }}
             >
-              Section 2 (B)
+              Section 3 (C)
             </span>
           </div>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748B' }}>
@@ -791,71 +905,38 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
                             borderRadius: 99,
                             fontSize: 11,
                             fontWeight: 700,
-                            background: isCleared ? '#DCFCE7' : '#FEF3C7',
-                            color: isCleared ? '#15803D' : '#B45309',
+                            background: isCleared || inv.status === 'Paid' ? '#DCFCE7' : '#FEF3C7',
+                            color: isCleared || inv.status === 'Paid' ? '#15803D' : '#B45309',
                           }}
                         >
-                          {inv.status}
+                          {isCleared || inv.status === 'Paid' ? 'Paid' : inv.status || 'Pending'}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'inline-flex', gap: 6 }}>
-                          {/* VIEW DETAILS */}
-                          <button
-                            onClick={() => setViewInvoice(inv)}
-                            title="View Invoice Details"
-                            style={{
-                              padding: '5px 8px',
-                              borderRadius: 6,
-                              border: '1px solid #CBD5E1',
-                              background: '#FFFFFF',
-                              color: '#334155',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <Eye size={13} />
-                          </button>
-
-                          {/* RECORD PAYMENT */}
-                          <button
-                            onClick={() => {
-                              setRecordPaymentModal(inv);
-                              setPaymentAmount(inv.outstandingBalance || inv.expectedReceipt);
-                            }}
-                            title="Record Payment / Settle"
-                            style={{
-                              padding: '5px 8px',
-                              borderRadius: 6,
-                              border: '1px solid #C7D2FE',
-                              background: '#EEF2FF',
-                              color: '#4338CA',
-                              fontWeight: 700,
-                              fontSize: 11.5,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            Pay
-                          </button>
-
-                          {/* REVISION BUTTON */}
-                          <button
-                            onClick={() => {
-                              setRevisionModal(inv);
-                              setNewRevisionNumber(`${inv.invoiceNo}-R1`);
-                            }}
-                            title="Create Audited Revision"
-                            style={{
-                              padding: '5px 8px',
-                              borderRadius: 6,
-                              border: '1px solid #CBD5E1',
-                              background: '#FFFFFF',
-                              color: '#64748B',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <History size={13} />
-                          </button>
-                        </div>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        {/* Action: Paid or Pending dropdown */}
+                        <select
+                          value={isCleared || inv.status === 'Paid' ? 'Paid' : 'Pending'}
+                          onChange={(e) => handleActionStatusChange(inv, e.target.value)}
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: 8,
+                            fontSize: 11.5,
+                            fontWeight: 800,
+                            border: isCleared || inv.status === 'Paid' ? '1.5px solid #10B981' : '1.5px solid #F59E0B',
+                            background: isCleared || inv.status === 'Paid' ? '#ECFDF5' : '#FFFBEB',
+                            color: isCleared || inv.status === 'Paid' ? '#047857' : '#B45309',
+                            cursor: 'pointer',
+                            outline: 'none',
+                            boxShadow:
+                              isCleared || inv.status === 'Paid'
+                                ? '0 1px 3px rgba(16, 185, 129, 0.18)'
+                                : '0 1px 3px rgba(245, 158, 11, 0.18)',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Paid">Paid</option>
+                        </select>
                       </td>
                     </tr>
                   );
