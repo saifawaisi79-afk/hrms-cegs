@@ -133,11 +133,8 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
 
   // Re-merge when apiInvoices prop updates or fetch directly if empty
   useEffect(() => {
-    if (apiInvoices && apiInvoices.length > 0) {
-      setInvoices((prev) => {
-        const merged = mergeApiInvoicesWithRaised(prev, apiInvoices);
-        return merged;
-      });
+    if (apiInvoices) {
+      setInvoices(mergeApiInvoicesWithRaised(getInitialRaisedInvoices(), apiInvoices));
     } else {
       const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_auth_token') : null;
       fetch('/api/client-invoices', {
@@ -145,8 +142,8 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
       })
         .then((res) => (res.ok ? res.json() : []))
         .then((data) => {
-          if (Array.isArray(data) && data.length > 0) {
-            setInvoices((prev) => mergeApiInvoicesWithRaised(prev, data));
+          if (Array.isArray(data)) {
+            setInvoices(mergeApiInvoicesWithRaised(getInitialRaisedInvoices(), data));
           }
         })
         .catch(() => {});

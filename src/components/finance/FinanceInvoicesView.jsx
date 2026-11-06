@@ -9,7 +9,7 @@ import { WeeklyUpdateSection } from './WeeklyUpdateSection';
 import { BillRaisedSection } from './BillRaisedSection';
 import { BillClearedSection } from './BillClearedSection';
 import { TotalConsolidatedSection } from './TotalConsolidatedSection';
-import { sortItemsByCurrentMonthFirst, getInitialRaisedInvoices, saveRaisedInvoices } from '@/lib/finance-data';
+import { sortItemsByCurrentMonthFirst, getInitialRaisedInvoices, saveRaisedInvoices, getInitialClearedInvoices, saveClearedInvoices } from '@/lib/finance-data';
 import {
   Download,
   Plus,
@@ -1996,13 +1996,13 @@ export function FinanceInvoicesView() {
       const invRes = await fetch('/api/client-invoices', { headers: authHeaders() });
       if (invRes.ok) {
         const invData = await invRes.json();
-        if (Array.isArray(invData) && invData.length > 0) {
+        if (Array.isArray(invData)) {
           setInvoices(invData);
         } else {
-          setInvoices(DEFAULT_INVOICES);
+          setInvoices([]);
         }
       } else {
-        setInvoices(DEFAULT_INVOICES);
+        setInvoices([]);
       }
 
       // 2. Fetch Clients
@@ -2026,8 +2026,8 @@ export function FinanceInvoicesView() {
       } else {
         setClients(DEFAULT_CLIENTS);
       }
-    } catch {
-      setInvoices(DEFAULT_INVOICES);
+    } catch (err) {
+      console.error('Failed to load invoices or clients:', err);
       setClients(DEFAULT_CLIENTS);
     } finally {
       setLoading(false);
@@ -2900,7 +2900,7 @@ export function FinanceInvoicesView() {
       setInvoices((prev) => prev.filter((i) => (i.id || i._id) !== invId && i.invoiceNo !== invNo));
       showToast(`Invoice ${invNo} deleted successfully.`);
 
-      await fetch('/api/client-invoices', {
+      const res = await fetch('/api/client-invoices', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
@@ -2909,9 +2909,40 @@ export function FinanceInvoicesView() {
           invoiceNo: inv.invoiceNo,
         }),
       });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to delete invoice');
+      }
+
+      // Also clean up from raised & cleared registers in localStorage
+      try {
+        const existingRaised = getInitialRaisedInvoices();
+        const updatedRaised = existingRaised.filter(
+          (r) => r.invoiceNo !== inv.invoiceNo && r.id !== invId && r._id !== invId
+        );
+        saveRaisedInvoices(updatedRaised);
+
+        const existingCleared = getInitialClearedInvoices();
+        const updatedCleared = existingCleared.filter(
+          (c) => c.invoiceNo !== inv.invoiceNo && c.id !== invId && c._id !== invId
+        );
+        saveClearedInvoices(updatedCleared);
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('finance_storage_update', {
+              detail: { type: 'delete', invoiceNo: inv.invoiceNo, id: invId },
+            })
+          );
+        }
+      } catch (storageErr) {
+        console.warn('Storage sync on delete error:', storageErr);
+      }
     } catch (err) {
       console.error('Failed to delete invoice:', err);
-      showToast(`Failed to delete invoice ${invNo}.`, 'error');
+      showToast(err.message || `Failed to delete invoice ${invNo}.`, 'error');
+      loadData();
     } finally {
       setDeletingInvoiceId(null);
     }

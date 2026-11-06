@@ -4,6 +4,7 @@ import { z } from 'zod';
 import connectDB from '@/lib/db';
 import ClientInvoice from '@/lib/models/ClientInvoice';
 import JoinerEntry from '@/lib/models/JoinerEntry';
+import SystemSetting from '@/lib/models/SystemSetting';
 import { getAuthUser, requireRole } from '@/lib/auth';
 import { joinerBillEligible } from '@/lib/client-invoice-rules';
 import { todayIsoDate, normalizeCandidateDate } from '@/lib/candidate-dates';
@@ -357,27 +358,36 @@ const SEED_INVOICES = [
 ];
 
 async function seedCrmInvoicesIfEmpty() {
+  const seeded = await SystemSetting.findOne({ key: 'crm_invoices_seeded' });
+  if (seeded) {
+    return; // Already initialized once — never reseed or resurrect deleted invoices
+  }
+
   const count = await ClientInvoice.countDocuments({
     projectMilestone: { $exists: true, $ne: '' },
   });
+
   if (count === 0) {
+    let deletedNos = [];
+    try {
+      const delSetting = await SystemSetting.findOne({ key: 'crm_deleted_invoices' });
+      if (delSetting?.value) {
+        deletedNos = JSON.parse(delSetting.value).map((n) => String(n).toUpperCase());
+      }
+    } catch {}
+
     for (const item of SEED_INVOICES) {
+      if (deletedNos.includes(String(item.invoiceNo || '').toUpperCase())) continue;
       await ClientInvoice.create(item);
     }
-  } else {
-    // Ensure all seed client invoices exist
-    for (const item of SEED_INVOICES) {
-      const exists = await ClientInvoice.findOne({
-        $or: [
-          { invoiceNo: item.invoiceNo },
-          { client: { $regex: new RegExp(`^${item.client.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') } }
-        ]
-      });
-      if (!exists) {
-        await ClientInvoice.create(item);
-      }
-    }
   }
+
+  // Mark seeded permanently so it never re-seeds even if invoices are subsequently deleted
+  await SystemSetting.findOneAndUpdate(
+    { key: 'crm_invoices_seeded' },
+    { value: 'true' },
+    { upsert: true }
+  );
 }
 
 export async function GET(request) {
@@ -396,7 +406,21 @@ export async function GET(request) {
   const status = url.searchParams.get('status');
   const search = url.searchParams.get('search');
 
+  let deletedNos = [];
+  try {
+    const delSetting = await SystemSetting.findOne({ key: 'crm_deleted_invoices' });
+    if (delSetting?.value) {
+      deletedNos = JSON.parse(delSetting.value);
+    }
+  } catch {}
+
   const filter = {};
+  if (deletedNos && deletedNos.length > 0) {
+    filter.invoiceNo = {
+      $nin: deletedNos.map((no) => new RegExp(`^${String(no).replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i')),
+    };
+  }
+
   if (stage) filter.stage = stage;
   if (month) filter.monthKey = month;
   if (client && client !== 'ALL') {
@@ -554,13 +578,52 @@ export async function POST(request) {
     const id = body.id || body._id;
     const invoiceNo = body.invoiceNo;
     if (!id && !invoiceNo) return NextResponse.json({ error: 'Invoice ID or invoiceNo is required' }, { status: 400 });
+
+    const conditions = [];
     if (id && mongoose.Types.ObjectId.isValid(id)) {
-      await ClientInvoice.findByIdAndDelete(id);
-    } else if (invoiceNo) {
-      await ClientInvoice.findOneAndDelete({ invoiceNo });
-    } else if (id) {
-      await ClientInvoice.findOneAndDelete({ $or: [{ _id: id }, { invoiceNo: id }] });
+      conditions.push({ _id: new mongoose.Types.ObjectId(id) });
     }
+    if (id && typeof id === 'string') {
+      conditions.push({ invoiceNo: id.trim() });
+      conditions.push({ invoiceId: id.trim() });
+    }
+    if (invoiceNo && typeof invoiceNo === 'string') {
+      const cleanNo = invoiceNo.trim();
+      const escaped = cleanNo.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      conditions.push({ invoiceNo: cleanNo });
+      conditions.push({ invoiceNo: { $regex: new RegExp(`^${escaped}$`, 'i') } });
+      conditions.push({ invoiceId: cleanNo });
+    }
+
+    if (conditions.length > 0) {
+      await ClientInvoice.deleteMany({ $or: conditions });
+    }
+
+    // Ensure SystemSetting marks invoices as seeded so it never recreates seed invoices
+    await SystemSetting.findOneAndUpdate(
+      { key: 'crm_invoices_seeded' },
+      { value: 'true' },
+      { upsert: true }
+    );
+
+    // Track deleted invoice numbers so they can never reappear under any circumstances
+    try {
+      const delSetting = await SystemSetting.findOne({ key: 'crm_deleted_invoices' });
+      let currentList = [];
+      if (delSetting?.value) {
+        try { currentList = JSON.parse(delSetting.value); } catch {}
+      }
+      const toAdd = [invoiceNo, id].filter(Boolean).map((s) => String(s).trim().toUpperCase());
+      const updatedList = Array.from(new Set([...currentList, ...toAdd]));
+      await SystemSetting.findOneAndUpdate(
+        { key: 'crm_deleted_invoices' },
+        { value: JSON.stringify(updatedList) },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.warn('Failed to update crm_deleted_invoices list:', e);
+    }
+
     return NextResponse.json({ success: true, message: 'Invoice deleted successfully' });
   }
 
