@@ -4,8 +4,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'CEGS HRMS — Human Resource Management System',
-  description: 'Enterprise-grade HRMS for Center for Electronic Governance Systems (CEGS). Manage employees, payroll, attendance, leaves, assets, and more.',
+  title: 'CEGS HRMS',
+  description: 'Enterprise-grade HRMS for Career Experts Global Solutions (CEGS). Manage employees, payroll, attendance, leaves, assets, and more.',
 };
 
 export default function RootLayout({ children }) {
