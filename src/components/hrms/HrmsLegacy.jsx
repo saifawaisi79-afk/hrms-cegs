@@ -25,6 +25,7 @@ import { JoinerSheetSection } from '@/components/recruitment/JoinerSheetSection'
 import { TeamVisitsSection, formatVisitTime } from '@/components/attendance/TeamVisitsMonitor';
 import { PermissionsSection } from '@/components/permissions/PermissionsSection';
 import { ItDashboardSection } from '@/components/it/ItDashboardSection';
+import { TeamWorkReportModal } from '@/components/recruitment/TeamWorkReportModal';
 import {
   allocateLeavePay,
   calcLeaveBalance,
@@ -10026,6 +10027,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const [targetViewMode, setTargetViewMode] = useState(isEmp ? 'employee' : 'hr');
  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(isEmp ? (user?.name || '') : 'ALL');
  const [toastMsg, setToastMsg] = useState(null);
+ const [showTeamReportModal, setShowTeamReportModal] = useState(false);
 
  // Super Admin is oversight (team) — never personal daily tasks (walkins register allowed)
  useEffect(() => {
@@ -10982,6 +10984,32 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  Walk-ins & Selections
  </button>
  )}
+
+ {(isHR || isSA || isTargetForFinance) && (
+ <button
+ type="button"
+ style={{
+ background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
+ color: '#FFFFFF',
+ border: 'none',
+ borderRadius: 99,
+ padding: '7px 18px',
+ fontSize: 12,
+ fontWeight: 800,
+ cursor: 'pointer',
+ boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)',
+ display: 'inline-flex',
+ alignItems: 'center',
+ gap: 6,
+ transition: 'all 0.2s ease',
+ }}
+ onClick={() => setShowTeamReportModal(true)}
+ title="Export whole team recruiter performance date-wise (Excel & PDF)"
+ >
+ <IC n="trending" s={14} />
+ Export Team Report
+ </button>
+ )}
  </div>
  )}
  </div>
@@ -11565,6 +11593,20 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </>
  )}
  </>
+ )}
+
+ {showTeamReportModal && (
+ <TeamWorkReportModal
+ isOpen={showTeamReportModal}
+ onClose={() => setShowTeamReportModal(false)}
+ user={user}
+ db={db}
+ candidates={candidates}
+ employeeList={employeeList}
+ isSA={isSA}
+ isHR={isHR}
+ isFinance={isTargetForFinance}
+ />
  )}
 
  {toastMsg && (

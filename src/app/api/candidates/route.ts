@@ -3,7 +3,7 @@ import { z } from 'zod';
 import connectDB from '@/lib/db';
 import Candidate from '@/lib/models/Candidate';
 import { getAuthUser } from '@/lib/auth';
-import { candidateDateMongoQuery } from '@/lib/candidate-dates';
+import { candidateDateMongoQuery, sheetDateStorageVariants } from '@/lib/candidate-dates';
 
 function getCurrentTime12(): string {
   try {
@@ -78,8 +78,35 @@ export async function GET(request: Request) {
     const joinedOnly = url.searchParams.get('joined') === '1';
     const clauses: Record<string, unknown>[] = [];
 
-    const dateQuery = dateParam ? candidateDateMongoQuery(dateParam) : null;
-    if (dateQuery) clauses.push(dateQuery);
+    const fromDateParam = url.searchParams.get('fromDate') || url.searchParams.get('startDate') || '';
+    const toDateParam = url.searchParams.get('toDate') || url.searchParams.get('endDate') || '';
+
+    if (fromDateParam && toDateParam) {
+      const start = new Date(fromDateParam);
+      const end = new Date(toDateParam);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        const dateVariants = new Set();
+        const curr = new Date(start);
+        let count = 0;
+        while (curr <= end && count < 365) {
+          const iso = curr.toISOString().slice(0, 10);
+          sheetDateStorageVariants(iso).forEach(v => dateVariants.add(v));
+          curr.setDate(curr.getDate() + 1);
+          count++;
+        }
+        const startUtc = new Date(fromDateParam + 'T00:00:00.000Z');
+        const endUtc = new Date(toDateParam + 'T23:59:59.999Z');
+        clauses.push({
+          $or: [
+            { date: { $in: Array.from(dateVariants) } },
+            { createdAt: { $gte: startUtc, $lte: endUtc } },
+          ],
+        });
+      }
+    } else if (dateParam) {
+      const dateQuery = candidateDateMongoQuery(dateParam);
+      if (dateQuery) clauses.push(dateQuery);
+    }
 
     if (joinedOnly) {
       clauses.push({
