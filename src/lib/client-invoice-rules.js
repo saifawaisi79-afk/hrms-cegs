@@ -1,6 +1,6 @@
 import { normalizeCandidateDate, todayIsoDate } from '@/lib/candidate-dates';
 
-const LEFT_NOTE = /left|resign|abscond/i;
+const LEFT_NOTE = /left|resign|abscond|inactive|drop/i;
 
 export function addIsoDays(iso, days) {
   const [y, m, d] = iso.split('-').map((n) => parseInt(n, 10));

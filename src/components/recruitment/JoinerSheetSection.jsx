@@ -42,6 +42,36 @@ const COMPANY_OPTIONS = [
 
 const WEEK_KEYS = ['week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'week8'];
 
+export function getFollowupStatus(val) {
+  const str = String(val || '').trim().toLowerCase();
+  if (!str) return '';
+  if (str.includes('inactive') || str.includes('drop') || str.includes('left') || str.includes('resign') || str.includes('abscond')) {
+    return 'Inactive';
+  }
+  if (str.includes('active') || str.includes('working') || str.includes('joined')) {
+    return 'Active';
+  }
+  return str;
+}
+
+export function isFollowupActive(val) {
+  return getFollowupStatus(val) === 'Active';
+}
+
+export function isFollowupInactive(val) {
+  return getFollowupStatus(val) === 'Inactive';
+}
+
+export function getFirstInactiveWeekIndex(row) {
+  if (!row) return -1;
+  for (let i = 0; i < WEEK_KEYS.length; i++) {
+    if (isFollowupInactive(row[WEEK_KEYS[i]])) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 function sheetText(cand) {
   return `${cand?.response || ''} ${cand?.followUp1 || ''} ${cand?.followUp2 || ''} ${cand?.followUp3 || ''} ${cand?.category || ''}`
     .toLowerCase()
@@ -906,15 +936,22 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
   const handleQuickFollowupToggle = async (row, wk, newStatus) => {
     if (!canEditEntry) return;
     setStatus('Updating followup...');
+
+    const wkIndex = WEEK_KEYS.indexOf(wk);
+    const isNowInactive = isFollowupInactive(newStatus);
     const updatedRow = { ...row, [wk]: newStatus };
 
-    const isWeek8Active = wk === 'week8' ? newStatus === 'Active' : (String(row.week8 || '').toLowerCase().includes('active') || String(row.week8 || '').toLowerCase().includes('working'));
-    const allActive = WEEK_KEYS.every((k) => {
-      const v = k === wk ? newStatus : String(row[k] || '');
-      const s = v.toLowerCase();
-      return s.includes('active') || s.includes('working');
-    });
-    const isNowReadyToBill = isWeek8Active || allActive;
+    // If candidate became Inactive, clear all subsequent weeks so no active status lingers
+    if (isNowInactive && wkIndex !== -1) {
+      for (let i = wkIndex + 1; i < WEEK_KEYS.length; i++) {
+        updatedRow[WEEK_KEYS[i]] = '';
+      }
+    }
+
+    const hasAnyInactive = WEEK_KEYS.some((k) => isFollowupInactive(updatedRow[k]));
+    const all8WeeksActive = !hasAnyInactive && WEEK_KEYS.every((k) => isFollowupActive(updatedRow[k]));
+    const isWeek8Active = !hasAnyInactive && isFollowupActive(updatedRow.week8);
+    const isNowReadyToBill = !hasAnyInactive && (all8WeeksActive || (wk === 'week8' && isWeek8Active));
 
     // 1. Update local state
     setOverlays((prev) => {
@@ -923,13 +960,34 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
       if (found) {
         return prev.map((r) => {
           if (String(r.id || r._id) === String(idToMatch) || String(r.candidateId || '') === String(row.candidateId)) {
-            return { ...r, [wk]: newStatus };
+            return { ...r, ...updatedRow };
           }
           return r;
         });
       }
       return [...prev, updatedRow];
     });
+
+    // If candidate became inactive, remove any previously synced entry from weekly billing tracker
+    if (isNowInactive) {
+      try {
+        if (typeof window !== 'undefined') {
+          const raw = localStorage.getItem('cegs_oct_candidates');
+          if (raw) {
+            const list = JSON.parse(raw);
+            const cleanPhone = String(row.phone || '').replace(/\D/g, '');
+            const cleanName = String(row.name || '').trim().toLowerCase();
+            const filtered = list.filter((c) => {
+              const cp = String(c.phone || '').replace(/\D/g, '');
+              const cn = String(c.candidateName || '').trim().toLowerCase();
+              return !((cleanPhone && cp === cleanPhone) || (cleanName && cn === cleanName));
+            });
+            localStorage.setItem('cegs_oct_candidates', JSON.stringify(filtered));
+            window.dispatchEvent(new CustomEvent('finance_storage_update', { detail: { key: 'cegs_oct_candidates' } }));
+          }
+        }
+      } catch {}
+    }
 
     // 2. Persist to MongoDB
     try {
@@ -943,14 +1001,14 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
         employeeCode: row.employeeCode,
         interviewDate: row.interviewDate,
         recruiterName: row.recruiterName,
-        week1: wk === 'week1' ? newStatus : (row.week1 || ''),
-        week2: wk === 'week2' ? newStatus : (row.week2 || ''),
-        week3: wk === 'week3' ? newStatus : (row.week3 || ''),
-        week4: wk === 'week4' ? newStatus : (row.week4 || ''),
-        week5: wk === 'week5' ? newStatus : (row.week5 || ''),
-        week6: wk === 'week6' ? newStatus : (row.week6 || ''),
-        week7: wk === 'week7' ? newStatus : (row.week7 || ''),
-        week8: wk === 'week8' ? newStatus : (row.week8 || ''),
+        week1: updatedRow.week1 || '',
+        week2: updatedRow.week2 || '',
+        week3: updatedRow.week3 || '',
+        week4: updatedRow.week4 || '',
+        week5: updatedRow.week5 || '',
+        week6: updatedRow.week6 || '',
+        week7: updatedRow.week7 || '',
+        week8: updatedRow.week8 || '',
         candidateId: row.candidateId || '',
         createdBy: effectiveUser?.name || '',
       };
@@ -1428,45 +1486,88 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                           ))}
                         </select>
                       </td>
-                      {WEEK_KEYS.map((wk) => {
-                        const currentVal = String(editForm[wk] || '').trim();
-                        const lower = currentVal.toLowerCase();
-                        const isAct = lower.includes('active') || lower.includes('working');
-                        const isInact = lower.includes('inactive') || lower.includes('drop') || lower.includes('left');
+                      {(() => {
+                        const editFirstInactIdx = getFirstInactiveWeekIndex(editForm);
+                        return WEEK_KEYS.map((wk, index) => {
+                          const isEditBlocked = editFirstInactIdx !== -1 && index > editFirstInactIdx;
+                          const currentVal = String(editForm[wk] || '').trim();
+                          const isAct = isFollowupActive(currentVal);
+                          const isInact = isFollowupInactive(currentVal);
 
-                        return (
-                          <td key={wk} style={{ minWidth: 105, padding: '4px 6px', textAlign: 'center' }}>
-                            <select
-                              className="cell-select"
-                              value={isAct ? 'Active' : isInact ? 'Inactive' : currentVal ? 'other' : ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === 'Active' || val === 'Inactive') {
-                                  setEditForm({ ...editForm, [wk]: val });
-                                } else if (val === '') {
-                                  setEditForm({ ...editForm, [wk]: '' });
-                                }
-                              }}
-                              style={{
-                                width: '100%',
-                                padding: '5px 8px',
-                                borderRadius: 8,
-                                fontSize: 11.5,
-                                fontWeight: 700,
-                                border: isAct ? '1.5px solid #10B981' : isInact ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
-                                background: isAct ? '#ECFDF5' : isInact ? '#FEF2F2' : '#FFFFFF',
-                                color: isAct ? '#065F46' : isInact ? '#991B1B' : '#334155',
-                                outline: 'none',
-                              }}
-                            >
-                              <option value="">Select</option>
-                              <option value="Active">Active</option>
-                              <option value="Inactive">Inactive</option>
-                              {currentVal && !isAct && !isInact && <option value="other">{currentVal}</option>}
-                            </select>
-                          </td>
-                        );
-                      })}
+                          if (isEditBlocked) {
+                            return (
+                              <td
+                                key={wk}
+                                style={{
+                                  minWidth: 105,
+                                  padding: '4px 6px',
+                                  textAlign: 'center',
+                                  background: 'rgba(248, 250, 252, 0.65)',
+                                  filter: 'blur(1.2px)',
+                                  opacity: 0.38,
+                                  pointerEvents: 'none',
+                                  userSelect: 'none',
+                                  cursor: 'not-allowed',
+                                }}
+                                title="Candidate marked inactive in earlier week. Further followups locked."
+                              >
+                                <div
+                                  style={{
+                                    width: '100%',
+                                    padding: '5px 8px',
+                                    borderRadius: 8,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    border: '1px dashed #CBD5E1',
+                                    background: '#F1F5F9',
+                                    color: '#94A3B8',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  <span>—</span>
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          return (
+                            <td key={wk} style={{ minWidth: 105, padding: '4px 6px', textAlign: 'center' }}>
+                              <select
+                                className="cell-select"
+                                value={isAct ? 'Active' : isInact ? 'Inactive' : currentVal ? 'other' : ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const nextForm = { ...editForm, [wk]: val };
+                                  if (val === 'Inactive') {
+                                    for (let k = index + 1; k < WEEK_KEYS.length; k++) {
+                                      nextForm[WEEK_KEYS[k]] = '';
+                                    }
+                                  }
+                                  setEditForm(nextForm);
+                                }}
+                                style={{
+                                  width: '100%',
+                                  padding: '5px 8px',
+                                  borderRadius: 8,
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  border: isAct ? '1.5px solid #10B981' : isInact ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
+                                  background: isAct ? '#ECFDF5' : isInact ? '#FEF2F2' : '#FFFFFF',
+                                  color: isAct ? '#065F46' : isInact ? '#991B1B' : '#334155',
+                                  outline: 'none',
+                                }}
+                              >
+                                <option value="">Select</option>
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                                {currentVal && !isAct && !isInact && <option value="other">{currentVal}</option>}
+                              </select>
+                            </td>
+                          );
+                        });
+                      })()}
                       <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <div className="datasheet-row-actions" style={{ display: 'inline-flex', gap: 6 }}>
                           <button
@@ -1517,11 +1618,10 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                   );
                 }
 
-                const isW8Active = String(row.week8 || '').toLowerCase().includes('active') || String(row.week8 || '').toLowerCase().includes('working');
-                const allActive = WEEK_KEYS.every((k) => {
-                  const v = String(row[k] || '').toLowerCase();
-                  return v.includes('active') || v.includes('working');
-                });
+                const firstInactiveIdx = getFirstInactiveWeekIndex(row);
+                const hasInactive = firstInactiveIdx !== -1;
+                const isW8Active = !hasInactive && isFollowupActive(row.week8);
+                const allActive = !hasInactive && WEEK_KEYS.every((k) => isFollowupActive(row[k]));
                 const isReadyToBill = isW8Active || allActive;
 
                 return (
@@ -1538,11 +1638,51 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                     {cell(row.employeeCode)}
                     {cell(row.interviewDate)}
                     {cell(row.recruiterName)}
-                    {WEEK_KEYS.map((wk) => {
+                    {WEEK_KEYS.map((wk, index) => {
+                      const isBlockedAfterInactive = firstInactiveIdx !== -1 && index > firstInactiveIdx;
                       const val = String(row[wk] || '').trim();
-                      const lower = val.toLowerCase();
-                      const isActive = lower.includes('active') || lower.includes('working');
-                      const isInactive = lower.includes('inactive') || lower.includes('drop') || lower.includes('left');
+                      const isActive = isFollowupActive(val);
+                      const isInactive = isFollowupInactive(val);
+
+                      if (isBlockedAfterInactive) {
+                        return (
+                          <td
+                            key={wk}
+                            style={{
+                              padding: '6px 6px',
+                              textAlign: 'center',
+                              minWidth: 100,
+                              verticalAlign: 'middle',
+                              background: 'rgba(248, 250, 252, 0.65)',
+                              filter: 'blur(1.2px)',
+                              opacity: 0.38,
+                              pointerEvents: 'none',
+                              userSelect: 'none',
+                              cursor: 'not-allowed',
+                              transition: 'all 0.2s ease',
+                            }}
+                            title="Candidate marked inactive in earlier week. Further followups locked."
+                          >
+                            <div
+                              style={{
+                                width: '100%',
+                                padding: '5px 8px',
+                                borderRadius: 8,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                border: '1px dashed #CBD5E1',
+                                background: '#F1F5F9',
+                                color: '#94A3B8',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <span>—</span>
+                            </div>
+                          </td>
+                        );
+                      }
 
                       return (
                         <td
