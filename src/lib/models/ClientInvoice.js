@@ -57,6 +57,29 @@ const ClientInvoiceSchema = new mongoose.Schema(
     cgstAmount: { type: Number, default: 0 },
     amountInWords: { type: String, default: '' },
     signatureImage: { type: String, default: '/signatures/usman-zabi-digital-signature.jpg' },
+    // Dual-Approval Workflow before emailing client: Mohammed Raheel (EMP0005) & Super Admin
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'partially_approved', 'approved', 'rejected'],
+      default: 'pending',
+    },
+    approvals: {
+      recruiter: {
+        status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+        approverName: { type: String, default: 'Mohammed raheel' },
+        employeeId: { type: String, default: 'EMP0005' },
+        approvedAt: { type: String, default: '' },
+        approvedBy: { type: String, default: '' },
+        notes: { type: String, default: '' },
+      },
+      superAdmin: {
+        status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+        approverName: { type: String, default: 'Super Admin' },
+        approvedAt: { type: String, default: '' },
+        approvedBy: { type: String, default: '' },
+        notes: { type: String, default: '' },
+      },
+    },
     items: {
       type: [
         {

@@ -51,6 +51,7 @@ export const VIEW_TO_PATH = {
   queryterminal: '/admin/query-terminal',
   ittasks: '/it/tasks',
   adminittasks: '/admin/it-tasks',
+  invoiceApprovals: '/approvals/invoices',
 };
 
 export const TARGET_SHEETS = [
@@ -179,6 +180,7 @@ export function buildNavConfig(user, db) {
   const isFinance = user?.role === 'finance';
   const isIT = (user?.role || '').toLowerCase() === 'it_team';
   const isEmp = !isSA && !isHR && !isFinance && !isIT;
+  const isRaheel = String(user?.employee_id || '').toUpperCase() === 'EMP0005' || String(user?.name || '').toLowerCase().includes('raheel');
   const perms = getUserPerms(user, db);
   const canAccessReports = perms.reports;
   const canEditAttendance = perms.attendance;
@@ -221,6 +223,7 @@ export function buildNavConfig(user, db) {
       { href: '/billing/audit-logs', label: 'Audit Logs', icon: 'file' },
       { href: '/billing/security', label: 'Security', icon: 'shield' },
       { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
+      { href: '/approvals/invoices', label: 'Invoice Approvals', icon: 'shield' },
     );
   } else if (isHR) {
     main.push(
@@ -270,6 +273,7 @@ export function buildNavConfig(user, db) {
     );
     billing.push(
       { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
+      { href: '/approvals/invoices', label: 'Invoice Approvals', icon: 'shield' },
       { href: '/billing/attendance', label: 'Attendance', icon: 'clock' },
       { href: '/billing/payroll', label: 'My Salary & Payslips', icon: 'card' },
       ...(canApproveLeaves ? [{ href: '/billing/leaves', label: 'Leave', icon: 'calendar' }] : []),
@@ -315,6 +319,7 @@ export function buildNavConfig(user, db) {
       { href: '/campaign/recruitment', label: 'Recruitment Portal', icon: 'adduser' },
       { href: '/campaign/hub', label: 'Recruitment Performance', icon: 'target' },
       { href: '/campaign/targets', label: 'Recruitment Targets', icon: 'adduser' },
+      ...(isRaheel ? [{ href: '/approvals/invoices', label: 'Invoice Approvals', icon: 'shield' }] : []),
       { href: '/campaign/performance', label: 'Performance', icon: 'trending' },
       { href: '/campaign/learning', label: 'Learning', icon: 'help' },
       { href: '/campaign/timesheets', label: 'Timesheets', icon: 'file' },

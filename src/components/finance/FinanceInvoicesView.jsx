@@ -4290,42 +4290,144 @@ export function FinanceInvoicesView() {
                             Pending
                           </span>
                         )}
+
+                        {/* Dual-Approval Status Badge */}
+                        {(() => {
+                          const isApproved = inv.approvalStatus === 'approved';
+                          const isRejected = inv.approvalStatus === 'rejected';
+                          const isPartially = inv.approvalStatus === 'partially_approved';
+                          const recOk = inv.approvals?.recruiter?.status === 'approved';
+                          const saOk = inv.approvals?.superAdmin?.status === 'approved';
+
+                          if (isApproved) {
+                            return (
+                              <div style={{ marginTop: 4 }}>
+                                <span
+                                  title="Dual approved by Mohammed raheel & Super Admin. Ready to email."
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    padding: '2px 8px',
+                                    borderRadius: 99,
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    background: '#ECFDF5',
+                                    color: '#065F46',
+                                    border: '1px solid #A7F3D0',
+                                  }}
+                                >
+                                  ✓ Dual Approved
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          if (isRejected) {
+                            return (
+                              <div style={{ marginTop: 4 }}>
+                                <span
+                                  title={`Changes requested: ${inv.approvals?.recruiter?.notes || inv.approvals?.superAdmin?.notes || 'Review needed'}`}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    padding: '2px 8px',
+                                    borderRadius: 99,
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    background: '#FEF2F2',
+                                    color: '#991B1B',
+                                    border: '1px solid #FECACA',
+                                  }}
+                                >
+                                  ✗ Changes Needed
+                                </span>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div style={{ marginTop: 4 }}>
+                              <span
+                                title={`Approvals required before emailing:\n• Raheel (EMP0005): ${recOk ? 'Approved' : 'Pending'}\n• Super Admin: ${saOk ? 'Approved' : 'Pending'}`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '2px 8px',
+                                  borderRadius: 99,
+                                  fontSize: 10.5,
+                                  fontWeight: 700,
+                                  background: isPartially ? '#EFF6FF' : '#FFFBEB',
+                                  color: isPartially ? '#1D4ED8' : '#B45309',
+                                  border: isPartially ? '1px solid #BFDBFE' : '1px solid #FDE68A',
+                                }}
+                              >
+                                ⏳ {isPartially ? '1/2 Approved' : 'Awaiting 2 Approvals'}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* ACTIONS: EDIT INVOICE (USER REQUIREMENT 2) + REMINDER + MARK PAID + DOWNLOAD */}
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, justifyContent: 'flex-end' }}>
-                          {/* SEND EMAIL BUTTON (MULTIPLE RECIPIENTS FORM) */}
-                          <button
-                            type="button"
-                            title="Send invoice directly to multiple recipient email IDs"
-                            onClick={() => handleOpenEmailModal(inv)}
-                            style={{
-                              padding: '6px 11px',
-                              borderRadius: 8,
-                              border: '1.5px solid #0284C7',
-                              background: '#F0F9FF',
-                              color: '#0284C7',
-                              fontSize: 12,
-                              fontWeight: 800,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 5,
-                              transition: 'all 0.15s ease',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = '#0284C7';
-                              e.currentTarget.style.color = '#FFFFFF';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = '#F0F9FF';
-                              e.currentTarget.style.color = '#0284C7';
-                            }}
-                          >
-                            <Mail size={13} />
-                            <span>Email</span>
-                          </button>
+                          {/* SEND EMAIL BUTTON (MULTIPLE RECIPIENTS FORM WITH DUAL APPROVAL GATE) */}
+                          {(() => {
+                            const isApproved = inv.approvalStatus === 'approved';
+                            return (
+                              <button
+                                type="button"
+                                title={
+                                  isApproved
+                                    ? 'Send invoice directly to multiple recipient email IDs'
+                                    : 'Locked: Requires dual approval from Mohammed Raheel (EMP0005) & Super Admin before emailing to client'
+                                }
+                                onClick={() => {
+                                  if (!isApproved) {
+                                    showToast(
+                                      '⚠️ Cannot email: Invoice requires 2 approvals before emailing (Mohammed Raheel EMP0005 & Super Admin).',
+                                      'error'
+                                    );
+                                    return;
+                                  }
+                                  handleOpenEmailModal(inv);
+                                }}
+                                style={{
+                                  padding: '6px 11px',
+                                  borderRadius: 8,
+                                  border: isApproved ? '1.5px solid #0284C7' : '1px solid #CBD5E1',
+                                  background: isApproved ? '#F0F9FF' : '#F8FAFC',
+                                  color: isApproved ? '#0284C7' : '#94A3B8',
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                  cursor: isApproved ? 'pointer' : 'not-allowed',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 5,
+                                  transition: 'all 0.15s ease',
+                                  opacity: isApproved ? 1 : 0.85,
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (isApproved) {
+                                    e.currentTarget.style.background = '#0284C7';
+                                    e.currentTarget.style.color = '#FFFFFF';
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (isApproved) {
+                                    e.currentTarget.style.background = '#F0F9FF';
+                                    e.currentTarget.style.color = '#0284C7';
+                                  }
+                                }}
+                              >
+                                {isApproved ? <Mail size={13} /> : <Lock size={12} />}
+                                <span>{isApproved ? 'Email' : 'Locked'}</span>
+                              </button>
+                            );
+                          })()}
 
                           {/* EDIT INVOICE BUTTON (USER REQUIREMENT 2) */}
                           <button
@@ -6556,28 +6658,50 @@ export function FinanceInvoicesView() {
                     />
                   </label>
 
-                  {/* SEND VIA EMAIL BUTTON (MULTIPLE RECIPIENTS) */}
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEmailModal(previewInvoice)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '8px 18px',
-                      borderRadius: 12,
-                      border: 'none',
-                      background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
-                      color: '#FFFFFF',
-                      fontWeight: 800,
-                      fontSize: 13,
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
-                    }}
-                  >
-                    <Mail size={15} />
-                    <span>Send via Email</span>
-                  </button>
+                  {/* SEND VIA EMAIL BUTTON (MULTIPLE RECIPIENTS WITH DUAL APPROVAL GATE) */}
+                  {(() => {
+                    const isApproved = previewInvoice?.approvalStatus === 'approved';
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!isApproved) {
+                            showToast(
+                              '⚠️ Cannot email: Invoice requires dual approval from Mohammed Raheel (EMP0005) & Super Admin before emailing to client.',
+                              'error'
+                            );
+                            return;
+                          }
+                          handleOpenEmailModal(previewInvoice);
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '8px 18px',
+                          borderRadius: 12,
+                          border: 'none',
+                          background: isApproved
+                            ? 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)'
+                            : '#94A3B8',
+                          color: '#FFFFFF',
+                          fontWeight: 800,
+                          fontSize: 13,
+                          cursor: isApproved ? 'pointer' : 'not-allowed',
+                          boxShadow: isApproved ? '0 2px 8px rgba(2, 132, 199, 0.3)' : 'none',
+                          opacity: isApproved ? 1 : 0.8,
+                        }}
+                        title={
+                          isApproved
+                            ? 'Send invoice directly via email'
+                            : 'Locked: Requires dual approval from Mohammed Raheel & Super Admin'
+                        }
+                      >
+                        {isApproved ? <Mail size={15} /> : <Lock size={14} />}
+                        <span>{isApproved ? 'Send via Email' : 'Awaiting Approvals'}</span>
+                      </button>
+                    );
+                  })()}
 
                   <button
                     type="button"

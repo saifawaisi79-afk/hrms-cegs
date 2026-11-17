@@ -17,7 +17,17 @@ function canFinance(user) {
 
 function flatten(doc) {
   const o = doc.toObject ? doc.toObject() : doc;
-  return { ...o, id: o._id?.toString(), _id: o._id?.toString() };
+  const approvals = o.approvals || {
+    recruiter: { status: 'pending', approverName: 'Mohammed raheel', employeeId: 'EMP0005', approvedAt: '', approvedBy: '', notes: '' },
+    superAdmin: { status: 'pending', approverName: 'Super Admin', approvedAt: '', approvedBy: '', notes: '' },
+  };
+  return {
+    ...o,
+    id: o._id?.toString(),
+    _id: o._id?.toString(),
+    approvalStatus: o.approvalStatus || 'pending',
+    approvals,
+  };
 }
 
 async function syncEligibleJoiners() {

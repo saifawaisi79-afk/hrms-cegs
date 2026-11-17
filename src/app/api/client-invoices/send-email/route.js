@@ -337,6 +337,24 @@ ${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find t
         if (typeof invoiceId === 'string' && invoiceId.match(/^[0-9a-fA-F]{24}$/)) {
           const dbInv = await ClientInvoice.findById(invoiceId).lean();
           if (dbInv) {
+            // Verify Dual-Approval before emailing client (Mohammed Raheel EMP0005 & Super Admin)
+            if (dbInv.approvalStatus !== 'approved') {
+              const recStatus = dbInv.approvals?.recruiter?.status || 'pending';
+              const saStatus = dbInv.approvals?.superAdmin?.status || 'pending';
+              const pendingWho = [];
+              if (recStatus !== 'approved') pendingWho.push('Mohammed raheel (EMP0005 • Recruiter)');
+              if (saStatus !== 'approved') pendingWho.push('Super Admin');
+
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: `Cannot email invoice #${dbInv.invoiceNo || 'INV'}: Dual approval is required before emailing to client. Awaiting approval from: ${pendingWho.join(' and ')}.`,
+                  approvalStatus: dbInv.approvalStatus || 'pending',
+                },
+                { status: 403 }
+              );
+            }
+
             invoicePayload = {
               ...dbInv,
               ...invoicePayload,
