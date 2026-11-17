@@ -208,7 +208,7 @@ export function buildNavConfig(user, db) {
       ...(canAccessReports ? [{ href: '/reports', label: 'Reports', icon: 'trending' }] : []),
       { href: '/campaign/rewards', label: 'Rewards & Recognition', icon: 'star' },
       { href: '/campaign/jobs', label: 'Internal Job Portal', icon: 'briefcase' },
-      { href: '/campaign/meetings', label: 'Meeting Scheduler', icon: 'video' },
+      { href: '/campaign/meetings', label: 'CEGS Meet', icon: 'video' },
     );
     billing.push(
       { href: '/billing/workstation', label: 'IT & Dev Workstation', icon: 'help' },
@@ -243,7 +243,7 @@ export function buildNavConfig(user, db) {
       { href: '/campaign/learning', label: 'Training', icon: 'help' },
       { href: '/campaign/rewards', label: 'Rewards & Recognition', icon: 'star' },
       { href: '/campaign/jobs', label: 'Internal Job Portal', icon: 'briefcase' },
-      { href: '/campaign/meetings', label: 'Meeting Scheduler', icon: 'video' },
+      { href: '/campaign/meetings', label: 'CEGS Meet', icon: 'video' },
     );
     billing.push(
       { href: '/billing/workstation', label: 'IT Support & Assets', icon: 'help' },
@@ -269,7 +269,7 @@ export function buildNavConfig(user, db) {
       { href: '/campaign/performance', label: 'Performance', icon: 'trending' },
       { href: '/campaign/rewards', label: 'Rewards & Recognition', icon: 'star' },
       { href: '/campaign/jobs', label: 'Internal Job Portal', icon: 'briefcase' },
-      { href: '/campaign/meetings', label: 'Meeting Scheduler', icon: 'video' },
+      { href: '/campaign/meetings', label: 'CEGS Meet', icon: 'video' },
     );
     billing.push(
       { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
@@ -291,7 +291,7 @@ export function buildNavConfig(user, db) {
       { href: '/exit', label: 'Exit', icon: 'logout' },
     );
     campaign.push(
-      { href: '/campaign/meetings', label: 'Meeting Scheduler', icon: 'video' },
+      { href: '/campaign/meetings', label: 'CEGS Meet', icon: 'video' },
       { href: '/campaign/jobs', label: 'Internal Job Portal', icon: 'briefcase' },
       { href: '/campaign/learning', label: 'Learning & Dev', icon: 'help' },
       { href: '/campaign/timesheets', label: 'Timesheets', icon: 'file' },
@@ -326,7 +326,7 @@ export function buildNavConfig(user, db) {
       ...(canAccessReports ? [{ href: '/reports', label: 'Reports', icon: 'trending' }] : []),
       { href: '/campaign/rewards', label: 'Rewards & Recognition', icon: 'star' },
       { href: '/campaign/jobs', label: 'Internal Job Portal', icon: 'briefcase' },
-      { href: '/campaign/meetings', label: 'Meeting Scheduler', icon: 'video' },
+      { href: '/campaign/meetings', label: 'CEGS Meet', icon: 'video' },
     );
     billing.push(
       { href: '/it/support', label: 'IT & Dev Support', icon: 'help' },

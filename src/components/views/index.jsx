@@ -1,6 +1,7 @@
 'use client';
 
 import { withAppPage } from '@/components/hrms/withAppPage';
+import { CegsMeetDashboard } from '@/components/meet/CegsMeetDashboard';
 import {
   DashboardPage,
   UsersPage,
@@ -60,7 +61,7 @@ export const NotificationsView = withAppPage(NotificationsPage);
 export const WorkflowsView = withAppPage(WorkflowsPage);
 export const RewardsView = withAppPage(RewardsPage);
 export const JobsView = withAppPage(InternalJobPortalPage);
-export const MeetingsView = withAppPage(MeetingSchedulerPage);
+export const MeetingsView = withAppPage(CegsMeetDashboard);
 export const OnboardingView = withAppPage(OnboardingPage);
 export const PerformanceView = withAppPage(PerformancePage);
 export const LearningView = withAppPage(LearningPage);
