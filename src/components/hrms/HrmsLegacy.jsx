@@ -6706,34 +6706,37 @@ export function OnboardingPage({ db, save, user }) {
  return;
  }
 
+ const isSuperAdmin = form.role === 'super_admin';
+ const effectiveDesignation = isSuperAdmin ? (form.designation || 'Super Admin') : (form.designation || 'Recruiter');
+
  const newEmp = {
  id: Date.now(),
  employee_id: empIdClean,
  employeeId: empIdClean,
  name: form.name.trim(),
  email: emailClean,
- contact: form.contact,
- phone: form.contact,
- designation: form.designation,
- title: form.designation,
- department_id: parseInt(form.department_id) || 1,
+ contact: form.contact || '',
+ phone: form.contact || '',
+ designation: effectiveDesignation,
+ title: effectiveDesignation,
+ department_id: isSuperAdmin ? null : (parseInt(form.department_id) || 1),
  role: form.role || 'employee',
  status: 'active',
- joining_date: form.joining_date,
- dob: form.dob,
- address: form.address,
- employment_type: form.employment_type,
- basic_salary: parseFloat(form.basic_salary) || 30000,
- salary: parseFloat(form.basic_salary) || 30000,
+ joining_date: form.joining_date || new Date().toISOString().slice(0, 10),
+ dob: form.dob || '',
+ address: form.address || '',
+ employment_type: form.employment_type || 'full_time',
+ basic_salary: isSuperAdmin ? (parseFloat(form.basic_salary) || 0) : (parseFloat(form.basic_salary) || 30000),
+ salary: isSuperAdmin ? (parseFloat(form.basic_salary) || 0) : (parseFloat(form.basic_salary) || 30000),
  allowances: Math.max(0, parseFloat(form.allowances) || 0),
  login_time: String(form.login_time || resolveLoginTime({ email: emailClean, login_time: form.login_time })).slice(0, 5),
- bank_name: form.bank_name,
- bankName: form.bank_name,
- account_number: form.account_number,
- bankAccount: form.account_number,
- ifsc_code: form.ifsc_code,
- bankIfsc: form.ifsc_code,
- emergency_contact: form.emergency_contact,
+ bank_name: isSuperAdmin ? '' : (form.bank_name || ''),
+ bankName: isSuperAdmin ? '' : (form.bank_name || ''),
+ account_number: isSuperAdmin ? '' : (form.account_number || ''),
+ bankAccount: isSuperAdmin ? '' : (form.account_number || ''),
+ ifsc_code: isSuperAdmin ? '' : (form.ifsc_code || ''),
+ bankIfsc: isSuperAdmin ? '' : (form.ifsc_code || ''),
+ emergency_contact: isSuperAdmin ? '' : (form.emergency_contact || ''),
  must_change_password: 0,
  last_login: null,
  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(form.name)}`
@@ -6748,7 +6751,12 @@ export function OnboardingPage({ db, save, user }) {
  'Content-Type': 'application/json',
  Authorization: `Bearer ${localStorage.getItem('cegs_token') || ''}`
  },
- body: JSON.stringify({ ...form, password: permPassword, role: form.role })
+ body: JSON.stringify({
+ ...form,
+ designation: effectiveDesignation,
+ password: permPassword,
+ role: form.role
+ })
  });
  const data = await res.json().catch(() => ({}));
  if (!res.ok) {
@@ -6776,6 +6784,7 @@ export function OnboardingPage({ db, save, user }) {
  name: form.name.trim(),
  email: emailClean,
  password: permPassword,
+ role: form.role,
  isPermanent: true
  });
  };
@@ -6942,7 +6951,8 @@ export function OnboardingPage({ db, save, user }) {
  const copyCreds = () => {
  if (!credsModal) return;
  const pass = credsModal.password || credsModal.temp_password;
- const text = `CEGS HRMS Employee Portal Login Credentials:\n----------------------------------------\nEmployee Name: ${credsModal.name}\nEmployee ID: ${credsModal.employee_id}\nLogin Email: ${credsModal.email}\nPermanent Password: ${pass}\nPortal URL: ${window.location.origin}\n----------------------------------------\nSign in with these credentials issued by HR Onboarding.`;
+ const portalName = credsModal.role === 'super_admin' ? 'Super Admin Portal' : (credsModal.role === 'admin' ? 'Admin (HR) Portal' : (credsModal.role === 'finance' ? 'Finance & Invoices' : (credsModal.role === 'IT_TEAM' ? 'IT Team Portal' : 'Employee Portal')));
+ const text = `CEGS HRMS ${portalName} Login Credentials:\n----------------------------------------\nName: ${credsModal.name}\nEmployee ID: ${credsModal.employee_id}\nLogin Email: ${credsModal.email}\nPermanent Password: ${pass}\nPortal: ${portalName}\nPortal URL: ${window.location.origin}/login\n----------------------------------------\nSign in with these credentials issued by HR Onboarding.`;
  navigator.clipboard.writeText(text);
  alert(' Permanent Credentials copied to clipboard!');
  };
@@ -7282,35 +7292,82 @@ export function OnboardingPage({ db, save, user }) {
  2. Job & Position Information
  </div>
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+ <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
  <div className="form-group">
  <label className="form-label">Employee ID *</label>
  <input className="form-input" value={form.employee_id} onChange={e => setForm({ ...form, employee_id: e.target.value })} required />
  </div>
  <div className="form-group">
+ <label className="form-label">Portal to Access *</label>
+ <select
+ className="form-input"
+ value={form.role}
+ onChange={e => {
+ const nextRole = e.target.value;
+ setForm({
+ ...form,
+ role: nextRole,
+ designation: nextRole === 'super_admin' ? (form.designation || 'Super Admin') : (form.designation === 'Super Admin' ? 'Recruiter' : form.designation)
+ });
+ }}
+ >
+ <option value="employee">Employee Portal</option>
+ <option value="admin">Admin (HR) Portal</option>
+ <option value="super_admin">👑 Super Admin Portal</option>
+ <option value="finance">Finance & Invoices</option>
+ <option value="IT_TEAM">IT Team Portal</option>
+ </select>
+ </div>
+ </div>
+
+ {form.role === 'super_admin' && (
+ <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', padding: '9px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+ <span>👑</span>
+ <span>Super Admin Mode Active: Organizational hierarchy, salary, and banking details are omitted.</span>
+ </div>
+ )}
+
+ <div style={{
+ display: 'grid',
+ gridTemplateColumns: '1fr 1fr',
+ gap: 12,
+ filter: form.role === 'super_admin' ? 'blur(3px)' : 'none',
+ opacity: form.role === 'super_admin' ? 0.35 : 1,
+ pointerEvents: form.role === 'super_admin' ? 'none' : 'auto',
+ userSelect: form.role === 'super_admin' ? 'none' : 'auto',
+ transition: 'filter 0.2s ease, opacity 0.2s ease'
+ }}>
+ <div className="form-group">
  <label className="form-label">Designation / Title</label>
- <input className="form-input" value={form.designation} onChange={e => setForm({ ...form, designation: e.target.value })} placeholder="e.g. HR Recruiter" required />
+ <input
+ className="form-input"
+ value={form.role === 'super_admin' ? (form.designation || 'Super Admin') : form.designation}
+ onChange={e => setForm({ ...form, designation: e.target.value })}
+ placeholder="e.g. HR Recruiter"
+ required={form.role !== 'super_admin'}
+ disabled={form.role === 'super_admin'}
+ />
  </div>
  <div className="form-group">
  <label className="form-label">Department</label>
- <select className="form-input" value={form.department_id} onChange={e => setForm({ ...form, department_id: e.target.value })}>
+ <select className="form-input" value={form.department_id} onChange={e => setForm({ ...form, department_id: e.target.value })} disabled={form.role === 'super_admin'}>
  {db.departments?.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
  </select>
  </div>
  <div className="form-group">
  <label className="form-label">Reporting Manager</label>
- <select className="form-input" value={form.reports_to} onChange={e => setForm({ ...form, reports_to: e.target.value })}>
+ <select className="form-input" value={form.reports_to} onChange={e => setForm({ ...form, reports_to: e.target.value })} disabled={form.role === 'super_admin'}>
  <option value="">- Select Manager -</option>
  {db.users.filter(u => u.role !== 'employee').map(u => <option key={u.id} value={u.id}>{u.name} ({u.designation || u.title || u.role})</option>)}
  </select>
  </div>
  <div className="form-group">
  <label className="form-label">Date of Joining</label>
- <input type="date" className="form-input" value={form.joining_date} onChange={e => setForm({ ...form, joining_date: e.target.value })} />
+ <input type="date" className="form-input" value={form.joining_date} onChange={e => setForm({ ...form, joining_date: e.target.value })} disabled={form.role === 'super_admin'} />
  </div>
  <div className="form-group">
  <label className="form-label">Employment Type</label>
- <select className="form-input" value={form.employment_type} onChange={e => setForm({ ...form, employment_type: e.target.value })}>
+ <select className="form-input" value={form.employment_type} onChange={e => setForm({ ...form, employment_type: e.target.value })} disabled={form.role === 'super_admin'}>
  <option value="full_time">Full-time</option>
  <option value="part_time">Part-time</option>
  <option value="contract">Contract</option>
@@ -7319,26 +7376,16 @@ export function OnboardingPage({ db, save, user }) {
  </div>
  <div className="form-group">
  <label className="form-label">Basic Salary (Monthly ₹)</label>
- <input type="number" className="form-input" min={0} value={form.basic_salary} onChange={e => setForm({ ...form, basic_salary: e.target.value })} />
+ <input type="number" className="form-input" min={0} value={form.basic_salary} onChange={e => setForm({ ...form, basic_salary: e.target.value })} disabled={form.role === 'super_admin'} />
  </div>
  <div className="form-group">
  <label className="form-label">Allowances (Monthly ₹)</label>
- <input type="number" className="form-input" min={0} value={form.allowances ?? 0} onChange={e => setForm({ ...form, allowances: e.target.value })} placeholder="0 if none" />
+ <input type="number" className="form-input" min={0} value={form.allowances ?? 0} onChange={e => setForm({ ...form, allowances: e.target.value })} placeholder="0 if none" disabled={form.role === 'super_admin'} />
  </div>
  <div className="form-group">
  <label className="form-label">Official Login Time</label>
- <input type="time" className="form-input" value={form.login_time || DEFAULT_LOGIN_TIME} onChange={e => setForm({ ...form, login_time: e.target.value })} />
+ <input type="time" className="form-input" value={form.login_time || DEFAULT_LOGIN_TIME} onChange={e => setForm({ ...form, login_time: e.target.value })} disabled={form.role === 'super_admin'} />
  <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4, fontWeight: 600 }}>Default 10:00 · special staff (e.g. Raheel) 11:00</div>
- </div>
- <div className="form-group">
- <label className="form-label">Portal Role Access</label>
- <select className="form-input" value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
- <option value="employee">Employee Portal</option>
- <option value="admin">Admin (HR) Portal</option>
- <option value="super_admin">Super Admin Portal</option>
- <option value="finance">Finance & Invoices</option>
- <option value="IT_TEAM">IT Team Portal</option>
- </select>
  </div>
  </div>
 
@@ -7367,6 +7414,13 @@ export function OnboardingPage({ db, save, user }) {
  </button>
  </div>
 
+ <div style={{
+ filter: form.role === 'super_admin' ? 'blur(3px)' : 'none',
+ opacity: form.role === 'super_admin' ? 0.35 : 1,
+ pointerEvents: form.role === 'super_admin' ? 'none' : 'auto',
+ userSelect: form.role === 'super_admin' ? 'none' : 'auto',
+ transition: 'filter 0.2s ease, opacity 0.2s ease'
+ }}>
  <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--accent)', marginTop: 18, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
  4. Financial & Emergency Details
  </div>
@@ -7374,15 +7428,16 @@ export function OnboardingPage({ db, save, user }) {
  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
  <div className="form-group">
  <label className="form-label">Bank Name</label>
- <input className="form-input" value={form.bank_name} onChange={e => setForm({ ...form, bank_name: e.target.value })} placeholder="HDFC / SBI" />
+ <input className="form-input" value={form.bank_name} onChange={e => setForm({ ...form, bank_name: e.target.value })} placeholder="HDFC / SBI" disabled={form.role === 'super_admin'} />
  </div>
  <div className="form-group">
  <label className="form-label">Account Number</label>
- <input className="form-input" value={form.account_number} onChange={e => setForm({ ...form, account_number: e.target.value })} placeholder="1234567890" />
+ <input className="form-input" value={form.account_number} onChange={e => setForm({ ...form, account_number: e.target.value })} placeholder="1234567890" disabled={form.role === 'super_admin'} />
  </div>
  <div className="form-group">
  <label className="form-label">IFSC Code</label>
- <input className="form-input" value={form.ifsc_code} onChange={e => setForm({ ...form, ifsc_code: e.target.value })} placeholder="HDFC0001234" />
+ <input className="form-input" value={form.ifsc_code} onChange={e => setForm({ ...form, ifsc_code: e.target.value })} placeholder="HDFC0001234" disabled={form.role === 'super_admin'} />
+ </div>
  </div>
  </div>
 
@@ -7414,6 +7469,12 @@ export function OnboardingPage({ db, save, user }) {
  <div style={{ marginBottom: 8, fontSize: 13.5 }}>
  <span style={{ color: '#6B7280' }}>Employee ID: </span>
  <strong style={{ color: 'var(--accent)' }}>{credsModal.employee_id}</strong>
+ </div>
+ <div style={{ marginBottom: 8, fontSize: 13.5 }}>
+ <span style={{ color: '#6B7280' }}>Portal Access: </span>
+ <strong style={{ color: credsModal.role === 'super_admin' ? '#7C3AED' : '#111827' }}>
+ {credsModal.role === 'super_admin' ? '👑 Super Admin Portal' : (credsModal.role === 'admin' ? 'Admin (HR) Portal' : (credsModal.role === 'finance' ? 'Finance & Invoices' : (credsModal.role === 'IT_TEAM' ? 'IT Team Portal' : 'Employee Portal')))}
+ </strong>
  </div>
  <div style={{ marginBottom: 8, fontSize: 13.5 }}>
  <span style={{ color: '#6B7280' }}>Login Email ID: </span>
