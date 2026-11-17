@@ -12,8 +12,10 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   CheckCircle2,
+  MessageSquare,
 } from 'lucide-react';
 import { getRecruiters } from '@/lib/nav';
+import { normalizeCandidateDate, formatSheetDateDisplay } from '@/lib/candidate-dates';
 
 const GLOBAL_API_BASE = '/api';
 
@@ -91,10 +93,49 @@ function dupKey(name, phone) {
   return `${String(name || '').trim().toLowerCase()}|${String(phone || '').replace(/\D/g, '')}`;
 }
 
+export function addDaysToDate(dateStr, days = 60) {
+  const iso = normalizeCandidateDate(dateStr);
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length !== 3) return '';
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  const d = parseInt(parts[2], 10);
+  const dt = new Date(Date.UTC(y, m, d));
+  if (isNaN(dt.getTime())) return '';
+  dt.setUTCDate(dt.getUTCDate() + days);
+  const ny = dt.getUTCFullYear();
+  const nm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const nd = String(dt.getUTCDate()).padStart(2, '0');
+  return `${ny}-${nm}-${nd}`;
+}
+
+export function formatCellDate(dateVal) {
+  if (!dateVal || dateVal === '—' || dateVal === '-') return '';
+  const formatted = formatSheetDateDisplay(dateVal);
+  return formatted || String(dateVal);
+}
+
 function mapJoinedCandidate(cand, index) {
   const id = cand.id || cand._id;
   const companyVal = cand.company || cand.client || '';
   const processVal = cand.process || '';
+
+  // Auto-populate date of joining from sheet candidate record
+  const rawDoj = cand.joiningDate || cand.dateOfJoining || cand.doj || cand.date || cand.createdAt || '';
+  const dojIso = normalizeCandidateDate(rawDoj);
+  const formattedDoj = dojIso ? formatSheetDateDisplay(dojIso) : (rawDoj ? formatCellDate(rawDoj) : '');
+
+  // Auto-populate billing date (default 60 days after joining date)
+  const rawBilling = cand.billingDate || (dojIso ? addDaysToDate(dojIso, 60) : '');
+  const billingIso = normalizeCandidateDate(rawBilling);
+  const formattedBilling = billingIso ? formatSheetDateDisplay(billingIso) : (rawBilling ? formatCellDate(rawBilling) : '');
+
+  // Auto-populate interview date
+  const rawInterview = cand.interviewDate || cand.date || '';
+  const interviewIso = normalizeCandidateDate(rawInterview);
+  const formattedInterview = interviewIso ? formatSheetDateDisplay(interviewIso) : (rawInterview ? formatCellDate(rawInterview) : '');
+
   return {
     id: `sheet_${id}`,
     source: 'sheet',
@@ -105,10 +146,10 @@ function mapJoinedCandidate(cand, index) {
     process: processVal,
     company: companyVal,
     recruiterName: cand.employee || '',
-    dateOfJoining: '',
-    billingDate: '',
-    employeeCode: '',
-    interviewDate: '',
+    dateOfJoining: formattedDoj,
+    billingDate: formattedBilling,
+    employeeCode: cand.employeeCode || cand.empCode || cand.empId || '',
+    interviewDate: formattedInterview,
     week1: '',
     week2: '',
     week3: '',
@@ -118,6 +159,7 @@ function mapJoinedCandidate(cand, index) {
     week7: '',
     week8: '',
     rawDate: cand.date || '',
+    createdAt: cand.createdAt || '',
   };
 }
 
@@ -207,6 +249,29 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
   // Delete state
   const [deleteConfirmRow, setDeleteConfirmRow] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Follow-up Comment Modal state
+  const [commentModal, setCommentModal] = useState(null);
+  const [commentDraft, setCommentDraft] = useState('');
+
+  const openCommentModal = (row, wk, initialVal = '') => {
+    setCommentModal({
+      row,
+      wk,
+      candidateName: row.name || 'Candidate',
+      weekLabel: wk.replace('week', 'Week '),
+    });
+    setCommentDraft(initialVal === 'Active' || initialVal === 'Inactive' ? '' : initialVal);
+  };
+
+  const handleSaveCommentModal = async () => {
+    if (!commentModal) return;
+    const { row, wk } = commentModal;
+    const trimmed = commentDraft.trim();
+    await handleQuickFollowupToggle(row, wk, trimmed);
+    setCommentModal(null);
+    setCommentDraft('');
+  };
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState(null);
@@ -319,14 +384,21 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
       const base = mapJoinedCandidate(c, i);
       const ov = overlayByCand.get(String(base.candidateId));
       if (!ov) return base;
+      const ovDoj = ov.dateOfJoining ? formatCellDate(ov.dateOfJoining) : '';
+      const finalDoj = ovDoj || base.dateOfJoining || '';
+      const ovBilling = ov.billingDate ? formatCellDate(ov.billingDate) : '';
+      const finalBilling = ovBilling || base.billingDate || (finalDoj ? formatCellDate(addDaysToDate(finalDoj, 60)) : '');
+      const ovInterview = ov.interviewDate ? formatCellDate(ov.interviewDate) : '';
+      const finalInterview = ovInterview || base.interviewDate || '';
+
       return {
         ...base,
         process: ov.process || base.process || '',
         company: ov.company || base.company || '',
-        dateOfJoining: ov.dateOfJoining || '',
-        billingDate: ov.billingDate || '',
-        employeeCode: ov.employeeCode || '',
-        interviewDate: ov.interviewDate || '',
+        dateOfJoining: finalDoj,
+        billingDate: finalBilling,
+        employeeCode: ov.employeeCode || base.employeeCode || '',
+        interviewDate: finalInterview,
         recruiterName: ov.recruiterName || base.recruiterName,
         week1: ov.week1 || '',
         week2: ov.week2 || '',
@@ -359,18 +431,41 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
       });
     }
 
-    return list.map((r) => ({
-      ...r,
-      id: r.id || r._id,
-      source: 'manual',
-      phone: r.phone || '',
-      company: r.company || '',
-      process: r.process || '',
-    }));
+    return list.map((r) => {
+      const doj = r.dateOfJoining || r.joiningDate || r.rawDate || r.createdAt || '';
+      const formattedDoj = formatCellDate(doj);
+      const billing = r.billingDate || (doj ? addDaysToDate(doj, 60) : '');
+      const formattedBilling = formatCellDate(billing);
+      const formattedInterview = formatCellDate(r.interviewDate);
+      return {
+        ...r,
+        id: r.id || r._id,
+        source: 'manual',
+        phone: r.phone || '',
+        company: r.company || '',
+        process: r.process || '',
+        dateOfJoining: formattedDoj,
+        billingDate: formattedBilling,
+        interviewDate: formattedInterview,
+      };
+    });
   }, [overlays, sheetRows, employeeFilter]);
 
   const allRows = useMemo(() => {
     const merged = [...sheetRows, ...manualOnly];
+    // Sort date-wise descending (newest joiners first at the top)
+    merged.sort((a, b) => {
+      const dateA = normalizeCandidateDate(a.dateOfJoining || a.rawDate || a.createdAt || '');
+      const dateB = normalizeCandidateDate(b.dateOfJoining || b.rawDate || b.createdAt || '');
+      if (dateA && dateB && dateA !== dateB) {
+        return dateB.localeCompare(dateA);
+      }
+      if (dateA && !dateB) return -1;
+      if (!dateA && dateB) return 1;
+      const idA = String(a.candidateId || a.id || '');
+      const idB = String(b.candidateId || b.id || '');
+      return idB.localeCompare(idA);
+    });
     return merged.map((r, i) => ({ ...r, displaySl: i + 1 }));
   }, [sheetRows, manualOnly]);
 
@@ -472,10 +567,10 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
       phone: row.phone || '',
       process: row.process || '',
       company: matchedCompany,
-      dateOfJoining: row.dateOfJoining || '',
-      billingDate: row.billingDate || '',
+      dateOfJoining: formatCellDate(row.dateOfJoining),
+      billingDate: formatCellDate(row.billingDate),
       employeeCode: row.employeeCode || '',
-      interviewDate: row.interviewDate || '',
+      interviewDate: formatCellDate(row.interviewDate),
       recruiterName: row.recruiterName || '',
       week1: row.week1 || '',
       week2: row.week2 || '',
@@ -510,10 +605,10 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
       phone: editForm.phone.trim(),
       process: editForm.process.trim(),
       company: (editForm.company === 'Other' || editForm.company === 'Select Company') ? '' : (editForm.company || '').trim(),
-      dateOfJoining: editForm.dateOfJoining.trim(),
-      billingDate: editForm.billingDate.trim(),
+      dateOfJoining: formatCellDate(editForm.dateOfJoining.trim()),
+      billingDate: formatCellDate(editForm.billingDate.trim()),
       employeeCode: editForm.employeeCode.trim(),
-      interviewDate: editForm.interviewDate.trim(),
+      interviewDate: formatCellDate(editForm.interviewDate.trim()),
       recruiterName: editForm.recruiterName.trim(),
       week1: editForm.week1,
       week2: editForm.week2,
@@ -1040,7 +1135,8 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
           }
         }, 1200);
       } else {
-        setToastMessage({ type: 'success', text: `Updated ${wk.replace('week', 'Week ')} to ${newStatus}.` });
+        const statusText = newStatus ? `to "${newStatus}"` : 'cleared';
+        setToastMessage({ type: 'success', text: `Updated ${wk.replace('week', 'Week ')} ${statusText}.` });
       }
       setStatus('Synced');
     } catch (err) {
@@ -1466,10 +1562,10 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                           )}
                         </div>
                       </td>
-                      <td>{inp('dateOfJoining', 'DD/MM/YY')}</td>
-                      <td>{inp('billingDate', 'DD/MM/YY')}</td>
+                      <td>{inp('dateOfJoining', 'DD/MM/YYYY')}</td>
+                      <td>{inp('billingDate', 'DD/MM/YYYY')}</td>
                       <td>{inp('employeeCode', 'Emp code')}</td>
-                      <td>{inp('interviewDate', 'DD/MM/YY')}</td>
+                      <td>{inp('interviewDate', 'DD/MM/YYYY')}</td>
                       <td>
                         <select
                           className="cell-select"
@@ -1532,13 +1628,19 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                             );
                           }
 
+                          const isCustComment = Boolean(currentVal && !isAct && !isInact);
+
                           return (
                             <td key={wk} style={{ minWidth: 105, padding: '4px 6px', textAlign: 'center' }}>
                               <select
                                 className="cell-select"
-                                value={isAct ? 'Active' : isInact ? 'Inactive' : currentVal ? 'other' : ''}
+                                value={isAct ? 'Active' : isInact ? 'Inactive' : isCustComment ? '__comment__' : ''}
                                 onChange={(e) => {
                                   const val = e.target.value;
+                                  if (val === '__comment__') {
+                                    setEditForm({ ...editForm, [wk]: currentVal && !isAct && !isInact ? currentVal : 'Note' });
+                                    return;
+                                  }
                                   const nextForm = { ...editForm, [wk]: val };
                                   if (val === 'Inactive') {
                                     for (let k = index + 1; k < WEEK_KEYS.length; k++) {
@@ -1553,17 +1655,57 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                                   borderRadius: 8,
                                   fontSize: 11.5,
                                   fontWeight: 700,
-                                  border: isAct ? '1.5px solid #10B981' : isInact ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
-                                  background: isAct ? '#ECFDF5' : isInact ? '#FEF2F2' : '#FFFFFF',
-                                  color: isAct ? '#065F46' : isInact ? '#991B1B' : '#334155',
+                                  border: isAct
+                                    ? '1.5px solid #10B981'
+                                    : isInact
+                                    ? '1.5px solid #EF4444'
+                                    : isCustComment
+                                    ? '1.5px solid #3B82F6'
+                                    : '1px solid #CBD5E1',
+                                  background: isAct
+                                    ? '#ECFDF5'
+                                    : isInact
+                                    ? '#FEF2F2'
+                                    : isCustComment
+                                    ? '#EFF6FF'
+                                    : '#FFFFFF',
+                                  color: isAct
+                                    ? '#065F46'
+                                    : isInact
+                                    ? '#991B1B'
+                                    : isCustComment
+                                    ? '#1D4ED8'
+                                    : '#334155',
                                   outline: 'none',
                                 }}
                               >
                                 <option value="">Select</option>
                                 <option value="Active">Active</option>
                                 <option value="Inactive">Inactive</option>
-                                {currentVal && !isAct && !isInact && <option value="other">{currentVal}</option>}
+                                <option value="__comment__">
+                                  {isCustComment
+                                    ? `💬 ${currentVal.length > 10 ? currentVal.slice(0, 10) + '...' : currentVal}`
+                                    : '💬 Comment'}
+                                </option>
                               </select>
+                              {isCustComment && (
+                                <input
+                                  type="text"
+                                  className="cell-input"
+                                  placeholder="Type comment..."
+                                  value={currentVal}
+                                  onChange={(e) => setEditForm({ ...editForm, [wk]: e.target.value })}
+                                  style={{
+                                    marginTop: 3,
+                                    fontSize: 10.5,
+                                    borderColor: '#3B82F6',
+                                    background: '#EFF6FF',
+                                    color: '#1D4ED8',
+                                    padding: '2px 4px',
+                                  }}
+                                  autoFocus
+                                />
+                              )}
                             </td>
                           );
                         });
@@ -1633,10 +1775,10 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                     {cell(row.phone)}
                     {cell(row.process)}
                     {cell(row.company || (COMPANY_TABS.slice(1).find(c => String(row.process || '').toUpperCase().includes(c)) || '—'))}
-                    {cell(row.dateOfJoining)}
-                    {cell(row.billingDate)}
+                    {cell(formatCellDate(row.dateOfJoining))}
+                    {cell(formatCellDate(row.billingDate))}
                     {cell(row.employeeCode)}
-                    {cell(row.interviewDate)}
+                    {cell(formatCellDate(row.interviewDate))}
                     {cell(row.recruiterName)}
                     {WEEK_KEYS.map((wk, index) => {
                       const isBlockedAfterInactive = firstInactiveIdx !== -1 && index > firstInactiveIdx;
@@ -1684,23 +1826,35 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                         );
                       }
 
+                      const isComment = Boolean(val && !isActive && !isInactive);
+
                       return (
                         <td
                           key={wk}
                           style={{
                             padding: '6px 6px',
                             textAlign: 'center',
-                            minWidth: 100,
+                            minWidth: 105,
                             verticalAlign: 'middle',
-                            background: isActive ? 'rgba(236, 253, 245, 0.45)' : isInactive ? 'rgba(254, 242, 242, 0.45)' : 'transparent',
+                            background: isActive
+                              ? 'rgba(236, 253, 245, 0.45)'
+                              : isInactive
+                              ? 'rgba(254, 242, 242, 0.45)'
+                              : isComment
+                              ? 'rgba(239, 246, 255, 0.55)'
+                              : 'transparent',
                           }}
                         >
-                          {/* Clean Followup Status Dropdown (Select / Active / Inactive) */}
+                          {/* 4 Options Followup Status Dropdown (Select / Active / Inactive / Comment) */}
                           <select
-                            value={isActive ? 'Active' : isInactive ? 'Inactive' : val ? 'other' : ''}
+                            value={isActive ? 'Active' : isInactive ? 'Inactive' : isComment ? '__comment__' : ''}
                             onChange={(e) => {
                               const v = e.target.value;
-                              handleQuickFollowupToggle(row, wk, v === 'other' ? val : v);
+                              if (v === '__comment__') {
+                                openCommentModal(row, wk, isComment ? val : '');
+                                return;
+                              }
+                              handleQuickFollowupToggle(row, wk, v);
                             }}
                             disabled={!canEditEntry}
                             style={{
@@ -1709,15 +1863,35 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                               borderRadius: 8,
                               fontSize: 11.5,
                               fontWeight: 700,
-                              border: isActive ? '1.5px solid #10B981' : isInactive ? '1.5px solid #EF4444' : '1px solid #CBD5E1',
-                              background: isActive ? '#ECFDF5' : isInactive ? '#FEF2F2' : '#FFFFFF',
-                              color: isActive ? '#065F46' : isInactive ? '#991B1B' : '#475569',
+                              border: isActive
+                                ? '1.5px solid #10B981'
+                                : isInactive
+                                ? '1.5px solid #EF4444'
+                                : isComment
+                                ? '1.5px solid #3B82F6'
+                                : '1px solid #CBD5E1',
+                              background: isActive
+                                ? '#ECFDF5'
+                                : isInactive
+                                ? '#FEF2F2'
+                                : isComment
+                                ? '#EFF6FF'
+                                : '#FFFFFF',
+                              color: isActive
+                                ? '#065F46'
+                                : isInactive
+                                ? '#991B1B'
+                                : isComment
+                                ? '#1D4ED8'
+                                : '#475569',
                               cursor: canEditEntry ? 'pointer' : 'default',
                               outline: 'none',
                               boxShadow: isActive
                                 ? '0 1px 3px rgba(16, 185, 129, 0.18)'
                                 : isInactive
                                 ? '0 1px 3px rgba(239, 68, 68, 0.18)'
+                                : isComment
+                                ? '0 1px 3px rgba(59, 130, 246, 0.18)'
                                 : 'none',
                               transition: 'all 0.15s ease',
                             }}
@@ -1725,8 +1899,36 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                             <option value="">Select</option>
                             <option value="Active">Active</option>
                             <option value="Inactive">Inactive</option>
-                            {val && !isActive && !isInactive && <option value="other">{val}</option>}
+                            <option value="__comment__">
+                              {isComment
+                                ? `💬 ${val.length > 12 ? val.slice(0, 12) + '...' : val}`
+                                : '💬 Comment'}
+                            </option>
                           </select>
+                          {isComment && (
+                            <div
+                              onClick={() => canEditEntry && openCommentModal(row, wk, val)}
+                              style={{
+                                marginTop: 3,
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: '#1D4ED8',
+                                cursor: canEditEntry ? 'pointer' : 'default',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                maxWidth: 95,
+                                padding: '1px 4px',
+                                borderRadius: 4,
+                                background: '#DBEAFE',
+                                display: 'block',
+                                textAlign: 'center',
+                              }}
+                              title={`Click to edit comment: "${val}"`}
+                            >
+                              <span>{val}</span>
+                            </div>
+                          )}
                         </td>
                       );
                     })}
@@ -2196,6 +2398,207 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                 }}
               >
                 {deleting ? 'Deleting...' : 'Delete Entry'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Follow-up Comment Modal (Insert custom remark by typing) */}
+      {commentModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={() => setCommentModal(null)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 480,
+              background: '#FFFFFF',
+              borderRadius: 20,
+              boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
+              border: '1px solid #E2E8F0',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '18px 22px',
+                background: 'linear-gradient(135deg, #1E3A8A 0%, #1E40AF 100%)',
+                color: '#FFFFFF',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: 'rgba(255, 255, 255, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <MessageSquare size={18} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
+                    Add Follow-up Comment
+                  </h4>
+                  <p style={{ margin: '2px 0 0', fontSize: 11.5, color: '#DBEAFE' }}>
+                    {commentModal.weekLabel} Follow-up for <strong>{commentModal.candidateName}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommentModal(null)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  padding: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px 22px' }}>
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                Follow-up Remark / Note (Type custom text)
+              </label>
+              <textarea
+                autoFocus
+                rows={3}
+                value={commentDraft}
+                onChange={(e) => setCommentDraft(e.target.value)}
+                placeholder="e.g. Notice period, docs pending, delayed joining, resigned on 3rd day, bill raised..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSaveCommentModal();
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: '1.5px solid #CBD5E1',
+                  fontSize: 13,
+                  color: '#0F172A',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                }}
+              />
+
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>
+                  Quick Preset Chips (Click to fill):
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {[
+                    'Bill Raised',
+                    'Docs Pending',
+                    'Notice Period',
+                    'Delayed Joining',
+                    'Resigned',
+                    'Absconded',
+                    'Salary Issue',
+                    'Training Phase',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setCommentDraft(preset)}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid',
+                        background: commentDraft === preset ? '#EFF6FF' : '#F8FAFC',
+                        borderColor: commentDraft === preset ? '#3B82F6' : '#E2E8F0',
+                        color: commentDraft === preset ? '#1D4ED8' : '#475569',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      + {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 10,
+                padding: '14px 22px',
+                borderTop: '1px solid #F1F5F9',
+                background: '#F8FAFC',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setCommentModal(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 99,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  background: '#FFFFFF',
+                  border: '1px solid #CBD5E1',
+                  color: '#475569',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCommentModal}
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: 99,
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  background: '#2563EB',
+                  border: 'none',
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
+                }}
+              >
+                Save Comment
               </button>
             </div>
           </div>
