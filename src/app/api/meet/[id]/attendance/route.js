@@ -41,7 +41,20 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Participant record not found' }, { status: 404 });
     }
 
-    if (action === 'leave') {
+    if (action === 'join') {
+      participant.has_joined = true;
+      if (!participant.first_joined_at) {
+        participant.first_joined_at = now;
+      }
+      if (!participant.attendance_logs) participant.attendance_logs = [];
+      participant.attendance_logs.push({ action: 'join', timestamp: now });
+
+      if (meeting.status === 'scheduled') {
+        meeting.status = 'in_progress';
+        if (!meeting.actual_start_time) meeting.actual_start_time = now;
+      }
+      await meeting.save();
+    } else if (action === 'leave') {
       participant.last_left_at = now;
       if (!participant.attendance_logs) participant.attendance_logs = [];
 

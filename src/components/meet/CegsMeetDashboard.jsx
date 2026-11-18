@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { formatDateDMY } from '@/lib/date-format';
 import {
   Video,
@@ -11,9 +11,7 @@ import {
   Users,
   Copy,
   Check,
-  PhoneCall,
   Search,
-  Filter,
   Trash2,
   AlertCircle,
   Shield,
@@ -24,13 +22,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
-  Building,
-  UserCheck,
+  LogOut,
+  Sparkles,
 } from 'lucide-react';
-import { CegsMeetRoom } from './CegsMeetRoom';
 
 export function CegsMeetDashboard({ db, save, user }) {
-  const [activeTab, setActiveTab] = useState('upcoming'); // 'calendar' | 'upcoming' | 'history' | 'requests' | 'cancelled'
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState('upcoming'); // 'calendar' | 'upcoming' | 'history' | 'cancelled'
   const [meetings, setMeetings] = useState([]);
   const [stats, setStats] = useState({
     totalMeetings: 0,
@@ -43,8 +41,13 @@ export function CegsMeetDashboard({ db, save, user }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(null);
 
-  // Active video call state (when joined from dashboard)
-  const [activeMeetingRoom, setActiveMeetingRoom] = useState(null);
+  // Google OAuth Status
+  const [googleStatus, setGoogleStatus] = useState({
+    connected: false,
+    email: '',
+    isConfigured: true,
+  });
+  const [statusMessage, setStatusMessage] = useState(null);
 
   // Quick Join input
   const [quickJoinCode, setQuickJoinCode] = useState('');
@@ -60,6 +63,7 @@ export function CegsMeetDashboard({ db, save, user }) {
   const [createForm, setCreateForm] = useState({
     title: '',
     description: '',
+    agenda: '',
     type: 'scheduled',
     scheduled_date: new Date().toISOString().slice(0, 10),
     scheduled_start_time: '11:00',
@@ -67,11 +71,9 @@ export function CegsMeetDashboard({ db, save, user }) {
     privacy: 'internal',
     allowed_departments: [],
     participant_user_ids: [],
-    allow_screen_share: true,
-    allow_chat: true,
-    mute_on_entry: false,
   });
   const [participantSearch, setParticipantSearch] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Calendar State
   const [calendarDate, setCalendarDate] = useState(new Date().toISOString().slice(0, 10));
@@ -100,11 +102,49 @@ export function CegsMeetDashboard({ db, save, user }) {
     }
   };
 
+  // 2. Fetch Google OAuth connection status
+  const fetchGoogleStatus = async () => {
+    try {
+      const token = localStorage.getItem('cegs_token') || '';
+      const res = await fetch('/api/meet/google/status', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGoogleStatus({
+          connected: data.connected,
+          email: data.email || '',
+          isConfigured: data.isConfigured,
+        });
+      }
+    } catch (e) { }
+  };
+
   useEffect(() => {
     fetchMeetings();
+    fetchGoogleStatus();
+
+    // Check URL parameters for OAuth redirect feedback
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('google_connected') === 'true') {
+        const email = urlParams.get('email') || '';
+        setStatusMessage({
+          type: 'success',
+          text: `Google Account successfully connected${email ? ` (${email})` : ''}! You can now generate official Google Meet links.`,
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (urlParams.get('google_error')) {
+        setStatusMessage({
+          type: 'error',
+          text: `Google OAuth Error: ${urlParams.get('google_error')}`,
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
   }, []);
 
-  // 2. Filtered list based on active tab & search
+  // 3. Filtered list based on active tab & search
   const filteredMeetings = useMemo(() => {
     let list = [...meetings];
     if (activeTab === 'upcoming') {
@@ -122,6 +162,7 @@ export function CegsMeetDashboard({ db, save, user }) {
       list = list.filter(m =>
         m.title.toLowerCase().includes(q) ||
         m.meeting_id.toLowerCase().includes(q) ||
+        (m.google_meet_url && m.google_meet_url.toLowerCase().includes(q)) ||
         m.host_name.toLowerCase().includes(q) ||
         (m.description && m.description.toLowerCase().includes(q))
       );
@@ -130,28 +171,37 @@ export function CegsMeetDashboard({ db, save, user }) {
     return list;
   }, [meetings, activeTab, calendarDate, searchQuery]);
 
-  // 3. Quick Join by Code
+  // 4. Quick Join by Code
   const handleQuickJoin = (e) => {
     e.preventDefault();
     setQuickJoinError('');
     const code = quickJoinCode.trim().toLowerCase();
     if (!code) return;
 
-    const matched = meetings.find(m => m.meeting_id.toLowerCase() === code || m.meeting_id.replace(/-/g, '') === code.replace(/-/g, ''));
+    // Check if code matches an existing meeting in DB
+    const matched = meetings.find(m =>
+      m.meeting_id.toLowerCase() === code ||
+      m.meeting_id.replace(/-/g, '') === code.replace(/-/g, '') ||
+      (m.google_meet_code && m.google_meet_code.toLowerCase() === code)
+    );
+
     if (matched) {
       if (matched.status === 'cancelled') {
         setQuickJoinError('This meeting has been cancelled.');
         return;
       }
-      setActiveMeetingRoom(matched.meeting_id);
+      handleJoinGoogleMeet(matched);
+    } else if (code.startsWith('http://') || code.startsWith('https://')) {
+      window.open(code, '_blank', 'noopener,noreferrer');
     } else {
-      // Direct jump attempt by code
-      setActiveMeetingRoom(code);
+      // Direct jump to Google Meet by code
+      window.open(`https://meet.google.com/${code}`, '_blank', 'noopener,noreferrer');
     }
   };
 
-  // 4. Start Instant Meeting
+  // 5. Start Instant Google Meet
   const handleStartInstant = async () => {
+    setIsSubmitting(true);
     try {
       const token = localStorage.getItem('cegs_token') || '';
       const res = await fetch('/api/meet', {
@@ -164,23 +214,28 @@ export function CegsMeetDashboard({ db, save, user }) {
           title: `Quick Sync (${user?.name || 'CEGS Team'})`,
           type: 'instant',
           privacy: 'internal',
-          allow_screen_share: true,
-          allow_chat: true
         })
       });
       const data = await res.json();
       if (res.ok && data.meeting) {
         setMeetings(prev => [data.meeting, ...prev]);
-        setActiveMeetingRoom(data.meeting.meeting_id);
+        const meetUrl = data.googleMeetUrl || data.meeting.google_meet_url;
+        if (meetUrl) {
+          window.open(meetUrl, '_blank', 'noopener,noreferrer');
+        } else {
+          router.push(`/meet/${data.meeting.meeting_id}`);
+        }
       } else {
-        alert(data.error || 'Failed to start instant meeting');
+        alert(data.error || 'Failed to start instant Google Meet');
       }
     } catch (e) {
       alert('Network error creating instant meeting');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // 5. Submit Schedule Meeting Form
+  // 6. Submit Schedule Meeting Form
   const handleCreateMeeting = async (e) => {
     e.preventDefault();
     if (!createForm.title.trim()) {
@@ -188,6 +243,7 @@ export function CegsMeetDashboard({ db, save, user }) {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const token = localStorage.getItem('cegs_token') || '';
       const res = await fetch('/api/meet', {
@@ -203,10 +259,10 @@ export function CegsMeetDashboard({ db, save, user }) {
         setMeetings(prev => [data.meeting, ...prev]);
         setCreateModalOpen(false);
         setActiveTab('upcoming');
-        // Reset form
         setCreateForm({
           title: '',
           description: '',
+          agenda: '',
           type: 'scheduled',
           scheduled_date: new Date().toISOString().slice(0, 10),
           scheduled_start_time: '11:00',
@@ -214,20 +270,43 @@ export function CegsMeetDashboard({ db, save, user }) {
           privacy: 'internal',
           allowed_departments: [],
           participant_user_ids: [],
-          allow_screen_share: true,
-          allow_chat: true,
-          mute_on_entry: false,
         });
-        alert('✅ Meeting scheduled successfully & invitations dispatched!');
+        alert('✅ Official Google Meet generated & invitations dispatched to participants!');
       } else {
-        alert(data.error || 'Failed to schedule meeting');
+        alert(data.error || 'Failed to schedule Google Meet');
       }
     } catch (e) {
       alert('Network error scheduling meeting');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // 6. Cancel Meeting
+  // 7. Join Google Meet & Record Attendance
+  const handleJoinGoogleMeet = async (meet) => {
+    const meetUrl = meet.google_meet_url || (meet.meeting_id ? `https://meet.google.com/${meet.google_meet_code || meet.meeting_id}` : null);
+
+    // Call attendance join in background
+    try {
+      const token = localStorage.getItem('cegs_token') || '';
+      fetch(`/api/meet/${meet.meeting_id}/attendance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ action: 'join' })
+      }).catch(() => { });
+    } catch (e) { }
+
+    if (meetUrl) {
+      window.open(meetUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      router.push(`/meet/${meet.meeting_id}`);
+    }
+  };
+
+  // 8. Cancel Meeting
   const handleCancelMeeting = async (meetId) => {
     const reason = window.prompt('Please enter the cancellation reason for participants:');
     if (reason === null) return;
@@ -246,10 +325,10 @@ export function CegsMeetDashboard({ db, save, user }) {
         fetchMeetings();
         alert('Meeting cancelled.');
       }
-    } catch (e) {}
+    } catch (e) { }
   };
 
-  // 7. Load Attendance Report
+  // 9. Load Attendance Report
   const openAttendanceModal = async (meet) => {
     setAttendanceModalMeeting(meet);
     setLoadingAttendance(true);
@@ -263,61 +342,73 @@ export function CegsMeetDashboard({ db, save, user }) {
       if (res.ok) {
         setAttendanceData(data);
       }
-    } catch (e) {} finally {
+    } catch (e) { } finally {
       setLoadingAttendance(false);
     }
   };
 
-  // 8. Copy Meeting Link helper
-  const copyMeetingUrl = (mId) => {
-    const url = `${window.location.origin}/meet/${mId}`;
+  // 10. Copy Meeting Link helper
+  const copyMeetingUrl = (meet) => {
+    const url = meet.google_meet_url || `${window.location.origin}/meet/${meet.meeting_id}`;
     navigator.clipboard.writeText(url);
-    setCopiedId(mId);
+    setCopiedId(meet.meeting_id);
     setTimeout(() => setCopiedId(null), 2500);
   };
 
-  // -------------------------------------------------------------
-  // If user is currently in a live meeting, render full room!
-  // -------------------------------------------------------------
-  if (activeMeetingRoom) {
-    if (typeof document !== 'undefined') {
-      return createPortal(
-        <CegsMeetRoom
-          meetingId={activeMeetingRoom}
-          user={user}
-          onLeave={() => {
-            setActiveMeetingRoom(null);
-            fetchMeetings();
-          }}
-        />,
-        document.body
-      );
-    }
-    return (
-      <CegsMeetRoom
-        meetingId={activeMeetingRoom}
-        user={user}
-        onLeave={() => {
-          setActiveMeetingRoom(null);
-          fetchMeetings();
-        }}
-      />
-    );
-  }
+  // 11. Disconnect Google Account
+  const handleDisconnectGoogle = async () => {
+    if (!window.confirm('Disconnect the currently connected Google Account?')) return;
+    try {
+      const token = localStorage.getItem('cegs_token') || '';
+      const res = await fetch('/api/meet/google/disconnect', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setGoogleStatus({ connected: false, email: '', isConfigured: true });
+        setStatusMessage({ type: 'success', text: 'Google Account disconnected.' });
+      }
+    } catch (e) { }
+  };
 
-  // -------------------------------------------------------------
-  // DASHBOARD VIEW
-  // -------------------------------------------------------------
   const allEmployees = db?.users || [];
 
   return (
     <div className="anim-fadeup" style={{ maxWidth: 1240, margin: '0 auto', paddingBottom: 40 }}>
+      {/* Status Toast / Banner */}
+      {statusMessage && (
+        <div style={{
+          background: statusMessage.type === 'success' ? '#ECFDF5' : '#FEF2F2',
+          border: statusMessage.type === 'success' ? '1px solid #A7F3D0' : '1px solid #FECACA',
+          color: statusMessage.type === 'success' ? '#065F46' : '#991B1B',
+          padding: '12px 20px',
+          borderRadius: 14,
+          marginBottom: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: 13,
+          fontWeight: 700,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {statusMessage.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+            <span>{statusMessage.text}</span>
+          </div>
+          <button
+            onClick={() => setStatusMessage(null)}
+            style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 800 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ─── HERO HEADER & TITLE ──────────────────────────────── */}
       <div style={{
         background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)',
         borderRadius: 20,
-        padding: '24px 30px',
-        color: '#fff',
+        padding: '26px 32px',
+        color: '#FFFFFF',
         marginBottom: 24,
         display: 'flex',
         alignItems: 'center',
@@ -327,15 +418,26 @@ export function CegsMeetDashboard({ db, save, user }) {
         boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
       }}>
         <div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(59, 130, 246, 0.2)', color: '#93C5FD', padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'rgba(59, 130, 246, 0.2)',
+            color: '#93C5FD',
+            padding: '4px 10px',
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 800,
+            marginBottom: 8
+          }}>
             <Video size={14} />
-            <span>CEGS MEET PLATFORM</span>
+            <span>OFFICIAL GOOGLE MEET INTEGRATION</span>
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, letterSpacing: '-0.5px' }}>
-            Meeting Scheduler & Video Conferencing
+            Meeting Scheduler & Google Meet
           </h1>
           <p style={{ fontSize: 13, color: '#94A3B8', margin: '6px 0 0 0' }}>
-            Host secure video meetings, collaborate with live screen sharing, chat, and automated attendance tracking.
+            Schedule meetings, invite employees from directory, auto-generate official Google Meet spaces, and track attendance.
           </p>
         </div>
 
@@ -343,24 +445,26 @@ export function CegsMeetDashboard({ db, save, user }) {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             type="button"
+            disabled={isSubmitting}
             onClick={handleStartInstant}
             style={{
               background: '#2563EB',
-              color: '#fff',
+              color: '#FFFFFF',
               border: 'none',
-              padding: '10px 18px',
+              padding: '11px 20px',
               borderRadius: 12,
               fontSize: 13.5,
               fontWeight: 800,
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)'
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
+              opacity: isSubmitting ? 0.7 : 1,
             }}
           >
             <Video size={16} />
-            <span>Instant Meeting</span>
+            <span>Instant Google Meet</span>
           </button>
 
           <button
@@ -368,9 +472,9 @@ export function CegsMeetDashboard({ db, save, user }) {
             onClick={() => setCreateModalOpen(true)}
             style={{
               background: '#0F766E',
-              color: '#fff',
+              color: '#FFFFFF',
               border: 'none',
-              padding: '10px 18px',
+              padding: '11px 20px',
               borderRadius: 12,
               fontSize: 13.5,
               fontWeight: 800,
@@ -378,12 +482,112 @@ export function CegsMeetDashboard({ db, save, user }) {
               alignItems: 'center',
               gap: 8,
               cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(15, 118, 110, 0.3)'
+              boxShadow: '0 4px 14px rgba(15, 118, 110, 0.35)'
             }}
           >
             <Plus size={16} />
             <span>Schedule Meeting</span>
           </button>
+        </div>
+      </div>
+
+      {/* ─── GOOGLE INTEGRATION STATUS CALLOUT ─────────────────── */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid #E2E8F0',
+        borderRadius: 16,
+        padding: '14px 20px',
+        marginBottom: 24,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 12,
+        boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: googleStatus.connected ? '#ECFDF5' : '#FEF3C7',
+            color: googleStatus.connected ? '#059669' : '#D97706',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 900
+          }}>
+            <Shield size={18} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A' }}>
+                Google Workspace / Meet API
+              </span>
+              <span style={{
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '2px 8px',
+                borderRadius: 6,
+                background: googleStatus.connected ? '#D1FAE5' : '#FEF3C7',
+                color: googleStatus.connected ? '#065F46' : '#B45309'
+              }}>
+                {googleStatus.connected ? '● CONNECTED' : 'NOT CONNECTED'}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+              {googleStatus.connected
+                ? `Active Account: ${googleStatus.email || 'Configured via Google OAuth'}`
+                : 'Connect a Google Account to generate official Google Meet conference links automatically.'}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          {googleStatus.connected ? (
+            canManage && (
+              <button
+                type="button"
+                onClick={handleDisconnectGoogle}
+                style={{
+                  background: '#F8FAFC',
+                  border: '1px solid #CBD5E1',
+                  color: '#64748B',
+                  borderRadius: 8,
+                  padding: '7px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+              >
+                <LogOut size={13} />
+                <span>Disconnect</span>
+              </button>
+            )
+          ) : (
+            <a
+              href="/api/meet/google/auth"
+              style={{
+                background: '#2563EB',
+                color: '#FFFFFF',
+                borderRadius: 8,
+                padding: '8px 16px',
+                fontSize: 12.5,
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                textDecoration: 'none',
+                boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)'
+              }}
+            >
+              <ExternalLink size={14} />
+              <span>Connect with Google</span>
+            </a>
+          )}
         </div>
       </div>
 
@@ -394,27 +598,27 @@ export function CegsMeetDashboard({ db, save, user }) {
         gap: 16,
         marginBottom: 24
       }}>
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Meetings</div>
           <div style={{ fontSize: 26, fontWeight: 900, color: '#0F172A', marginTop: 4 }}>{stats.totalMeetings}</div>
         </div>
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Upcoming / Live</div>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Upcoming / Scheduled</div>
           <div style={{ fontSize: 26, fontWeight: 900, color: '#2563EB', marginTop: 4 }}>{stats.upcomingCount}</div>
         </div>
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Completed</div>
           <div style={{ fontSize: 26, fontWeight: 900, color: '#059669', marginTop: 4 }}>{stats.completedCount}</div>
         </div>
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Conferencing Time</div>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Scheduled Mins</div>
           <div style={{ fontSize: 26, fontWeight: 900, color: '#6366F1', marginTop: 4 }}>{stats.totalMinutes} <span style={{ fontSize: 14, fontWeight: 600 }}>mins</span></div>
         </div>
       </div>
 
       {/* ─── QUICK JOIN BAR & TAB CONTROLS ─────────────────────── */}
       <div style={{
-        background: '#fff',
+        background: '#FFFFFF',
         border: '1px solid #E2E8F0',
         borderRadius: 16,
         padding: '14px 20px',
@@ -442,7 +646,7 @@ export function CegsMeetDashboard({ db, save, user }) {
                 onClick={() => setActiveTab(tab.id)}
                 style={{
                   background: isActive ? '#0F172A' : '#F1F5F9',
-                  color: isActive ? '#fff' : '#475569',
+                  color: isActive ? '#FFFFFF' : '#475569',
                   border: 'none',
                   borderRadius: 10,
                   padding: '8px 14px',
@@ -466,7 +670,7 @@ export function CegsMeetDashboard({ db, save, user }) {
         <form onSubmit={handleQuickJoin} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             type="text"
-            placeholder="Enter meeting code..."
+            placeholder="Enter Google Meet code or URL..."
             value={quickJoinCode}
             onChange={(e) => {
               setQuickJoinCode(e.target.value);
@@ -474,76 +678,103 @@ export function CegsMeetDashboard({ db, save, user }) {
             }}
             style={{
               background: '#F8FAFC',
-              border: '1px solid #CBD5E1',
+              border: quickJoinError ? '1px solid #EF4444' : '1px solid #CBD5E1',
               borderRadius: 10,
               padding: '8px 14px',
-              fontSize: 13,
+              fontSize: 12.5,
+              width: 250,
               outline: 'none',
-              width: 190
+              fontFamily: 'JetBrains Mono, monospace'
             }}
           />
           <button
             type="submit"
             style={{
-              background: '#2563EB',
-              color: '#fff',
+              background: '#0F172A',
+              color: '#FFFFFF',
               border: 'none',
               borderRadius: 10,
               padding: '8px 16px',
-              fontSize: 13,
+              fontSize: 12.5,
               fontWeight: 800,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
             }}
           >
-            Join
+            <span>Join</span>
+            <ExternalLink size={13} />
           </button>
         </form>
       </div>
 
       {quickJoinError && (
-        <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#991B1B', padding: '8px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700, marginBottom: 16 }}>
+        <div style={{ color: '#EF4444', fontSize: 12, fontWeight: 700, marginBottom: 16, paddingLeft: 4 }}>
           {quickJoinError}
         </div>
       )}
 
-      {/* ─── CALENDAR PICKER (when activeTab === 'calendar') ──── */}
+      {/* ─── CALENDAR PICKER (WHEN CALENDAR TAB ACTIVE) ─────────── */}
       {activeTab === 'calendar' && (
         <div style={{
-          background: '#fff',
+          background: '#FFFFFF',
           border: '1px solid #E2E8F0',
           borderRadius: 16,
           padding: 16,
           marginBottom: 20,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 12
+          gap: 16,
+          flexWrap: 'wrap'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontWeight: 800, fontSize: 14, color: '#1E293B' }}>Select Calendar Date:</span>
-            <input
-              type="date"
-              value={calendarDate}
-              onChange={(e) => setCalendarDate(e.target.value)}
-              style={{
-                border: '1px solid #CBD5E1',
-                borderRadius: 8,
-                padding: '6px 12px',
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#0F172A'
-              }}
-            />
+          <div style={{ fontWeight: 800, fontSize: 13, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <CalendarIcon size={16} color="#2563EB" />
+            <span>Select Date:</span>
           </div>
-          <div style={{ fontSize: 12.5, color: '#64748B', fontWeight: 600 }}>
-            Showing scheduled sessions for {calendarDate}
-          </div>
+          <input
+            type="date"
+            value={calendarDate}
+            onChange={(e) => setCalendarDate(e.target.value)}
+            style={{
+              border: '1px solid #CBD5E1',
+              borderRadius: 8,
+              padding: '6px 12px',
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#0F172A'
+            }}
+          />
+          <span style={{ fontSize: 12, color: '#64748B' }}>
+            Showing meetings scheduled for <strong>{formatDateDMY(calendarDate)}</strong>
+          </span>
         </div>
       )}
 
-      {/* ─── MEETINGS LIST ────────────────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* ─── SEARCH FILTER ─────────────────────────────────────── */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ position: 'relative', maxWidth: 360 }}>
+          <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: 12, top: 11 }} />
+          <input
+            type="text"
+            placeholder="Search meetings by title, ID or host..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              background: '#FFFFFF',
+              border: '1px solid #E2E8F0',
+              borderRadius: 10,
+              padding: '8px 12px 8px 36px',
+              fontSize: 12.5,
+              outline: 'none'
+            }}
+          />
+        </div>
+      </div>
+
+      {/* ─── MEETINGS LIST CONTAINER ───────────────────────────── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {filteredMeetings.map((meet) => {
           const isLive = meet.status === 'in_progress';
           const isCompleted = meet.status === 'completed';
@@ -554,7 +785,7 @@ export function CegsMeetDashboard({ db, save, user }) {
             <div
               key={meet._id || meet.meeting_id}
               style={{
-                background: '#fff',
+                background: '#FFFFFF',
                 border: isLive ? '2px solid #10B981' : '1px solid #E2E8F0',
                 borderRadius: 16,
                 padding: '18px 24px',
@@ -600,9 +831,23 @@ export function CegsMeetDashboard({ db, save, user }) {
                     </span>
                   </div>
 
-                  {meet.description && (
+                  {meet.google_meet_url && (
+                    <div style={{ fontSize: 12, color: '#2563EB', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span>Google Meet:</span>
+                      <a
+                        href={meet.google_meet_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}
+                      >
+                        {meet.google_meet_url}
+                      </a>
+                    </div>
+                  )}
+
+                  {(meet.agenda || meet.description) && (
                     <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 4 }}>
-                      {meet.description}
+                      {meet.agenda || meet.description}
                     </div>
                   )}
 
@@ -630,7 +875,7 @@ export function CegsMeetDashboard({ db, save, user }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  onClick={() => copyMeetingUrl(meet.meeting_id)}
+                  onClick={() => copyMeetingUrl(meet)}
                   style={{
                     background: '#F8FAFC',
                     border: '1px solid #CBD5E1',
@@ -646,16 +891,16 @@ export function CegsMeetDashboard({ db, save, user }) {
                   }}
                 >
                   {copiedId === meet.meeting_id ? <Check size={14} /> : <Copy size={14} />}
-                  <span>{copiedId === meet.meeting_id ? 'Copied' : 'Invite Link'}</span>
+                  <span>{copiedId === meet.meeting_id ? 'Copied' : 'Copy Meet Link'}</span>
                 </button>
 
-                {!isCancelled && !isCompleted && (
+                {!isCancelled && (
                   <button
                     type="button"
-                    onClick={() => setActiveMeetingRoom(meet.meeting_id)}
+                    onClick={() => handleJoinGoogleMeet(meet)}
                     style={{
-                      background: isLive ? '#10B981' : '#2563EB',
-                      color: '#fff',
+                      background: 'linear-gradient(135deg, #16A34A 0%, #15803D 100%)',
+                      color: '#FFFFFF',
                       border: 'none',
                       borderRadius: 8,
                       padding: '8px 18px',
@@ -665,11 +910,12 @@ export function CegsMeetDashboard({ db, save, user }) {
                       alignItems: 'center',
                       gap: 6,
                       cursor: 'pointer',
-                      boxShadow: '0 4px 12px rgba(37,99,235,0.3)'
+                      boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)'
                     }}
                   >
                     <Video size={14} />
-                    <span>{isLive ? 'Join Live Room' : 'Start / Join'}</span>
+                    <span>Join Google Meet</span>
+                    <ExternalLink size={13} />
                   </button>
                 )}
 
@@ -722,7 +968,7 @@ export function CegsMeetDashboard({ db, save, user }) {
 
         {filteredMeetings.length === 0 && !loading && (
           <div style={{
-            background: '#fff',
+            background: '#FFFFFF',
             borderRadius: 16,
             border: '1px dashed #CBD5E1',
             padding: 40,
@@ -737,15 +983,15 @@ export function CegsMeetDashboard({ db, save, user }) {
               {activeTab === 'upcoming'
                 ? 'You have no upcoming scheduled meetings.'
                 : activeTab === 'calendar'
-                ? `No meetings scheduled on ${calendarDate}.`
-                : 'No meetings record under this category.'}
+                  ? `No meetings scheduled on ${formatDateDMY(calendarDate)}.`
+                  : 'No meetings record under this category.'}
             </p>
             <button
               type="button"
               onClick={() => setCreateModalOpen(true)}
               style={{
                 background: '#2563EB',
-                color: '#fff',
+                color: '#FFFFFF',
                 border: 'none',
                 borderRadius: 10,
                 padding: '8px 16px',
@@ -754,7 +1000,7 @@ export function CegsMeetDashboard({ db, save, user }) {
                 cursor: 'pointer'
               }}
             >
-              + Schedule a Meeting
+              + Schedule a Google Meet
             </button>
           </div>
         )}
@@ -774,7 +1020,7 @@ export function CegsMeetDashboard({ db, save, user }) {
           padding: 16
         }}>
           <div style={{
-            background: '#fff',
+            background: '#FFFFFF',
             borderRadius: 20,
             width: '100%',
             maxWidth: 620,
@@ -785,8 +1031,8 @@ export function CegsMeetDashboard({ db, save, user }) {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottom: '1px solid #E2E8F0', paddingBottom: 14 }}>
               <div>
-                <h3 style={{ fontSize: 18, fontWeight: 900, color: '#0F172A', margin: 0 }}>Schedule CEGS Meeting</h3>
-                <p style={{ fontSize: 12.5, color: '#64748B', margin: '4px 0 0 0' }}>Create room, configure participant access & dispatch invitations</p>
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: '#0F172A', margin: 0 }}>Schedule Google Meet</h3>
+                <p style={{ fontSize: 12.5, color: '#64748B', margin: '4px 0 0 0' }}>Creates a genuine Google Meet space and dispatches invitations</p>
               </div>
               <button
                 type="button"
@@ -813,14 +1059,28 @@ export function CegsMeetDashboard({ db, save, user }) {
                 />
               </div>
 
+              {/* Agenda */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                  Meeting Agenda
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Discuss open positions, client requirements, onboarding status"
+                  value={createForm.agenda}
+                  onChange={(e) => setCreateForm({ ...createForm, agenda: e.target.value })}
+                  style={{ width: '100%', border: '1px solid #CBD5E1', borderRadius: 10, padding: 10, fontSize: 13, outline: 'none' }}
+                />
+              </div>
+
               {/* Description */}
               <div>
                 <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                  Description / Agenda (Optional)
+                  Additional Notes (Optional)
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Brief meeting notes or agenda items..."
+                  placeholder="Brief meeting context or prep materials..."
                   value={createForm.description}
                   onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
                   style={{ width: '100%', border: '1px solid #CBD5E1', borderRadius: 10, padding: 10, fontSize: 13, outline: 'none', resize: 'vertical' }}
@@ -858,52 +1118,21 @@ export function CegsMeetDashboard({ db, save, user }) {
                   >
                     <option value={15}>15 Minutes</option>
                     <option value={30}>30 Minutes</option>
-                    <option value={45}>45 Minutes</option>
-                    <option value={60}>1 Hour</option>
-                    <option value={90}>1.5 Hours</option>
+                    <option value={45}>45 Minutes (Recommended)</option>
+                    <option value={60}>60 Minutes (Max Free Plan)</option>
                   </select>
-                </div>
-              </div>
-
-              {/* Privacy Setting */}
-              <div>
-                <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                  Meeting Privacy & Access Control
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                  {[
-                    { id: 'internal', label: 'Internal (All Staff)', desc: 'Any CEGS employee with link' },
-                    { id: 'department', label: 'Department Only', desc: 'Designated department teams' },
-                    { id: 'private', label: 'Private (Invite Only)', desc: 'Only explicitly invited users' },
-                  ].map(opt => (
-                    <div
-                      key={opt.id}
-                      onClick={() => setCreateForm({ ...createForm, privacy: opt.id })}
-                      style={{
-                        border: createForm.privacy === opt.id ? '2px solid #2563EB' : '1px solid #CBD5E1',
-                        background: createForm.privacy === opt.id ? '#EFF6FF' : '#F8FAFC',
-                        borderRadius: 10,
-                        padding: 10,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <div style={{ fontWeight: 800, fontSize: 12, color: '#0F172A' }}>{opt.label}</div>
-                      <div style={{ fontSize: 10.5, color: '#64748B', marginTop: 3 }}>{opt.desc}</div>
-                    </div>
-                  ))}
                 </div>
               </div>
 
               {/* Participant Selection from Employee Directory */}
               <div>
                 <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
-                  Invite Participants ({createForm.participant_user_ids.length} selected)
+                  Invite Employees ({createForm.participant_user_ids.length} selected)
                 </label>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                   <input
                     type="text"
-                    placeholder="Search employee by name or role..."
+                    placeholder="Search employee by name or designation..."
                     value={participantSearch}
                     onChange={(e) => setParticipantSearch(e.target.value)}
                     style={{ flex: 1, border: '1px solid #CBD5E1', borderRadius: 8, padding: '7px 12px', fontSize: 12.5 }}
@@ -964,67 +1193,53 @@ export function CegsMeetDashboard({ db, save, user }) {
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#2563EB', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {(emp.name?.[0] || 'U').toUpperCase()}
+                            <input type="checkbox" checked={isSelected} readOnly />
+                            <div>
+                              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>{emp.name}</div>
+                              <div style={{ fontSize: 10.5, color: '#64748B' }}>{emp.designation || emp.title || 'Staff'}</div>
                             </div>
-                            <span style={{ fontSize: 12.5, fontWeight: 600, color: '#1E293B' }}>{emp.name}</span>
-                            <span style={{ fontSize: 11, color: '#64748B' }}>({emp.designation || emp.title || emp.role})</span>
                           </div>
-                          <input type="checkbox" checked={isSelected} readOnly style={{ width: 16, height: 16 }} />
+                          <span style={{ fontSize: 11, color: '#94A3B8' }}>{emp.email}</span>
                         </div>
                       );
                     })}
                 </div>
               </div>
 
-              {/* Permissions & Security Toggles */}
-              <div style={{ background: '#F8FAFC', borderRadius: 10, padding: 12, border: '1px solid #E2E8F0' }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 8 }}>Permissions & Security</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#1E293B', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={createForm.allow_screen_share}
-                      onChange={(e) => setCreateForm({ ...createForm, allow_screen_share: e.target.checked })}
-                      style={{ width: 16, height: 16 }}
-                    />
-                    <span>Allow Screen Sharing</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#1E293B', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={createForm.allow_chat}
-                      onChange={(e) => setCreateForm({ ...createForm, allow_chat: e.target.checked })}
-                      style={{ width: 16, height: 16 }}
-                    />
-                    <span>Allow In-Meeting Chat</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#1E293B', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={createForm.mute_on_entry}
-                      onChange={(e) => setCreateForm({ ...createForm, mute_on_entry: e.target.checked })}
-                      style={{ width: 16, height: 16 }}
-                    />
-                    <span>Mute Mics on Entry</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: 10, marginTop: 10, justifyContent: 'flex-end' }}>
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10, borderTop: '1px solid #E2E8F0', paddingTop: 16 }}>
                 <button
                   type="button"
                   onClick={() => setCreateModalOpen(false)}
-                  style={{ background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  style={{
+                    background: '#F1F5F9',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 10,
+                    padding: '9px 18px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 22px', fontSize: 13.5, fontWeight: 800, cursor: 'pointer' }}
+                  disabled={isSubmitting}
+                  style={{
+                    background: '#2563EB',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '9px 22px',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
+                    opacity: isSubmitting ? 0.7 : 1,
+                  }}
                 >
-                  Create & Dispatch Invites
+                  {isSubmitting ? 'Creating Google Meet...' : 'Create & Send Invitations'}
                 </button>
               </div>
             </form>
@@ -1032,7 +1247,7 @@ export function CegsMeetDashboard({ db, save, user }) {
         </div>
       )}
 
-      {/* ─── MODAL 2: ATTENDANCE & PARTICIPATION REPORT ──────── */}
+      {/* ─── MODAL 2: ATTENDANCE & PARTICIPATION AUDIT LOGS ───── */}
       {attendanceModalMeeting && (
         <div style={{
           position: 'fixed',
@@ -1046,7 +1261,7 @@ export function CegsMeetDashboard({ db, save, user }) {
           padding: 16
         }}>
           <div style={{
-            background: '#fff',
+            background: '#FFFFFF',
             borderRadius: 20,
             width: '100%',
             maxWidth: 680,
@@ -1055,14 +1270,14 @@ export function CegsMeetDashboard({ db, save, user }) {
             padding: 24,
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, borderBottom: '1px solid #E2E8F0', paddingBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #E2E8F0', paddingBottom: 12 }}>
               <div>
-                <h3 style={{ fontSize: 17, fontWeight: 900, color: '#0F172A', margin: 0 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 900, color: '#0F172A', margin: 0 }}>
                   Meeting Attendance Report
                 </h3>
-                <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 4 }}>
+                <p style={{ fontSize: 12.5, color: '#64748B', margin: '4px 0 0 0' }}>
                   {attendanceModalMeeting.title} · ID: {attendanceModalMeeting.meeting_id}
-                </div>
+                </p>
               </div>
               <button
                 type="button"
@@ -1081,33 +1296,31 @@ export function CegsMeetDashboard({ db, save, user }) {
 
             {!loadingAttendance && attendanceData && (
               <div>
-                {/* Stats row */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
-                  <div style={{ background: '#F8FAFC', borderRadius: 10, padding: 12, border: '1px solid #E2E8F0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Invited</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                  <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 10, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Invited</div>
                     <div style={{ fontSize: 20, fontWeight: 800, color: '#0F172A' }}>{attendanceData.participantsCount}</div>
                   </div>
-                  <div style={{ background: '#ECFDF5', borderRadius: 10, padding: 12, border: '1px solid #A7F3D0', textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase' }}>Attended</div>
+                  <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 10, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Joined Call</div>
                     <div style={{ fontSize: 20, fontWeight: 800, color: '#059669' }}>{attendanceData.joinedCount}</div>
                   </div>
-                  <div style={{ background: '#EFF6FF', borderRadius: 10, padding: 12, border: '1px solid #BFDBFE', textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#1D4ED8', textTransform: 'uppercase' }}>Status</div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: '#1D4ED8', textTransform: 'capitalize', marginTop: 4 }}>
+                  <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 10, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Status</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#2563EB', textTransform: 'capitalize', marginTop: 3 }}>
                       {attendanceData.status}
                     </div>
                   </div>
                 </div>
 
-                {/* Table */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                   <thead>
                     <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #CBD5E1', textAlign: 'left' }}>
-                      <th style={{ padding: 10 }}>Participant</th>
-                      <th style={{ padding: 10 }}>Role</th>
-                      <th style={{ padding: 10 }}>Joined?</th>
-                      <th style={{ padding: 10 }}>Duration</th>
-                      <th style={{ padding: 10 }}>First Joined</th>
+                      <th style={{ padding: 10, fontWeight: 800, color: '#334155' }}>Employee</th>
+                      <th style={{ padding: 10, fontWeight: 800, color: '#334155' }}>Role</th>
+                      <th style={{ padding: 10, fontWeight: 800, color: '#334155' }}>Attended?</th>
+                      <th style={{ padding: 10, fontWeight: 800, color: '#334155' }}>Duration</th>
+                      <th style={{ padding: 10, fontWeight: 800, color: '#334155' }}>First Join</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1157,3 +1370,4 @@ export function CegsMeetDashboard({ db, save, user }) {
   );
 }
 
+export default CegsMeetDashboard;

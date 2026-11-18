@@ -4,10 +4,12 @@ import Meeting from '@/lib/models/Meeting';
 import User from '@/lib/models/User';
 import { getAuthUser } from '@/lib/auth';
 import { sendMeetingNotifications } from '@/lib/meet-notifications';
+import { createGoogleMeetSpace } from '@/lib/google-meet';
 
 export const dynamic = 'force-dynamic';
 
-function generateMeetingId() {
+function generateMeetingId(code = '') {
+  if (code && /^[a-z0-9-]+$/i.test(code)) return code.toLowerCase();
   const p1 = Math.random().toString(36).substring(2, 5);
   const p2 = Math.random().toString(36).substring(2, 6);
   const p3 = Math.random().toString(36).substring(2, 5);
@@ -35,7 +37,7 @@ export async function GET(request) {
     const isPrivileged = ['admin', 'super_admin'].includes(authUser.role);
     const userObjectId = authUser.id;
 
-    // Base query: Privileged users see all company meetings; others see public/internal OR meetings they host or participate in
+    // Privileged users see all company meetings; others see public/internal or meetings they are in
     let query = {};
     if (!isPrivileged) {
       query.$or = [
@@ -68,12 +70,13 @@ export async function GET(request) {
       meetings = meetings.filter(m =>
         m.title.toLowerCase().includes(search) ||
         m.meeting_id.toLowerCase().includes(search) ||
+        (m.google_meet_url && m.google_meet_url.toLowerCase().includes(search)) ||
         m.host_name.toLowerCase().includes(search) ||
         (m.description && m.description.toLowerCase().includes(search))
       );
     }
 
-    // Calculate aggregated statistics for current user/company
+    // Aggregated statistics
     const allUserMeetings = await Meeting.find(
       isPrivileged
         ? {}
@@ -113,7 +116,7 @@ export async function GET(request) {
 
 /**
  * POST /api/meet
- * Create an instant or scheduled meeting.
+ * Create a genuine Google Meet meeting space and save meeting metadata.
  */
 export async function POST(request) {
   try {
@@ -127,6 +130,7 @@ export async function POST(request) {
     const {
       title,
       description = '',
+      agenda = '',
       type = 'scheduled',
       scheduled_date,
       scheduled_start_time,
@@ -134,10 +138,6 @@ export async function POST(request) {
       privacy = 'internal',
       allowed_departments = [],
       participant_user_ids = [],
-      waiting_room_enabled = false,
-      allow_screen_share = true,
-      allow_chat = true,
-      mute_on_entry = false,
     } = body;
 
     if (!title || !title.trim()) {
@@ -151,8 +151,29 @@ export async function POST(request) {
     const effectiveDate = isInstant ? todayIso : (scheduled_date || todayIso);
     const effectiveTime = isInstant ? nowTimeStr : (scheduled_start_time || nowTimeStr);
 
-    const meetingId = generateMeetingId();
-    const roomName = `cegs-room-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    // Compute start & end ISO strings for Google Meet / Calendar
+    const startIso = new Date(`${effectiveDate}T${effectiveTime}:00`).toISOString();
+    const endIso = new Date(new Date(startIso).getTime() + (Number(duration_minutes) || 30) * 60000).toISOString();
+
+    // 1. Create real Google Meet space via official API
+    let googleMeetResult;
+    try {
+      googleMeetResult = await createGoogleMeetSpace({
+        title: title.trim(),
+        userId: authUser.id,
+        startIso,
+        endIso,
+      });
+    } catch (googleErr) {
+      console.error('[Google Meet Creation Error]:', googleErr.message);
+      return NextResponse.json({
+        error: `Could not create Google Meet space: ${googleErr.message}`,
+        details: 'Please ensure your Google account is connected under CEGS Meet Settings, or check that GOOGLE_CLIENT_ID and GOOGLE_REFRESH_TOKEN are valid.',
+      }, { status: 400 });
+    }
+
+    const { googleMeetUrl, googleMeetSpaceName, googleMeetCode } = googleMeetResult;
+    const meetingId = generateMeetingId(googleMeetCode);
 
     // Resolve host details
     const hostUser = await User.findById(authUser.id).lean();
@@ -164,7 +185,6 @@ export async function POST(request) {
       ? participant_user_ids.filter(Boolean)
       : [];
 
-    // If departments selected, auto-add department members
     if (allowed_departments && allowed_departments.length > 0) {
       const deptUsers = await User.find({
         department_id: { $in: allowed_departments },
@@ -178,13 +198,12 @@ export async function POST(request) {
       });
     }
 
-    // Load full user details for participants
     const participantUsers = await User.find({
       _id: { $in: resolvedParticipantIds }
     }).lean();
 
     const participantsList = [
-      // Always include host as host role
+      // Include host
       {
         user_id: authUser.id,
         name: hostName,
@@ -217,9 +236,13 @@ export async function POST(request) {
 
     const meeting = await Meeting.create({
       meeting_id: meetingId,
-      room_name: roomName,
+      room_name: googleMeetCode || meetingId,
+      google_meet_url: googleMeetUrl,
+      google_meet_space_name: googleMeetSpaceName,
+      google_meet_code: googleMeetCode,
       title: title.trim(),
       description: description.trim(),
+      agenda: agenda.trim(),
       type: isInstant ? 'instant' : 'scheduled',
       status: isInstant ? 'in_progress' : 'scheduled',
       privacy,
@@ -231,26 +254,22 @@ export async function POST(request) {
       scheduled_start_time: effectiveTime,
       duration_minutes: Number(duration_minutes) || 30,
       actual_start_time: isInstant ? new Date() : null,
-      waiting_room_enabled: Boolean(waiting_room_enabled),
-      allow_screen_share: Boolean(allow_screen_share),
-      allow_chat: Boolean(allow_chat),
-      mute_on_entry: Boolean(mute_on_entry),
       participants: participantsList,
       participant_user_ids: participantsList.map(p => p.user_id),
     });
 
-    // Send notifications to all invited participants
+    // Send in-app notifications with Google Meet link
     const inviteeIds = participantsList
       .map(p => p.user_id)
       .filter(id => String(id) !== String(authUser.id));
 
     if (inviteeIds.length > 0) {
       const notifTitle = isInstant
-        ? `🔴 Instant CEGS Meet: ${meeting.title}`
-        : `📅 CEGS Meet Invitation: ${meeting.title}`;
+        ? `🔴 Instant Google Meet: ${meeting.title}`
+        : `📅 Google Meet Invitation: ${meeting.title}`;
       const notifMsg = isInstant
-        ? `${hostName} has started an instant video meeting "${meeting.title}". Click to join now!`
-        : `You are invited by ${hostName} to "${meeting.title}" on ${effectiveDate} at ${effectiveTime}.`;
+        ? `${hostName} has started an instant Google Meet "${meeting.title}". Link: ${googleMeetUrl}`
+        : `You are invited by ${hostName} to Google Meet "${meeting.title}" on ${effectiveDate} at ${effectiveTime}. Link: ${googleMeetUrl}`;
 
       sendMeetingNotifications({
         recipientIds: inviteeIds,
@@ -265,11 +284,11 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       meeting,
-      message: isInstant ? 'Instant meeting created & live!' : 'Meeting successfully scheduled!',
+      googleMeetUrl,
+      message: isInstant ? 'Instant Google Meet created!' : 'Google Meet scheduled successfully!',
     }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/meet] Error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
-

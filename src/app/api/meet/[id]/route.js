@@ -3,7 +3,6 @@ import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import Meeting from '@/lib/models/Meeting';
 import { getAuthUser } from '@/lib/auth';
-import { closeLiveKitRoom } from '@/lib/livekit';
 import { sendMeetingNotifications } from '@/lib/meet-notifications';
 
 export const dynamic = 'force-dynamic';
@@ -125,11 +124,6 @@ export async function PUT(request, { params }) {
       });
 
       await meeting.save();
-
-      // Close LiveKit room
-      if (meeting.room_name) {
-        closeLiveKitRoom(meeting.room_name).catch(e => console.warn('[LiveKit close warning]:', e));
-      }
 
       return NextResponse.json({ success: true, message: 'Meeting concluded for all participants', meeting });
     }

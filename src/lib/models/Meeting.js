@@ -22,7 +22,11 @@ const ParticipantSchema = new mongoose.Schema({
 
 const MeetingSchema = new mongoose.Schema({
   meeting_id: { type: String, required: true, unique: true, index: true },
-  room_name: { type: String, required: true, unique: true, index: true },
+  room_name: { type: String, default: '' },
+  google_meet_url: { type: String, default: '', index: true },
+  google_meet_space_name: { type: String, default: '' },
+  google_meet_code: { type: String, default: '', index: true },
+  agenda: { type: String, default: '' },
   title: { type: String, required: true },
   description: { type: String, default: '' },
   type: { type: String, enum: ['instant', 'scheduled'], default: 'scheduled' },
