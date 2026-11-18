@@ -72,8 +72,18 @@ export function verifyToken(token: string): AuthUserPayload | null {
 
 function extractCookie(cookieHeader: string | null, name: string): string | null {
   if (!cookieHeader) return null;
-  const matches = cookieHeader.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
-  return matches ? decodeURIComponent(matches[1].trim()) : null;
+  const parts = cookieHeader.split(';');
+  for (const part of parts) {
+    const [rawKey, ...rawVal] = part.trim().split('=');
+    if (rawKey === name) {
+      try {
+        return decodeURIComponent(rawVal.join('='));
+      } catch {
+        return rawVal.join('=');
+      }
+    }
+  }
+  return null;
 }
 
 export function getAuthUser(request: Request): AuthUserPayload | null {
