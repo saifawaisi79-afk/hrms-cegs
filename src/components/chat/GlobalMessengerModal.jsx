@@ -1650,7 +1650,7 @@ export function GlobalMessengerModal({
                               fontFamily: 'JetBrains Mono, monospace',
                             }}
                           >
-                            <span title={new Date(m.time).toLocaleDateString([], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}>
+                            <span title={new Date(m.time).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}>
                               <span style={{ opacity: 0.85, marginRight: 4, fontWeight: 700 }}>
                                 {formatMessageInlineDate(m.time)} ·
                               </span>
@@ -2224,7 +2224,7 @@ export function GlobalMessengerModal({
                 </div>
                 <div style={{ fontSize: 11, color: '#64748B', marginTop: 6 }}>
                   Created by <strong>{activeGroup.creatorName || 'Admin'}</strong> on{' '}
-                  {activeGroup.createdAt ? new Date(activeGroup.createdAt).toLocaleDateString() : 'Recent'}
+                  {activeGroup.createdAt ? new Date(activeGroup.createdAt).toLocaleDateString('en-GB') : 'Recent'}
                 </div>
               </div>
             </div>

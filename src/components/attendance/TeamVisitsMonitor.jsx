@@ -73,7 +73,7 @@ export function formatVisitDate(dateStr) {
   if (parts.length === 3) {
     const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     if (!isNaN(d.getTime())) {
-      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: '2-digit', year: 'numeric' });
+      return d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
     }
   }
   return dateStr;

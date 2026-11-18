@@ -4,6 +4,7 @@ import HRMSDocument from '@/lib/models/Document';
 import DocumentTemplate from '@/lib/models/DocumentTemplate';
 import User from '@/lib/models/User';
 import { getAuthUser, requireRole } from '@/lib/auth';
+import { formatDateDMY } from '@/lib/date-format';
 
 // POST /api/documents/generate
 export async function POST(request) {
@@ -28,8 +29,8 @@ export async function POST(request) {
     .replace(/\{\{name\}\}/g, user.name)
     .replace(/\{\{employee_id\}\}/g, user.employee_id)
     .replace(/\{\{designation\}\}/g, user.designation || '')
-    .replace(/\{\{joining_date\}\}/g, user.joining_date || '')
-    .replace(/\{\{date\}\}/g, new Date().toLocaleDateString());
+    .replace(/\{\{joining_date\}\}/g, formatDateDMY(user.joining_date) || '')
+    .replace(/\{\{date\}\}/g, new Date().toLocaleDateString('en-GB'));
 
   const doc = await HRMSDocument.create({
     user_id: user._id,

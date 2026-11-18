@@ -22,6 +22,7 @@ import {
   Users,
 } from 'lucide-react';
 import { normalizeCandidateDate, formatSheetDateDisplay } from '@/lib/candidate-dates';
+import { formatDateDMY } from '@/lib/date-format';
 
 const GLOBAL_API_BASE = '/api';
 
@@ -490,7 +491,7 @@ export function InvoiceApprovalsView() {
                       <td style={{ padding: '14px 18px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         {recApp.status === 'approved' ? (
                           <span
-                            title={`Approved by Mohammed raheel on ${recApp.approvedAt ? new Date(recApp.approvedAt).toLocaleDateString() : ''}\nNotes: ${recApp.notes || 'None'}`}
+                            title={`Approved by Mohammed raheel on ${recApp.approvedAt ? formatDateDMY(recApp.approvedAt) : ''}\nNotes: ${recApp.notes || 'None'}`}
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -548,7 +549,7 @@ export function InvoiceApprovalsView() {
                       <td style={{ padding: '14px 18px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         {saApp.status === 'approved' ? (
                           <span
-                            title={`Approved by Super Admin on ${saApp.approvedAt ? new Date(saApp.approvedAt).toLocaleDateString() : ''}\nNotes: ${saApp.notes || 'None'}`}
+                            title={`Approved by Super Admin on ${saApp.approvedAt ? formatDateDMY(saApp.approvedAt) : ''}\nNotes: ${saApp.notes || 'None'}`}
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -929,7 +930,7 @@ export function InvoiceApprovalsView() {
                     </div>
                     {analysisModal.approvals?.recruiter?.approvedAt && (
                       <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
-                        At: {new Date(analysisModal.approvals.recruiter.approvedAt).toLocaleString()}
+                        At: {formatDateDMY(analysisModal.approvals.recruiter.approvedAt)} {new Date(analysisModal.approvals.recruiter.approvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     )}
                     {analysisModal.approvals?.recruiter?.notes && (
@@ -946,7 +947,7 @@ export function InvoiceApprovalsView() {
                     </div>
                     {analysisModal.approvals?.superAdmin?.approvedAt && (
                       <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
-                        At: {new Date(analysisModal.approvals.superAdmin.approvedAt).toLocaleString()}
+                        At: {formatDateDMY(analysisModal.approvals.superAdmin.approvedAt)} {new Date(analysisModal.approvals.superAdmin.approvedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     )}
                     {analysisModal.approvals?.superAdmin?.notes && (

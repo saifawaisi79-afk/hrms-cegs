@@ -19,6 +19,7 @@ import {
   Target, Cake, Palmtree, Rocket, CircleDot, Timer
 } from 'lucide-react';
 import { isOversightOnly, getRecruiters } from '@/lib/nav';
+import { formatDateDMY } from '@/lib/date-format';
 import { employeeNamesMatch } from '@/lib/recruiter-names';
 import { WalkinsSelectionsSection } from '@/components/recruitment/WalkinsSelectionsSection';
 import { JoinerSheetSection } from '@/components/recruitment/JoinerSheetSection';
@@ -864,7 +865,7 @@ export function EmployeeQuickViewModal({ targetUser, currentUser, db, onClose, o
  </div>
  <div>
  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Date of Joining</div>
- <div style={{ fontSize: 13, fontWeight: 700 }}>{targetUser.joining_date || targetUser.joined || '2024-01-15'}</div>
+ <div style={{ fontSize: 13, fontWeight: 700 }}>{formatDateDMY(targetUser.joining_date || targetUser.joined || '2024-01-15')}</div>
  </div>
  </div>
 
@@ -3271,7 +3272,7 @@ export function EmployeesPage({ db, save, user, setView, setQuickViewUser, setCh
                       )}
                     </td>
                     <td style={{ fontSize: 13 }}>{u.title || u.designation}</td>
-                    <td style={{ fontSize: 13, color: 'var(--text-muted)' }}>{u.joined || u.joining_date}</td>
+                    <td style={{ fontSize: 13, color: 'var(--text-muted)' }}>{formatDateDMY(u.joined || u.joining_date)}</td>
                     <td>
                       <span className={`badge ${u.status === 'active' ? 'b-success' : u.status === 'on_leave' ? 'b-pending' : 'b-error'}`}>
                         <span className="badge-dot" />{u.status}
@@ -4918,7 +4919,7 @@ export function AttendancePage({ db, save, user }) {
                         const emp = (db.users || []).find(u => String(u.id) === String(a.uid || a.user_id) || String(u._id) === String(a.uid || a.user_id));
                         return (
                           <tr key={a.id}>
-                            <td style={{ fontWeight: 700, fontFamily: 'JetBrains Mono,monospace', fontSize: 13 }}>{a.date}</td>
+                            <td style={{ fontWeight: 700, fontFamily: 'JetBrains Mono,monospace', fontSize: 13 }}>{formatDateDMY(a.date)}</td>
                             {isAdmin && (
                               <td>
                                 <div className="emp-cell">
@@ -5471,7 +5472,7 @@ export function PayrollPage({ db, save, user, setView }) {
                         {myBreakdown.items.map(item => (
                           <tr key={item.index} style={{ borderBottom: '1px solid #F1F5F9', background: item.isDeducted ? '#FEF2F2' : '#FFFFFF' }}>
                             <td style={{ padding: '8px 10px', fontWeight: 700, color: item.isDeducted ? '#DC2626' : '#64748B' }}>{item.warningNum}</td>
-                            <td style={{ padding: '8px 10px', fontWeight: 700, whiteSpace: 'nowrap', color: '#1E293B' }}>{item.date}</td>
+                            <td style={{ padding: '8px 10px', fontWeight: 700, whiteSpace: 'nowrap', color: '#1E293B' }}>{formatDateDMY(item.date)}</td>
                             <td style={{ padding: '8px 10px' }}>
                               <span style={{ background: item.typeBg, color: item.typeColor, padding: '3px 8px', borderRadius: 6, fontWeight: 700, fontSize: 11 }}>
                                 {item.typeLabel}
@@ -5686,7 +5687,7 @@ export function PayrollPage({ db, save, user, setView }) {
                           {slipBreakdown.items.map(item => (
                             <tr key={item.index} style={{ borderBottom: '1px solid #F1F5F9', background: item.isDeducted ? '#FEF2F2' : '#FFFFFF' }}>
                               <td style={{ padding: '6px 8px', fontWeight: 700, color: item.isDeducted ? '#DC2626' : '#64748B' }}>{item.warningNum}</td>
-                              <td style={{ padding: '6px 8px', fontWeight: 600, whiteSpace: 'nowrap' }}>{item.date}</td>
+                              <td style={{ padding: '6px 8px', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatDateDMY(item.date)}</td>
                               <td style={{ padding: '6px 8px' }}>
                                 <span style={{ background: item.typeBg, color: item.typeColor, padding: '2px 5px', borderRadius: 4, fontWeight: 700, fontSize: 9.5 }}>
                                   {item.typeLabel}
@@ -5778,7 +5779,7 @@ export function PayrollPage({ db, save, user, setView }) {
                       {breakdown.items.map(item => (
                         <tr key={item.index} style={{ borderBottom: '1px solid #F1F5F9', background: item.isDeducted ? '#FEF2F2' : '#FFFFFF' }}>
                           <td style={{ padding: '8px 10px', fontWeight: 700, color: item.isDeducted ? '#DC2626' : '#64748B' }}>{item.warningNum}</td>
-                          <td style={{ padding: '8px 10px', fontWeight: 700, whiteSpace: 'nowrap', color: '#0F172A' }}>{item.date}</td>
+                          <td style={{ padding: '8px 10px', fontWeight: 700, whiteSpace: 'nowrap', color: '#0F172A' }}>{formatDateDMY(item.date)}</td>
                           <td style={{ padding: '8px 10px' }}>
                             <span style={{ background: item.typeBg, color: item.typeColor, padding: '3px 8px', borderRadius: 6, fontWeight: 700, fontSize: 10.5 }}>
                               {item.typeLabel}
@@ -5859,7 +5860,7 @@ export function TimesheetsPage({ db, save, user }) {
  const emp=db.users.find(u=>u.id===t.uid);
  return <tr key={t.id}>
  <td><div className="emp-cell"><img src={emp?.avatar} className="tbl-av" alt=""/>{emp?.name}</div></td>
- <td style={{fontSize:12,fontFamily:'JetBrains Mono,monospace'}}>{t.date}</td>
+ <td style={{fontSize:12,fontFamily:'JetBrains Mono,monospace'}}>{formatDateDMY(t.date)}</td>
  <td><span className="tag" style={{fontSize:11}}>{t.project}</span></td>
  <td style={{fontFamily:'Outfit,sans-serif',fontWeight:800,fontSize:16,color:'var(--amber-dark)'}}>{t.hours}h</td>
  <td style={{fontSize:13,maxWidth:200,color:'var(--text-secondary)'}}>{t.task}</td>
@@ -5999,7 +6000,7 @@ export function ExpensesPage({ db, save, user }) {
  <td style={{fontWeight:600,maxWidth:220}}>{e.title}</td>
  <td><span className="tag" style={{fontSize:11}}>{e.cat}</span></td>
  <td style={{fontFamily:'JetBrains Mono,monospace',fontWeight:800,fontSize:15}}>${parseFloat(e.amount).toLocaleString()}</td>
- <td style={{fontSize:12,color:'var(--text-muted)'}}>{e.date}</td>
+ <td style={{fontSize:12,color:'var(--text-muted)'}}>{formatDateDMY(e.date)}</td>
  <td><span className={`badge ${e.status==='approved'?'b-success':e.status==='rejected'?'b-error':'b-pending'}`}><span className="badge-dot"/>{e.status}</span></td>
  {isAdmin&&<td>
  {e.status==='pending'
@@ -6116,11 +6117,11 @@ export function DocumentsPage({ db, save, user }) {
  const issuer = (db.users || []).find(u => u.role === 'admin' || u.role === 'super_admin');
  if (!t || !emp) return;
 
- const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+ const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
  const body = t.body
  .replace(/\{\{NAME\}\}/g, emp.name)
  .replace(/\{\{EID\}\}/g, emp.eid || 'EMP-000')
- .replace(/\{\{JOIN\}\}/g, emp.joined || '2024-01-01')
+ .replace(/\{\{JOIN\}\}/g, formatDateDMY(emp.joined) || '01/01/2024')
  .replace(/\{\{TITLE\}\}/g, emp.title || 'Staff Member')
  .replace(/\{\{ISSUER\}\}/g, issuer?.name || 'HR Manager')
  .replace(/\{\{TODAY\}\}/g, today);
@@ -7088,7 +7089,7 @@ export function OnboardingPage({ db, save, user }) {
  {db.departments?.find(d => d.id === u.department_id)?.name || 'General Operations'}
  </div>
  </td>
- <td style={{ fontSize: 12, fontWeight: 700 }}>{u.joining_date || 'N/A'}</td>
+ <td style={{ fontSize: 12, fontWeight: 700 }}>{formatDateDMY(u.joining_date) || 'N/A'}</td>
  <td>
  <span className={`badge ${u.role === 'super_admin' ? 'b-error' : u.role === 'admin' ? 'b-pending' : 'b-success'}`} style={{ textTransform: 'uppercase', fontSize: 10 }}>
  {u.role}
@@ -8021,7 +8022,7 @@ export function UsersPage({ db, save, user }) {
  <td><span className={`badge ${u.role==='super_admin'?'b-purple':u.role==='admin'?'b-info':'b-gray'}`}><span className="badge-dot"/>{u.role.replace('_','')}</span></td>
  <td><span className={`badge ${u.status==='active'?'b-success':u.status==='on_leave'?'b-pending':'b-error'}`}><span className="badge-dot"/>{u.status.replace('_','')}</span></td>
  <td>{dept&&<span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:13}}><span style={{width:8,height:8,borderRadius:'50%',background:dept.color,display:'inline-block'}}/>{dept.name}</span>}</td>
- <td style={{fontSize:12,color:'var(--text-muted)',fontFamily:'JetBrains Mono,monospace'}}>{u.lastLogin?new Date(u.lastLogin).toLocaleDateString():'-'}</td>
+ <td style={{fontSize:12,color:'var(--text-muted)',fontFamily:'JetBrains Mono,monospace'}}>{u.lastLogin?formatDateDMY(u.lastLogin):'-'}</td>
  <td>
  <select className="form-input" style={{width:140,fontSize:12}} value={u.role} onChange={e=>changeRole(u.id,e.target.value)} disabled={u.id===user.id}>
  <option value="employee">Employee</option><option value="admin">Admin</option><option value="super_admin">Super Admin</option><option value="finance">Finance & Invoices</option><option value="IT_TEAM">IT Team</option>
@@ -12297,7 +12298,7 @@ export function ITTicketsPage({ db, save, user, setView }) {
  <tr key={t.id} style={{ background: overdue ? '#FFF5F5' : 'transparent' }}>
  <td>
  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 900, fontSize: 13, color: 'var(--accent)' }}>{t.id}</div>
- <div style={{ fontSize: 11, color: '#6B7280' }}>{new Date(t.created_at).toLocaleDateString()}</div>
+ <div style={{ fontSize: 11, color: '#6B7280' }}>{formatDateDMY(t.created_at)}</div>
  </td>
  <td>
  <div className="emp-cell">
@@ -13237,7 +13238,7 @@ export function MeetingSchedulerPage({ db, save, user }) {
  </td>
  <td style={{ padding: 12 }}>{meet.hostRole}</td>
  <td style={{ padding: 12, fontSize: 12 }}>{meet.subject}</td>
- <td style={{ padding: 12, fontSize: 11 }}>{meet.date} <br/>{meet.timeSlot}</td>
+ <td style={{ padding: 12, fontSize: 11 }}>{formatDateDMY(meet.date)} <br/>{meet.timeSlot}</td>
  <td style={{ padding: 12 }}>
  <span style={{
  padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700,
@@ -14619,7 +14620,7 @@ export function ProfilePage({ db, save, user }) {
  <div style={{ flex: 1, minWidth: 220 }}>
  <div style={{ fontSize: 16, fontWeight: 900, color: '#111827' }}>{formData.name}</div>
  <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', marginTop: 2 }}>{formData.title || 'Team Member'} · {formData.email}</div>
- <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', marginTop: 4 }}>ID: {formData.employee_id || '—'} · Joined: {formData.joining_date || '—'}</div>
+ <div style={{ fontSize: 11, fontWeight: 700, color: '#94A3B8', marginTop: 4 }}>ID: {formData.employee_id || '—'} · Joined: {formatDateDMY(formData.joining_date) || '—'}</div>
  <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
  <button 
  type="button" 

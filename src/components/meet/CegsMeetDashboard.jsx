@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { formatDateDMY } from '@/lib/date-format';
 import {
   Video,
   Plus,
@@ -278,8 +280,8 @@ export function CegsMeetDashboard({ db, save, user }) {
   // If user is currently in a live meeting, render full room!
   // -------------------------------------------------------------
   if (activeMeetingRoom) {
-    return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0B0F19' }}>
+    if (typeof document !== 'undefined') {
+      return createPortal(
         <CegsMeetRoom
           meetingId={activeMeetingRoom}
           user={user}
@@ -287,8 +289,19 @@ export function CegsMeetDashboard({ db, save, user }) {
             setActiveMeetingRoom(null);
             fetchMeetings();
           }}
-        />
-      </div>
+        />,
+        document.body
+      );
+    }
+    return (
+      <CegsMeetRoom
+        meetingId={activeMeetingRoom}
+        user={user}
+        onLeave={() => {
+          setActiveMeetingRoom(null);
+          fetchMeetings();
+        }}
+      />
     );
   }
 
@@ -596,7 +609,7 @@ export function CegsMeetDashboard({ db, save, user }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8, fontSize: 12, color: '#475569', flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <CalendarIcon size={13} color="#64748B" />
-                      <strong>{meet.scheduled_date}</strong> at <strong>{meet.scheduled_start_time}</strong>
+                      <strong>{formatDateDMY(meet.scheduled_date)}</strong> at <strong>{meet.scheduled_start_time}</strong>
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Clock size={13} color="#64748B" />
@@ -1128,7 +1141,7 @@ export function CegsMeetDashboard({ db, save, user }) {
                         </td>
                         <td style={{ padding: 10, color: '#64748B', fontSize: 11.5 }}>
                           {item.firstJoinedAt
-                            ? new Date(item.firstJoinedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            ? `${formatDateDMY(item.firstJoinedAt)} ${new Date(item.firstJoinedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                             : '—'}
                         </td>
                       </tr>

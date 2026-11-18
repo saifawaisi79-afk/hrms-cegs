@@ -10,6 +10,7 @@ import { BillRaisedSection } from './BillRaisedSection';
 import { BillClearedSection } from './BillClearedSection';
 import { TotalConsolidatedSection } from './TotalConsolidatedSection';
 import { sortItemsByCurrentMonthFirst, getInitialRaisedInvoices, saveRaisedInvoices, getInitialClearedInvoices, saveClearedInvoices } from '@/lib/finance-data';
+import { formatDateDMY } from '@/lib/date-format';
 import {
   Download,
   Plus,
@@ -881,7 +882,7 @@ function FiveSplashInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt,
       </div>
 
       <div style={{ textAlign: 'right', fontSize: 11.5, fontWeight: 700, marginBottom: 12 }}>
-        Date:{invoice.invoiceDate || 'xx/xx/xxxx.'}
+        Date: {formatDateDMY(invoice.invoiceDate) || 'xx/xx/xxxx'}
       </div>
 
       {/* TO / CLIENT SECTION */}
@@ -1040,7 +1041,7 @@ function AltruistInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, t
         </div>
         <div style={{ padding: '8px 12px', lineHeight: 1.6 }}>
           <div><strong>Serial No. of Invoice:</strong> {invoice.invoiceNo || '----.'}</div>
-          <div><strong>Date of Invoice:</strong> {invoice.invoiceDate || '------.'}</div>
+          <div><strong>Date of Invoice:</strong> {formatDateDMY(invoice.invoiceDate) || '------.'}</div>
         </div>
       </div>
 
@@ -1211,7 +1212,7 @@ function OnePointOneInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt
       </div>
 
       <div style={{ textAlign: 'right', fontSize: 11.5, fontWeight: 700, marginBottom: 12 }}>
-        Date: {invoice.invoiceDate || 'xx/xx/xxxx.'}
+        Date: {formatDateDMY(invoice.invoiceDate) || 'xx/xx/xxxx'}
       </div>
 
       {/* BILL TO */}
@@ -1347,7 +1348,7 @@ function RadicalMindsInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAm
       </div>
 
       <div style={{ textAlign: 'right', fontSize: 11.5, fontWeight: 700, marginBottom: 12 }}>
-        Date: {invoice.invoiceDate || '04/09/2025'}
+        Date: {formatDateDMY(invoice.invoiceDate) || '04/09/2025'}
       </div>
 
       {/* BILL TO */}
@@ -1489,13 +1490,13 @@ function IsonInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, total
             <strong>Invoice No.:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>{invoice.invoiceNo || 'INV-2026-ISON-01'}</span>
           </div>
           <div><strong>PO NO :</strong> {invoice.poNo || '—'}</div>
-          <div><strong>Date:</strong> {invoice.invoiceDate || 'xx/xx/xxxx.'}</div>
+          <div><strong>Date:</strong> {formatDateDMY(invoice.invoiceDate) || 'xx/xx/xxxx.'}</div>
           <div><strong>Due By:</strong> {invoice.dueDate || '30 days'}</div>
         </div>
         <div style={{ padding: '8px 12px', lineHeight: 1.6 }}>
           <div><strong>Mode of Transport:</strong> {invoice.modeOfTransport || '—'}</div>
           <div><strong>Vehicle No:</strong> {invoice.vehicleNo || '—'}</div>
-          <div><strong>Date & Time of Service:</strong> {invoice.dateTimeOfService || invoice.invoiceDate || '—'}</div>
+          <div><strong>Date & Time of Service:</strong> {invoice.dateTimeOfService || formatDateDMY(invoice.invoiceDate) || '—'}</div>
           <div><strong>Place of Service:</strong> <span style={{ fontWeight: 700 }}>{invoice.placeOfService || 'Bangalore'}</span></div>
         </div>
       </div>
@@ -1655,7 +1656,7 @@ function ModernInvoiceTemplate({ invoice, items, basicAmt, cgstAmt, sgstAmt, tot
             {invoice.invoiceNo || 'INV-001'}
           </div>
           <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
-            Date: <strong>{invoice.invoiceDate || '2026-10-15'}</strong> · Due: <strong>{invoice.dueDate || '30 days'}</strong>
+            Date: <strong>{formatDateDMY(invoice.invoiceDate || '2026-10-15')}</strong> · Due: <strong>{invoice.dueDate || '30 days'}</strong>
           </div>
         </div>
       </div>
@@ -2957,8 +2958,8 @@ export function FinanceInvoicesView() {
       'Amount (INR)': inv.amount || inv.basicAmount || 0,
       'Due Date': inv.dueDate || '—',
       'Status': inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
-      'Bill Raised Date': inv.invoiceDate || '—',
-      'Paid Date': inv.paidDate || '—',
+      'Bill Raised Date': formatDateDMY(inv.invoiceDate) || '—',
+      'Paid Date': formatDateDMY(inv.paidDate) || '—',
       'Notes': inv.notes || '',
     }));
 
@@ -2980,10 +2981,10 @@ export function FinanceInvoicesView() {
       'Client / Company': inv.client || '—',
       'Project / Milestone': inv.projectMilestone || 'Milestone Delivery',
       'Amount (INR)': inv.amount || inv.basicAmount || 0,
-      'Bill Raised Date': inv.invoiceDate || '—',
+      'Bill Raised Date': formatDateDMY(inv.invoiceDate) || '—',
       'Due Date / Term': inv.dueDate || '—',
       'Status': inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
-      'Paid Date': inv.paidDate || '—',
+      'Paid Date': formatDateDMY(inv.paidDate) || '—',
       'Notes': inv.notes || '',
     }));
 
@@ -3049,10 +3050,10 @@ export function FinanceInvoicesView() {
         'Client / Company': inv.client || '—',
         'Project / Milestone': inv.projectMilestone || 'Milestone Delivery',
         'Amount (INR)': inv.amount || inv.basicAmount || 0,
-        'Bill Raised Date': inv.invoiceDate || '—',
+        'Bill Raised Date': formatDateDMY(inv.invoiceDate) || '—',
         'Due Date / Term': inv.dueDate || '—',
         'Status': inv.status || (inv.stage === 'cleared' ? 'Paid' : 'Pending'),
-        'Paid Date': inv.paidDate || '—',
+        'Paid Date': formatDateDMY(inv.paidDate) || '—',
         'Notes': inv.notes || '',
       }));
 

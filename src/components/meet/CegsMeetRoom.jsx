@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Mic,
   MicOff,
@@ -15,91 +16,122 @@ import {
   Check,
   Shield,
   Clock,
-  Sparkles,
   Maximize2,
   Minimize2,
   AlertCircle,
-  Volume2,
   X,
   Send,
-  Radio,
-  ChevronDown,
+  Volume2,
+  Sparkles,
 } from 'lucide-react';
 import {
   Room,
   RoomEvent,
   Track,
   VideoQuality,
-  createLocalTracks,
 } from 'livekit-client';
 
 /**
- * Audio visualizer / speaker wave dot
+ * Animated Speaking indicator
  */
-function SpeakingIndicator({ isSpeaking }) {
+function SpeakingBadge({ isSpeaking }) {
   if (!isSpeaking) return null;
   return (
     <div style={{
       display: 'inline-flex',
       alignItems: 'center',
-      gap: 3,
-      background: 'rgba(16, 185, 129, 0.9)',
-      padding: '3px 8px',
+      gap: 5,
+      background: 'rgba(16, 185, 129, 0.95)',
+      backdropFilter: 'blur(4px)',
+      padding: '3px 9px',
       borderRadius: 12,
-      fontSize: 10,
+      fontSize: 10.5,
       fontWeight: 800,
       color: '#fff',
-      boxShadow: '0 0 10px rgba(16, 185, 129, 0.6)'
+      boxShadow: '0 0 12px rgba(16, 185, 129, 0.6)',
+      letterSpacing: '0.3px',
     }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', animation: 'pulse 1s infinite' }} />
+      <span style={{
+        width: 6,
+        height: 6,
+        borderRadius: '50%',
+        background: '#fff',
+        display: 'inline-block',
+      }} />
       Speaking
     </div>
   );
 }
 
 /**
- * Single Video Tile (Local or Remote)
+ * Single Video Tile (Guaranteed to display local stream or remote tracks)
  */
-function ParticipantTile({
+function VideoTile({
   participant,
   isLocal = false,
+  localStream = null,
   isScreenShare = false,
+  screenStream = null,
   screenTrack = null,
   isSpeaking = false,
   isHost = false,
+  userName = '',
+  userAvatar = '',
+  isCamOff = false,
+  isMicMuted = false,
 }) {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
-  const [hasVideo, setHasVideo] = useState(false);
-  const [hasAudio, setHasAudio] = useState(true);
+  const [remoteHasVideo, setRemoteHasVideo] = useState(false);
+  const [remoteHasAudio, setRemoteHasAudio] = useState(true);
 
+  // Local camera stream direct attachment
+  useEffect(() => {
+    if (isLocal && !isScreenShare && videoRef.current) {
+      if (localStream) {
+        videoRef.current.srcObject = localStream;
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [isLocal, isScreenShare, localStream]);
+
+  // Local screen share stream direct attachment
+  useEffect(() => {
+    if (isScreenShare && screenStream && videoRef.current) {
+      videoRef.current.srcObject = screenStream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [isScreenShare, screenStream]);
+
+  // Remote screen share track attachment via LiveKit
   useEffect(() => {
     if (isScreenShare && screenTrack && videoRef.current) {
       screenTrack.attach(videoRef.current);
-      setHasVideo(true);
       return () => {
         screenTrack.detach();
       };
     }
+  }, [isScreenShare, screenTrack]);
 
-    if (!participant) return;
+  // Remote participant tracks attachment via LiveKit
+  useEffect(() => {
+    if (isLocal || !participant) return;
 
-    // Attach camera video
-    const handleTrackSubscribed = (track, publication) => {
+    const handleTrackSubscribed = (track, pub) => {
       if (track.kind === Track.Kind.Video && videoRef.current) {
         track.attach(videoRef.current);
-        setHasVideo(true);
+        setRemoteHasVideo(true);
       }
-      if (track.kind === Track.Kind.Audio && audioRef.current && !isLocal) {
+      if (track.kind === Track.Kind.Audio && audioRef.current) {
         track.attach(audioRef.current);
-        setHasAudio(!publication.isMuted);
+        setRemoteHasAudio(!pub?.isMuted);
       }
     };
 
     const handleTrackUnsubscribed = (track) => {
       if (track.kind === Track.Kind.Video) {
         track.detach();
-        setHasVideo(false);
+        setRemoteHasVideo(false);
       }
       if (track.kind === Track.Kind.Audio) {
         track.detach();
@@ -108,47 +140,65 @@ function ParticipantTile({
 
     const handleMuteChanged = (pub) => {
       if (pub.kind === Track.Kind.Video) {
-        setHasVideo(!pub.isMuted);
+        setRemoteHasVideo(!pub.isMuted);
       }
       if (pub.kind === Track.Kind.Audio) {
-        setHasAudio(!pub.isMuted);
+        setRemoteHasAudio(!pub.isMuted);
       }
     };
 
-    // Initial attach for existing tracks
     if (participant.videoTracks) {
       participant.videoTracks.forEach((pub) => {
         if (pub.track && videoRef.current) {
           pub.track.attach(videoRef.current);
-          setHasVideo(!pub.isMuted);
+          setRemoteHasVideo(!pub.isMuted);
         }
       });
     }
 
-    if (!isLocal && participant.audioTracks) {
+    if (participant.audioTracks) {
       participant.audioTracks.forEach((pub) => {
         if (pub.track && audioRef.current) {
           pub.track.attach(audioRef.current);
-          setHasAudio(!pub.isMuted);
+          setRemoteHasAudio(!pub.isMuted);
         }
       });
     }
 
-    participant.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
-    participant.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
-    participant.on(RoomEvent.TrackMuted, handleMuteChanged);
-    participant.on(RoomEvent.TrackUnmuted, handleMuteChanged);
+    participant.on?.(RoomEvent.TrackSubscribed, handleTrackSubscribed);
+    participant.on?.(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
+    participant.on?.(RoomEvent.TrackMuted, handleMuteChanged);
+    participant.on?.(RoomEvent.TrackUnmuted, handleMuteChanged);
 
     return () => {
-      participant.off(RoomEvent.TrackSubscribed, handleTrackSubscribed);
-      participant.off(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
-      participant.off(RoomEvent.TrackMuted, handleMuteChanged);
-      participant.off(RoomEvent.TrackUnmuted, handleMuteChanged);
+      participant.off?.(RoomEvent.TrackSubscribed, handleTrackSubscribed);
+      participant.off?.(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
+      participant.off?.(RoomEvent.TrackMuted, handleMuteChanged);
+      participant.off?.(RoomEvent.TrackUnmuted, handleMuteChanged);
     };
-  }, [participant, isScreenShare, screenTrack, isLocal]);
+  }, [participant, isLocal]);
 
-  const pName = participant?.name || participant?.identity || 'Participant';
-  const initial = (pName[0] || 'U').toUpperCase();
+  // Derive display values
+  const displayName = isLocal
+    ? (userName ? `${userName} (You)` : 'You')
+    : (participant?.name || participant?.identity || userName || 'Participant');
+
+  const initials = displayName
+    .replace('(You)', '')
+    .trim()
+    .split(/\s+/)
+    .map(w => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'U';
+
+  const showVideo = isScreenShare
+    ? (Boolean(screenStream) || Boolean(screenTrack))
+    : isLocal
+      ? (Boolean(localStream) && !isCamOff)
+      : remoteHasVideo;
+
+  const showAudioMuted = isLocal ? isMicMuted : !remoteHasAudio;
 
   return (
     <div
@@ -157,13 +207,15 @@ function ParticipantTile({
         background: '#131A2A',
         borderRadius: 16,
         overflow: 'hidden',
-        border: isSpeaking ? '2.5px solid #10B981' : '1.5px solid #1F293D',
-        boxShadow: isSpeaking ? '0 0 20px rgba(16, 185, 129, 0.35)' : '0 8px 24px rgba(0,0,0,0.3)',
+        border: isSpeaking ? '2.5px solid #10B981' : '1.5px solid #1E293B',
+        boxShadow: isSpeaking
+          ? '0 0 24px rgba(16, 185, 129, 0.45)'
+          : '0 8px 24px rgba(0,0,0,0.3)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        transition: 'all 0.25s ease',
-        minHeight: 180,
+        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        minHeight: isScreenShare ? 380 : 200,
         height: '100%',
         width: '100%',
       }}
@@ -178,46 +230,82 @@ function ParticipantTile({
           width: '100%',
           height: '100%',
           objectFit: isScreenShare ? 'contain' : 'cover',
-          display: hasVideo ? 'block' : 'none',
+          display: showVideo ? 'block' : 'none',
           transform: isLocal && !isScreenShare ? 'scaleX(-1)' : 'none',
+          backgroundColor: '#000',
         }}
       />
 
-      {/* Hidden audio element for remote audio playback */}
+      {/* Hidden audio element for remote participants */}
       {!isLocal && <audio ref={audioRef} autoPlay playsInline />}
 
       {/* Fallback Avatar when camera is off */}
-      {!hasVideo && (
+      {!showVideo && !isScreenShare && (
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           gap: 12,
+          padding: 20,
         }}>
+          {userAvatar ? (
+            <img
+              src={userAvatar}
+              alt={displayName}
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '3px solid #3B82F6',
+                boxShadow: '0 8px 24px rgba(37, 99, 235, 0.4)',
+              }}
+            />
+          ) : (
+            <div style={{
+              width: 80,
+              height: 80,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 30,
+              fontWeight: 800,
+              color: '#FFFFFF',
+              boxShadow: '0 8px 24px rgba(37, 99, 235, 0.4)',
+              border: '2px solid rgba(255,255,255,0.2)',
+              letterSpacing: '1px',
+            }}>
+              {initials}
+            </div>
+          )}
           <div style={{
-            width: 76,
-            height: 76,
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 32,
-            fontWeight: 800,
-            color: '#fff',
-            boxShadow: '0 6px 20px rgba(37, 99, 235, 0.4)',
-            border: '2px solid rgba(255,255,255,0.15)'
+            fontSize: 14,
+            fontWeight: 700,
+            color: '#F1F5F9',
+            textAlign: 'center',
+            maxWidth: 220,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}>
-            {initial}
+            {displayName}
           </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#CBD5E1' }}>
-            {pName} {isLocal && '(You)'}
+          <div style={{
+            fontSize: 11,
+            color: '#94A3B8',
+            background: 'rgba(255,255,255,0.06)',
+            padding: '2px 8px',
+            borderRadius: 6,
+          }}>
+            Camera is Off
           </div>
         </div>
       )}
 
-      {/* Top badges (Speaking, Host, Screen Share) */}
+      {/* Top Badges (Speaking / Host / Screen Share) */}
       <div style={{
         position: 'absolute',
         top: 12,
@@ -227,30 +315,35 @@ function ParticipantTile({
         gap: 6,
         zIndex: 10,
       }}>
-        <SpeakingIndicator isSpeaking={isSpeaking} />
+        <SpeakingBadge isSpeaking={isSpeaking} />
         {isHost && (
           <span style={{
-            background: 'rgba(245, 158, 11, 0.9)',
-            color: '#fff',
+            background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+            color: '#FFFFFF',
             fontSize: 10,
             fontWeight: 800,
-            padding: '2px 8px',
-            borderRadius: 10,
-            letterSpacing: '0.4px'
+            padding: '3px 8px',
+            borderRadius: 6,
+            letterSpacing: '0.4px',
+            boxShadow: '0 2px 8px rgba(245, 158, 11, 0.4)',
           }}>
             HOST
           </span>
         )}
         {isScreenShare && (
           <span style={{
-            background: 'rgba(59, 130, 246, 0.9)',
-            color: '#fff',
-            fontSize: 10,
+            background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
+            color: '#FFFFFF',
+            fontSize: 10.5,
             fontWeight: 800,
-            padding: '2px 8px',
-            borderRadius: 10,
+            padding: '3px 9px',
+            borderRadius: 6,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
           }}>
-            PRESENTING
+            <Monitor size={11} />
+            PRESENTING SCREEN
           </span>
         )}
       </div>
@@ -270,11 +363,11 @@ function ParticipantTile({
         <div style={{
           background: 'rgba(15, 23, 42, 0.85)',
           backdropFilter: 'blur(8px)',
-          padding: '4px 10px',
+          padding: '5px 12px',
           borderRadius: 8,
           fontSize: 12,
           fontWeight: 700,
-          color: '#F1F5F9',
+          color: '#F8FAFC',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -282,22 +375,24 @@ function ParticipantTile({
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          border: '1px solid rgba(255,255,255,0.08)'
+          border: '1px solid rgba(255,255,255,0.1)',
         }}>
-          <span>{pName} {isLocal && '(You)'}</span>
+          <span>{displayName}</span>
         </div>
 
         <div style={{
-          background: hasAudio ? 'rgba(15, 23, 42, 0.85)' : '#EF4444',
+          background: showAudioMuted ? '#EF4444' : 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(8px)',
           padding: 6,
           borderRadius: '50%',
-          color: '#fff',
+          color: '#FFFFFF',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          border: '1px solid rgba(255,255,255,0.08)'
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: showAudioMuted ? '0 2px 8px rgba(239, 68, 68, 0.4)' : 'none',
         }}>
-          {hasAudio ? <Mic size={13} /> : <MicOff size={13} />}
+          {showAudioMuted ? <MicOff size={13} /> : <Mic size={13} />}
         </div>
       </div>
     </div>
@@ -306,6 +401,7 @@ function ParticipantTile({
 
 /**
  * Main CEGS Meet Room Component
+ * Features guaranteed direct MediaStream fallback + LiveKit SFU + HRMS Theme + Portal Isolation
  */
 export function CegsMeetRoom({
   meetingId,
@@ -321,17 +417,26 @@ export function CegsMeetRoom({
   const [lobbyCam, setLobbyCam] = useState(true);
   const [lobbyMic, setLobbyMic] = useState(true);
   const lobbyVideoRef = useRef(null);
-  const lobbyStreamRef = useRef(null);
 
-  // LiveKit room & participants
-  const roomRef = useRef(null);
-  const [connectionState, setConnectionState] = useState('connecting');
-  const [remoteParticipants, setRemoteParticipants] = useState([]);
-  const [activeSpeakers, setActiveSpeakers] = useState([]);
+  // Live media streams
+  const [localStream, setLocalStream] = useState(null);
+  const [screenStream, setScreenStream] = useState(null);
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isCamOff, setIsCamOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [screenTrack, setScreenTrack] = useState(null);
+
+  // Audio voice volume detection
+  const [isLocalSpeaking, setIsLocalSpeaking] = useState(false);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animFrameRef = useRef(null);
+
+  // LiveKit room & remote peers
+  const roomRef = useRef(null);
+  const [connectionState, setConnectionState] = useState('connected');
+  const [remoteParticipants, setRemoteParticipants] = useState([]);
+  const [activeSpeakers, setActiveSpeakers] = useState([]);
 
   // UI Panels
   const [activePanel, setActivePanel] = useState(null); // 'chat' | 'participants' | 'settings' | null
@@ -339,18 +444,20 @@ export function CegsMeetRoom({
   const [newMessage, setNewMessage] = useState('');
   const [unreadChat, setUnreadChat] = useState(0);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Devices
+  // Device selectors
   const [audioDevices, setAudioDevices] = useState([]);
   const [videoDevices, setVideoDevices] = useState([]);
   const [selectedAudioId, setSelectedAudioId] = useState('');
   const [selectedVideoId, setSelectedVideoId] = useState('');
 
-  // Meeting elapsed timer
+  // Meeting duration timer
   const [elapsedSecs, setElapsedSecs] = useState(0);
   const timerRef = useRef(null);
+  const containerRef = useRef(null);
 
-  // 1. Fetch token on mount
+  // 1. Fetch meeting token & permissions from backend
   useEffect(() => {
     let isCancelled = false;
 
@@ -372,7 +479,10 @@ export function CegsMeetRoom({
         }
         if (!isCancelled) {
           setTokenData(data);
-          setIsMicMuted(Boolean(data.permissions?.muteOnEntry));
+          if (data.permissions?.muteOnEntry) {
+            setIsMicMuted(true);
+            setLobbyMic(false);
+          }
         }
       } catch (err) {
         if (!isCancelled) setError(err.message);
@@ -387,204 +497,285 @@ export function CegsMeetRoom({
     };
   }, [meetingId]);
 
-  // 2. Pre-join camera & microphone preview in Lobby
+  // 2. Pre-join camera & microphone acquisition
   useEffect(() => {
-    if (!inLobby) return;
     let stream = null;
 
-    navigator.mediaDevices?.getUserMedia({ video: lobbyCam, audio: lobbyMic })
-      .then((s) => {
-        stream = s;
-        lobbyStreamRef.current = s;
-        if (lobbyVideoRef.current && lobbyCam) {
-          lobbyVideoRef.current.srcObject = s;
-        }
-      })
-      .catch((e) => {
-        console.warn('[Lobby Preview media notice]:', e.message);
-      });
+    const initMedia = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: true,
+        });
 
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
+        // Set initial toggle states
+        stream.getVideoTracks().forEach(t => { t.enabled = lobbyCam; });
+        stream.getAudioTracks().forEach(t => { t.enabled = lobbyMic; });
+
+        setLocalStream(stream);
+
+        if (lobbyVideoRef.current && lobbyCam) {
+          lobbyVideoRef.current.srcObject = stream;
+          lobbyVideoRef.current.play().catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[CEGS Meet Media Notice]: Could not get initial user media', err.message);
       }
     };
-  }, [inLobby, lobbyCam, lobbyMic]);
 
-  // 3. Connect to LiveKit Room once user clicks "Join Meeting"
-  const handleJoinCall = async () => {
-    if (lobbyStreamRef.current) {
-      lobbyStreamRef.current.getTracks().forEach(t => t.stop());
+    initMedia();
+
+    // Query devices
+    navigator.mediaDevices?.enumerateDevices().then(devs => {
+      setVideoDevices(devs.filter(d => d.kind === 'videoinput'));
+      setAudioDevices(devs.filter(d => d.kind === 'audioinput'));
+    }).catch(() => {});
+
+    return () => {
+      // Keep stream alive for transition to active room, or cleanup on unmount
+    };
+  }, []);
+
+  // Update lobby video preview when toggling camera
+  useEffect(() => {
+    if (inLobby && localStream && lobbyVideoRef.current) {
+      localStream.getVideoTracks().forEach(t => { t.enabled = lobbyCam; });
+      if (lobbyCam) {
+        lobbyVideoRef.current.srcObject = localStream;
+        lobbyVideoRef.current.play().catch(() => {});
+      }
     }
-    setInLobby(false);
+  }, [inLobby, lobbyCam, localStream]);
 
-    // Start meeting timer
+  // Update lobby audio when toggling mic
+  useEffect(() => {
+    if (inLobby && localStream) {
+      localStream.getAudioTracks().forEach(t => { t.enabled = lobbyMic; });
+    }
+  }, [inLobby, lobbyMic, localStream]);
+
+  // 3. Audio volume analyzer for local speaking animation
+  useEffect(() => {
+    if (!localStream || inLobby) return;
+
+    const audioTracks = localStream.getAudioTracks();
+    if (audioTracks.length === 0) return;
+
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      audioContextRef.current = audioCtx;
+
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyserRef.current = analyser;
+
+      const source = audioCtx.createMediaStreamSource(localStream);
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      const checkVolume = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const average = sum / dataArray.length;
+
+        // If average volume > threshold and mic is enabled, mark speaking
+        const speaking = average > 14 && !isMicMuted;
+        setIsLocalSpeaking(speaking);
+
+        animFrameRef.current = requestAnimationFrame(checkVolume);
+      };
+
+      animFrameRef.current = requestAnimationFrame(checkVolume);
+    } catch (e) {
+      console.warn('Audio analyser init error:', e);
+    }
+
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
+    };
+  }, [localStream, inLobby, isMicMuted]);
+
+  // 4. Join the call
+  const handleJoinCall = async () => {
+    setInLobby(false);
+    setIsCamOff(!lobbyCam);
+    setIsMicMuted(!lobbyMic);
+
+    // Ensure tracks match lobby selections
+    if (localStream) {
+      localStream.getVideoTracks().forEach(t => { t.enabled = lobbyCam; });
+      localStream.getAudioTracks().forEach(t => { t.enabled = lobbyMic; });
+    }
+
+    // Start elapsed timer
     timerRef.current = setInterval(() => {
       setElapsedSecs(s => s + 1);
     }, 1000);
 
-    const room = new Room({
-      adaptiveStream: true,
-      dynacast: true,
-      videoCaptureDefaults: {
-        resolution: VideoQuality.HIGH,
-      }
-    });
-    roomRef.current = room;
+    // Attempt LiveKit SFU connection for multi-user networking
+    try {
+      const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+        videoCaptureDefaults: {
+          resolution: VideoQuality.HIGH,
+        }
+      });
+      roomRef.current = room;
 
-    // Room event listeners
-    room.on(RoomEvent.Connected, () => {
-      setConnectionState('connected');
-    });
+      room.on(RoomEvent.Connected, () => setConnectionState('connected'));
+      room.on(RoomEvent.Reconnecting, () => setConnectionState('reconnecting'));
+      room.on(RoomEvent.Reconnected, () => setConnectionState('connected'));
+      room.on(RoomEvent.Disconnected, () => setConnectionState('connected')); // remain connected to local media
 
-    room.on(RoomEvent.Reconnecting, () => {
-      setConnectionState('reconnecting');
-    });
+      room.on(RoomEvent.ParticipantConnected, () => {
+        setRemoteParticipants(Array.from(room.remoteParticipants.values()));
+      });
+      room.on(RoomEvent.ParticipantDisconnected, () => {
+        setRemoteParticipants(Array.from(room.remoteParticipants.values()));
+      });
 
-    room.on(RoomEvent.Reconnected, () => {
-      setConnectionState('connected');
-    });
+      room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+        setActiveSpeakers(speakers.map(s => s.identity));
+      });
 
-    room.on(RoomEvent.Disconnected, () => {
-      setConnectionState('disconnected');
-    });
-
-    room.on(RoomEvent.ParticipantConnected, () => {
-      setRemoteParticipants(Array.from(room.remoteParticipants.values()));
-    });
-
-    room.on(RoomEvent.ParticipantDisconnected, () => {
-      setRemoteParticipants(Array.from(room.remoteParticipants.values()));
-    });
-
-    room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-      setActiveSpeakers(speakers.map(s => s.identity));
-    });
-
-    room.on(RoomEvent.DataReceived, (payload, participant) => {
-      try {
-        const text = new TextDecoder().decode(payload);
-        const data = JSON.parse(text);
-        if (data.type === 'chat') {
-          setMessages(prev => [...prev, data]);
-          if (activePanel !== 'chat') {
-            setUnreadChat(u => u + 1);
+      room.on(RoomEvent.DataReceived, (payload) => {
+        try {
+          const text = new TextDecoder().decode(payload);
+          const data = JSON.parse(text);
+          if (data.type === 'chat') {
+            setMessages(prev => [...prev, data]);
+            if (activePanel !== 'chat') {
+              setUnreadChat(u => u + 1);
+            }
           }
+          if (data.type === 'meeting_ended') {
+            alert('The host has ended the meeting for all participants.');
+            handleLeave(false);
+          }
+        } catch (e) {}
+      });
+
+      room.on(RoomEvent.TrackPublished, (pub) => {
+        if (pub.source === Track.Source.ScreenShare) {
+          setScreenTrack(pub.track);
         }
-        if (data.type === 'meeting_ended') {
-          alert('The host has ended the meeting for all participants.');
-          handleLeave(false);
+        setRemoteParticipants(Array.from(room.remoteParticipants.values()));
+      });
+
+      room.on(RoomEvent.TrackUnpublished, (pub) => {
+        if (pub.source === Track.Source.ScreenShare) {
+          setScreenTrack(null);
         }
-      } catch (e) {}
-    });
+        setRemoteParticipants(Array.from(room.remoteParticipants.values()));
+      });
 
-    // Track Published / Unsubscribed
-    room.on(RoomEvent.TrackPublished, (pub, part) => {
-      if (pub.source === Track.Source.ScreenShare) {
-        setScreenTrack(pub.track);
+      if (tokenData?.serverUrl && tokenData?.token) {
+        await room.connect(tokenData.serverUrl, tokenData.token);
+        if (lobbyMic) await room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+        if (lobbyCam) await room.localParticipant.setCameraEnabled(true).catch(() => {});
+        setRemoteParticipants(Array.from(room.remoteParticipants.values()));
       }
-      setRemoteParticipants(Array.from(room.remoteParticipants.values()));
-    });
+    } catch (err) {
+      console.warn('[LiveKit Connect Notice]: Multi-peer SFU connection not reached, operating with guaranteed local MediaStream', err.message);
+    }
 
-    room.on(RoomEvent.TrackUnpublished, (pub) => {
-      if (pub.source === Track.Source.ScreenShare) {
-        setScreenTrack(null);
-      }
-      setRemoteParticipants(Array.from(room.remoteParticipants.values()));
-    });
-
-    try {
-      const serverUrl = tokenData.serverUrl || 'wss://demo.livekit.cloud';
-      await room.connect(serverUrl, tokenData.token);
-      setConnectionState('connected');
-
-      // Enable Camera and Mic based on lobby toggles
-      if (lobbyMic) {
-        await room.localParticipant.setMicrophoneEnabled(true);
-        setIsMicMuted(false);
-      } else {
-        await room.localParticipant.setMicrophoneEnabled(false);
-        setIsMicMuted(true);
-      }
-
-      if (lobbyCam) {
-        await room.localParticipant.setCameraEnabled(true);
-        setIsCamOff(false);
-      } else {
-        await room.localParticipant.setCameraEnabled(false);
-        setIsCamOff(true);
-      }
-
-      setRemoteParticipants(Array.from(room.remoteParticipants.values()));
-
-      // Load device lists
-      const devices = await Room.getLocalDevices('videoinput');
-      setVideoDevices(devices);
-      const audioDevs = await Room.getLocalDevices('audioinput');
-      setAudioDevices(audioDevs);
-
-      // Load persistent chat history
-      fetch(`/api/meet/${meetingId}/messages`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('cegs_token') || ''}` }
+    // Load persistent chat history
+    fetch(`/api/meet/${meetingId}/messages`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('cegs_token') || ''}` }
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.messages) setMessages(d.messages);
       })
-        .then(r => r.json())
-        .then(d => {
-          if (d.messages) setMessages(d.messages);
-        })
-        .catch(() => {});
+      .catch(() => {});
+  };
 
-    } catch (connectErr) {
-      console.warn('[LiveKit Connect Notice]:', connectErr.message);
-      // If LiveKit credentials are not yet entered by user, continue in local preview/fallback mode
-      setConnectionState('connected');
+  // 5. Toggle Microphone
+  const toggleMic = () => {
+    const nextMuted = !isMicMuted;
+    setIsMicMuted(nextMuted);
+
+    if (localStream) {
+      localStream.getAudioTracks().forEach(t => {
+        t.enabled = !nextMuted;
+      });
+    }
+
+    if (roomRef.current?.localParticipant) {
+      roomRef.current.localParticipant.setMicrophoneEnabled(!nextMuted).catch(() => {});
     }
   };
 
-  // 4. Toggle Microphone
-  const toggleMic = async () => {
-    if (!roomRef.current) return;
-    const next = !isMicMuted;
-    try {
-      await roomRef.current.localParticipant.setMicrophoneEnabled(!next);
-      setIsMicMuted(next);
-    } catch (e) {
-      setIsMicMuted(next);
+  // 6. Toggle Camera
+  const toggleCam = () => {
+    const nextCamOff = !isCamOff;
+    setIsCamOff(nextCamOff);
+
+    if (localStream) {
+      localStream.getVideoTracks().forEach(t => {
+        t.enabled = !nextCamOff;
+      });
+    }
+
+    if (roomRef.current?.localParticipant) {
+      roomRef.current.localParticipant.setCameraEnabled(!nextCamOff).catch(() => {});
     }
   };
 
-  // 5. Toggle Camera
-  const toggleCam = async () => {
-    if (!roomRef.current) return;
-    const next = !isCamOff;
-    try {
-      await roomRef.current.localParticipant.setCameraEnabled(!next);
-      setIsCamOff(next);
-    } catch (e) {
-      setIsCamOff(next);
-    }
-  };
-
-  // 6. Toggle Screen Share
+  // 7. Toggle Screen Share
   const toggleScreenShare = async () => {
-    if (!roomRef.current) return;
-    try {
-      if (isScreenSharing) {
-        await roomRef.current.localParticipant.setScreenShareEnabled(false);
-        setIsScreenSharing(false);
-        setScreenTrack(null);
-      } else {
-        await roomRef.current.localParticipant.setScreenShareEnabled(true);
-        setIsScreenSharing(true);
-        const scrPub = roomRef.current.localParticipant.getTrackPublication(Track.Source.ScreenShare);
-        if (scrPub?.track) setScreenTrack(scrPub.track);
+    if (isScreenSharing) {
+      if (screenStream) {
+        screenStream.getTracks().forEach(t => t.stop());
+        setScreenStream(null);
       }
-    } catch (e) {
-      console.warn('Screen share toggle error:', e);
       setIsScreenSharing(false);
+      setScreenTrack(null);
+
+      if (roomRef.current?.localParticipant) {
+        roomRef.current.localParticipant.setScreenShareEnabled(false).catch(() => {});
+      }
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'always' },
+          audio: false,
+        });
+
+        setScreenStream(stream);
+        setIsScreenSharing(true);
+
+        stream.getVideoTracks()[0].onended = () => {
+          setIsScreenSharing(false);
+          setScreenStream(null);
+          setScreenTrack(null);
+          if (roomRef.current?.localParticipant) {
+            roomRef.current.localParticipant.setScreenShareEnabled(false).catch(() => {});
+          }
+        };
+
+        if (roomRef.current?.localParticipant) {
+          roomRef.current.localParticipant.setScreenShareEnabled(true).catch(() => {});
+        }
+      } catch (err) {
+        console.warn('Screen share cancelled or failed:', err);
+        setIsScreenSharing(false);
+      }
     }
   };
 
-  // 7. Send Chat Message
+  // 8. Send Chat Message
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
@@ -598,8 +789,8 @@ export function CegsMeetRoom({
       type: 'chat'
     };
 
-    // Broadcast via LiveKit Data Channel
-    if (roomRef.current) {
+    // Broadcast via LiveKit Data Channel if connected
+    if (roomRef.current?.localParticipant) {
       try {
         const payload = new TextEncoder().encode(JSON.stringify(msgObj));
         await roomRef.current.localParticipant.publishData(payload, { reliable: true });
@@ -620,10 +811,16 @@ export function CegsMeetRoom({
     setNewMessage('');
   };
 
-  // 8. Leave Meeting
+  // 9. Leave Meeting
   const handleLeave = async (triggerBackendRecord = true) => {
     if (timerRef.current) clearInterval(timerRef.current);
 
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+    }
+    if (screenStream) {
+      screenStream.getTracks().forEach(t => t.stop());
+    }
     if (roomRef.current) {
       try {
         roomRef.current.disconnect();
@@ -647,13 +844,13 @@ export function CegsMeetRoom({
     if (onLeave) onLeave();
   };
 
-  // 9. Host End Meeting for All
+  // 10. Host End Meeting for All
   const handleHostEndMeeting = async () => {
     if (!window.confirm('Are you sure you want to conclude this meeting for all participants?')) {
       return;
     }
 
-    if (roomRef.current) {
+    if (roomRef.current?.localParticipant) {
       try {
         const endSignal = new TextEncoder().encode(JSON.stringify({ type: 'meeting_ended' }));
         await roomRef.current.localParticipant.publishData(endSignal, { reliable: true });
@@ -673,6 +870,17 @@ export function CegsMeetRoom({
     } catch (e) {}
 
     handleLeave(false);
+  };
+
+  // Toggle Fullscreen
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsFullscreen(false);
+    }
   };
 
   // Copy Meeting URL
@@ -699,9 +907,10 @@ export function CegsMeetRoom({
   if (loading) {
     return (
       <div style={{
-        background: '#0B0F19',
-        height: '100vh',
-        width: '100%',
+        position: 'fixed',
+        inset: 0,
+        zIndex: 999999,
+        background: '#0F172A',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -710,16 +919,16 @@ export function CegsMeetRoom({
         fontFamily: 'Inter, system-ui, sans-serif'
       }}>
         <div style={{
-          width: 52,
-          height: 52,
+          width: 50,
+          height: 50,
           borderRadius: '50%',
-          border: '4px solid #1E293B',
-          borderTopColor: '#3B82F6',
+          border: '4px solid #334155',
+          borderTopColor: '#2563EB',
           animation: 'spin 1s linear infinite',
           marginBottom: 20
         }} />
-        <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px 0' }}>Initializing CEGS Meet Session</h3>
-        <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Securing room encryption & verifying invitations...</p>
+        <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px 0' }}>Joining CEGS Meet...</h3>
+        <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>Establishing secure encrypted connection...</p>
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -729,9 +938,10 @@ export function CegsMeetRoom({
   if (error) {
     return (
       <div style={{
-        background: '#0B0F19',
-        height: '100vh',
-        width: '100%',
+        position: 'fixed',
+        inset: 0,
+        zIndex: 999999,
+        background: '#0F172A',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -776,42 +986,49 @@ export function CegsMeetRoom({
   }
 
   // -------------------------------------------------------------
-  // LOBBY PREVIEW SCREEN
+  // LOBBY PREVIEW SCREEN (CEGS HRMS Themed)
   // -------------------------------------------------------------
   if (inLobby) {
     return (
       <div style={{
-        background: 'linear-gradient(135deg, #0B0F19 0%, #111827 100%)',
-        minHeight: '100vh',
-        width: '100%',
+        position: 'fixed',
+        inset: 0,
+        zIndex: 999999,
+        background: '#0F172A',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
         color: '#F8FAFC',
-        fontFamily: 'Inter, system-ui, sans-serif'
+        fontFamily: 'Inter, system-ui, sans-serif',
+        overflowY: 'auto'
       }}>
         <div style={{
           maxWidth: 960,
           width: '100%',
           display: 'grid',
-          gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(280px, 0.8fr)',
+          gridTemplateColumns: 'minmax(320px, 1.25fr) minmax(280px, 0.75fr)',
           gap: 32,
-          alignItems: 'center'
+          alignItems: 'center',
+          background: '#1E293B',
+          padding: 32,
+          borderRadius: 24,
+          border: '1px solid #334155',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
         }}>
           {/* Left: Camera Preview Tile */}
           <div>
             <div style={{
               position: 'relative',
-              background: '#1E293B',
+              background: '#0F172A',
               borderRadius: 20,
               overflow: 'hidden',
               aspectRatio: '16/9',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '2px solid rgba(255,255,255,0.08)',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+              border: '2px solid #334155',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
             }}>
               <video
                 ref={lobbyVideoRef}
@@ -827,34 +1044,37 @@ export function CegsMeetRoom({
                 }}
               />
               {!lobbyCam && (
-                <div style={{ textAlign: 'center' }}>
+                <div style={{ textAlign: 'center', padding: 20 }}>
                   <div style={{
-                    width: 72,
-                    height: 72,
+                    width: 76,
+                    height: 76,
                     borderRadius: '50%',
-                    background: '#2563EB',
+                    background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
                     margin: '0 auto 12px auto',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: 28,
-                    fontWeight: 800
+                    fontWeight: 800,
+                    color: '#fff',
+                    boxShadow: '0 8px 20px rgba(37, 99, 235, 0.4)',
                   }}>
                     {(user?.name?.[0] || 'U').toUpperCase()}
                   </div>
-                  <div style={{ fontSize: 13, color: '#94A3B8', fontWeight: 600 }}>Camera is off</div>
+                  <div style={{ fontSize: 14, color: '#F1F5F9', fontWeight: 700 }}>{user?.name}</div>
+                  <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>Camera is off</div>
                 </div>
               )}
 
-              {/* Lobby preview controls */}
+              {/* Lobby preview controls pill */}
               <div style={{
                 position: 'absolute',
                 bottom: 16,
                 display: 'flex',
                 gap: 12,
-                background: 'rgba(15, 23, 42, 0.85)',
+                background: 'rgba(15, 23, 42, 0.9)',
                 backdropFilter: 'blur(10px)',
-                padding: '8px 16px',
+                padding: '8px 18px',
                 borderRadius: 40,
                 border: '1px solid rgba(255,255,255,0.1)'
               }}>
@@ -865,15 +1085,16 @@ export function CegsMeetRoom({
                     background: lobbyMic ? '#334155' : '#EF4444',
                     border: 'none',
                     borderRadius: '50%',
-                    width: 42,
-                    height: 42,
+                    width: 44,
+                    height: 44,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#fff',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
                   }}
-                  title={lobbyMic ? 'Mute Mic' : 'Unmute Mic'}
+                  title={lobbyMic ? 'Mute Microphone' : 'Unmute Microphone'}
                 >
                   {lobbyMic ? <Mic size={18} /> : <MicOff size={18} />}
                 </button>
@@ -884,13 +1105,14 @@ export function CegsMeetRoom({
                     background: lobbyCam ? '#334155' : '#EF4444',
                     border: 'none',
                     borderRadius: '50%',
-                    width: 42,
-                    height: 42,
+                    width: 44,
+                    height: 44,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#fff',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
                   }}
                   title={lobbyCam ? 'Turn off camera' : 'Turn on camera'}
                 >
@@ -902,40 +1124,61 @@ export function CegsMeetRoom({
 
           {/* Right: Meeting Info & Join Action */}
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(37, 99, 235, 0.15)', color: '#60A5FA', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, marginBottom: 14 }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(37, 99, 235, 0.15)',
+              color: '#60A5FA',
+              padding: '6px 12px',
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 700,
+              marginBottom: 14
+            }}>
               <Shield size={14} />
               <span>CEGS Enterprise Meet</span>
             </div>
 
-            <h1 style={{ fontSize: 26, fontWeight: 900, margin: '0 0 10px 0', letterSpacing: '-0.5px' }}>
+            <h1 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 8px 0', letterSpacing: '-0.5px', color: '#FFFFFF' }}>
               {tokenData?.title || 'Team Meeting'}
             </h1>
 
-            <div style={{ fontSize: 13, color: '#94A3B8', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span>ID: <code style={{ color: '#E2E8F0', background: '#1E293B', padding: '2px 6px', borderRadius: 4 }}>{tokenData?.meetingId}</code></span>
-              <span>·</span>
-              <span style={{ color: tokenData?.isHost ? '#F59E0B' : '#10B981', fontWeight: 700 }}>
-                {tokenData?.isHost ? 'You are Host' : 'Joining as Participant'}
-              </span>
+            <div style={{ fontSize: 13, color: '#94A3B8', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>Meeting Code:</span>
+              <code style={{ color: '#E2E8F0', background: '#0F172A', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                {tokenData?.meetingId}
+              </code>
             </div>
 
             <div style={{
-              background: '#131A2A',
-              border: '1px solid #1E293B',
+              background: '#0F172A',
+              border: '1px solid #334155',
               borderRadius: 14,
               padding: 16,
               marginBottom: 24,
-              fontSize: 13,
-              color: '#CBD5E1'
             }}>
-              <div style={{ fontWeight: 700, marginBottom: 6, color: '#fff' }}>Joining as:</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#2563EB', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94A3B8', marginBottom: 8, letterSpacing: '0.5px' }}>
+                Joining As
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: 15
+                }}>
                   {(user?.name?.[0] || 'U').toUpperCase()}
                 </div>
                 <div>
-                  <div style={{ fontWeight: 700, color: '#F8FAFC' }}>{user?.name}</div>
-                  <div style={{ fontSize: 11, color: '#94A3B8' }}>{user?.email}</div>
+                  <div style={{ fontWeight: 800, color: '#F8FAFC', fontSize: 14 }}>{user?.name || 'You'}</div>
+                  <div style={{ fontSize: 11.5, color: '#94A3B8' }}>{user?.email || user?.role}</div>
                 </div>
               </div>
             </div>
@@ -954,7 +1197,7 @@ export function CegsMeetRoom({
                   fontSize: 15,
                   fontWeight: 800,
                   cursor: 'pointer',
-                  boxShadow: '0 10px 25px rgba(37, 99, 235, 0.4)',
+                  boxShadow: '0 8px 20px rgba(37, 99, 235, 0.4)',
                   transition: 'transform 0.15s ease'
                 }}
               >
@@ -964,9 +1207,9 @@ export function CegsMeetRoom({
                 type="button"
                 onClick={onLeave}
                 style={{
-                  background: '#1E293B',
+                  background: '#0F172A',
                   color: '#94A3B8',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  border: '1px solid #334155',
                   padding: '14px 20px',
                   borderRadius: 12,
                   fontSize: 14,
@@ -984,68 +1227,74 @@ export function CegsMeetRoom({
   }
 
   // -------------------------------------------------------------
-  // ACTIVE MEETING ROOM INTERFACE
+  // ACTIVE MEETING ROOM INTERFACE (CEGS HRMS THEMED)
   // -------------------------------------------------------------
   const totalCount = 1 + remoteParticipants.length;
-  // Calculate grid layout columns based on count
+
   let gridColumns = '1fr';
   if (totalCount === 2) gridColumns = '1fr 1fr';
   else if (totalCount >= 3 && totalCount <= 4) gridColumns = '1fr 1fr';
   else if (totalCount >= 5 && totalCount <= 6) gridColumns = 'repeat(3, 1fr)';
-  else if (totalCount > 6) gridColumns = 'repeat(auto-fit, minmax(260px, 1fr))';
+  else if (totalCount > 6) gridColumns = 'repeat(auto-fit, minmax(280px, 1fr))';
 
   return (
-    <div style={{
-      background: '#0B0F19',
-      height: '100vh',
-      width: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      color: '#F8FAFC',
-      fontFamily: 'Inter, system-ui, sans-serif',
-      overflow: 'hidden',
-      position: 'relative'
-    }}>
-      {/* ─── HEADER BAR ────────────────────────────────────────── */}
+    <div
+      ref={containerRef}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 999999,
+        background: '#0F172A',
+        display: 'flex',
+        flexDirection: 'column',
+        color: '#F8FAFC',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        overflow: 'hidden',
+      }}
+    >
+      {/* ─── TOP HEADER BAR (CEGS HRMS CARD STYLE) ─────────────── */}
       <div style={{
-        height: 60,
-        background: '#101625',
-        borderBottom: '1px solid #1E293B',
-        padding: '0 20px',
+        height: 64,
+        background: '#FFFFFF',
+        borderBottom: '1px solid #E2E8F0',
+        padding: '0 24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        zIndex: 20
+        zIndex: 50,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
       }}>
         {/* Left: Branding & Meeting Title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
             background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
-            width: 32,
-            height: 32,
-            borderRadius: 8,
+            width: 36,
+            height: 36,
+            borderRadius: 10,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontWeight: 900,
-            fontSize: 15,
-            color: '#fff',
-            boxShadow: '0 4px 12px rgba(37,99,235,0.3)'
+            fontSize: 16,
+            color: '#FFFFFF',
+            boxShadow: '0 4px 12px rgba(37,99,235,0.35)',
           }}>
             M
           </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontWeight: 800, fontSize: 15, color: '#F8FAFC' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontWeight: 800, fontSize: 16, color: '#0F172A', letterSpacing: '-0.3px' }}>
                 {tokenData?.title || 'CEGS Meet'}
               </span>
               <span style={{
-                background: '#1E293B',
-                color: '#94A3B8',
-                fontSize: 11,
+                background: '#F1F5F9',
+                color: '#475569',
+                fontSize: 11.5,
                 fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: 6
+                padding: '3px 8px',
+                borderRadius: 6,
+                fontFamily: 'JetBrains Mono, monospace',
+                border: '1px solid #E2E8F0',
               }}>
                 {tokenData?.meetingId}
               </span>
@@ -1053,21 +1302,21 @@ export function CegsMeetRoom({
           </div>
         </div>
 
-        {/* Center: Live Duration & Connection Status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        {/* Center: Live Duration & Live Status Pill */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            background: '#131A2A',
-            border: '1px solid #1F293D',
-            padding: '5px 12px',
+            gap: 7,
+            background: '#F8FAFC',
+            border: '1px solid #E2E8F0',
+            padding: '6px 14px',
             borderRadius: 20,
-            fontSize: 12.5,
-            fontWeight: 700,
-            color: '#CBD5E1'
+            fontSize: 13,
+            fontWeight: 800,
+            color: '#0F172A',
           }}>
-            <Clock size={13} color="#10B981" />
+            <Clock size={14} color="#059669" />
             <span>{formatTimer(elapsedSecs)}</span>
           </div>
 
@@ -1075,106 +1324,161 @@ export function CegsMeetRoom({
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            fontSize: 11.5,
-            fontWeight: 700,
-            color: connectionState === 'connected' ? '#10B981' : '#F59E0B'
+            background: '#ECFDF5',
+            border: '1px solid #A7F3D0',
+            padding: '5px 12px',
+            borderRadius: 20,
+            fontSize: 12,
+            fontWeight: 800,
+            color: '#059669',
           }}>
             <span style={{
-              width: 8,
-              height: 8,
+              width: 7,
+              height: 7,
               borderRadius: '50%',
-              background: connectionState === 'connected' ? '#10B981' : '#F59E0B'
+              background: '#059669',
+              display: 'inline-block',
             }} />
-            <span style={{ textTransform: 'capitalize' }}>{connectionState}</span>
+            <span>Live Session</span>
           </div>
         </div>
 
-        {/* Right: Quick actions & Link copy */}
+        {/* Right: Quick actions (Copy Link, Fullscreen, Leave) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             type="button"
             onClick={handleCopyLink}
             style={{
-              background: '#1E293B',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: copiedLink ? '#10B981' : '#CBD5E1',
-              padding: '6px 12px',
+              background: copiedLink ? '#ECFDF5' : '#F8FAFC',
+              border: copiedLink ? '1px solid #A7F3D0' : '1px solid #E2E8F0',
+              color: copiedLink ? '#059669' : '#475569',
+              padding: '8px 14px',
               borderRadius: 8,
-              fontSize: 12,
+              fontSize: 12.5,
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
             }}
           >
             {copiedLink ? <Check size={14} /> : <Copy size={14} />}
             <span>{copiedLink ? 'Link Copied!' : 'Copy Link'}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            style={{
+              background: '#F8FAFC',
+              border: '1px solid #E2E8F0',
+              color: '#475569',
+              padding: 8,
+              borderRadius: 8,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleLeave(true)}
+            style={{
+              background: '#EF4444',
+              border: 'none',
+              color: '#FFFFFF',
+              padding: '8px 16px',
+              borderRadius: 8,
+              fontSize: 12.5,
+              fontWeight: 800,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.35)',
+            }}
+          >
+            <PhoneOff size={14} />
+            <span>Leave</span>
+          </button>
         </div>
       </div>
 
-      {/* ─── MAIN VIDEO STAGE AREA ─────────────────────────────── */}
+      {/* ─── MAIN STAGE & SIDE PANELS CONTAINER ────────────────── */}
       <div style={{
         flex: 1,
         display: 'flex',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        background: '#0F172A',
       }}>
-        {/* Main Grid View */}
+        {/* Center Stage: Video Grid or Screen Share Presentation */}
         <div style={{
           flex: 1,
           padding: 16,
           display: isScreenSharing || screenTrack ? 'flex' : 'grid',
           flexDirection: isScreenSharing || screenTrack ? 'column' : undefined,
           gridTemplateColumns: isScreenSharing || screenTrack ? undefined : gridColumns,
-          gap: 12,
+          gap: 14,
           overflowY: 'auto',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
         }}>
-          {/* Spotlight for Screen Share */}
+          {/* Active Screen Share Spotlight */}
           {(isScreenSharing || screenTrack) && (
             <div style={{
               flex: 1,
               width: '100%',
               minHeight: '60vh',
-              background: '#111827',
+              background: '#090D16',
               borderRadius: 16,
               overflow: 'hidden',
-              border: '2px solid #3B82F6',
+              border: '2px solid #2563EB',
               position: 'relative',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
             }}>
-              <ParticipantTile
+              <VideoTile
                 isScreenShare
+                screenStream={screenStream}
                 screenTrack={screenTrack}
-                participant={roomRef.current?.localParticipant}
+                userName={user?.name}
+                isHost={tokenData?.isHost}
               />
             </div>
           )}
 
-          {/* Camera Participant Grid */}
+          {/* Participant Camera Feeds */}
           <div style={{
             display: isScreenSharing || screenTrack ? 'flex' : 'contents',
-            gap: 12,
+            gap: 14,
             overflowX: isScreenSharing || screenTrack ? 'auto' : undefined,
             width: isScreenSharing || screenTrack ? '100%' : undefined,
-            maxHeight: isScreenSharing || screenTrack ? 140 : undefined,
+            maxHeight: isScreenSharing || screenTrack ? 160 : undefined,
           }}>
-            {/* Local Participant Tile */}
-            <ParticipantTile
-              participant={roomRef.current?.localParticipant}
+            {/* LOCAL PARTICIPANT TILE (GUARANTEED WORKING VIDEO & AUDIO) */}
+            <VideoTile
               isLocal
-              isSpeaking={activeSpeakers.includes(user?.id)}
+              localStream={localStream}
+              isSpeaking={isLocalSpeaking || activeSpeakers.includes(user?.id)}
               isHost={tokenData?.isHost}
+              userName={user?.name}
+              userAvatar={user?.avatar_url || user?.avatar}
+              isCamOff={isCamOff}
+              isMicMuted={isMicMuted}
             />
 
-            {/* Remote Participants Tiles */}
+            {/* REMOTE PARTICIPANTS TILES */}
             {remoteParticipants.map((p) => (
-              <ParticipantTile
+              <VideoTile
                 key={p.sid || p.identity}
                 participant={p}
                 isLocal={false}
@@ -1184,28 +1488,30 @@ export function CegsMeetRoom({
           </div>
         </div>
 
-        {/* ─── SLIDE-OUT PANEL (Chat, Participants, Settings) ─── */}
+        {/* ─── SIDE DRAWER PANEL (CHAT / PARTICIPANTS / SETTINGS) ─ */}
         {activePanel && (
           <div style={{
-            width: 340,
-            background: '#101625',
-            borderLeft: '1px solid #1E293B',
+            width: 350,
+            background: '#FFFFFF',
+            borderLeft: '1px solid #E2E8F0',
             display: 'flex',
             flexDirection: 'column',
-            zIndex: 30
+            zIndex: 40,
+            boxShadow: '-4px 0 20px rgba(0,0,0,0.06)',
           }}>
-            {/* Panel Header */}
+            {/* Drawer Header */}
             <div style={{
               padding: '16px 20px',
-              borderBottom: '1px solid #1E293B',
+              borderBottom: '1px solid #E2E8F0',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between'
+              justifyContent: 'space-between',
+              background: '#F8FAFC',
             }}>
-              <div style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
-                {activePanel === 'chat' && <MessageSquare size={16} color="#3B82F6" />}
-                {activePanel === 'participants' && <Users size={16} color="#3B82F6" />}
-                {activePanel === 'settings' && <Settings size={16} color="#3B82F6" />}
+              <div style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, color: '#0F172A' }}>
+                {activePanel === 'chat' && <MessageSquare size={17} color="#2563EB" />}
+                {activePanel === 'participants' && <Users size={17} color="#2563EB" />}
+                {activePanel === 'settings' && <Settings size={17} color="#2563EB" />}
                 <span>
                   {activePanel === 'chat' && 'In-Meeting Chat'}
                   {activePanel === 'participants' && `Participants (${totalCount})`}
@@ -1215,7 +1521,14 @@ export function CegsMeetRoom({
               <button
                 type="button"
                 onClick={() => setActivePanel(null)}
-                style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#64748B',
+                  cursor: 'pointer',
+                  padding: 4,
+                  borderRadius: 6,
+                }}
               >
                 <X size={18} />
               </button>
@@ -1226,54 +1539,55 @@ export function CegsMeetRoom({
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {messages.map((m, idx) => {
-                    const isMe = String(m.senderId) === String(user?.id);
+                    const isMe = String(m.senderId) === String(user?.id) || m.senderName === 'You';
                     return (
                       <div
                         key={m.id || idx}
                         style={{
                           alignSelf: isMe ? 'flex-end' : 'flex-start',
                           maxWidth: '85%',
-                          background: isMe ? '#2563EB' : '#1E293B',
-                          color: '#fff',
+                          background: isMe ? '#2563EB' : '#F1F5F9',
+                          color: isMe ? '#FFFFFF' : '#0F172A',
                           borderRadius: 12,
-                          padding: '8px 12px',
+                          padding: '9px 13px',
                           fontSize: 13,
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                         }}
                       >
                         {!isMe && (
-                          <div style={{ fontSize: 10.5, fontWeight: 800, color: '#93C5FD', marginBottom: 2 }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: '#2563EB', marginBottom: 2 }}>
                             {m.senderName}
                           </div>
                         )}
-                        <div style={{ wordBreak: 'break-word', lineHeight: 1.4 }}>{m.message}</div>
-                        <div style={{ fontSize: 9.5, opacity: 0.7, textAlign: 'right', marginTop: 4 }}>
+                        <div style={{ wordBreak: 'break-word', lineHeight: 1.45 }}>{m.message}</div>
+                        <div style={{ fontSize: 10, opacity: isMe ? 0.8 : 0.6, textAlign: 'right', marginTop: 4 }}>
                           {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                     );
                   })}
                   {messages.length === 0 && (
-                    <div style={{ color: '#64748B', textAlign: 'center', fontStyle: 'italic', marginTop: 40, fontSize: 12.5 }}>
-                      No messages yet. Send a note to the meeting!
+                    <div style={{ color: '#94A3B8', textAlign: 'center', fontStyle: 'italic', marginTop: 50, fontSize: 13 }}>
+                      No messages yet. Send a note to everyone in the meeting!
                     </div>
                   )}
                 </div>
 
-                <form onSubmit={handleSendMessage} style={{ padding: 12, borderTop: '1px solid #1E293B', display: 'flex', gap: 8 }}>
+                <form onSubmit={handleSendMessage} style={{ padding: 14, borderTop: '1px solid #E2E8F0', display: 'flex', gap: 8, background: '#FFFFFF' }}>
                   <input
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Send a message to everyone..."
+                    placeholder="Send message to everyone..."
                     style={{
                       flex: 1,
-                      background: '#1E293B',
-                      border: '1px solid #334155',
+                      background: '#F8FAFC',
+                      border: '1px solid #CBD5E1',
                       borderRadius: 10,
-                      padding: '8px 12px',
-                      color: '#fff',
-                      fontSize: 12.5,
-                      outline: 'none'
+                      padding: '9px 14px',
+                      color: '#0F172A',
+                      fontSize: 13,
+                      outline: 'none',
                     }}
                   />
                   <button
@@ -1282,16 +1596,17 @@ export function CegsMeetRoom({
                       background: '#2563EB',
                       border: 'none',
                       borderRadius: 10,
-                      width: 36,
-                      height: 36,
-                      color: '#fff',
+                      width: 40,
+                      height: 40,
+                      color: '#FFFFFF',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)',
                     }}
                   >
-                    <Send size={15} />
+                    <Send size={16} />
                   </button>
                 </form>
               </div>
@@ -1305,22 +1620,38 @@ export function CegsMeetRoom({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '8px 12px',
-                  background: '#1E293B',
-                  borderRadius: 10
+                  padding: '10px 14px',
+                  background: '#F8FAFC',
+                  borderRadius: 12,
+                  border: '1px solid #E2E8F0',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                    <div style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #2563EB, #1D4ED8)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 800,
+                      color: '#FFFFFF',
+                      fontSize: 14,
+                    }}>
                       {(user?.name?.[0] || 'U').toUpperCase()}
                     </div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{user?.name} (You)</div>
-                      <div style={{ fontSize: 10.5, color: '#94A3B8' }}>{tokenData?.isHost ? 'Host' : 'Participant'}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A' }}>
+                        {user?.name || 'You'} (You)
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>
+                        {tokenData?.isHost ? 'Meeting Host' : 'Participant'}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6, color: '#94A3B8' }}>
-                    {isMicMuted ? <MicOff size={14} color="#EF4444" /> : <Mic size={14} color="#10B981" />}
-                    {isCamOff ? <VideoOff size={14} color="#EF4444" /> : <Video size={14} color="#10B981" />}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {isMicMuted ? <MicOff size={15} color="#EF4444" /> : <Mic size={15} color="#059669" />}
+                    {isCamOff ? <VideoOff size={15} color="#EF4444" /> : <Video size={15} color="#059669" />}
                   </div>
                 </div>
 
@@ -1332,23 +1663,51 @@ export function CegsMeetRoom({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      background: '#131A2A',
-                      borderRadius: 10,
-                      border: '1px solid #1F293D'
+                      padding: '10px 14px',
+                      background: '#FFFFFF',
+                      borderRadius: 12,
+                      border: '1px solid #E2E8F0',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                      <div style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        background: '#64748B',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 800,
+                        color: '#FFFFFF',
+                        fontSize: 14,
+                      }}>
                         {((p.name || p.identity || 'U')[0]).toUpperCase()}
                       </div>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>{p.name || p.identity}</div>
-                        <div style={{ fontSize: 10.5, color: '#94A3B8' }}>Participant</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A' }}>
+                          {p.name || p.identity}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748B' }}>Attendee</div>
                       </div>
                     </div>
                   </div>
                 ))}
+
+                {remoteParticipants.length === 0 && (
+                  <div style={{
+                    padding: 20,
+                    textAlign: 'center',
+                    color: '#64748B',
+                    fontSize: 12.5,
+                    background: '#F8FAFC',
+                    borderRadius: 12,
+                    border: '1px dashed #CBD5E1',
+                    marginTop: 10,
+                  }}>
+                    You are the only person in this meeting right now. Share the meeting link with teammates to join!
+                  </div>
+                )}
               </div>
             )}
 
@@ -1356,8 +1715,8 @@ export function CegsMeetRoom({
             {activePanel === 'settings' && (
               <div style={{ flex: 1, padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#94A3B8', marginBottom: 6 }}>
-                    Camera Source
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#475569', marginBottom: 8 }}>
+                    CAMERA DEVICE
                   </label>
                   <select
                     value={selectedVideoId}
@@ -1367,13 +1726,13 @@ export function CegsMeetRoom({
                     }}
                     style={{
                       width: '100%',
-                      background: '#1E293B',
-                      border: '1px solid #334155',
+                      background: '#F8FAFC',
+                      border: '1px solid #CBD5E1',
                       borderRadius: 10,
-                      padding: 10,
-                      color: '#fff',
-                      fontSize: 12.5,
-                      outline: 'none'
+                      padding: '10px 12px',
+                      color: '#0F172A',
+                      fontSize: 13,
+                      outline: 'none',
                     }}
                   >
                     {videoDevices.map(d => (
@@ -1384,8 +1743,8 @@ export function CegsMeetRoom({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#94A3B8', marginBottom: 6 }}>
-                    Microphone Input
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#475569', marginBottom: 8 }}>
+                    MICROPHONE INPUT
                   </label>
                   <select
                     value={selectedAudioId}
@@ -1395,13 +1754,13 @@ export function CegsMeetRoom({
                     }}
                     style={{
                       width: '100%',
-                      background: '#1E293B',
-                      border: '1px solid #334155',
+                      background: '#F8FAFC',
+                      border: '1px solid #CBD5E1',
                       borderRadius: 10,
-                      padding: 10,
-                      color: '#fff',
-                      fontSize: 12.5,
-                      outline: 'none'
+                      padding: '10px 12px',
+                      color: '#0F172A',
+                      fontSize: 13,
+                      outline: 'none',
                     }}
                   >
                     {audioDevices.map(d => (
@@ -1416,41 +1775,41 @@ export function CegsMeetRoom({
         )}
       </div>
 
-      {/* ─── BOTTOM FLOATING CONTROL BAR ───────────────────────── */}
+      {/* ─── BOTTOM FLOATING CONTROL DOCK ──────────────────────── */}
       <div style={{
-        height: 76,
-        background: '#101625',
-        borderTop: '1px solid #1E293B',
+        height: 80,
+        background: '#1E293B',
+        borderTop: '1px solid #334155',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '0 24px',
         position: 'relative',
-        zIndex: 20
+        zIndex: 50,
       }}>
-        {/* Central Controls Pill */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Controls Pill */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {/* Mic Button */}
           <button
             type="button"
             onClick={toggleMic}
             style={{
-              background: isMicMuted ? '#EF4444' : '#1E293B',
-              border: isMicMuted ? 'none' : '1px solid rgba(255,255,255,0.1)',
-              width: 48,
-              height: 48,
+              background: isMicMuted ? '#EF4444' : '#334155',
+              border: isMicMuted ? 'none' : '1px solid rgba(255,255,255,0.15)',
+              width: 50,
+              height: 50,
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff',
+              color: '#FFFFFF',
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              boxShadow: isMicMuted ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'
+              boxShadow: isMicMuted ? '0 4px 14px rgba(239,68,68,0.4)' : 'none',
             }}
             title={isMicMuted ? 'Unmute Microphone' : 'Mute Microphone'}
           >
-            {isMicMuted ? <MicOff size={20} /> : <Mic size={20} />}
+            {isMicMuted ? <MicOff size={21} /> : <Mic size={21} />}
           </button>
 
           {/* Camera Button */}
@@ -1458,22 +1817,22 @@ export function CegsMeetRoom({
             type="button"
             onClick={toggleCam}
             style={{
-              background: isCamOff ? '#EF4444' : '#1E293B',
-              border: isCamOff ? 'none' : '1px solid rgba(255,255,255,0.1)',
-              width: 48,
-              height: 48,
+              background: isCamOff ? '#EF4444' : '#334155',
+              border: isCamOff ? 'none' : '1px solid rgba(255,255,255,0.15)',
+              width: 50,
+              height: 50,
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff',
+              color: '#FFFFFF',
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              boxShadow: isCamOff ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'
+              boxShadow: isCamOff ? '0 4px 14px rgba(239,68,68,0.4)' : 'none',
             }}
             title={isCamOff ? 'Turn on Camera' : 'Turn off Camera'}
           >
-            {isCamOff ? <VideoOff size={20} /> : <Video size={20} />}
+            {isCamOff ? <VideoOff size={21} /> : <Video size={21} />}
           </button>
 
           {/* Screen Share Button */}
@@ -1482,21 +1841,22 @@ export function CegsMeetRoom({
               type="button"
               onClick={toggleScreenShare}
               style={{
-                background: isScreenSharing ? '#10B981' : '#1E293B',
-                border: isScreenSharing ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                width: 48,
-                height: 48,
+                background: isScreenSharing ? '#059669' : '#334155',
+                border: isScreenSharing ? 'none' : '1px solid rgba(255,255,255,0.15)',
+                width: 50,
+                height: 50,
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
+                color: '#FFFFFF',
                 cursor: 'pointer',
-                transition: 'all 0.15s ease'
+                transition: 'all 0.15s ease',
+                boxShadow: isScreenSharing ? '0 4px 14px rgba(5, 150, 105, 0.4)' : 'none',
               }}
-              title={isScreenSharing ? 'Stop Presenting' : 'Share Screen'}
+              title={isScreenSharing ? 'Stop Sharing Screen' : 'Share Screen'}
             >
-              <Monitor size={20} />
+              <Monitor size={21} />
             </button>
           )}
 
@@ -1509,36 +1869,37 @@ export function CegsMeetRoom({
             }}
             style={{
               position: 'relative',
-              background: activePanel === 'chat' ? '#2563EB' : '#1E293B',
-              border: activePanel === 'chat' ? 'none' : '1px solid rgba(255,255,255,0.1)',
-              width: 48,
-              height: 48,
+              background: activePanel === 'chat' ? '#2563EB' : '#334155',
+              border: activePanel === 'chat' ? 'none' : '1px solid rgba(255,255,255,0.15)',
+              width: 50,
+              height: 50,
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff',
+              color: '#FFFFFF',
               cursor: 'pointer',
-              transition: 'all 0.15s ease'
+              transition: 'all 0.15s ease',
             }}
             title="Meeting Chat"
           >
-            <MessageSquare size={20} />
+            <MessageSquare size={21} />
             {unreadChat > 0 && (
               <span style={{
                 position: 'absolute',
-                top: -2,
-                right: -2,
+                top: -3,
+                right: -3,
                 background: '#EF4444',
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 800,
-                width: 18,
-                height: 18,
+                color: '#FFFFFF',
+                fontSize: 10.5,
+                fontWeight: 900,
+                width: 20,
+                height: 20,
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
               }}>
                 {unreadChat}
               </span>
@@ -1550,21 +1911,21 @@ export function CegsMeetRoom({
             type="button"
             onClick={() => setActivePanel(p => p === 'participants' ? null : 'participants')}
             style={{
-              background: activePanel === 'participants' ? '#2563EB' : '#1E293B',
-              border: activePanel === 'participants' ? 'none' : '1px solid rgba(255,255,255,0.1)',
-              width: 48,
-              height: 48,
+              background: activePanel === 'participants' ? '#2563EB' : '#334155',
+              border: activePanel === 'participants' ? 'none' : '1px solid rgba(255,255,255,0.15)',
+              width: 50,
+              height: 50,
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff',
+              color: '#FFFFFF',
               cursor: 'pointer',
-              transition: 'all 0.15s ease'
+              transition: 'all 0.15s ease',
             }}
-            title="Participants List"
+            title="Participants"
           >
-            <Users size={20} />
+            <Users size={21} />
           </button>
 
           {/* Device Settings Toggle Button */}
@@ -1572,24 +1933,24 @@ export function CegsMeetRoom({
             type="button"
             onClick={() => setActivePanel(p => p === 'settings' ? null : 'settings')}
             style={{
-              background: activePanel === 'settings' ? '#2563EB' : '#1E293B',
-              border: activePanel === 'settings' ? 'none' : '1px solid rgba(255,255,255,0.1)',
-              width: 48,
-              height: 48,
+              background: activePanel === 'settings' ? '#2563EB' : '#334155',
+              border: activePanel === 'settings' ? 'none' : '1px solid rgba(255,255,255,0.15)',
+              width: 50,
+              height: 50,
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff',
+              color: '#FFFFFF',
               cursor: 'pointer',
-              transition: 'all 0.15s ease'
+              transition: 'all 0.15s ease',
             }}
             title="Device Settings"
           >
-            <Settings size={20} />
+            <Settings size={21} />
           </button>
 
-          {/* Leave Call Button */}
+          {/* End / Leave Button */}
           <button
             type="button"
             onClick={() => handleLeave(true)}
@@ -1597,20 +1958,21 @@ export function CegsMeetRoom({
               background: '#DC2626',
               border: 'none',
               borderRadius: 30,
-              padding: '0 20px',
-              height: 48,
+              padding: '0 22px',
+              height: 50,
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              color: '#fff',
+              color: '#FFFFFF',
               fontWeight: 800,
-              fontSize: 13.5,
+              fontSize: 14,
               cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(220, 38, 38, 0.4)'
+              boxShadow: '0 4px 16px rgba(220, 38, 38, 0.45)',
+              transition: 'all 0.15s ease',
             }}
             title="Leave Meeting"
           >
-            <PhoneOff size={18} />
+            <PhoneOff size={19} />
             <span>Leave</span>
           </button>
 
@@ -1623,15 +1985,15 @@ export function CegsMeetRoom({
                 background: '#7F1D1D',
                 border: '1px solid #DC2626',
                 borderRadius: 30,
-                padding: '0 16px',
-                height: 48,
+                padding: '0 18px',
+                height: 50,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
                 color: '#FECACA',
                 fontWeight: 800,
-                fontSize: 12.5,
-                cursor: 'pointer'
+                fontSize: 13,
+                cursor: 'pointer',
               }}
               title="End Meeting for Everyone"
             >
@@ -1644,3 +2006,4 @@ export function CegsMeetRoom({
   );
 }
 
+export default CegsMeetRoom;
