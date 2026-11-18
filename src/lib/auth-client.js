@@ -4,19 +4,34 @@ export const AUTH_USER_KEY = 'cegs_user';
 
 export function getAuthToken() {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(AUTH_TOKEN_KEY);
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (token) return token;
+
+  // Fallback: read from document.cookie if localStorage is empty
+  try {
+    const match = document.cookie.match(/(?:^|; )cegs_token=([^;]*)/);
+    if (match) return decodeURIComponent(match[1]);
+  } catch {}
+  return null;
 }
 
 export function setAuthToken(token) {
   if (typeof window === 'undefined') return;
-  if (token) localStorage.setItem(AUTH_TOKEN_KEY, token);
-  else localStorage.removeItem(AUTH_TOKEN_KEY);
+  if (token) {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    const secureFlag = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `cegs_token=${encodeURIComponent(token)}; path=/; max-age=86400; SameSite=Lax${secureFlag}`;
+  } else {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    document.cookie = 'cegs_token=; path=/; max-age=0; SameSite=Lax';
+  }
 }
 
 export function clearAuthStorage() {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_USER_KEY);
+  document.cookie = 'cegs_token=; path=/; max-age=0; SameSite=Lax';
 }
 
 export const API_BASE = '/api';

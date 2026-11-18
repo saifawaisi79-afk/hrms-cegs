@@ -70,11 +70,48 @@ export function verifyToken(token: string): AuthUserPayload | null {
   }
 }
 
+function extractCookie(cookieHeader: string | null, name: string): string | null {
+  if (!cookieHeader) return null;
+  const matches = cookieHeader.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'));
+  return matches ? decodeURIComponent(matches[1].trim()) : null;
+}
+
 export function getAuthUser(request: Request): AuthUserPayload | null {
+  // 1. Check Authorization header: Bearer <token>
   const authHeader = request.headers.get('authorization') || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  if (!token) return null;
-  return verifyToken(token);
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      const user = verifyToken(token);
+      if (user) return user;
+    }
+  }
+
+  // 2. Check Cookie header (cegs_token, cegs_auth_token, token)
+  const cookieHeader = request.headers.get('cookie') || '';
+  const cookieToken =
+    extractCookie(cookieHeader, 'cegs_token') ||
+    extractCookie(cookieHeader, 'cegs_auth_token') ||
+    extractCookie(cookieHeader, 'token');
+
+  if (cookieToken) {
+    const user = verifyToken(cookieToken);
+    if (user) return user;
+  }
+
+  // 3. Check query param: ?token=... (supports direct browser navigations & OAuth flows)
+  try {
+    const url = new URL(request.url);
+    const queryToken = url.searchParams.get('token');
+    if (queryToken) {
+      const user = verifyToken(queryToken);
+      if (user) return user;
+    }
+  } catch {
+    // Ignore URL parse error
+  }
+
+  return null;
 }
 
 // ─── IP Whitelist Logic ───────────────────────────────────────────────────────

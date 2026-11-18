@@ -48,6 +48,7 @@ export function CegsMeetDashboard({ db, save, user }) {
     isConfigured: true,
   });
   const [statusMessage, setStatusMessage] = useState(null);
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
 
   // Quick Join input
   const [quickJoinCode, setQuickJoinCode] = useState('');
@@ -121,6 +122,15 @@ export function CegsMeetDashboard({ db, save, user }) {
   };
 
   useEffect(() => {
+    // Ensure cookie is synced from localStorage for top-level navigations
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('cegs_token');
+      if (token) {
+        const secureFlag = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `cegs_token=${encodeURIComponent(token)}; path=/; max-age=86400; SameSite=Lax${secureFlag}`;
+      }
+    }
+
     fetchMeetings();
     fetchGoogleStatus();
 
@@ -355,7 +365,47 @@ export function CegsMeetDashboard({ db, save, user }) {
     setTimeout(() => setCopiedId(null), 2500);
   };
 
-  // 11. Disconnect Google Account
+  // 11. Connect Google Account via Authenticated Flow
+  const handleConnectGoogle = async () => {
+    try {
+      setIsConnectingGoogle(true);
+      const token = localStorage.getItem('cegs_token') || '';
+      if (!token) {
+        router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+        return;
+      }
+
+      // Sync cookie immediately so top-level navigations carry the token
+      const secureFlag = window.location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = `cegs_token=${encodeURIComponent(token)}; path=/; max-age=86400; SameSite=Lax${secureFlag}`;
+
+      // Call API to fetch official OAuth consent URL using authenticated session
+      const res = await fetch('/api/meet/google/auth', {
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+      if (res.ok && data.authUrl) {
+        window.location.href = data.authUrl;
+      } else if (res.status === 401) {
+        router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+      } else {
+        alert(data.error || 'Failed to initialize Google OAuth flow.');
+      }
+    } catch (err) {
+      console.error('[Google Connect Error]:', err);
+      // Fallback: direct browser navigation (with token in query for failsafe)
+      const token = localStorage.getItem('cegs_token') || '';
+      window.location.href = `/api/meet/google/auth${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    } finally {
+      setIsConnectingGoogle(false);
+    }
+  };
+
+  // 12. Disconnect Google Account
   const handleDisconnectGoogle = async () => {
     if (!window.confirm('Disconnect the currently connected Google Account?')) return;
     try {
@@ -568,8 +618,10 @@ export function CegsMeetDashboard({ db, save, user }) {
               </button>
             )
           ) : (
-            <a
-              href="/api/meet/google/auth"
+            <button
+              type="button"
+              onClick={handleConnectGoogle}
+              disabled={isConnectingGoogle}
               style={{
                 background: '#2563EB',
                 color: '#FFFFFF',
@@ -580,13 +632,15 @@ export function CegsMeetDashboard({ db, save, user }) {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                textDecoration: 'none',
+                border: 'none',
+                cursor: isConnectingGoogle ? 'wait' : 'pointer',
+                opacity: isConnectingGoogle ? 0.7 : 1,
                 boxShadow: '0 2px 8px rgba(37, 99, 235, 0.3)'
               }}
             >
               <ExternalLink size={14} />
-              <span>Connect with Google</span>
-            </a>
+              <span>{isConnectingGoogle ? 'Connecting...' : 'Connect with Google'}</span>
+            </button>
           )}
         </div>
       </div>

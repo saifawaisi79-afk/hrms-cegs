@@ -165,7 +165,7 @@ export async function POST(request: Request) {
       workMode,
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       token,
       portal: resolvedPortal,
       homePath: targetHome,
@@ -198,6 +198,16 @@ export async function POST(request: Request) {
         workMode,
       },
     });
+
+    response.cookies.set('cegs_token', token, {
+      path: '/',
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 86400,
+      httpOnly: false,
+    });
+
+    return response;
   } catch (error: any) {
     console.error('Login Error:', error);
     const msg = String(error?.message || '');

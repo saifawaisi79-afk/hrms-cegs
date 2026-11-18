@@ -18,10 +18,10 @@ export const GOOGLE_MEET_SCOPES = [
 /**
  * Returns OAuth credentials configured in environment variables.
  */
-export function getGoogleOAuthConfig() {
+export function getGoogleOAuthConfig(customRedirectUri = '') {
   const clientId = process.env.GOOGLE_CLIENT_ID || '';
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5001'}/api/meet/google/callback`;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || customRedirectUri || `${process.env.NEXT_PUBLIC_APP_URL || 'https://cegshrms.in'}/api/meet/google/callback`;
   const envRefreshToken = process.env.GOOGLE_REFRESH_TOKEN || '';
 
   return {
@@ -36,8 +36,8 @@ export function getGoogleOAuthConfig() {
 /**
  * Builds Google OAuth 2.0 authorization URL for organizer or admin consent.
  */
-export function getGoogleAuthUrl(state = '') {
-  const config = getGoogleOAuthConfig();
+export function getGoogleAuthUrl(state = '', customRedirectUri = '') {
+  const config = getGoogleOAuthConfig(customRedirectUri);
   if (!config.clientId) {
     throw new Error('GOOGLE_CLIENT_ID is not configured in environment variables.');
   }
@@ -61,8 +61,8 @@ export function getGoogleAuthUrl(state = '') {
 /**
  * Exchanges authorization code for access and refresh tokens.
  */
-export async function exchangeGoogleCodeForTokens(code) {
-  const config = getGoogleOAuthConfig();
+export async function exchangeGoogleCodeForTokens(code, customRedirectUri = '') {
+  const config = getGoogleOAuthConfig(customRedirectUri);
   if (!config.clientId || !config.clientSecret) {
     throw new Error('GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing.');
   }
