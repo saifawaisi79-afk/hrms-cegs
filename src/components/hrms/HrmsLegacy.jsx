@@ -2576,7 +2576,12 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  style={{ padding: '6px 8px', borderRadius: 9, fontSize: 11, fontWeight: 800, border: 'none', cursor: 'pointer', background: chatWidgetTab === 'direct' ? '#FFFFFF' : 'transparent', color: chatWidgetTab === 'direct' ? 'var(--accent)' : '#6B7280', boxShadow: chatWidgetTab === 'direct' ? '0 1px 4px rgba(0,0,0,0.06)' : 'none' }}
  >
  Colleagues ({db.users?.length || 0})
- </button>
+										{(db.messages || []).filter(m => (String(m.toId) === String(user?.id) || String(m.toId) === String(user?._id) || String(m.toId) === String(user?.employee_id)) && !m.read && !m.groupId).length > 0 && (
+											<span style={{ marginLeft: 6, background: '#EF4444', color: '#FFF', borderRadius: 99, padding: '1px 6px', fontSize: 10, fontWeight: 900 }}>
+												{(db.messages || []).filter(m => (String(m.toId) === String(user?.id) || String(m.toId) === String(user?._id) || String(m.toId) === String(user?.employee_id)) && !m.read && !m.groupId).length}
+											</span>
+										)}
+									</button>
  <button
  type="button"
  onClick={() => setChatWidgetTab('groups')}
@@ -2601,7 +2606,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  .filter(u => u.id !== user?.id && (u.name.toLowerCase().includes(chatWidgetSearch.toLowerCase()) || (u.title || '').toLowerCase().includes(chatWidgetSearch.toLowerCase())))
  .slice(0, 5)
  .map(u => {
- const unreadCount = (db.messages || []).filter(m => m.fromId === u.id && m.toId === user?.id && !m.read && !m.groupId).length;
+ const unreadCount = (db.messages || []).filter(m => (String(m.fromId) === String(u.id) || String(m.fromId) === String(u._id)) && (String(m.toId) === String(user?.id) || String(m.toId) === String(user?._id) || String(m.toId) === String(user?.employee_id)) && !m.read && !m.groupId).length;
  return (
  <div 
  key={u.id} 
@@ -2917,13 +2922,21 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  className="btn btn-sm btn-dark" 
  onClick={(e) => { 
  e.stopPropagation(); 
- const saifUser = (db.users || []).find(u => u.name.toLowerCase().includes('saif')) || {
- id: 3,
- name: 'Saif Awaisi',
- title: 'Developer & System Architect',
- email: 'saifawaisi79@gmail.com',
- avatar: SAIF_AVATAR_URL
- };
+ const saifUser = (db.users || []).find(u => 
+        u.employee_id === 'EMP0021' || 
+        u.employeeId === 'EMP0021' || 
+        u.eid === 'EMP0021' ||
+        (u.name && u.name.toLowerCase().includes('saifuddin')) || 
+        (u.name && u.name.toLowerCase().includes('saif'))
+      ) || {
+        id: '6ae9838bce98f5ce5593881b',
+        _id: '6ae9838bce98f5ce5593881b',
+        employee_id: 'EMP0021',
+        name: 'Mohammed Saifuddin',
+        title: 'Developer & System Architect',
+        email: 'saifawaisi79@gmail.com',
+        avatar: SAIF_AVATAR_URL
+      };
  setChatTargetUser && setChatTargetUser(saifUser);
  }}
  style={{ flex: 1, padding: '6px', fontSize: 11.5, fontWeight: 800, background: 'var(--accent)', borderRadius: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
@@ -2968,13 +2981,21 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  style={{ flex: 1, borderRadius: 10, padding: '9px 14px', fontSize: 12.5, fontWeight: 800, background: 'var(--accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} 
  onClick={() => {
  setShowDevQuickView(false);
- const saifUser = (db.users || []).find(u => u.name.toLowerCase().includes('saif')) || {
- id: 3,
- name: 'Saif Awaisi',
- title: 'Developer & System Architect',
- email: 'saifawaisi79@gmail.com',
- avatar: SAIF_AVATAR_URL
- };
+ const saifUser = (db.users || []).find(u => 
+        u.employee_id === 'EMP0021' || 
+        u.employeeId === 'EMP0021' || 
+        u.eid === 'EMP0021' ||
+        (u.name && u.name.toLowerCase().includes('saifuddin')) || 
+        (u.name && u.name.toLowerCase().includes('saif'))
+      ) || {
+        id: '6ae9838bce98f5ce5593881b',
+        _id: '6ae9838bce98f5ce5593881b',
+        employee_id: 'EMP0021',
+        name: 'Mohammed Saifuddin',
+        title: 'Developer & System Architect',
+        email: 'saifawaisi79@gmail.com',
+        avatar: SAIF_AVATAR_URL
+      };
  if (openChatWithUser) {
  openChatWithUser(saifUser);
  } else if (setChatTargetUser) {
@@ -13779,6 +13800,66 @@ export function InternalJobPortalPage({ db, save, user }) {
 export function RewardsPage({ db, save, user }) {
  const [activeTab, setActiveTab] = useState('badges');
  const [searchLeaderboard, setSearchLeaderboard] = useState('');
+
+ // Live Recruitment Performance Tasks & Targets Data
+ const [campaignData, setCampaignData] = useState(null);
+ const [loadingCampaign, setLoadingCampaign] = useState(true);
+
+ useEffect(() => {
+  let cancelled = false;
+  const loadCampaignRewards = async () => {
+   try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+    if (!token) return;
+    const res = await fetch('/api/campaigns', {
+     headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+     const json = await res.json();
+     if (!cancelled) setCampaignData(json);
+    }
+   } catch (err) {
+    console.warn('Failed to load recruitment rewards data:', err);
+   } finally {
+    if (!cancelled) setLoadingCampaign(false);
+   }
+  };
+  loadCampaignRewards();
+  return () => {
+   cancelled = true;
+  };
+ }, []);
+
+ const campSnap = campaignData?.snapshot;
+ const campObj = campSnap?.campaign || campaignData?.campaign;
+ const campEmployees = campSnap?.employees || [];
+ const currentWeek = campObj?.currentWeek;
+
+ // Performer of the Week from Recruitment Performance tasks
+ const performerOfWeek = useMemo(() => {
+  if (!campEmployees.length) return null;
+  const list = campEmployees.map((e) => {
+   const wInfo = (e.weekly || []).find((w) => w.weekKey === currentWeek?.weekKey) || e.thisWeek;
+   return {
+    ...e,
+    weekTarget: wInfo?.target ?? 0,
+    weekActual: wInfo?.actual ?? 0,
+    weekStatus: wInfo?.label ?? 'Pending',
+    weekAchieved: wInfo?.achieved ?? false,
+    weekBonus: wInfo?.bonusAwarded ? wInfo.bonusAmount : (wInfo?.achieved ? 5000 : 0),
+   };
+  });
+  list.sort((a, b) => (b.weekActual - a.weekActual) || (b.weeklyWins - a.weeklyWins) || (b.monthlyJoiners - a.monthlyJoiners));
+  return list[0] || null;
+ }, [campEmployees, currentWeek]);
+
+ // Performer of the Month from Recruitment Performance
+ const performerOfMonth = useMemo(() => {
+  if (campSnap?.eomWinner) return campSnap.eomWinner;
+  if (!campEmployees.length) return null;
+  const sorted = [...campEmployees].sort((a, b) => (b.monthlyJoiners - a.monthlyJoiners) || (b.weeklyWins - a.weeklyWins));
+  return sorted[0] || null;
+ }, [campSnap, campEmployees]);
  
  // Direct Award Form States (for Admin / Super Admin)
  const [awardTargetUser, setAwardTargetUser] = useState('');
@@ -14029,6 +14110,143 @@ export function RewardsPage({ db, save, user }) {
  <div className="section-title">Rewards & Recognition</div>
  <div className="section-sub">Celebrate excellence, earn badges, nominate peers, and track monthly standings</div>
  </div>
+ </div>
+
+ {/* ─── LIVE RECRUITMENT PERFORMANCE HALL OF FAME ─── */}
+ <div style={{
+  background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #1E1B4B 100%)',
+  borderRadius: 20,
+  padding: '24px 28px',
+  color: '#FFFFFF',
+  marginBottom: 24,
+  boxShadow: '0 12px 36px rgba(49, 46, 129, 0.25)',
+  border: '1px solid rgba(255, 255, 255, 0.12)',
+  position: 'relative',
+  overflow: 'hidden'
+ }}>
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+   <div>
+    <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#A5B4FC' }}>
+     ★ OFFICIAL CEGS HONORS · RECRUITMENT PERFORMANCE HALL OF FAME
+    </div>
+    <div style={{ fontSize: 20, fontWeight: 900, color: '#FFFFFF', marginTop: 2 }}>
+     Performers of the Week & Month
+    </div>
+   </div>
+   <span style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', padding: '5px 14px', borderRadius: 99, fontSize: 11.5, fontWeight: 700, color: '#E0E7FF' }}>
+    Live Joiner Tasks & Targets
+   </span>
+  </div>
+
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+   {/* 1. PERFORMER OF THE WEEK */}
+   <div style={{
+    background: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
+    padding: '20px',
+    border: '1px solid rgba(251, 191, 36, 0.4)',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between'
+   }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+     <span style={{ background: '#FEF3C7', color: '#92400E', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 900 }}>
+      ⭐ PERFORMER OF THE WEEK
+     </span>
+     <span style={{ fontSize: 11, color: '#CBD5E1', fontWeight: 600 }}>
+      {currentWeek?.weekKey || 'Active Week'}
+     </span>
+    </div>
+
+    {performerOfWeek ? (
+     <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+       <div className="cegs-btn-avatar" style={{ width: 50, height: 50, borderRadius: '50%', background: '#F59E0B', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 18, border: '3px solid rgba(255,255,255,0.3)', boxShadow: '0 4px 12px rgba(245,158,11,0.4)' }}>
+        {performerOfWeek.name?.split(' ').map(n=>n[0]).join('').slice(0, 2).toUpperCase()}
+       </div>
+       <div>
+        <div style={{ fontSize: 17, fontWeight: 900, color: '#FFFFFF' }}>{performerOfWeek.name}</div>
+        <div style={{ fontSize: 12, color: '#A5B4FC' }}>{performerOfWeek.role || 'Recruiter'} · {performerOfWeek.employee_id}</div>
+       </div>
+      </div>
+
+      <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.08)' }}>
+       <div>
+        <div style={{ fontSize: 10.5, color: '#CBD5E1', fontWeight: 600 }}>Week Joiners Achieved</div>
+        <div style={{ fontSize: 16, fontWeight: 900, color: '#34D399' }}>
+         {performerOfWeek.weekActual} <span style={{ fontSize: 12, color: '#94A3B8' }}>/ {performerOfWeek.weekTarget} Target</span>
+        </div>
+       </div>
+       <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: 10.5, color: '#CBD5E1', fontWeight: 600 }}>Weekly Reward</div>
+        <div style={{ fontSize: 14, fontWeight: 900, color: '#FBBF24' }}>
+         {performerOfWeek.weekAchieved ? '₹5,000 Bonus' : 'Target Pending'}
+        </div>
+       </div>
+      </div>
+     </div>
+    ) : (
+     <div style={{ color: '#94A3B8', fontSize: 13, fontStyle: 'italic', padding: '16px 0' }}>
+      No weekly performance targets active.
+     </div>
+    )}
+   </div>
+
+   {/* 2. PERFORMER OF THE MONTH */}
+   <div style={{
+    background: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 16,
+    padding: '20px',
+    border: '1px solid rgba(147, 197, 253, 0.4)',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between'
+   }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+     <span style={{ background: '#DBEAFE', color: '#1E40AF', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 900 }}>
+      👑 PERFORMER OF THE MONTH
+     </span>
+     <span style={{ fontSize: 11, color: '#CBD5E1', fontWeight: 600 }}>
+      {campObj?.monthKey || 'Monthly Standing'}
+     </span>
+    </div>
+
+    {performerOfMonth ? (
+     <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+       <div className="cegs-btn-avatar" style={{ width: 50, height: 50, borderRadius: '50%', background: '#3B82F6', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 18, border: '3px solid rgba(255,255,255,0.3)', boxShadow: '0 4px 12px rgba(59,130,246,0.4)' }}>
+        {performerOfMonth.name?.split(' ').map(n=>n[0]).join('').slice(0, 2).toUpperCase()}
+       </div>
+       <div>
+        <div style={{ fontSize: 17, fontWeight: 900, color: '#FFFFFF' }}>{performerOfMonth.name}</div>
+        <div style={{ fontSize: 12, color: '#93C5FD' }}>{performerOfMonth.role || 'Recruiter'} · {performerOfMonth.employee_id}</div>
+       </div>
+      </div>
+
+      <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.08)' }}>
+       <div>
+        <div style={{ fontSize: 10.5, color: '#CBD5E1', fontWeight: 600 }}>Total Month Joiners</div>
+        <div style={{ fontSize: 16, fontWeight: 900, color: '#60A5FA' }}>
+         {performerOfMonth.monthlyJoiners} <span style={{ fontSize: 12, color: '#94A3B8' }}>Joiners</span>
+        </div>
+       </div>
+       <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: 10.5, color: '#CBD5E1', fontWeight: 600 }}>Weekly Targets Won</div>
+        <div style={{ fontSize: 14, fontWeight: 900, color: '#34D399' }}>
+         {performerOfMonth.weeklyWins ?? '—'} Weeks
+        </div>
+       </div>
+      </div>
+     </div>
+    ) : (
+     <div style={{ color: '#94A3B8', fontSize: 13, fontStyle: 'italic', padding: '16px 0' }}>
+      No monthly performance recorded yet.
+     </div>
+    )}
+   </div>
+  </div>
  </div>
 
  <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 20, flexWrap: 'wrap' }}>

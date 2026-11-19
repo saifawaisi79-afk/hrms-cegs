@@ -50,7 +50,10 @@ export async function GET(request) {
 
   const campaign = await Campaign.findOne({ monthKey });
   const selectable = await User.find({
-    role: { $in: ['employee', 'admin'] },
+    $or: [
+      { role: { $in: ['employee', 'admin', 'finance'] } },
+      { employee_id: 'EMP0015' },
+    ],
     status: { $in: ['active', 'on_leave'] },
   })
     .select('name email role employee_id status')

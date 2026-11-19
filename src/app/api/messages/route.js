@@ -50,7 +50,7 @@ export async function GET(request) {
     return NextResponse.json(rows.map(flattenMessage));
   }
 
-  // Direct 1-on-1 messages
+  // Direct 1-on-1 messages or all relevant messages for user
   const me = new mongoose.Types.ObjectId(authUser.id);
   let filter;
 
@@ -64,11 +64,22 @@ export async function GET(request) {
       ],
     };
   } else {
-    // Return all direct messages involving current user
+    // Return all direct messages involving current user + messages in groups user belongs to
+    let groupIds = [];
+    try {
+      const userGroups = await ChatGroup.find({
+        $or: [{ members: me }, { admins: me }],
+      }).select('_id').lean();
+      groupIds = userGroups.map((g) => g._id);
+    } catch (gErr) {
+      console.warn('Error fetching user groups for messages:', gErr.message);
+    }
+
     filter = {
       $or: [
         { from_id: me, to_id: { $ne: null } },
         { to_id: me },
+        ...(groupIds.length > 0 ? [{ group_id: { $in: groupIds } }] : []),
       ],
     };
   }

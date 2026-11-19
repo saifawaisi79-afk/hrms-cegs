@@ -55,16 +55,27 @@ export function MessengerNotificationToast({
   const initialLoadRef = useRef(true);
   const myId = String(currentUser?.id || currentUser?._id || '');
 
+  // Auto-dismiss floating notification after 6.5 seconds
+  useEffect(() => {
+    if (notifications.length === 0) return undefined;
+    const timer = setTimeout(() => {
+      setNotifications((prev) => prev.slice(1));
+    }, 6500);
+    return () => clearTimeout(timer);
+  }, [notifications]);
+
   useEffect(() => {
     if (!myId || !Array.isArray(messages)) return;
 
-    // On initial mount, prime the known IDs so we don't alert for pre-existing history
+    // On initial mount, prime the known IDs once messages are loaded
     if (initialLoadRef.current) {
-      messages.forEach((m) => {
-        const key = String(m.id || m._id || `${m.fromId}-${m.time}`);
-        knownMsgIdsRef.current.add(key);
-      });
-      initialLoadRef.current = false;
+      if (messages.length > 0) {
+        messages.forEach((m) => {
+          const key = String(m.id || m._id || `${m.fromId}-${m.time}`);
+          knownMsgIdsRef.current.add(key);
+        });
+        initialLoadRef.current = false;
+      }
       return;
     }
 
@@ -73,9 +84,13 @@ export function MessengerNotificationToast({
     messages.forEach((m) => {
       const key = String(m.id || m._id || `${m.fromId}-${m.time}`);
       const fromId = String(m.fromId || '');
+      const toId = String(m.toId || '');
 
-      // Check if message is from another user and hasn't been notified yet
-      if (fromId && fromId !== myId && !knownMsgIdsRef.current.has(key)) {
+      // Check if message is for me (direct message to my ID or in a group)
+      const isForMe = !m.groupId ? (toId === myId || toId === String(currentUser?.employee_id || '')) : true;
+
+      // Check if message is from another user, for me, and hasn't been notified yet
+      if (fromId && fromId !== myId && isForMe && !knownMsgIdsRef.current.has(key)) {
         knownMsgIdsRef.current.add(key);
 
         // If the messenger is already open and viewing this exact conversation, skip toast
@@ -115,7 +130,7 @@ export function MessengerNotificationToast({
 
       setNotifications((prev) => [...formattedToasts, ...prev].slice(0, 3));
     }
-  }, [messages, myId, groups, isMessengerOpen, activeTargetUserId, activeTargetGroupId]);
+  }, [messages, myId, groups, isMessengerOpen, activeTargetUserId, activeTargetGroupId, currentUser?.employee_id]);
 
   const handleDismiss = (id) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));

@@ -507,12 +507,13 @@ export function AppProvider({ children }) {
     };
   }, [user?.id]);
 
-  // Sync live chat from Mongo so both parties share the same inbox
+  // Sync live chat & groups from Mongo so both parties share the same inbox in real-time
   useEffect(() => {
     if (!user?.id) return undefined;
     const token = getAuthToken();
     if (!token) return undefined;
     let cancelled = false;
+
     const pull = async () => {
       try {
         const res = await fetch(`${API_BASE}/messages`, {
@@ -520,14 +521,36 @@ export function AppProvider({ children }) {
         });
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (Array.isArray(data) && !cancelled) save('messages', data);
+        if (Array.isArray(data) && !cancelled) {
+          save('messages', data);
+        }
       } catch {}
     };
+
+    const pullGroups = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/chat-groups`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (Array.isArray(data) && !cancelled) {
+          save('chatGroups', data);
+        }
+      } catch {}
+    };
+
     pull();
-    const timer = setInterval(pull, 8000);
+    pullGroups();
+
+    // Fast 2.5s poll for real-time instant direct messaging
+    const msgTimer = setInterval(pull, 2500);
+    const grpTimer = setInterval(pullGroups, 6000);
+
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      clearInterval(msgTimer);
+      clearInterval(grpTimer);
     };
   }, [user?.id, save]);
 
