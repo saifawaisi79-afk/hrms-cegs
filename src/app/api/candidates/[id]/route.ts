@@ -47,7 +47,15 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 
     await connectDB();
-    const candidate = await Candidate.findByIdAndUpdate(id, parseResult.data, { new: true });
+    const updateData: Record<string, any> = { ...parseResult.data };
+    const stringFields = ['name', 'languages', 'qualification', 'response', 'callStatus', 'location', 'company', 'followUp1', 'followUp2', 'followUp3'];
+    stringFields.forEach((f) => {
+      if (typeof updateData[f] === 'string') {
+        updateData[f] = updateData[f].toUpperCase().trim();
+      }
+    });
+
+    const candidate = await Candidate.findByIdAndUpdate(id, updateData, { new: true });
     
     if (!candidate) {
       return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });

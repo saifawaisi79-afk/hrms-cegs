@@ -31,6 +31,11 @@ function flatten(doc) {
   const o = doc.toObject ? doc.toObject() : doc;
   return {
     ...o,
+    name: o.name ? String(o.name).toUpperCase().trim() : '',
+    process: o.process ? String(o.process).toUpperCase().trim() : '',
+    company: o.company ? String(o.company).toUpperCase().trim() : '',
+    employeeCode: o.employeeCode ? String(o.employeeCode).toUpperCase().trim() : '',
+    recruiterName: o.recruiterName ? String(o.recruiterName).toUpperCase().trim() : '',
     id: o._id?.toString(),
     _id: o._id?.toString(),
   };

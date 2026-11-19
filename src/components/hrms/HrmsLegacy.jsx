@@ -9770,23 +9770,23 @@ export function ReportsPage({ db }) {
 }
 
 export const CALL_STATUS_OPTIONS = [
- 'Select Status', 'Connected', 'Rejected', 'No Answer', 'Switched Off', 'Busy', 'Call Back Later', 'Wrong Number'
+ 'SELECT STATUS', 'CONNECTED', 'REJECTED', 'NO ANSWER', 'SWITCHED OFF', 'BUSY', 'CALL BACK LATER', 'WRONG NUMBER'
 ];
 
 export const LANGUAGE_OPTIONS = [
- 'English', 'Hindi', 'Kannada', 'Telugu', 'Tamil', 'Malayalam', 'Marathi', 'Odisha', 'Bengali', 'English, Hindi', 'English, Kannada', 'English, Telugu', 'English, Tamil', 'Urdu'
+ 'ENGLISH', 'HINDI', 'KANNADA', 'TELUGU', 'TAMIL', 'MALAYALAM', 'MARATHI', 'ODISHA', 'BENGALI', 'ENGLISH, HINDI', 'ENGLISH, KANNADA', 'ENGLISH, TELUGU', 'ENGLISH, TAMIL', 'URDU'
 ];
 
 export const COMPANY_OPTIONS = [
- 'Select Company',
+ 'SELECT COMPANY',
  'ALTRUIST',
  'ONE POINT ONE',
  'STARTEK',
  'TRIO',
  'ISON',
  'RADICAL MINDS',
- 'iLeads',
- 'Other',
+ 'ILEADS',
+ 'OTHER',
 ];
 
 export const INITIAL_CANDIDATE_DATA = [];
@@ -10130,7 +10130,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  
  // Inline Excel-style add / edit state (no modal)
  const emptyCandidateForm = {
- name: '', number: '', time: '', languages: 'English', qualification: '', response: '', callStatus: 'Select Status', location: 'Bengaluru', company: 'Select Company', experience: 0, followUp1: '', followUp2: '', followUp3: ''
+ name: '', number: '', time: '', languages: 'ENGLISH', qualification: '', response: '', callStatus: 'SELECT STATUS', location: 'BENGALURU', company: 'SELECT COMPANY', experience: 0, followUp1: '', followUp2: '', followUp3: ''
  };
  const [isAdding, setIsAdding] = useState(false);
  const [editingId, setEditingId] = useState(null);
@@ -10564,11 +10564,20 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const autoTime = getLiveTime12();
  const draftRow = {
  ...candidateForm,
+ name: String(candidateForm.name || '').toUpperCase().trim(),
+ languages: String(candidateForm.languages || 'ENGLISH').toUpperCase().trim(),
+ qualification: String(candidateForm.qualification || '').toUpperCase().trim(),
+ response: String(candidateForm.response || '').toUpperCase().trim(),
+ callStatus: String(candidateForm.callStatus || 'CONNECTED').toUpperCase().trim(),
+ location: String(candidateForm.location || 'BENGALURU').toUpperCase().trim(),
+ company: (candidateForm.company === 'SELECT COMPANY' || candidateForm.company === 'Select Company' || candidateForm.company === 'OTHER' || candidateForm.company === 'Other') ? '' : String(candidateForm.company || '').toUpperCase().trim(),
+ followUp1: String(candidateForm.followUp1 || '').toUpperCase().trim(),
+ followUp2: String(candidateForm.followUp2 || '').toUpperCase().trim(),
+ followUp3: String(candidateForm.followUp3 || '').toUpperCase().trim(),
  slNo: categoryRows.length + 1,
  date: formatSheetDateDisplay(sheetDate),
  time: candidateForm.time || autoTime,
  category: activeTaskCategory,
- company: (candidateForm.company === 'Select Company' || candidateForm.company === 'Other') ? '' : (candidateForm.company || '').trim(),
  employee: (selectedEmployeeFilter && selectedEmployeeFilter !== 'ALL')
  ? selectedEmployeeFilter
  : (user?.name || 'Recruiter')
@@ -10675,11 +10684,20 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  setSaveStatus('Saving...');
  const payload = {
  ...editForm,
+ name: String(editForm.name || '').toUpperCase().trim(),
+ languages: String(editForm.languages || 'ENGLISH').toUpperCase().trim(),
+ qualification: String(editForm.qualification || '').toUpperCase().trim(),
+ response: String(editForm.response || '').toUpperCase().trim(),
+ callStatus: String(editForm.callStatus || 'CONNECTED').toUpperCase().trim(),
+ location: String(editForm.location || 'BENGALURU').toUpperCase().trim(),
+ company: (editForm.company === 'SELECT COMPANY' || editForm.company === 'Select Company' || editForm.company === 'OTHER' || editForm.company === 'Other') ? '' : String(editForm.company || '').toUpperCase().trim(),
+ followUp1: String(editForm.followUp1 || '').toUpperCase().trim(),
+ followUp2: String(editForm.followUp2 || '').toUpperCase().trim(),
+ followUp3: String(editForm.followUp3 || '').toUpperCase().trim(),
  experience: Number(editForm.experience) || 0,
  category: editForm.category || activeTaskCategory,
  date: editForm.date || formatSheetDateDisplay(sheetDate),
  time: editForm.time || formatCandidateTime(editForm.time, editForm.createdAt) || getLiveTime12(),
- company: (editForm.company === 'Select Company' || editForm.company === 'Other') ? '' : (editForm.company || '').trim(),
  };
 
  if (activeTaskCategory === 'joined' || String(payload.category || '').toLowerCase() === 'joined') {
@@ -10803,18 +10821,18 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  date: sheetDisplay,
  time: fileTime,
  category: activeTaskCategory,
- name: String(findVal(['name', 'candidate']) || 'IMPORTED CANDIDATE').toUpperCase(),
- number: String(findVal(['number', 'contact', 'phone']) || ''),
- languages: String(findVal(['language', 'lang']) || 'English'),
- qualification: String(findVal(['qualification']) || ''),
- response: String(findVal(['response']) || ''),
- callStatus: rawStatus || 'Connected',
- location: String(findVal(['location']) || 'Bengaluru'),
- company: String(findVal(['company', 'client']) || ''),
+ name: String(findVal(['name', 'candidate']) || 'IMPORTED CANDIDATE').toUpperCase().trim(),
+ number: String(findVal(['number', 'contact', 'phone']) || '').trim(),
+ languages: String(findVal(['language', 'lang']) || 'ENGLISH').toUpperCase().trim(),
+ qualification: String(findVal(['qualification']) || '').toUpperCase().trim(),
+ response: String(findVal(['response']) || '').toUpperCase().trim(),
+ callStatus: String(rawStatus || 'CONNECTED').toUpperCase().trim(),
+ location: String(findVal(['location']) || 'BENGALURU').toUpperCase().trim(),
+ company: String(findVal(['company', 'client']) || '').toUpperCase().trim(),
  experience: Number(findVal(['experience'])) || 0,
- followUp1: String(findVal(['followup1']) || ''),
- followUp2: String(findVal(['followup2']) || ''),
- followUp3: String(findVal(['followup3']) || ''),
+ followUp1: String(findVal(['followup1']) || '').toUpperCase().trim(),
+ followUp2: String(findVal(['followup2']) || '').toUpperCase().trim(),
+ followUp3: String(findVal(['followup3']) || '').toUpperCase().trim(),
  employee: String(
  findVal(['employee', 'recruiter']) ||
  (selectedEmployeeFilter && selectedEmployeeFilter !== 'ALL' ? selectedEmployeeFilter : '') ||
@@ -11387,21 +11405,21 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  ) : (
  <td><input className="cell-input" value={formatSheetDateDisplay(sheetDate)} readOnly aria-label="Date" /></td>
  )}
- <td><input className="cell-input" autoFocus value={candidateForm.name} onChange={e => setCandidateForm({ ...candidateForm, name: e.target.value.toUpperCase() })} placeholder="NAME" aria-label="Candidate name" /></td>
+ <td><input className="cell-input" autoFocus value={candidateForm.name} onChange={e => setCandidateForm({ ...candidateForm, name: e.target.value.toUpperCase() })} placeholder="NAME" style={{ textTransform: 'uppercase' }} aria-label="Candidate name" /></td>
  <td><input className="cell-input" value={candidateForm.number} onChange={e => setCandidateForm({ ...candidateForm, number: e.target.value })} placeholder="Phone" aria-label="Contact number" /></td>
  <td>
- <select className="cell-select" value={candidateForm.languages} onChange={e => setCandidateForm({ ...candidateForm, languages: e.target.value })} aria-label="Languages">
+ <select className="cell-select" value={candidateForm.languages} onChange={e => setCandidateForm({ ...candidateForm, languages: e.target.value.toUpperCase() })} style={{ textTransform: 'uppercase' }} aria-label="Languages">
  {LANGUAGE_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
  </select>
  </td>
- <td><input className="cell-input" value={candidateForm.qualification} onChange={e => setCandidateForm({ ...candidateForm, qualification: e.target.value })} placeholder="Qual." aria-label="Qualification" /></td>
- <td><input className="cell-input" value={candidateForm.response} onChange={e => setCandidateForm({ ...candidateForm, response: e.target.value })} placeholder="Response" aria-label="Response" /></td>
+ <td><input className="cell-input" value={candidateForm.qualification} onChange={e => setCandidateForm({ ...candidateForm, qualification: e.target.value.toUpperCase() })} placeholder="QUAL." style={{ textTransform: 'uppercase' }} aria-label="Qualification" /></td>
+ <td><input className="cell-input" value={candidateForm.response} onChange={e => setCandidateForm({ ...candidateForm, response: e.target.value.toUpperCase() })} placeholder="RESPONSE" style={{ textTransform: 'uppercase' }} aria-label="Response" /></td>
  <td>
- <select className="cell-select" value={candidateForm.callStatus} onChange={e => setCandidateForm({ ...candidateForm, callStatus: e.target.value })} aria-label="Call status">
+ <select className="cell-select" value={candidateForm.callStatus} onChange={e => setCandidateForm({ ...candidateForm, callStatus: e.target.value.toUpperCase() })} style={{ textTransform: 'uppercase' }} aria-label="Call status">
  {CALL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
  </select>
  </td>
- <td><input className="cell-input" value={candidateForm.location} onChange={e => setCandidateForm({ ...candidateForm, location: e.target.value })} placeholder="Location" aria-label="Location" /></td>
+ <td><input className="cell-input" value={candidateForm.location} onChange={e => setCandidateForm({ ...candidateForm, location: e.target.value.toUpperCase() })} placeholder="LOCATION" style={{ textTransform: 'uppercase' }} aria-label="Location" /></td>
  <td>
  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
  <select
@@ -11410,36 +11428,37 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  COMPANY_OPTIONS.includes(candidateForm.company)
  ? candidateForm.company
  : candidateForm.company
- ? 'Other'
- : 'Select Company'
+ ? 'OTHER'
+ : 'SELECT COMPANY'
  }
  onChange={e => {
- if (e.target.value === 'Other') {
+ if (e.target.value === 'OTHER' || e.target.value === 'Other') {
  setCandidateForm({ ...candidateForm, company: '', _customCompany: true });
  } else {
- setCandidateForm({ ...candidateForm, company: e.target.value, _customCompany: false });
+ setCandidateForm({ ...candidateForm, company: e.target.value.toUpperCase(), _customCompany: false });
  }
  }}
+ style={{ textTransform: 'uppercase' }}
  aria-label="Company"
  >
  {COMPANY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
  </select>
- {(candidateForm._customCompany || (!COMPANY_OPTIONS.includes(candidateForm.company) && candidateForm.company && candidateForm.company !== 'Select Company')) && (
+ {(candidateForm._customCompany || (!COMPANY_OPTIONS.includes(candidateForm.company) && candidateForm.company && candidateForm.company !== 'SELECT COMPANY' && candidateForm.company !== 'Select Company')) && (
  <input
  className="cell-input"
- placeholder="Enter company name..."
- value={candidateForm.company === 'Other' ? '' : candidateForm.company}
- onChange={e => setCandidateForm({ ...candidateForm, company: e.target.value, _customCompany: true })}
- style={{ marginTop: 2, borderColor: '#0284C7', background: '#F0F9FF' }}
+ placeholder="ENTER COMPANY NAME..."
+ value={candidateForm.company === 'OTHER' || candidateForm.company === 'Other' ? '' : candidateForm.company}
+ onChange={e => setCandidateForm({ ...candidateForm, company: e.target.value.toUpperCase(), _customCompany: true })}
+ style={{ marginTop: 2, borderColor: '#0284C7', background: '#F0F9FF', textTransform: 'uppercase' }}
  autoFocus
  />
  )}
  </div>
  </td>
  <td><input type="number" min="0" className="cell-input" value={candidateForm.experience} onChange={e => setCandidateForm({ ...candidateForm, experience: Number(e.target.value) })} aria-label="Experience" /></td>
- <td><input className="cell-input" value={candidateForm.followUp1} onChange={e => setCandidateForm({ ...candidateForm, followUp1: e.target.value })} placeholder="Note 1" aria-label="Follow up 1" /></td>
- <td><input className="cell-input" value={candidateForm.followUp2} onChange={e => setCandidateForm({ ...candidateForm, followUp2: e.target.value })} placeholder="Note 2" aria-label="Follow up 2" /></td>
- <td><input className="cell-input" value={candidateForm.followUp3} onChange={e => setCandidateForm({ ...candidateForm, followUp3: e.target.value })} placeholder="Note 3" aria-label="Follow up 3" /></td>
+ <td><input className="cell-input" value={candidateForm.followUp1} onChange={e => setCandidateForm({ ...candidateForm, followUp1: e.target.value.toUpperCase() })} placeholder="NOTE 1" style={{ textTransform: 'uppercase' }} aria-label="Follow up 1" /></td>
+ <td><input className="cell-input" value={candidateForm.followUp2} onChange={e => setCandidateForm({ ...candidateForm, followUp2: e.target.value.toUpperCase() })} placeholder="NOTE 2" style={{ textTransform: 'uppercase' }} aria-label="Follow up 2" /></td>
+ <td><input className="cell-input" value={candidateForm.followUp3} onChange={e => setCandidateForm({ ...candidateForm, followUp3: e.target.value.toUpperCase() })} placeholder="NOTE 3" style={{ textTransform: 'uppercase' }} aria-label="Follow up 3" /></td>
  <td style={{ textAlign: 'center' }}>
  <div className="datasheet-row-actions">
  <button type="button" className="datasheet-action-btn datasheet-action-save" onClick={handleAddCandidateSubmit} disabled={saveStatus === 'Saving...'} title="Save candidate">
@@ -11499,18 +11518,18 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <td><input className="cell-input" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value.toUpperCase() })} aria-label="Candidate name" /></td>
  <td><input className="cell-input" value={editForm.number} onChange={e => setEditForm({ ...editForm, number: e.target.value })} aria-label="Contact number" /></td>
  <td>
- <select className="cell-select" value={editForm.languages} onChange={e => setEditForm({ ...editForm, languages: e.target.value })} aria-label="Languages">
+ <select className="cell-select" value={editForm.languages} onChange={e => setEditForm({ ...editForm, languages: e.target.value.toUpperCase() })} style={{ textTransform: 'uppercase' }} aria-label="Languages">
  {LANGUAGE_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
  </select>
  </td>
- <td><input className="cell-input" value={editForm.qualification} onChange={e => setEditForm({ ...editForm, qualification: e.target.value })} aria-label="Qualification" /></td>
- <td><input className="cell-input" value={editForm.response} onChange={e => setEditForm({ ...editForm, response: e.target.value })} aria-label="Response" /></td>
+ <td><input className="cell-input" value={editForm.qualification} onChange={e => setEditForm({ ...editForm, qualification: e.target.value.toUpperCase() })} style={{ textTransform: 'uppercase' }} aria-label="Qualification" /></td>
+ <td><input className="cell-input" value={editForm.response} onChange={e => setEditForm({ ...editForm, response: e.target.value.toUpperCase() })} style={{ textTransform: 'uppercase' }} aria-label="Response" /></td>
  <td>
- <select className="cell-select" value={editForm.callStatus} onChange={e => setEditForm({ ...editForm, callStatus: e.target.value })} aria-label="Call status">
+ <select className="cell-select" value={editForm.callStatus} onChange={e => setEditForm({ ...editForm, callStatus: e.target.value.toUpperCase() })} style={{ textTransform: 'uppercase' }} aria-label="Call status">
  {CALL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
  </select>
  </td>
- <td><input className="cell-input" value={editForm.location} onChange={e => setEditForm({ ...editForm, location: e.target.value })} aria-label="Location" /></td>
+ <td><input className="cell-input" value={editForm.location} onChange={e => setEditForm({ ...editForm, location: e.target.value.toUpperCase() })} style={{ textTransform: 'uppercase' }} aria-label="Location" /></td>
  <td>
  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
  <select
@@ -11519,36 +11538,37 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  COMPANY_OPTIONS.includes(editForm.company)
  ? editForm.company
  : editForm.company
- ? 'Other'
- : 'Select Company'
+ ? 'OTHER'
+ : 'SELECT COMPANY'
  }
  onChange={e => {
- if (e.target.value === 'Other') {
+ if (e.target.value === 'OTHER' || e.target.value === 'Other') {
  setEditForm({ ...editForm, company: '', _customCompany: true });
  } else {
- setEditForm({ ...editForm, company: e.target.value, _customCompany: false });
+ setEditForm({ ...editForm, company: e.target.value.toUpperCase(), _customCompany: false });
  }
  }}
+ style={{ textTransform: 'uppercase' }}
  aria-label="Company"
  >
  {COMPANY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
  </select>
- {(editForm._customCompany || (!COMPANY_OPTIONS.includes(editForm.company) && editForm.company && editForm.company !== 'Select Company')) && (
+ {(editForm._customCompany || (!COMPANY_OPTIONS.includes(editForm.company) && editForm.company && editForm.company !== 'SELECT COMPANY' && editForm.company !== 'Select Company')) && (
  <input
  className="cell-input"
- placeholder="Enter company name..."
- value={editForm.company === 'Other' ? '' : editForm.company}
- onChange={e => setEditForm({ ...editForm, company: e.target.value, _customCompany: true })}
- style={{ marginTop: 2, borderColor: '#0284C7', background: '#F0F9FF' }}
+ placeholder="ENTER COMPANY NAME..."
+ value={editForm.company === 'OTHER' || editForm.company === 'Other' ? '' : editForm.company}
+ onChange={e => setEditForm({ ...editForm, company: e.target.value.toUpperCase(), _customCompany: true })}
+ style={{ marginTop: 2, borderColor: '#0284C7', background: '#F0F9FF', textTransform: 'uppercase' }}
  autoFocus
  />
  )}
  </div>
  </td>
  <td><input type="number" min="0" className="cell-input" value={editForm.experience} onChange={e => setEditForm({ ...editForm, experience: Number(e.target.value) })} aria-label="Experience" /></td>
- <td><input className="cell-input" value={editForm.followUp1} onChange={e => setEditForm({ ...editForm, followUp1: e.target.value })} aria-label="Follow up 1" /></td>
- <td><input className="cell-input" value={editForm.followUp2} onChange={e => setEditForm({ ...editForm, followUp2: e.target.value })} aria-label="Follow up 2" /></td>
- <td><input className="cell-input" value={editForm.followUp3} onChange={e => setEditForm({ ...editForm, followUp3: e.target.value })} aria-label="Follow up 3" /></td>
+ <td><input className="cell-input" value={editForm.followUp1} onChange={e => setEditForm({ ...editForm, followUp1: e.target.value.toUpperCase() })} style={{ textTransform: 'uppercase' }} aria-label="Follow up 1" /></td>
+ <td><input className="cell-input" value={editForm.followUp2} onChange={e => setEditForm({ ...editForm, followUp2: e.target.value.toUpperCase() })} style={{ textTransform: 'uppercase' }} aria-label="Follow up 2" /></td>
+ <td><input className="cell-input" value={editForm.followUp3} onChange={e => setEditForm({ ...editForm, followUp3: e.target.value.toUpperCase() })} style={{ textTransform: 'uppercase' }} aria-label="Follow up 3" /></td>
  <td style={{ textAlign: 'center' }}>
  <div className="datasheet-row-actions">
  <button type="button" className="datasheet-action-btn datasheet-action-save" onClick={handleEditCandidateSave} disabled={saveStatus === 'Saving...'} title="Save changes">
@@ -11563,7 +11583,9 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  );
  }
  const cell = (v) => (
- <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{v ?? '—'}</td>
+ <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+   {typeof v === 'string' ? v.toUpperCase() : (v ?? '—')}
+ </td>
  );
  return (
  <tr key={rid}>

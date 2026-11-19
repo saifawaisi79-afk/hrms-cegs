@@ -44,6 +44,50 @@ const COMPANY_OPTIONS = [
 
 const WEEK_KEYS = ['week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'week8'];
 
+/** Format date strictly as Day/Month (DD/MM, e.g. 19/11) */
+export function getDayMonthDate(d = new Date()) {
+  const dt = typeof d === 'string' || typeof d === 'number' ? new Date(d) : d;
+  const valid = dt && !isNaN(dt.getTime()) ? dt : new Date();
+  const day = String(valid.getDate()).padStart(2, '0');
+  const month = String(valid.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}`;
+}
+
+/** Extract DD/MM from a followup string (e.g. "Active (19/11)" -> "19/11", "Working(22/10/2026)" -> "22/10") */
+export function parseFollowupDate(val) {
+  if (!val) return '';
+  const str = String(val).trim();
+  const match = str.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-]\d{2,4})?\b/);
+  if (match) {
+    const d = match[1].padStart(2, '0');
+    const m = match[2].padStart(2, '0');
+    return `${d}/${m}`;
+  }
+  return '';
+}
+
+/** Get the date to display beside the followup option: explicit date in val, or fallback to interview/DOJ */
+export function getFollowupDisplayDate(val, row) {
+  if (!val) return '';
+  const direct = parseFollowupDate(val);
+  if (direct) return direct;
+  // If entry exists without explicit date, fall back to row's interview date or DOJ
+  const fallback = row?.interviewDate || row?.dateOfJoining;
+  if (fallback) {
+    const fb = parseFollowupDate(fallback);
+    if (fb) return fb;
+  }
+  return '';
+}
+
+/** Strip date parenthesis suffix from comment text */
+export function getFollowupCommentOnly(val) {
+  if (!val) return '';
+  return String(val)
+    .replace(/\s*\(\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?\)\s*$/, '')
+    .trim();
+}
+
 export function getFollowupStatus(val) {
   const str = String(val || '').trim().toLowerCase();
   if (!str) return '';
@@ -603,13 +647,13 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
     const payload = {
       name: editForm.name.trim().toUpperCase(),
       phone: editForm.phone.trim(),
-      process: editForm.process.trim(),
-      company: (editForm.company === 'Other' || editForm.company === 'Select Company') ? '' : (editForm.company || '').trim(),
+      process: editForm.process.trim().toUpperCase(),
+      company: (editForm.company === 'Other' || editForm.company === 'Select Company') ? '' : String(editForm.company || '').trim().toUpperCase(),
       dateOfJoining: formatCellDate(editForm.dateOfJoining.trim()),
       billingDate: formatCellDate(editForm.billingDate.trim()),
-      employeeCode: editForm.employeeCode.trim(),
+      employeeCode: editForm.employeeCode.trim().toUpperCase(),
       interviewDate: formatCellDate(editForm.interviewDate.trim()),
-      recruiterName: editForm.recruiterName.trim(),
+      recruiterName: editForm.recruiterName.trim().toUpperCase(),
       week1: editForm.week1,
       week2: editForm.week2,
       week3: editForm.week3,
@@ -1032,9 +1076,23 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
     if (!canEditEntry) return;
     setStatus('Updating followup...');
 
+    // Automatically append current date in Day/Month format (e.g. 19/11)
+    let formattedStatus = '';
+    if (newStatus) {
+      const todayDM = getDayMonthDate();
+      if (newStatus === 'Active' || newStatus.startsWith('Active')) {
+        formattedStatus = `Active (${todayDM})`;
+      } else if (newStatus === 'Inactive' || newStatus.startsWith('Inactive')) {
+        formattedStatus = `Inactive (${todayDM})`;
+      } else {
+        const commentOnly = getFollowupCommentOnly(newStatus);
+        formattedStatus = commentOnly ? `${commentOnly} (${todayDM})` : '';
+      }
+    }
+
     const wkIndex = WEEK_KEYS.indexOf(wk);
-    const isNowInactive = isFollowupInactive(newStatus);
-    const updatedRow = { ...row, [wk]: newStatus };
+    const isNowInactive = isFollowupInactive(formattedStatus);
+    const updatedRow = { ...row, [wk]: formattedStatus };
 
     // If candidate became Inactive, clear all subsequent weeks so no active status lingers
     if (isNowInactive && wkIndex !== -1) {
@@ -1087,15 +1145,15 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
     // 2. Persist to MongoDB
     try {
       const payload = {
-        name: row.name,
+        name: String(row.name || '').toUpperCase().trim(),
         phone: row.phone,
-        process: row.process,
-        company: row.company,
+        process: String(row.process || '').toUpperCase().trim(),
+        company: String(row.company || '').toUpperCase().trim(),
         dateOfJoining: row.dateOfJoining,
         billingDate: row.billingDate,
-        employeeCode: row.employeeCode,
+        employeeCode: String(row.employeeCode || '').toUpperCase().trim(),
         interviewDate: row.interviewDate,
-        recruiterName: row.recruiterName,
+        recruiterName: String(row.recruiterName || '').toUpperCase().trim(),
         week1: updatedRow.week1 || '',
         week2: updatedRow.week2 || '',
         week3: updatedRow.week3 || '',
@@ -1153,9 +1211,10 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
         fontWeight: 600,
         color: v ? '#0f172a' : '#94a3b8',
         whiteSpace: 'nowrap',
+        textTransform: 'uppercase',
       }}
     >
-      {v || '—'}
+      {typeof v === 'string' ? v.toUpperCase() : (v || '—')}
     </td>
   );
 
@@ -1630,71 +1689,103 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
 
                           const isCustComment = Boolean(currentVal && !isAct && !isInact);
 
+                          const editDate = getFollowupDisplayDate(currentVal, editForm);
+                          const editComment = isCustComment ? getFollowupCommentOnly(currentVal) : '';
+
                           return (
-                            <td key={wk} style={{ minWidth: 105, padding: '4px 6px', textAlign: 'center' }}>
-                              <select
-                                className="cell-select"
-                                value={isAct ? 'Active' : isInact ? 'Inactive' : isCustComment ? '__comment__' : ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val === '__comment__') {
-                                    setEditForm({ ...editForm, [wk]: currentVal && !isAct && !isInact ? currentVal : 'Note' });
-                                    return;
-                                  }
-                                  const nextForm = { ...editForm, [wk]: val };
-                                  if (val === 'Inactive') {
-                                    for (let k = index + 1; k < WEEK_KEYS.length; k++) {
-                                      nextForm[WEEK_KEYS[k]] = '';
+                            <td key={wk} style={{ minWidth: 128, padding: '4px 6px', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                                <select
+                                  className="cell-select"
+                                  value={isAct ? 'Active' : isInact ? 'Inactive' : isCustComment ? '__comment__' : ''}
+                                  onChange={(e) => {
+                                    const rawVal = e.target.value;
+                                    const todayDM = getDayMonthDate();
+                                    let nextVal = '';
+                                    if (rawVal === 'Active') nextVal = `Active (${todayDM})`;
+                                    else if (rawVal === 'Inactive') nextVal = `Inactive (${todayDM})`;
+                                    else if (rawVal === '__comment__') nextVal = editComment ? `${editComment} (${todayDM})` : `Note (${todayDM})`;
+                                    else nextVal = '';
+
+                                    const nextForm = { ...editForm, [wk]: nextVal };
+                                    if (rawVal === 'Inactive') {
+                                      for (let k = index + 1; k < WEEK_KEYS.length; k++) {
+                                        nextForm[WEEK_KEYS[k]] = '';
+                                      }
                                     }
-                                  }
-                                  setEditForm(nextForm);
-                                }}
-                                style={{
-                                  width: '100%',
-                                  padding: '5px 8px',
-                                  borderRadius: 8,
-                                  fontSize: 11.5,
-                                  fontWeight: 700,
-                                  border: isAct
-                                    ? '1.5px solid #10B981'
-                                    : isInact
-                                    ? '1.5px solid #EF4444'
-                                    : isCustComment
-                                    ? '1.5px solid #3B82F6'
-                                    : '1px solid #CBD5E1',
-                                  background: isAct
-                                    ? '#ECFDF5'
-                                    : isInact
-                                    ? '#FEF2F2'
-                                    : isCustComment
-                                    ? '#EFF6FF'
-                                    : '#FFFFFF',
-                                  color: isAct
-                                    ? '#065F46'
-                                    : isInact
-                                    ? '#991B1B'
-                                    : isCustComment
-                                    ? '#1D4ED8'
-                                    : '#334155',
-                                  outline: 'none',
-                                }}
-                              >
-                                <option value="">Select</option>
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
-                                <option value="__comment__">
-                                  {isCustComment
-                                    ? `💬 ${currentVal.length > 10 ? currentVal.slice(0, 10) + '...' : currentVal}`
-                                    : '💬 Comment'}
-                                </option>
-                              </select>
+                                    setEditForm(nextForm);
+                                  }}
+                                  style={{
+                                    flex: '1 1 auto',
+                                    minWidth: 70,
+                                    padding: '5px 6px',
+                                    borderRadius: 8,
+                                    fontSize: 11.5,
+                                    fontWeight: 700,
+                                    border: isAct
+                                      ? '1.5px solid #10B981'
+                                      : isInact
+                                      ? '1.5px solid #EF4444'
+                                      : isCustComment
+                                      ? '1.5px solid #3B82F6'
+                                      : '1px solid #CBD5E1',
+                                    background: isAct
+                                      ? '#ECFDF5'
+                                      : isInact
+                                      ? '#FEF2F2'
+                                      : isCustComment
+                                      ? '#EFF6FF'
+                                      : '#FFFFFF',
+                                    color: isAct
+                                      ? '#065F46'
+                                      : isInact
+                                      ? '#991B1B'
+                                      : isCustComment
+                                      ? '#1D4ED8'
+                                      : '#334155',
+                                    outline: 'none',
+                                  }}
+                                >
+                                  <option value="">Select</option>
+                                  <option value="Active">Active</option>
+                                  <option value="Inactive">Inactive</option>
+                                  <option value="__comment__">
+                                    {isCustComment
+                                      ? `💬 ${editComment.length > 8 ? editComment.slice(0, 8) + '...' : editComment}`
+                                      : '💬 Comment'}
+                                  </option>
+                                </select>
+                                {editDate && (
+                                  <span
+                                    style={{
+                                      fontSize: 10.5,
+                                      fontWeight: 800,
+                                      padding: '2px 5px',
+                                      borderRadius: 6,
+                                      whiteSpace: 'nowrap',
+                                      background: isAct ? '#D1FAE5' : isInact ? '#FEE2E2' : '#DBEAFE',
+                                      color: isAct ? '#065F46' : isInact ? '#991B1B' : '#1D4ED8',
+                                      border: `1px solid ${isAct ? '#A7F3D0' : isInact ? '#FECACA' : '#BFDBFE'}`,
+                                      fontFamily: 'JetBrains Mono, monospace',
+                                      letterSpacing: '-0.02em',
+                                      flexShrink: 0,
+                                    }}
+                                    title={`Followup date: ${editDate}`}
+                                  >
+                                    {editDate}
+                                  </span>
+                                )}
+                              </div>
                               {isCustComment && (
                                 <input
                                   type="text"
                                   className="cell-input"
                                   placeholder="Type comment..."
-                                  value={currentVal}
-                                  onChange={(e) => setEditForm({ ...editForm, [wk]: e.target.value })}
+                                  value={editComment}
+                                  onChange={(e) => {
+                                    const dm = editDate || getDayMonthDate();
+                                    setEditForm({ ...editForm, [wk]: `${e.target.value.toUpperCase()} (${dm})` });
+                                  }}
                                   style={{
                                     marginTop: 3,
                                     fontSize: 10.5,
@@ -1702,6 +1793,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                                     background: '#EFF6FF',
                                     color: '#1D4ED8',
                                     padding: '2px 4px',
+                                    textTransform: 'uppercase',
                                   }}
                                   autoFocus
                                 />
@@ -1827,6 +1919,8 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                       }
 
                       const isComment = Boolean(val && !isActive && !isInactive);
+                      const followupDate = getFollowupDisplayDate(val, row);
+                      const commentText = isComment ? getFollowupCommentOnly(val) : '';
 
                       return (
                         <td
@@ -1834,7 +1928,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                           style={{
                             padding: '6px 6px',
                             textAlign: 'center',
-                            minWidth: 105,
+                            minWidth: 128,
                             verticalAlign: 'middle',
                             background: isActive
                               ? 'rgba(236, 253, 245, 0.45)'
@@ -1845,69 +1939,95 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                               : 'transparent',
                           }}
                         >
-                          {/* 4 Options Followup Status Dropdown (Select / Active / Inactive / Comment) */}
-                          <select
-                            value={isActive ? 'Active' : isInactive ? 'Inactive' : isComment ? '__comment__' : ''}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (v === '__comment__') {
-                                openCommentModal(row, wk, isComment ? val : '');
-                                return;
-                              }
-                              handleQuickFollowupToggle(row, wk, v);
-                            }}
-                            disabled={!canEditEntry}
-                            style={{
-                              width: '100%',
-                              padding: '5px 8px',
-                              borderRadius: 8,
-                              fontSize: 11.5,
-                              fontWeight: 700,
-                              border: isActive
-                                ? '1.5px solid #10B981'
-                                : isInactive
-                                ? '1.5px solid #EF4444'
-                                : isComment
-                                ? '1.5px solid #3B82F6'
-                                : '1px solid #CBD5E1',
-                              background: isActive
-                                ? '#ECFDF5'
-                                : isInactive
-                                ? '#FEF2F2'
-                                : isComment
-                                ? '#EFF6FF'
-                                : '#FFFFFF',
-                              color: isActive
-                                ? '#065F46'
-                                : isInactive
-                                ? '#991B1B'
-                                : isComment
-                                ? '#1D4ED8'
-                                : '#475569',
-                              cursor: canEditEntry ? 'pointer' : 'default',
-                              outline: 'none',
-                              boxShadow: isActive
-                                ? '0 1px 3px rgba(16, 185, 129, 0.18)'
-                                : isInactive
-                                ? '0 1px 3px rgba(239, 68, 68, 0.18)'
-                                : isComment
-                                ? '0 1px 3px rgba(59, 130, 246, 0.18)'
-                                : 'none',
-                              transition: 'all 0.15s ease',
-                            }}
-                          >
-                            <option value="">Select</option>
-                            <option value="Active">Active</option>
-                            <option value="Inactive">Inactive</option>
-                            <option value="__comment__">
-                              {isComment
-                                ? `💬 ${val.length > 12 ? val.slice(0, 12) + '...' : val}`
-                                : '💬 Comment'}
-                            </option>
-                          </select>
-                          {isComment && (
+                          {/* Followup Option and Date right beside each other */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                            <select
+                              value={isActive ? 'Active' : isInactive ? 'Inactive' : isComment ? '__comment__' : ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (v === '__comment__') {
+                                  openCommentModal(row, wk, commentText);
+                                  return;
+                                }
+                                handleQuickFollowupToggle(row, wk, v);
+                              }}
+                              disabled={!canEditEntry}
+                              style={{
+                                flex: '1 1 auto',
+                                minWidth: 70,
+                                padding: '5px 6px',
+                                borderRadius: 8,
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                border: isActive
+                                  ? '1.5px solid #10B981'
+                                  : isInactive
+                                  ? '1.5px solid #EF4444'
+                                  : isComment
+                                  ? '1.5px solid #3B82F6'
+                                  : '1px solid #CBD5E1',
+                                background: isActive
+                                  ? '#ECFDF5'
+                                  : isInactive
+                                  ? '#FEF2F2'
+                                  : isComment
+                                  ? '#EFF6FF'
+                                  : '#FFFFFF',
+                                color: isActive
+                                  ? '#065F46'
+                                  : isInactive
+                                  ? '#991B1B'
+                                  : isComment
+                                  ? '#1D4ED8'
+                                  : '#475569',
+                                cursor: canEditEntry ? 'pointer' : 'default',
+                                outline: 'none',
+                                boxShadow: isActive
+                                  ? '0 1px 3px rgba(16, 185, 129, 0.18)'
+                                  : isInactive
+                                  ? '0 1px 3px rgba(239, 68, 68, 0.18)'
+                                  : isComment
+                                  ? '0 1px 3px rgba(59, 130, 246, 0.18)'
+                                  : 'none',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              <option value="">Select</option>
+                              <option value="Active">Active</option>
+                              <option value="Inactive">Inactive</option>
+                              <option value="__comment__">
+                                {isComment
+                                  ? `💬 ${commentText.length > 8 ? commentText.slice(0, 8) + '...' : commentText}`
+                                  : '💬 Comment'}
+                              </option>
+                            </select>
+
+                            {/* Clean Date Badge (Day/Month only) automatically shown right beside the option */}
+                            {followupDate && (
+                              <span
+                                style={{
+                                  fontSize: 10.5,
+                                  fontWeight: 800,
+                                  padding: '2px 5px',
+                                  borderRadius: 6,
+                                  whiteSpace: 'nowrap',
+                                  background: isActive ? '#D1FAE5' : isInactive ? '#FEE2E2' : '#DBEAFE',
+                                  color: isActive ? '#065F46' : isInactive ? '#991B1B' : '#1D4ED8',
+                                  border: `1px solid ${isActive ? '#A7F3D0' : isInactive ? '#FECACA' : '#BFDBFE'}`,
+                                  fontFamily: 'JetBrains Mono, monospace',
+                                  letterSpacing: '-0.02em',
+                                  flexShrink: 0,
+                                }}
+                                title={`Followup marked on ${followupDate}`}
+                              >
+                                {followupDate}
+                              </span>
+                            )}
+                          </div>
+
+                          {isComment && commentText && (
                             <div
-                              onClick={() => canEditEntry && openCommentModal(row, wk, val)}
+                              onClick={() => canEditEntry && openCommentModal(row, wk, commentText)}
                               style={{
                                 marginTop: 3,
                                 fontSize: 10,
@@ -1917,16 +2037,17 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
-                                maxWidth: 95,
+                                maxWidth: 120,
                                 padding: '1px 4px',
                                 borderRadius: 4,
                                 background: '#DBEAFE',
                                 display: 'block',
                                 textAlign: 'center',
+                                margin: '3px auto 0 auto',
                               }}
-                              title={`Click to edit comment: "${val}"`}
+                              title={`Click to edit comment: "${commentText}"`}
                             >
-                              <span>{val}</span>
+                              <span>{commentText}</span>
                             </div>
                           )}
                         </td>

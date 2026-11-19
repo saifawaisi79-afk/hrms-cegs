@@ -297,11 +297,11 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
     const payload = {
       name: form.name.trim().toUpperCase(),
       number: form.number.trim(),
-      company: trimmedCompany,
-      process: form.process.trim(),
+      company: String(trimmedCompany || '').toUpperCase().trim(),
+      process: String(form.process || '').toUpperCase().trim(),
       recruiterName: form.recruiterName,
-      rounds: form.rounds.trim(),
-      furtherUpdate: form.furtherUpdate.trim(),
+      rounds: String(form.rounds || '').toUpperCase().trim(),
+      furtherUpdate: String(form.furtherUpdate || '').toUpperCase().trim(),
       hrStatus: form.hrStatus || section,
       date: formatSheetDateDisplay(sheetDate),
       createdBy: user?.name || '',
@@ -374,11 +374,11 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
     const hrPayload = {
       name: editForm.name.trim().toUpperCase(),
       number: editForm.number,
-      company: (editForm.company === 'Select Company' || editForm.company === 'Other') ? '' : (editForm.company || '').trim(),
-      process: editForm.process || '',
+      company: (editForm.company === 'Select Company' || editForm.company === 'Other') ? '' : String(editForm.company || '').toUpperCase().trim(),
+      process: String(editForm.process || '').toUpperCase().trim(),
       recruiterName: editForm.recruiterName || '',
-      rounds: editForm.rounds || '',
-      furtherUpdate: editForm.furtherUpdate || '',
+      rounds: String(editForm.rounds || '').toUpperCase().trim(),
+      furtherUpdate: String(editForm.furtherUpdate || '').toUpperCase().trim(),
       hrStatus: editForm.hrStatus || 'selected',
       date: editForm.date || formatSheetDateDisplay(sheetDate),
       candidateId: editForm.candidateId || '',
@@ -1028,9 +1028,10 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
                       fontWeight: 600,
                       color: v ? 'var(--text-primary)' : '#94A3B8',
                       whiteSpace: 'nowrap',
+                      textTransform: 'uppercase',
                     }}
                   >
-                    {v || emptyHint || '—'}
+                    {typeof v === 'string' ? v.toUpperCase() : (v || emptyHint || '—')}
                   </td>
                 );
 

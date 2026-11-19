@@ -130,11 +130,37 @@ export async function GET(request: Request) {
       id: c._id?.toString(),
       _id: c._id?.toString(),
       time: c.time || formatTimeFromDate((c as any).createdAt) || '',
+      name: String(c.name || '').toUpperCase(),
+      languages: String(c.languages || '').toUpperCase(),
+      qualification: String(c.qualification || '').toUpperCase(),
+      response: String(c.response || '').toUpperCase(),
+      callStatus: String(c.callStatus || '').toUpperCase(),
+      location: String(c.location || '').toUpperCase(),
+      company: String(c.company || '').toUpperCase(),
+      followUp1: String(c.followUp1 || '').toUpperCase(),
+      followUp2: String(c.followUp2 || '').toUpperCase(),
+      followUp3: String(c.followUp3 || '').toUpperCase(),
     })));
   } catch (error: any) {
     console.error('Candidate GET Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
+}
+
+function normalizeCandidateUpper(item: any) {
+  return {
+    ...item,
+    name: String(item.name || '').toUpperCase().trim(),
+    languages: String(item.languages || '').toUpperCase().trim(),
+    qualification: String(item.qualification || '').toUpperCase().trim(),
+    response: String(item.response || '').toUpperCase().trim(),
+    callStatus: String(item.callStatus || '').toUpperCase().trim(),
+    location: String(item.location || '').toUpperCase().trim(),
+    company: String(item.company || '').toUpperCase().trim(),
+    followUp1: String(item.followUp1 || '').toUpperCase().trim(),
+    followUp2: String(item.followUp2 || '').toUpperCase().trim(),
+    followUp3: String(item.followUp3 || '').toUpperCase().trim(),
+  };
 }
 
 // POST /api/candidates
@@ -158,7 +184,7 @@ export async function POST(request: Request) {
       if (!parsedArray.success) {
         return NextResponse.json({ error: 'Validation failed', details: parsedArray.error.issues }, { status: 400 });
       }
-      const dataWithTime = parsedArray.data.map(item => ({
+      const dataWithTime = parsedArray.data.map(item => normalizeCandidateUpper({
         ...item,
         time: item.time && item.time.trim() ? item.time : autoNowTime,
       }));
@@ -171,10 +197,10 @@ export async function POST(request: Request) {
     if (!parsedSingle.success) {
       return NextResponse.json({ error: 'Validation failed', details: parsedSingle.error.issues }, { status: 400 });
     }
-    const singleData = {
+    const singleData = normalizeCandidateUpper({
       ...parsedSingle.data,
       time: parsedSingle.data.time && parsedSingle.data.time.trim() ? parsedSingle.data.time : autoNowTime,
-    };
+    });
     const candidate = await Candidate.create(singleData);
     return NextResponse.json({ ...candidate.toObject(), id: candidate._id.toString() }, { status: 201 });
   } catch (error: any) {

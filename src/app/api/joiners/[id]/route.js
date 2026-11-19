@@ -50,7 +50,11 @@ export async function PUT(request, { params }) {
     }
 
     await connectDB();
-    const updated = await JoinerEntry.findByIdAndUpdate(id, parsed.data, { new: true });
+    const updateData = { ...parsed.data };
+    ['name', 'process', 'company', 'employeeCode', 'recruiterName'].forEach((f) => {
+      if (typeof updateData[f] === 'string') updateData[f] = updateData[f].toUpperCase().trim();
+    });
+    const updated = await JoinerEntry.findByIdAndUpdate(id, updateData, { new: true });
     if (!updated) {
       return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
     }
