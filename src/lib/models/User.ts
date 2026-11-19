@@ -23,6 +23,7 @@ export interface IUser extends Document {
   wfh_allowed?: boolean;
   last_login?: string | null;
   emergency_contact: string;
+  degrees?: string;
   bank_name: string;
   account_number: string;
   ifsc_code: string;
@@ -55,6 +56,7 @@ const UserSchema: Schema<IUser> = new mongoose.Schema({
   wfh_allowed:              { type: Boolean, default: false },
   last_login:               { type: String, default: null },
   emergency_contact:        { type: String, default: '' },
+  degrees:                  { type: String, default: '' },
   bank_name:                { type: String, default: '' },
   account_number:           { type: String, default: '' },
   ifsc_code:                { type: String, default: '' },

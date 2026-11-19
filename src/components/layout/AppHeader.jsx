@@ -99,6 +99,16 @@ export function AppHeader() {
     .slice(0, 2)
     .toUpperCase();
 
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
+  const avatarSrc = user?.avatar_url || user?.avatar;
+  const showAvatarImg = Boolean(
+    avatarSrc &&
+      typeof avatarSrc === 'string' &&
+      avatarSrc.trim() &&
+      !avatarLoadError &&
+      !avatarSrc.includes('dicebear.com/7.x/bottts')
+  );
+
   const closeMobile = () => setMobileOpen(false);
 
   return (
@@ -215,11 +225,36 @@ export function AppHeader() {
           <button
             type="button"
             className="hdr-avatar"
-            title={user?.name || 'Profile'}
+            title={user?.name ? `${user.name} (View Profile)` : 'Profile'}
             aria-label="Open profile"
-            onClick={() => navigate(user?.role === 'employee' ? 'profile' : 'dashboard')}
+            onClick={() => navigate('profile')}
+            style={{
+              padding: 0,
+              overflow: 'hidden',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              border: showAvatarImg ? '2px solid var(--accent, #7C5CFC)' : 'none',
+              background: 'var(--void, #0F172A)',
+            }}
           >
-            {initials}
+            {showAvatarImg ? (
+              <img
+                src={avatarSrc}
+                alt={user?.name || 'User'}
+                onError={() => setAvatarLoadError(true)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '999px',
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+              />
+            ) : (
+              initials
+            )}
           </button>
         </div>
       </header>

@@ -23,6 +23,7 @@ import { formatDateDMY } from '@/lib/date-format';
 import { employeeNamesMatch } from '@/lib/recruiter-names';
 import { WalkinsSelectionsSection } from '@/components/recruitment/WalkinsSelectionsSection';
 import { JoinerSheetSection } from '@/components/recruitment/JoinerSheetSection';
+import { CompanyManagerModal } from '@/components/recruitment/CompanyManagerModal';
 import { TeamVisitsSection, formatVisitTime } from '@/components/attendance/TeamVisitsMonitor';
 import { PermissionsSection } from '@/components/permissions/PermissionsSection';
 import { ItDashboardSection } from '@/components/it/ItDashboardSection';
@@ -10111,6 +10112,35 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(isEmp ? (user?.name || '') : 'ALL');
  const [toastMsg, setToastMsg] = useState(null);
  const [showTeamReportModal, setShowTeamReportModal] = useState(false);
+ const [showCompanyManager, setShowCompanyManager] = useState(false);
+ const [dynamicCompanies, setDynamicCompanies] = useState([]);
+
+ useEffect(() => {
+   let cancelled = false;
+   const loadComp = async () => {
+     try {
+       const res = await fetch('/api/companies');
+       const data = await res.json();
+       if (data.success && Array.isArray(data.names) && !cancelled) {
+         setDynamicCompanies(data.names);
+       }
+     } catch {}
+   };
+   loadComp();
+   const handleUpdate = (e) => {
+     if (Array.isArray(e.detail)) setDynamicCompanies(e.detail);
+   };
+   window.addEventListener('hrms:companies_updated', handleUpdate);
+   return () => {
+     cancelled = true;
+     window.removeEventListener('hrms:companies_updated', handleUpdate);
+   };
+ }, []);
+
+ const currentCompanyOptions = useMemo(() => {
+   const list = dynamicCompanies.length > 0 ? dynamicCompanies : COMPANY_OPTIONS.filter((c) => c !== 'SELECT COMPANY' && c !== 'OTHER');
+   return ['SELECT COMPANY', ...list, 'OTHER'];
+ }, [dynamicCompanies]);
 
  // Super Admin is oversight (team) — never personal daily tasks (walkins register allowed)
  useEffect(() => {
@@ -11298,6 +11328,24 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  >
  Joiner Sheet ({tabCount('joined')})
  </button>
+
+ <button 
+ type="button"
+ onClick={() => setShowCompanyManager(true)}
+ title="Add or remove hiring companies (updates dropdowns & filter tabs)"
+ style={{
+ background: '#FFFFFF',
+ color: '#374151',
+ border: '1.5px dashed #9CA3AF',
+ borderRadius: 99, padding: '9px 16px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer',
+ display: 'inline-flex', alignItems: 'center', gap: 6,
+ boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+ transition: 'all 0.2s ease'
+ }}
+ >
+ <Building size={14} style={{ color: '#4F46E5' }} />
+ <span>+ / - Company</span>
+ </button>
  </div>
 
  {activeTaskCategory === 'joined' ? (
@@ -11306,6 +11354,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  user={user}
  canEdit={true}
  employeeFilter={isEmp ? (user?.name || '') : selectedEmployeeFilter}
+ onManageCompanies={() => setShowCompanyManager(true)}
+ customCompanies={dynamicCompanies}
  />
  ) : (
  <>
@@ -11425,7 +11475,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <select
  className="cell-select"
  value={
- COMPANY_OPTIONS.includes(candidateForm.company)
+ currentCompanyOptions.includes(candidateForm.company)
  ? candidateForm.company
  : candidateForm.company
  ? 'OTHER'
@@ -11441,9 +11491,9 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  style={{ textTransform: 'uppercase' }}
  aria-label="Company"
  >
- {COMPANY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+ {currentCompanyOptions.map(c => <option key={c} value={c}>{c}</option>)}
  </select>
- {(candidateForm._customCompany || (!COMPANY_OPTIONS.includes(candidateForm.company) && candidateForm.company && candidateForm.company !== 'SELECT COMPANY' && candidateForm.company !== 'Select Company')) && (
+ {(candidateForm._customCompany || (!currentCompanyOptions.includes(candidateForm.company) && candidateForm.company && candidateForm.company !== 'SELECT COMPANY' && candidateForm.company !== 'Select Company')) && (
  <input
  className="cell-input"
  placeholder="ENTER COMPANY NAME..."
@@ -11535,7 +11585,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <select
  className="cell-select"
  value={
- COMPANY_OPTIONS.includes(editForm.company)
+ currentCompanyOptions.includes(editForm.company)
  ? editForm.company
  : editForm.company
  ? 'OTHER'
@@ -11551,9 +11601,9 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  style={{ textTransform: 'uppercase' }}
  aria-label="Company"
  >
- {COMPANY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+ {currentCompanyOptions.map(c => <option key={c} value={c}>{c}</option>)}
  </select>
- {(editForm._customCompany || (!COMPANY_OPTIONS.includes(editForm.company) && editForm.company && editForm.company !== 'SELECT COMPANY' && editForm.company !== 'Select Company')) && (
+ {(editForm._customCompany || (!currentCompanyOptions.includes(editForm.company) && editForm.company && editForm.company !== 'SELECT COMPANY' && editForm.company !== 'Select Company')) && (
  <input
  className="cell-input"
  placeholder="ENTER COMPANY NAME..."
@@ -11713,6 +11763,12 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  isFinance={isTargetForFinance}
  />
  )}
+
+ <CompanyManagerModal
+   isOpen={showCompanyManager}
+   onClose={() => setShowCompanyManager(false)}
+   onCompaniesUpdated={(names) => setDynamicCompanies(names)}
+ />
 
  {toastMsg && (
  <div style={{ position: 'fixed', bottom: 24, right: 24, background: 'var(--void)', color: '#fff', padding: '14px 22px', borderRadius: 16, fontSize: 12.5, fontWeight: 700, boxShadow: '0 12px 32px rgba(0,0,0,0.3)', zIndex: 999 }}>
@@ -14722,7 +14778,7 @@ export function RewardsPage({ db, save, user }) {
  );
 }
 
-export function ProfilePage({ db, save, user }) {
+export function ProfilePage({ db, save, user, setUser }) {
  const profileFromDb =
  (db.users || []).find(
  (u) =>
@@ -14749,10 +14805,13 @@ export function ProfilePage({ db, save, user }) {
  employee_id: profileFromDb.employee_id || profileFromDb.eid || user?.employee_id || '',
  employment_type: profileFromDb.employment_type || user?.employment_type || 'full_time',
  login_time: resolveLoginTime({ ...user, ...profileFromDb }),
+ degrees: profileFromDb.degrees || user?.degrees || '',
  };
 
  const [formData, setFormData] = useState({ ...mergedUser });
  const [tab, setTab] = useState('personal');
+ const [uploadingAvatar, setUploadingAvatar] = useState(false);
+ const [saveMessage, setSaveMessage] = useState(null);
  const avatarFileRef = useRef(null);
 
  useEffect(() => {
@@ -14765,67 +14824,183 @@ export function ProfilePage({ db, save, user }) {
  const handleAvatarFile = (e) => {
  const file = e.target.files?.[0];
  if (!file) return;
+ setUploadingAvatar(true);
+ setSaveMessage(null);
+
  const reader = new FileReader();
  reader.onload = (evt) => {
- const base64 = evt.target.result;
- const updated = { ...formData, avatar: base64 };
- setFormData(updated);
- save('users', db.users.map(u => u.id === user.id || String(u.email).toLowerCase() === String(user.email).toLowerCase() ? { ...u, avatar: base64, avatar_url: base64 } : u));
+ const img = document.createElement('img');
+ img.onload = async () => {
+ try {
+ const maxDim = 400;
+ let w = img.width;
+ let h = img.height;
+ if (w > maxDim || h > maxDim) {
+ if (w > h) {
+ h = Math.round((h * maxDim) / w);
+ w = maxDim;
+ } else {
+ w = Math.round((w * maxDim) / h);
+ h = maxDim;
+ }
+ }
+ const canvas = document.createElement('canvas');
+ canvas.width = w;
+ canvas.height = h;
+ const ctx = canvas.getContext('2d');
+ ctx.drawImage(img, 0, 0, w, h);
+ const base64 = canvas.toDataURL('image/jpeg', 0.85);
+
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : '';
+ const res = await fetch('/api/auth/profile', {
+ method: 'PUT',
+ headers: {
+ 'Content-Type': 'application/json',
+ Authorization: `Bearer ${token}`,
+ },
+ body: JSON.stringify({ avatar_url: base64 }),
+ });
+ const data = await res.json().catch(() => ({}));
+
+ if (!res.ok || !data.success) {
+ setSaveMessage({ type: 'error', text: data.error || 'Failed to save avatar image to database.' });
+ return;
+ }
+
+ const updatedUser = { ...user, avatar: base64, avatar_url: base64 };
+ setFormData((prev) => ({ ...prev, avatar: base64 }));
+ if (setUser) setUser(updatedUser);
+ Store.set('currentUser', updatedUser);
+ save(
+ 'users',
+ (db.users || []).map((u) =>
+ String(u.id) === String(user?.id) ||
+ String(u.email || '').toLowerCase() === String(user?.email || '').toLowerCase()
+ ? { ...u, avatar: base64, avatar_url: base64 }
+ : u
+ )
+ );
+ setSaveMessage({ type: 'success', text: '✓ Profile photo successfully updated and saved permanently to database!' });
+ } catch (err) {
+ console.error('Avatar upload error:', err);
+ setSaveMessage({ type: 'error', text: 'Error processing avatar image.' });
+ } finally {
+ setUploadingAvatar(false);
+ }
+ };
+ img.src = evt.target.result;
  };
  reader.readAsDataURL(file);
  };
 
- const update = async (e) => {
- e.preventDefault();
- if (!isAdminOrHR) {
- alert('Employee profile details are managed centrally by HR Admin. Only profile photo upload is permitted for employees.');
- return;
- }
- const targetId = profileFromDb.id || user?.id;
- const payload = {
- name: formData.name,
- designation: formData.title || formData.designation,
- title: formData.title || formData.designation,
- contact: formData.phone || formData.contact,
- joining_date: formData.joining_date,
- basic_salary: Number(formData.basic_salary) || 0,
- allowances: Math.max(0, Number(formData.allowances) || 0),
- address: formData.address || '',
- dob: formData.dob || '',
- employment_type: formData.employment_type || 'full_time',
- login_time: String(formData.login_time || resolveLoginTime(formData)).slice(0, 5),
- bank_name: formData.bankName || formData.bank_name || '',
- account_number: formData.bankAccount || formData.account_number || '',
- ifsc_code: formData.bankIfsc || formData.ifsc_code || '',
- emergency_contact: formData.emergencyPhone || formData.emergency_contact || '',
- };
+ const handleRemoveAvatar = async () => {
+ if (!window.confirm('Are you sure you want to remove your profile photo?')) return;
+ setUploadingAvatar(true);
+ setSaveMessage(null);
  try {
- const res = await fetch(`${GLOBAL_API_BASE}/admin/employees/${targetId}`, {
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : '';
+ const res = await fetch('/api/auth/profile', {
  method: 'PUT',
  headers: {
  'Content-Type': 'application/json',
- Authorization: `Bearer ${localStorage.getItem('cegs_token') || ''}`,
+ Authorization: `Bearer ${token}`,
+ },
+ body: JSON.stringify({ avatar_url: '' }),
+ });
+ const data = await res.json().catch(() => ({}));
+ if (res.ok && data.success) {
+ const resetAvatar = '';
+ const updatedUser = { ...user, avatar: resetAvatar, avatar_url: resetAvatar };
+ setFormData((prev) => ({ ...prev, avatar: resetAvatar }));
+ if (setUser) setUser(updatedUser);
+ Store.set('currentUser', updatedUser);
+ save(
+ 'users',
+ (db.users || []).map((u) =>
+ String(u.id) === String(user?.id) ||
+ String(u.email || '').toLowerCase() === String(user?.email || '').toLowerCase()
+ ? { ...u, avatar: resetAvatar, avatar_url: resetAvatar }
+ : u
+ )
+ );
+ setSaveMessage({ type: 'success', text: '✓ Profile photo removed.' });
+ }
+ } finally {
+ setUploadingAvatar(false);
+ }
+ };
+
+ const update = async (e) => {
+ e.preventDefault();
+ setSaveMessage(null);
+
+ const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : '';
+ const payload = {
+ phone: formData.phone || formData.contact,
+ contact: formData.phone || formData.contact,
+ emergencyPhone: formData.emergencyPhone || formData.emergency_contact,
+ emergency_contact: formData.emergencyPhone || formData.emergency_contact,
+ address: formData.address || '',
+ dob: formData.dob || '',
+ degrees: formData.degrees || '',
+ avatar_url: formData.avatar || '',
+ };
+
+ if (isAdminOrHR) {
+ payload.name = formData.name;
+ payload.designation = formData.title || formData.designation;
+ payload.title = formData.title || formData.designation;
+ payload.joining_date = formData.joining_date;
+ payload.basic_salary = Number(formData.basic_salary) || 0;
+ payload.allowances = Math.max(0, Number(formData.allowances) || 0);
+ payload.employment_type = formData.employment_type || 'full_time';
+ payload.login_time = String(formData.login_time || resolveLoginTime(formData)).slice(0, 5);
+ payload.bank_name = formData.bankName || formData.bank_name || '';
+ payload.account_number = formData.bankAccount || formData.account_number || '';
+ payload.ifsc_code = formData.bankIfsc || formData.ifsc_code || '';
+ }
+
+ try {
+ const endpoint = isAdminOrHR && (profileFromDb.id || user?.id)
+ ? `${GLOBAL_API_BASE}/admin/employees/${profileFromDb.id || user?.id}`
+ : `${GLOBAL_API_BASE}/auth/profile`;
+
+ const res = await fetch(endpoint, {
+ method: 'PUT',
+ headers: {
+ 'Content-Type': 'application/json',
+ Authorization: `Bearer ${token}`,
  },
  body: JSON.stringify(payload),
  });
+
  const data = await res.json().catch(() => ({}));
  if (!res.ok) {
- alert(data.error || 'Failed to save profile to the database.');
+ setSaveMessage({ type: 'error', text: data.error || 'Failed to save profile to database.' });
  return;
  }
+
  const merged = {
  ...formData,
  ...payload,
- basic_salary: data.basic_salary ?? payload.basic_salary,
- salary: data.basic_salary ?? payload.basic_salary,
- allowances: data.allowances ?? payload.allowances,
- login_time: data.login_time || payload.login_time,
+ avatar: formData.avatar || user?.avatar,
  };
- save('users', db.users.map(u => (String(u.id) === String(targetId) || String(u.email).toLowerCase() === String(user.email).toLowerCase()) ? { ...u, ...merged } : u));
  setFormData(merged);
- alert('Profile information successfully saved.');
+ const updatedUser = { ...user, ...merged };
+ if (setUser) setUser(updatedUser);
+ Store.set('currentUser', updatedUser);
+ save(
+ 'users',
+ (db.users || []).map((u) =>
+ String(u.id) === String(user?.id) ||
+ String(u.email || '').toLowerCase() === String(user?.email || '').toLowerCase()
+ ? { ...u, ...merged }
+ : u
+ )
+ );
+ setSaveMessage({ type: 'success', text: '✓ Profile information saved successfully to database.' });
  } catch {
- alert('Network error while saving profile.');
+ setSaveMessage({ type: 'error', text: 'Network error while saving profile.' });
  }
  };
 
@@ -14837,14 +15012,34 @@ export function ProfilePage({ db, save, user }) {
  <div>
  <div className="section-title">My Profile</div>
  <div className="section-sub">
- {isAdminOrHR ? 'Manage personal details, avatar photo, contact entries, and financial records' : 'Your official details from HR onboarding (photo upload allowed)'}
+ {isAdminOrHR ? 'Manage personal details, avatar photo, contact entries, and financial records' : 'Your personal and official employee profile details'}
  </div>
  </div>
  </div>
 
  {!isAdminOrHR && (
  <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', padding: '12px 16px', borderRadius: 14, marginBottom: 18, fontSize: 12.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10 }}>
- <span>Official employee details come from HR Onboarding. You can update your Profile Photo only.</span>
+ <span>You can update your Profile Photo and personal contact information. Official role and compensation details are managed centrally by HR Admin.</span>
+ </div>
+ )}
+
+ {saveMessage && (
+ <div
+ style={{
+ padding: '12px 16px',
+ borderRadius: 14,
+ marginBottom: 18,
+ fontSize: 13,
+ fontWeight: 700,
+ background: saveMessage.type === 'success' ? '#ECFDF5' : '#FEF2F2',
+ color: saveMessage.type === 'success' ? '#047857' : '#B91C1C',
+ border: `1px solid ${saveMessage.type === 'success' ? '#A7F3D0' : '#FECACA'}`,
+ display: 'flex',
+ alignItems: 'center',
+ gap: 8,
+ }}
+ >
+ <span>{saveMessage.text}</span>
  </div>
  )}
 
@@ -14867,9 +15062,21 @@ export function ProfilePage({ db, save, user }) {
  className="btn btn-sm btn-dark" 
  style={{ borderRadius: 99, padding: '6px 16px', fontWeight: 800 }} 
  onClick={() => avatarFileRef.current && avatarFileRef.current.click()}
+ disabled={uploadingAvatar}
  >
- Upload Profile Image
+ {uploadingAvatar ? 'Saving photo to DB...' : 'Upload Profile Image'}
  </button>
+ {formData.avatar && !formData.avatar.includes('dicebear.com') && (
+ <button 
+ type="button" 
+ className="btn btn-sm btn-secondary" 
+ style={{ borderRadius: 99, padding: '6px 16px', fontWeight: 700, color: '#DC2626' }} 
+ onClick={handleRemoveAvatar}
+ disabled={uploadingAvatar}
+ >
+ Remove Photo
+ </button>
+ )}
  </div>
  </div>
  </div>
@@ -14892,11 +15099,11 @@ export function ProfilePage({ db, save, user }) {
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Contact Phone Number</label>
- <input className="form-input" value={formData.phone||''} onChange={e=>setFormData({...formData, phone: e.target.value})} disabled={!isAdminOrHR} />
+ <input className="form-input" value={formData.phone||''} onChange={e=>setFormData({...formData, phone: e.target.value})} placeholder="+91 9876543210" />
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Emergency Number</label>
- <input className="form-input" value={formData.emergencyPhone||''} onChange={e=>setFormData({...formData, emergencyPhone: e.target.value})} placeholder="+91 9876543210" disabled={!isAdminOrHR} />
+ <input className="form-input" value={formData.emergencyPhone||''} onChange={e=>setFormData({...formData, emergencyPhone: e.target.value})} placeholder="+91 9876543210" />
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Date of Birth</label>
@@ -14904,7 +15111,7 @@ export function ProfilePage({ db, save, user }) {
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Residential Address</label>
- <input className="form-input" value={formData.address||''} onChange={e=>setFormData({...formData, address: e.target.value})} disabled={!isAdminOrHR} />
+ <input className="form-input" value={formData.address||''} onChange={e=>setFormData({...formData, address: e.target.value})} placeholder="City, State, Pincode" />
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Role (Designation)</label>
@@ -14939,7 +15146,7 @@ export function ProfilePage({ db, save, user }) {
  </div>
  <div className="form-group" style={{ marginTop: 12 }}>
  <label className="form-label">Academic Degrees & Certifications</label>
- <input className="form-input" placeholder="B.S. Computer Science / AWS Architect" value={formData.degrees||''} onChange={e=>setFormData({...formData, degrees: e.target.value})} disabled={!isAdminOrHR} />
+ <input className="form-input" placeholder="B.S. Computer Science / AWS Architect" value={formData.degrees||''} onChange={e=>setFormData({...formData, degrees: e.target.value})} />
  </div>
  </>
  )}
@@ -14970,7 +15177,7 @@ export function ProfilePage({ db, save, user }) {
  </div>
  </>
  )}
- {isAdminOrHR && <button className="btn btn-dark" style={{ marginTop: 16 }} type="submit">Save Changes</button>}
+ <button className="btn btn-dark" style={{ marginTop: 16 }} type="submit">Save Changes</button>
  </form>
  </div>
  );

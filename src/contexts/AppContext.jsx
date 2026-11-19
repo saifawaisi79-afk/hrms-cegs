@@ -559,6 +559,7 @@ export function AppProvider({ children }) {
       db,
       save,
       user,
+      setUser,
       setView: navigate,
       setQuickViewUser,
       setChatTargetUser,
@@ -568,7 +569,7 @@ export function AppProvider({ children }) {
       openChatWithGroup,
       setShowMessengerInbox,
     }),
-    [db, save, user, navigate, openChatWithUser, chatTargetGroup, openChatWithGroup, setShowMessengerInbox]
+    [db, save, user, setUser, navigate, openChatWithUser, chatTargetGroup, openChatWithGroup, setShowMessengerInbox]
   );
 
   const value = {

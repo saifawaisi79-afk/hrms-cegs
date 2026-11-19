@@ -110,7 +110,35 @@ function bucketOf(row) {
 export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
   const [manualRows, setManualRows] = useState([]);
   const [sheetCandidates, setSheetCandidates] = useState([]);
+  const [customCompanies, setCustomCompanies] = useState([]);
   const [sheetDate, setSheetDate] = useState(() => todayIsoDate());
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadComp = async () => {
+      try {
+        const res = await fetch('/api/companies');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.names) && !cancelled) {
+          setCustomCompanies(data.names);
+        }
+      } catch {}
+    };
+    loadComp();
+    const handleUpdate = (e) => {
+      if (Array.isArray(e.detail)) setCustomCompanies(e.detail);
+    };
+    window.addEventListener('hrms:companies_updated', handleUpdate);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('hrms:companies_updated', handleUpdate);
+    };
+  }, []);
+
+  const dynamicCompanyOptions = useMemo(() => {
+    const list = customCompanies.length > 0 ? customCompanies : COMPANY_OPTIONS.filter((c) => c !== 'Select Company' && c.toUpperCase() !== 'OTHER');
+    return ['Select Company', ...list, 'OTHER'];
+  }, [customCompanies]);
   const [section, setSection] = useState('selected'); // selected | rejected
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
@@ -733,28 +761,28 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
             <select
               style={inputStyle}
               value={
-                COMPANY_OPTIONS.includes(form.company)
+                dynamicCompanyOptions.includes(form.company)
                   ? form.company
                   : form.company
-                  ? 'Other'
+                  ? 'OTHER'
                   : 'Select Company'
               }
               onChange={(e) => {
-                if (e.target.value === 'Other') {
+                if (e.target.value === 'OTHER' || e.target.value === 'Other') {
                   setForm({ ...form, company: '', _customCompany: true });
                 } else {
-                  setForm({ ...form, company: e.target.value, _customCompany: false });
+                  setForm({ ...form, company: e.target.value.toUpperCase(), _customCompany: false });
                 }
               }}
             >
-              {COMPANY_OPTIONS.map((c) => (
+              {dynamicCompanyOptions.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
             </select>
             {(form._customCompany ||
-              (!COMPANY_OPTIONS.includes(form.company) &&
+              (!dynamicCompanyOptions.includes(form.company) &&
                 form.company &&
                 form.company !== 'Select Company')) && (
               <input
@@ -911,28 +939,28 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
                           <select
                             className="cell-select"
                             value={
-                              COMPANY_OPTIONS.includes(editForm.company)
+                              dynamicCompanyOptions.includes(editForm.company)
                                 ? editForm.company
                                 : editForm.company
-                                ? 'Other'
+                                ? 'OTHER'
                                 : 'Select Company'
                             }
                             onChange={(e) => {
-                              if (e.target.value === 'Other') {
+                              if (e.target.value === 'OTHER' || e.target.value === 'Other') {
                                 setEditForm({ ...editForm, company: '', _customCompany: true });
                               } else {
-                                setEditForm({ ...editForm, company: e.target.value, _customCompany: false });
+                                setEditForm({ ...editForm, company: e.target.value.toUpperCase(), _customCompany: false });
                               }
                             }}
                           >
-                            {COMPANY_OPTIONS.map((c) => (
+                            {dynamicCompanyOptions.map((c) => (
                               <option key={c} value={c}>
                                 {c}
                               </option>
                             ))}
                           </select>
                           {(editForm._customCompany ||
-                            (!COMPANY_OPTIONS.includes(editForm.company) &&
+                            (!dynamicCompanyOptions.includes(editForm.company) &&
                               editForm.company &&
                               editForm.company !== 'Select Company')) && (
                             <input

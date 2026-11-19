@@ -31,6 +31,8 @@ export async function PUT(request, { params }) {
       title,
       contact,
       phone,
+      avatar_url,
+      avatar,
       joining_date,
       basic_salary,
       salary,
@@ -61,6 +63,9 @@ export async function PUT(request, { params }) {
     }
     if (contact != null || phone != null) {
       updates.contact = String(contact ?? phone ?? '').trim();
+    }
+    if (avatar_url != null || avatar != null) {
+      updates.avatar_url = String(avatar_url ?? avatar ?? '').trim();
     }
     if (joining_date != null) updates.joining_date = String(joining_date).slice(0, 10);
     if (basic_salary != null || salary != null) {

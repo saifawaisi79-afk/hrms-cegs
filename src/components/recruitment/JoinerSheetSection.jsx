@@ -13,6 +13,7 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   MessageSquare,
+  Building2,
 } from 'lucide-react';
 import { getRecruiters } from '@/lib/nav';
 import { normalizeCandidateDate, formatSheetDateDisplay } from '@/lib/candidate-dates';
@@ -271,10 +272,58 @@ function extractRowYearMonth(r) {
  * Emp ID, Interview date, Recruiter, Week 1–8 follow-ups).
  * Supports Excel/CSV bulk upload, editing for all portals, and delete for HR & Finance portals.
  */
-export function JoinerSheetSection({ db, user: userProp, canEdit = true, employeeFilter = 'ALL' }) {
+export function JoinerSheetSection({
+  db,
+  user: userProp,
+  canEdit = true,
+  employeeFilter = 'ALL',
+  onManageCompanies,
+  customCompanies: passedCustomCompanies,
+}) {
   const [overlays, setOverlays] = useState([]);
   const [candidates, setCandidates] = useState([]);
+  const [customCompanies, setCustomCompanies] = useState(passedCustomCompanies || []);
   const [companyTab, setCompanyTab] = useState('ALL');
+
+  useEffect(() => {
+    if (passedCustomCompanies && passedCustomCompanies.length > 0) {
+      setCustomCompanies(passedCustomCompanies);
+    }
+  }, [passedCustomCompanies]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadComp = async () => {
+      try {
+        const res = await fetch('/api/companies');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.names) && !cancelled) {
+          setCustomCompanies(data.names);
+        }
+      } catch {}
+    };
+    if (!passedCustomCompanies || passedCustomCompanies.length === 0) {
+      loadComp();
+    }
+    const handleUpdate = (e) => {
+      if (Array.isArray(e.detail)) setCustomCompanies(e.detail);
+    };
+    window.addEventListener('hrms:companies_updated', handleUpdate);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('hrms:companies_updated', handleUpdate);
+    };
+  }, [passedCustomCompanies]);
+
+  const dynamicCompanyTabs = useMemo(() => {
+    const list = customCompanies.length > 0 ? customCompanies : COMPANY_TABS.slice(1).filter((c) => c !== 'OTHER');
+    return ['ALL', ...list, 'OTHER'];
+  }, [customCompanies]);
+
+  const dynamicCompanyOptions = useMemo(() => {
+    const list = customCompanies.length > 0 ? customCompanies : COMPANY_OPTIONS.filter((c) => c.toUpperCase() !== 'OTHER');
+    return [...list, 'OTHER'];
+  }, [customCompanies]);
   const [monthFilter, setMonthFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('Ready');
@@ -582,8 +631,8 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
         });
 
     const counts = { ALL: baseList.length };
-    const knownCompanies = ['ALTRUIST', 'ONE POINT ONE', 'STARTEK', 'TRIO', 'ISON', 'RADICAL MINDS', 'ILEADS'];
-    COMPANY_TABS.slice(1).forEach((c) => {
+    const knownCompanies = dynamicCompanyTabs.slice(1).filter((k) => k !== 'OTHER');
+    dynamicCompanyTabs.slice(1).forEach((c) => {
       counts[c] = baseList.filter((r) => {
         const comp = String(r.company || '').toUpperCase();
         const proc = String(r.process || '').toUpperCase();
@@ -605,7 +654,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
   const startEdit = (row) => {
     if (!canEditEntry) return;
     setEditingId(row.id || row._id);
-    const matchedCompany = row.company || (COMPANY_TABS.slice(1).find(c => String(row.process || '').toUpperCase().includes(c)) || '');
+    const matchedCompany = row.company || (dynamicCompanyTabs.slice(1).find(c => String(row.process || '').toUpperCase().includes(c)) || '');
     setEditForm({
       name: row.name || '',
       phone: row.phone || '',
@@ -868,7 +917,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
           let process = rawProcess || '';
 
           if (!company && process) {
-            const matched = COMPANY_TABS.slice(1).find(c => process.toUpperCase().includes(c));
+            const matched = dynamicCompanyTabs.slice(1).find(c => process.toUpperCase().includes(c));
             if (matched) {
               company = matched;
             }
@@ -1347,6 +1396,32 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
             <span>Template</span>
           </button>
 
+          {onManageCompanies && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onManageCompanies}
+              title="Add or remove hiring companies (updates dropdowns & filter tabs)"
+              style={{
+                borderRadius: 99,
+                minHeight: 40,
+                fontSize: 12,
+                fontWeight: 800,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#F8FAFC',
+                border: '1.5px dashed #94A3B8',
+                color: '#334155',
+                padding: '8px 16px',
+                cursor: 'pointer',
+              }}
+            >
+              <Building2 size={14} style={{ color: '#4F46E5' }} />
+              <span>+ / - Company</span>
+            </button>
+          )}
+
           {/* Month selector dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <select
@@ -1408,9 +1483,9 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
         </div>
       </div>
 
-      {/* Company tabs like Google Sheet (ISON, …) */}
+      {/* Company tabs like Google Sheet (dynamic with MongoDB) */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        {COMPANY_TABS.map((tab) => (
+        {dynamicCompanyTabs.map((tab) => (
           <button
             key={tab}
             type="button"
@@ -1585,29 +1660,29 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                           <select
                             className="cell-select"
                             value={
-                              COMPANY_OPTIONS.includes(editForm.company)
+                              dynamicCompanyOptions.includes(editForm.company)
                                 ? editForm.company
                                 : editForm.company
-                                ? 'Other'
+                                ? 'OTHER'
                                 : ''
                             }
                             onChange={(e) => {
-                              if (e.target.value === 'Other') {
+                              if (e.target.value === 'OTHER' || e.target.value === 'Other') {
                                 setEditForm({ ...editForm, company: '', _customCompany: true });
                               } else {
-                                setEditForm({ ...editForm, company: e.target.value, _customCompany: false });
+                                setEditForm({ ...editForm, company: e.target.value.toUpperCase(), _customCompany: false });
                               }
                             }}
                           >
                             <option value="">Select Company</option>
-                            {COMPANY_OPTIONS.map((c) => (
+                            {dynamicCompanyOptions.map((c) => (
                               <option key={c} value={c}>
                                 {c}
                               </option>
                             ))}
                           </select>
                           {(editForm._customCompany ||
-                            (!COMPANY_OPTIONS.includes(editForm.company) &&
+                            (!dynamicCompanyOptions.includes(editForm.company) &&
                               editForm.company &&
                               editForm.company !== 'Select Company')) && (
                             <input
@@ -1866,7 +1941,7 @@ export function JoinerSheetSection({ db, user: userProp, canEdit = true, employe
                     {cell(row.name)}
                     {cell(row.phone)}
                     {cell(row.process)}
-                    {cell(row.company || (COMPANY_TABS.slice(1).find(c => String(row.process || '').toUpperCase().includes(c)) || '—'))}
+                    {cell(row.company || (dynamicCompanyTabs.slice(1).find(c => String(row.process || '').toUpperCase().includes(c)) || '—'))}
                     {cell(formatCellDate(row.dateOfJoining))}
                     {cell(formatCellDate(row.billingDate))}
                     {cell(row.employeeCode)}
