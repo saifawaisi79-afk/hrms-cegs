@@ -65,7 +65,11 @@ export async function PUT(request, { params }) {
       updates.contact = String(contact ?? phone ?? '').trim();
     }
     if (avatar_url != null || avatar != null) {
-      updates.avatar_url = String(avatar_url ?? avatar ?? '').trim();
+      const cleanAvatar = String(avatar_url ?? avatar ?? '').trim();
+      if (cleanAvatar.length > 100000) {
+        return NextResponse.json({ error: 'Avatar image is too large. Max allowed size is 75KB.' }, { status: 400 });
+      }
+      updates.avatar_url = cleanAvatar;
     }
     if (joining_date != null) updates.joining_date = String(joining_date).slice(0, 10);
     if (basic_salary != null || salary != null) {

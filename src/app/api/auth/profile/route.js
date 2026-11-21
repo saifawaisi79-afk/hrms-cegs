@@ -82,7 +82,11 @@ export async function PUT(request) {
     // 1. Avatar persistence (always permitted for all logged-in users)
     const newAvatar = body.avatar_url ?? body.avatar;
     if (newAvatar !== undefined) {
-      updates.avatar_url = typeof newAvatar === 'string' ? newAvatar.trim() : '';
+      const cleanAvatar = typeof newAvatar === 'string' ? newAvatar.trim() : '';
+      if (cleanAvatar.length > 100000) {
+        return NextResponse.json({ success: false, error: 'Avatar image is too large. Max allowed compressed size is 75KB.' }, { status: 400 });
+      }
+      updates.avatar_url = cleanAvatar;
     }
 
     // 2. Personal contact entries (always permitted for self-management)
