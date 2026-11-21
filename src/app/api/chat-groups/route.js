@@ -26,7 +26,7 @@ function formatGroup(g) {
             email: a.email,
             designation: a.designation || a.role,
             role: a.role,
-            avatar: a.avatar_url,
+            avatar: a.avatar_url && a.avatar_url.length < 500 ? a.avatar_url : undefined,
           }
         : a?.toString()
     ),
@@ -38,7 +38,7 @@ function formatGroup(g) {
             email: m.email,
             designation: m.designation || m.role,
             role: m.role,
-            avatar: m.avatar_url,
+            avatar: m.avatar_url && m.avatar_url.length < 500 ? m.avatar_url : undefined,
           }
         : m?.toString()
     ),

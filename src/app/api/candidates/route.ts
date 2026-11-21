@@ -123,7 +123,13 @@ export async function GET(request: Request) {
     const filter =
       clauses.length === 0 ? {} : clauses.length === 1 ? clauses[0] : { $and: clauses };
 
-    const candidates = await Candidate.find(filter).sort({ slNo: 1, createdAt: 1 }).lean();
+    let candidateQuery = Candidate.find(filter).sort({ slNo: 1, createdAt: 1 });
+    // Safeguard: if no date or date-range filter is applied, cap at 500 to protect server memory
+    if (clauses.length === 0) {
+      candidateQuery = candidateQuery.limit(500);
+    }
+
+    const candidates = await candidateQuery.lean();
 
     return NextResponse.json(candidates.map(c => ({
       ...c,

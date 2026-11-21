@@ -85,6 +85,7 @@ async function connectDB(): Promise<typeof mongoose> {
   if (!cached!.promise) {
     const opts = {
       bufferCommands: false,
+      autoIndex: process.env.NODE_ENV !== 'production',
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 8000,
       socketTimeoutMS: 45000,

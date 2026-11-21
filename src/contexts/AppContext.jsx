@@ -117,7 +117,8 @@ export function AppProvider({ children }) {
                   bankIfsc: su.ifsc_code || storedUser?.bankIfsc || '',
                   emergency_contact: su.emergency_contact || storedUser?.emergency_contact || '',
                   emergencyPhone: su.emergency_contact || storedUser?.emergencyPhone || '',
-                  avatar: normalizeAvatar(su.avatar_url || storedUser?.avatar, su.name || su.email),
+                  avatar: su.avatar_url || storedUser?.avatar_url || storedUser?.avatar || normalizeAvatar(null, su.name || su.email),
+                  avatar_url: su.avatar_url || storedUser?.avatar_url || storedUser?.avatar || '',
                   must_change_password: su.must_change_password || 0,
                 };
                 if (!cancelled) {
@@ -374,10 +375,16 @@ export function AppProvider({ children }) {
             String(row.email || '').toLowerCase() === String(user.email || '').toLowerCase()
         );
         if (me && !cancelled) {
+          const activeAvatar = user?.avatar_url || user?.avatar;
+          const incomingAvatar = me.avatar_url || me.avatar;
+          const resolvedAvatar = (activeAvatar && String(activeAvatar).startsWith('data:'))
+            ? activeAvatar
+            : (incomingAvatar || activeAvatar);
           const merged = {
             ...user,
             ...me,
-            avatar: me.avatar || user.avatar,
+            avatar: resolvedAvatar,
+            avatar_url: resolvedAvatar,
           };
           setUser(merged);
           try {
@@ -519,19 +526,28 @@ export function AppProvider({ children }) {
 
     const pull = async () => {
       try {
-        const res = await fetch(`${API_BASE}/messages`, {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        const res = await fetch(`${API_BASE}/messages?limit=60`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (Array.isArray(data) && !cancelled) {
-          save('messages', data);
+          setDb((prev) => {
+            const map = new Map();
+            (prev.messages || []).forEach((m) => map.set(m.id || `${m.fromId}-${m.time}`, m));
+            data.forEach((m) => map.set(m.id || `${m.fromId}-${m.time}`, m));
+            const merged = Array.from(map.values());
+            Store.set('messages', merged);
+            return { ...prev, messages: merged };
+          });
         }
       } catch {}
     };
 
     const pullGroups = async () => {
       try {
+        if (typeof document !== 'undefined' && document.hidden) return;
         const res = await fetch(`${API_BASE}/chat-groups`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -546,14 +562,27 @@ export function AppProvider({ children }) {
     pull();
     pullGroups();
 
-    // Fast 2.5s poll for real-time instant direct messaging
-    const msgTimer = setInterval(pull, 2500);
-    const grpTimer = setInterval(pullGroups, 6000);
+    // Responsive poll (8s messages, 20s groups) that automatically pauses when browser tab is hidden
+    const msgTimer = setInterval(pull, 8000);
+    const grpTimer = setInterval(pullGroups, 20000);
+
+    const onVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        pull();
+        pullGroups();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibilityChange);
+    }
 
     return () => {
       cancelled = true;
       clearInterval(msgTimer);
       clearInterval(grpTimer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      }
     };
   }, [user?.id, save]);
 

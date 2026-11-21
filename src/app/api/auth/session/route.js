@@ -32,7 +32,13 @@ export async function GET(request) {
 
   try {
     await connectDB();
-    const user = await User.findById(authUser.id).populate('department_id', 'name').lean();
+    let user = null;
+    if (authUser.id) {
+      user = await User.findById(authUser.id).populate('department_id', 'name').lean();
+    }
+    if (!user && authUser.email) {
+      user = await User.findOne({ email: authUser.email.toLowerCase() }).populate('department_id', 'name').lean();
+    }
 
     if (!user) {
       return NextResponse.json({ error: 'User session no longer valid' }, { status: 404 });

@@ -101,12 +101,16 @@ export function AppHeader() {
 
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const avatarSrc = user?.avatar_url || user?.avatar;
+
+  useEffect(() => {
+    setAvatarLoadError(false);
+  }, [avatarSrc]);
+
   const showAvatarImg = Boolean(
     avatarSrc &&
       typeof avatarSrc === 'string' &&
       avatarSrc.trim() &&
-      !avatarLoadError &&
-      !avatarSrc.includes('dicebear.com/7.x/bottts')
+      !avatarLoadError
   );
 
   const closeMobile = () => setMobileOpen(false);

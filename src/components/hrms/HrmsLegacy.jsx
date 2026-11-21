@@ -1534,9 +1534,31 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  bio: user.bio || ''
  });
 
- const saveProfile = () => {
- save('users', db.users.map(u => u.id === user.id ? { ...u, ...profileForm } : u));
- setIsEditing(false);
+ const saveProfile = async () => {
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : '';
+    if (token) {
+      await fetch(`${GLOBAL_API_BASE}/auth/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          phone: profileForm.phone,
+          contact: profileForm.phone,
+          ...(profileForm.avatar ? { avatar_url: profileForm.avatar } : {}),
+        }),
+      });
+    }
+  } catch (e) {
+    console.warn('saveProfile error:', e);
+  }
+  const updated = { ...user, ...profileForm };
+  if (setUser) setUser(updated);
+  Store.set('currentUser', updated);
+  save('users', (db.users || []).map(u => (u.id === user.id || u.email === user.email) ? { ...u, ...profileForm } : u));
+  setIsEditing(false);
  };
 
  // Calendar Slider State
@@ -1960,7 +1982,34 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  <div className="dash-row-1">
  <div className="welcome-widget">
  <div className="welcome-head">
- {user.avatar ? <img src={user.avatar} className="welcome-avatar" alt="" /> : null}
+ {(user?.avatar_url || user?.avatar) ? (
+ <img 
+ src={user.avatar_url || user.avatar} 
+ className="welcome-avatar" 
+ alt={user.name || 'User'} 
+ onClick={() => setView && setView('profile')}
+ style={{ cursor: 'pointer', objectFit: 'cover' }}
+ title="Click to view or edit profile photo"
+ />
+ ) : (
+ <div 
+ className="welcome-avatar" 
+ onClick={() => setView && setView('profile')}
+ style={{ 
+ cursor: 'pointer', 
+ display: 'flex', 
+ alignItems: 'center', 
+ justifyContent: 'center', 
+ background: 'var(--accent, #7C5CFC)', 
+ color: '#FFFFFF', 
+ fontWeight: 900, 
+ fontSize: 18 
+ }}
+ title="Click to upload profile photo"
+ >
+ {(user.name || 'U').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()}
+ </div>
+ )}
  <div className="welcome-head-text">
  <div className="welcome-title">{greeting}, {firstName}</div>
  {(designation || employeeId || statusLabel || isIT) ? (
@@ -14824,16 +14873,58 @@ export function ProfilePage({ db, save, user, setUser }) {
  const [saveMessage, setSaveMessage] = useState(null);
  const avatarFileRef = useRef(null);
 
+ // Fetch fresh profile data directly from MongoDB on mount
  useEffect(() => {
- setFormData({ ...mergedUser });
- // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [user?.id, db.users, profileFromDb.basic_salary, profileFromDb.allowances, profileFromDb.address, profileFromDb.login_time]);
+   let cancelled = false;
+   (async () => {
+     try {
+       const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : '';
+       if (!token) return;
+       const res = await fetch('/api/auth/profile', {
+         headers: { Authorization: `Bearer ${token}` },
+       });
+       if (!res.ok || cancelled) return;
+       const data = await res.json();
+       if (data?.success && data?.user) {
+         const u = data.user;
+         const freshAvatar = u.avatar_url || u.avatar || '';
+         setFormData((prev) => ({
+           ...prev,
+           ...u,
+           title: u.designation || u.title || prev.title,
+           phone: u.contact || u.phone || prev.phone,
+           emergencyPhone: u.emergency_contact || u.emergencyPhone || prev.emergencyPhone,
+           bankName: u.bank_name || u.bankName || prev.bankName,
+           bankAccount: u.account_number || u.bankAccount || prev.bankAccount,
+           bankIfsc: u.ifsc_code || u.bankIfsc || prev.bankIfsc,
+           avatar: freshAvatar || prev.avatar,
+           avatar_url: freshAvatar || prev.avatar_url,
+         }));
+         const updatedUser = {
+           ...user,
+           ...u,
+           avatar: freshAvatar || user?.avatar,
+           avatar_url: freshAvatar || user?.avatar_url,
+         };
+         if (setUser) setUser(updatedUser);
+         Store.set('currentUser', updatedUser);
+       }
+     } catch (err) {
+       console.warn('Profile fetch error:', err);
+     }
+   })();
+   return () => { cancelled = true; };
+ }, []);
 
  const isAdminOrHR = user?.role === 'super_admin' || user?.role === 'admin' || (user?.title && typeof user.title === 'string' && user.title.toLowerCase().includes('hr manager'));
 
  const handleAvatarFile = (e) => {
  const file = e.target.files?.[0];
  if (!file) return;
+ if (!file.type.startsWith('image/')) {
+   setSaveMessage({ type: 'error', text: 'Please select a valid image file (JPG, PNG, WEBP).' });
+   return;
+ }
  setUploadingAvatar(true);
  setSaveMessage(null);
 
@@ -14842,7 +14933,8 @@ export function ProfilePage({ db, save, user, setUser }) {
  const img = document.createElement('img');
  img.onload = async () => {
  try {
- const maxDim = 400;
+ // Optimized 180x180 resolution produces crisp thumbnail <10KB in size
+ const maxDim = 180;
  let w = img.width;
  let h = img.height;
  if (w > maxDim || h > maxDim) {
@@ -14859,7 +14951,7 @@ export function ProfilePage({ db, save, user, setUser }) {
  canvas.height = h;
  const ctx = canvas.getContext('2d');
  ctx.drawImage(img, 0, 0, w, h);
- const base64 = canvas.toDataURL('image/jpeg', 0.85);
+ const base64 = canvas.toDataURL('image/jpeg', 0.72);
 
  const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : '';
  const res = await fetch('/api/auth/profile', {
@@ -14878,7 +14970,7 @@ export function ProfilePage({ db, save, user, setUser }) {
  }
 
  const updatedUser = { ...user, avatar: base64, avatar_url: base64 };
- setFormData((prev) => ({ ...prev, avatar: base64 }));
+ setFormData((prev) => ({ ...prev, avatar: base64, avatar_url: base64 }));
  if (setUser) setUser(updatedUser);
  Store.set('currentUser', updatedUser);
  save(
@@ -14953,7 +15045,7 @@ export function ProfilePage({ db, save, user, setUser }) {
  address: formData.address || '',
  dob: formData.dob || '',
  degrees: formData.degrees || '',
- avatar_url: formData.avatar || '',
+ avatar_url: formData.avatar || formData.avatar_url || '',
  };
 
  if (isAdminOrHR) {
@@ -14971,11 +15063,7 @@ export function ProfilePage({ db, save, user, setUser }) {
  }
 
  try {
- const endpoint = isAdminOrHR && (profileFromDb.id || user?.id)
- ? `${GLOBAL_API_BASE}/admin/employees/${profileFromDb.id || user?.id}`
- : `${GLOBAL_API_BASE}/auth/profile`;
-
- const res = await fetch(endpoint, {
+ const res = await fetch(`${GLOBAL_API_BASE}/auth/profile`, {
  method: 'PUT',
  headers: {
  'Content-Type': 'application/json',
@@ -14985,7 +15073,7 @@ export function ProfilePage({ db, save, user, setUser }) {
  });
 
  const data = await res.json().catch(() => ({}));
- if (!res.ok) {
+ if (!res.ok || !data.success) {
  setSaveMessage({ type: 'error', text: data.error || 'Failed to save profile to database.' });
  return;
  }
@@ -14994,6 +15082,7 @@ export function ProfilePage({ db, save, user, setUser }) {
  ...formData,
  ...payload,
  avatar: formData.avatar || user?.avatar,
+ avatar_url: formData.avatar || user?.avatar_url || user?.avatar,
  };
  setFormData(merged);
  const updatedUser = { ...user, ...merged };

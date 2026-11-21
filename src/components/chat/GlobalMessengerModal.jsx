@@ -33,8 +33,8 @@ const COLOR_PRESETS = [
   { name: 'Ocean Cyan', color: '#06B6D4' },
 ];
 
-// Compress high-res photos to high quality lightweight JPEG data URL
-function compressImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) {
+// Compress photos to lightweight clean JPEG data URL (<25KB)
+function compressImage(file, maxWidth = 640, maxHeight = 640, quality = 0.65) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -351,9 +351,10 @@ export function GlobalMessengerModal({
     fetchGroups();
     fetchMessages();
     const poll = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       fetchMessages();
       fetchGroups();
-    }, 3000);
+    }, 4000);
     return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, myId, activeTab, activeGroup?.id]);

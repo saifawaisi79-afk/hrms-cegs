@@ -9,12 +9,17 @@ import { getAuthUser } from '@/lib/auth';
 function flattenMessage(m) {
   const obj = m.toObject ? m.toObject() : m;
   const fromObj = typeof obj.from_id === 'object' && obj.from_id !== null ? obj.from_id : null;
+  const rawAv = fromObj?.avatar_url || obj.fromAvatar || '';
+  const fromAvatar = typeof rawAv === 'string' && rawAv.startsWith('data:') && rawAv.length > 500
+    ? ''
+    : rawAv;
+
   return {
     id: obj._id?.toString(),
     _id: obj._id?.toString(),
     fromId: fromObj ? fromObj._id?.toString() : obj.from_id?.toString?.() || String(obj.from_id),
     fromName: fromObj?.name || obj.fromName || '',
-    fromAvatar: fromObj?.avatar_url || obj.fromAvatar || '',
+    fromAvatar: fromAvatar,
     fromRole: fromObj?.role || obj.fromRole || '',
     fromDesignation: fromObj?.designation || obj.fromDesignation || '',
     toId: obj.to_id?.toString?.() || (obj.to_id ? String(obj.to_id) : null),
@@ -39,14 +44,31 @@ export async function GET(request) {
   const withId = searchParams.get('with');
   const groupId = searchParams.get('groupId') || searchParams.get('group_id');
 
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '60', 10)));
+  const since = searchParams.get('since');
+
   // If querying messages for a group
   if (groupId && mongoose.Types.ObjectId.isValid(groupId)) {
     const groupObjectId = new mongoose.Types.ObjectId(groupId);
-    const rows = await Message.find({ group_id: groupObjectId })
-      .populate('from_id', 'name email role designation avatar_url')
-      .sort({ createdAt: 1 })
-      .lean();
+    let groupFilter = { group_id: groupObjectId };
+    if (since) {
+      const sinceDate = new Date(since);
+      if (!isNaN(sinceDate.getTime())) {
+        groupFilter.createdAt = { $gt: sinceDate };
+      }
+    }
 
+    let groupQuery = Message.find(groupFilter)
+      .populate('from_id', 'name email role designation avatar_url');
+
+    if (since) {
+      groupQuery = groupQuery.sort({ createdAt: 1 }).limit(limit);
+    } else {
+      groupQuery = groupQuery.sort({ createdAt: -1 }).limit(limit);
+    }
+
+    let rows = await groupQuery.lean();
+    if (!since) rows.reverse();
     return NextResponse.json(rows.map(flattenMessage));
   }
 
@@ -84,10 +106,24 @@ export async function GET(request) {
     };
   }
 
-  const rows = await Message.find(filter)
-    .populate('from_id', 'name email role designation avatar_url')
-    .sort({ createdAt: 1 })
-    .lean();
+  if (since) {
+    const sinceDate = new Date(since);
+    if (!isNaN(sinceDate.getTime())) {
+      filter = { $and: [filter, { createdAt: { $gt: sinceDate } }] };
+    }
+  }
+
+  let query = Message.find(filter)
+    .populate('from_id', 'name email role designation avatar_url');
+
+  if (since) {
+    query = query.sort({ createdAt: 1 }).limit(limit);
+  } else {
+    query = query.sort({ createdAt: -1 }).limit(limit);
+  }
+
+  let rows = await query.lean();
+  if (!since) rows.reverse();
 
   return NextResponse.json(rows.map(flattenMessage));
 }
