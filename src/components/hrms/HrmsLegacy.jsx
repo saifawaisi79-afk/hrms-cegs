@@ -10064,10 +10064,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
  if (token) {
  try {
- const res = await fetch(`${GLOBAL_API_BASE}/candidates?date=${encodeURIComponent(sheetDate)}`);
+ const headers = token ? { Authorization: `Bearer ${token}` } : {};
+ const res = await fetch(`${GLOBAL_API_BASE}/candidates?date=${encodeURIComponent(sheetDate)}`, { headers });
  if (cancelled) return;
  if (res.status === 401) {
- try { localStorage.removeItem('cegs_token'); } catch {}
+ // Keep cached candidates on 401
  } else if (res.ok) {
  const apiData = await res.json();
  if (Array.isArray(apiData)) {
@@ -10230,7 +10231,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  if (Date.now() - lastEditedRef.current < 10000) return;
  if (Date.now() < skipCloudOverwriteUntilRef.current) return;
  try {
- const res = await fetch(`${GLOBAL_API_BASE}/candidates?date=${encodeURIComponent(sheetDate)}`);
+ const headers = token ? { Authorization: `Bearer ${token}` } : {};
+ const res = await fetch(`${GLOBAL_API_BASE}/candidates?date=${encodeURIComponent(sheetDate)}`, { headers });
  if (res.status === 401) {
  if (interval) clearInterval(interval);
  interval = null;
@@ -10273,9 +10275,12 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  for (const row of localOnly) {
  if (cancelled) break;
  try {
+ const tok = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ const hdrs = { 'Content-Type': 'application/json' };
+ if (tok) hdrs['Authorization'] = `Bearer ${tok}`;
  const res = await fetch(`${API_BASE}/candidates`, {
  method: 'POST',
- headers: { 'Content-Type': 'application/json' },
+ headers: hdrs,
  body: JSON.stringify(row),
  });
  if (res.ok) {
@@ -10630,9 +10635,12 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  try {
  lastEditedRef.current = Date.now();
  skipCloudOverwriteUntilRef.current = Date.now() + 15000;
+ const tok = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ const hdrs = { 'Content-Type': 'application/json' };
+ if (tok) hdrs['Authorization'] = `Bearer ${tok}`;
  const res = await fetch(`${API_BASE}/candidates`, {
  method: 'POST',
- headers: { 'Content-Type': 'application/json' },
+ headers: hdrs,
  body: JSON.stringify(draftRow)
  });
  if (res.ok) {
@@ -10642,12 +10650,11 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  resetAddForm();
  showToast('Candidate saved to database!', 'success');
  } else if (res.status === 401) {
- try { localStorage.removeItem('cegs_token'); } catch {}
  setFormError('Session expired. Log out and sign in again to save to the database.');
  setSaveStatus('Error');
  } else {
  const errBody = await res.json().catch(() => ({}));
- setFormError(errBody.error || 'Failed to save to database.');
+ setFormError(errBody.error || errBody.message || 'Failed to save to database. Please try again.');
  setSaveStatus('Error');
  }
  } catch (err) {
@@ -10747,20 +10754,22 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  try {
  const isLocalOnly = String(editingId).startsWith('cand_') || String(editingId).startsWith('imp_');
  if (!isLocalOnly) {
+ const tok = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+ const hdrs = { 'Content-Type': 'application/json' };
+ if (tok) hdrs['Authorization'] = `Bearer ${tok}`;
  const res = await fetch(`${API_BASE}/candidates/${editingId}`, {
  method: 'PUT',
- headers: { 'Content-Type': 'application/json' },
+ headers: hdrs,
  body: JSON.stringify(payload),
  });
  if (res.status === 401) {
- try { localStorage.removeItem('cegs_token'); } catch {}
  setFormError('Session expired. Log out and sign in again to save to the database.');
  setSaveStatus('Error');
  return;
  }
  if (!res.ok) {
  const errBody = await res.json().catch(() => ({}));
- setFormError(errBody.error || 'Failed to update candidate.');
+ setFormError(errBody.error || errBody.message || 'Failed to update candidate.');
  setSaveStatus('Error');
  return;
  }
@@ -10786,7 +10795,8 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
  if (token) {
  try {
- await fetch(`${API_BASE}/candidates/${candId}`, { method: 'DELETE' });
+ const delHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+ await fetch(`${API_BASE}/candidates/${candId}`, { method: 'DELETE', headers: delHeaders });
  } catch {}
  }
  showToast('Deleted candidate entry.', 'info');
@@ -10902,7 +10912,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  try {
  const res = await fetch(`${API_BASE}/candidates`, {
  method: 'POST',
- headers: { 'Content-Type': 'application/json' },
+ headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
  body: JSON.stringify(formattedNew.map(({ id, ...row }) => row)),
  });
  if (res.ok) {
