@@ -29,8 +29,17 @@ export interface AuthUserPayload {
 
 // ─── JWT Helpers ──────────────────────────────────────────────────────────────
 
-export function signToken(payload: object): string {
-  return jwt.sign(payload, getJwtSecret(), { expiresIn: '24h' });
+export function signToken(payload: Record<string, any>): string {
+  const safePayload = { ...payload };
+  // Large base64 data URLs in JWT tokens cause HTTP header overflows (>4KB/8KB)
+  // in response cookies (Set-Cookie) and crash reverse proxies with 500 errors.
+  if (
+    typeof safePayload.avatar_url === 'string' &&
+    (safePayload.avatar_url.startsWith('data:') || safePayload.avatar_url.length > 500)
+  ) {
+    delete safePayload.avatar_url;
+  }
+  return jwt.sign(safePayload, getJwtSecret(), { expiresIn: '24h' });
 }
 
 /** Short-lived attestation that GPS was within office geofence (WFO login). */

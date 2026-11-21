@@ -219,7 +219,10 @@ export function AppProvider({ children }) {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        return { ok: false, error: data.error || 'Invalid email or password.' };
+        const fallbackMsg = res.status >= 500
+          ? 'Server error occurred during sign-in. Please try again.'
+          : 'Invalid email or password.';
+        return { ok: false, error: data.error || fallbackMsg };
       }
 
       const apiUser = data.user;

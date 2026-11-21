@@ -161,7 +161,7 @@ export async function POST(request: Request) {
       email: user.email,
       role: user.role,
       department_id: user.department_id?.toString() || null,
-      avatar_url: user.avatar_url,
+      avatar_url: user.avatar_url && !user.avatar_url.startsWith('data:') && user.avatar_url.length < 500 ? user.avatar_url : undefined,
       workMode,
     });
 
@@ -242,6 +242,6 @@ export async function POST(request: Request) {
         { status: 503 }
       );
     }
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
 }
