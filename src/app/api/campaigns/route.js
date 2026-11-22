@@ -37,6 +37,51 @@ function serializeCampaign(doc, extra = {}) {
   };
 }
 
+function computeHallOfFame(snap, campaign) {
+  if (!snap) {
+    return {
+      performerOfWeek: null,
+      performerOfMonth: null,
+      weekKey: '',
+      monthKey: campaign?.monthKey || '',
+    };
+  }
+  const allEmps = snap.employees || [];
+  const currentWeek = snap.campaign?.currentWeek;
+
+  let performerOfWeek = null;
+  if (allEmps.length > 0) {
+    const list = allEmps.map((e) => {
+      const wInfo = (e.weekly || []).find((w) => w.weekKey === currentWeek?.weekKey) || e.thisWeek;
+      return {
+        ...e,
+        weekTarget: wInfo?.target ?? 0,
+        weekActual: wInfo?.actual ?? 0,
+        weekStatus: wInfo?.label ?? 'Pending',
+        weekAchieved: wInfo?.achieved ?? false,
+        weekBonus: wInfo?.bonusAwarded ? wInfo.bonusAmount : (wInfo?.achieved ? 5000 : 0),
+      };
+    });
+    list.sort((a, b) => (b.weekActual - a.weekActual) || (b.weeklyWins - a.weeklyWins) || (b.monthlyJoiners - a.monthlyJoiners));
+    performerOfWeek = list[0] || null;
+  }
+
+  let performerOfMonth = null;
+  if (snap.eomWinner) {
+    performerOfMonth = snap.eomWinner;
+  } else if (allEmps.length > 0) {
+    const sorted = [...allEmps].sort((a, b) => (b.monthlyJoiners - a.monthlyJoiners) || (b.weeklyWins - a.weeklyWins));
+    performerOfMonth = sorted[0] || null;
+  }
+
+  return {
+    performerOfWeek,
+    performerOfMonth,
+    weekKey: currentWeek?.weekKey || '',
+    monthKey: snap.campaign?.monthKey || campaign?.monthKey || '',
+  };
+}
+
 export async function GET(request) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
@@ -56,7 +101,7 @@ export async function GET(request) {
     ],
     status: { $in: ['active', 'on_leave'] },
   })
-    .select('name email role employee_id status')
+    .select('name email role employee_id status avatar_url')
     .sort({ name: 1 })
     .lean();
 
@@ -71,12 +116,17 @@ export async function GET(request) {
       selectable: canManage ? selectable.map(flattenUser) : [],
       campaign: null,
       snapshot: null,
+      hallOfFame: { performerOfWeek: null, performerOfMonth: null, weekKey: '', monthKey },
     });
   }
 
   const isParticipant = (campaign.participantIds || []).some(
     (id) => String(id) === String(authUser.id)
   );
+
+  const snap = await evaluateAndAward(campaign, authUser.id);
+  const hallOfFame = computeHallOfFame(snap, campaign);
+
   if (!canManage && !isParticipant) {
     return NextResponse.json({
       assigned: false,
@@ -84,12 +134,13 @@ export async function GET(request) {
       isParticipant: false,
       monthKey,
       selectable: [],
-      campaign: null,
-      snapshot: null,
+      campaign: serializeCampaign(campaign),
+      snapshot: {
+        campaign: snap.campaign,
+      },
+      hallOfFame,
     });
   }
-
-  const snap = await evaluateAndAward(campaign, authUser.id);
 
   let snapshot = snap;
   if (!canManage && isParticipant) {
@@ -107,6 +158,7 @@ export async function GET(request) {
     selectable: canManage ? selectable.map(flattenUser) : [],
     campaign: serializeCampaign(campaign),
     snapshot,
+    hallOfFame,
   });
 }
 
@@ -157,5 +209,6 @@ export async function POST(request) {
   );
 
   const snap = await evaluateAndAward(campaign, authUser.id);
-  return NextResponse.json({ campaign: serializeCampaign(campaign), snapshot: snap }, { status: 201 });
+  const hallOfFame = computeHallOfFame(snap, campaign);
+  return NextResponse.json({ campaign: serializeCampaign(campaign), snapshot: snap, hallOfFame }, { status: 201 });
 }

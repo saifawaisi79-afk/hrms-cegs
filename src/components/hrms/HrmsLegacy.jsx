@@ -1425,6 +1425,461 @@ export function LunchBreakWidget({ user, db, save }) {
  );
 }
 
+// ── PERFORMER OF THE WEEK & MONTH AVATAR COMPONENT ──
+export function PerformerAvatar({ performer, photo, type = 'week' }) {
+  const [imgError, setImgError] = useState(false);
+  const initials = performer?.name
+    ? performer.name.split(' ').map((n) => n[0]).filter(Boolean).join('').slice(0, 2).toUpperCase()
+    : '★';
+  const isWeek = type === 'week';
+  const ringColor = isWeek ? '#F59E0B' : '#2563EB';
+  const gradientBg = isWeek
+    ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
+    : 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)';
+  const glow = isWeek
+    ? '0 4px 14px rgba(245, 158, 11, 0.35)'
+    : '0 4px 14px rgba(37, 99, 235, 0.35)';
+
+  return (
+    <div style={{ position: 'relative', width: 48, height: 48, flexShrink: 0 }}>
+      {photo && !imgError ? (
+        <img
+          src={photo}
+          alt={performer?.name || 'Performer'}
+          onError={() => setImgError(true)}
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            border: `2.5px solid ${ringColor}`,
+            boxShadow: glow,
+            background: '#FFFFFF',
+            display: 'block'
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            background: gradientBg,
+            color: '#FFFFFF',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 900,
+            fontSize: 16,
+            fontFamily: "'Outfit', sans-serif",
+            border: `2.5px solid ${ringColor}`,
+            boxShadow: glow,
+            textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+          }}
+        >
+          {initials}
+        </div>
+      )}
+      <span
+        style={{
+          position: 'absolute',
+          bottom: -2,
+          right: -2,
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          background: isWeek ? '#FEF3C7' : '#DBEAFE',
+          border: `1.5px solid ${ringColor}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 10,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+        }}
+        title={isWeek ? 'Performer of the Week' : 'Performer of the Month'}
+      >
+        {isWeek ? '⭐' : '👑'}
+      </span>
+    </div>
+  );
+}
+
+// ── RECRUITMENT PERFORMANCE HALL OF FAME WIDGET (DASHBOARD SIDEBAR) ──
+export function PerformersHallOfFameWidget({ campaignData, db, user, setView, loading }) {
+  const campSnap = campaignData?.snapshot;
+  const campObj = campSnap?.campaign || campaignData?.campaign;
+  const currentWeek = campObj?.currentWeek;
+
+  // 1. Performer of the Week
+  const performerOfWeek = useMemo(() => {
+    if (campaignData?.hallOfFame?.performerOfWeek) return campaignData.hallOfFame.performerOfWeek;
+    const emps = campSnap?.employees || [];
+    if (!emps.length) return null;
+    const list = emps.map((e) => {
+      const wInfo = (e.weekly || []).find((w) => w.weekKey === currentWeek?.weekKey) || e.thisWeek;
+      return {
+        ...e,
+        weekTarget: wInfo?.target ?? 0,
+        weekActual: wInfo?.actual ?? 0,
+        weekStatus: wInfo?.label ?? 'Pending',
+        weekAchieved: wInfo?.achieved ?? false,
+        weekBonus: wInfo?.bonusAwarded ? wInfo.bonusAmount : (wInfo?.achieved ? 5000 : 0),
+      };
+    });
+    list.sort((a, b) => (b.weekActual - a.weekActual) || (b.weeklyWins - a.weeklyWins) || (b.monthlyJoiners - a.monthlyJoiners));
+    return list[0] || null;
+  }, [campaignData, campSnap, currentWeek]);
+
+  // 2. Performer of the Month
+  const performerOfMonth = useMemo(() => {
+    if (campaignData?.hallOfFame?.performerOfMonth) return campaignData.hallOfFame.performerOfMonth;
+    if (campSnap?.eomWinner) return campSnap.eomWinner;
+    const emps = campSnap?.employees || [];
+    if (!emps.length) return null;
+    const sorted = [...emps].sort((a, b) => (b.monthlyJoiners - a.monthlyJoiners) || (b.weeklyWins - a.weeklyWins));
+    return sorted[0] || null;
+  }, [campaignData, campSnap]);
+
+  // Photo resolution helper
+  const resolvePhoto = (perf) => {
+    if (!perf) return null;
+    const perfId = String(perf.id || perf._id || '');
+    const perfEid = String(perf.employee_id || '').toLowerCase().trim();
+    const perfName = String(perf.name || '').toLowerCase().trim();
+
+    const u = (db?.users || []).find((usr) => {
+      if (perfEid && String(usr.employee_id || '').toLowerCase().trim() === perfEid) return true;
+      if (perfId && (String(usr.id || '') === perfId || String(usr._id || '') === perfId)) return true;
+      if (perfName && String(usr.name || '').toLowerCase().trim() === perfName) return true;
+      return false;
+    });
+
+    return u?.avatar_url || u?.avatar || perf.avatar_url || null;
+  };
+
+  const weekPhoto = resolvePhoto(performerOfWeek);
+  const monthPhoto = resolvePhoto(performerOfMonth);
+
+  const weekLabel = campaignData?.hallOfFame?.weekKey || currentWeek?.weekKey || 'Active Week';
+  const monthLabel = campaignData?.hallOfFame?.monthKey || campObj?.monthKey || 'Active Month';
+
+  if (loading && !campaignData) {
+    return (
+      <div
+        className="card"
+        style={{
+          padding: 20,
+          borderRadius: 24,
+          background: 'rgba(255, 255, 255, 0.85)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(124, 92, 252, 0.2)',
+          boxShadow: '0 10px 30px rgba(124, 92, 252, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#111827', fontFamily: "'Outfit', sans-serif" }}>
+              Performers of the Week & Month
+            </div>
+            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+              Official CEGS Recruitment Hall of Fame
+            </div>
+          </div>
+          <span style={{ fontSize: 10.5, fontWeight: 800, background: '#FEF3C7', color: '#92400E', padding: '3px 10px', borderRadius: 99 }}>
+            Loading...
+          </span>
+        </div>
+        <div style={{ height: 100, borderRadius: 16, background: '#F8FAFC', border: '1px dashed #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: 12 }}>
+          Loading live performers...
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="card"
+      style={{
+        padding: 20,
+        borderRadius: 24,
+        background: 'rgba(255, 255, 255, 0.85)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(124, 92, 252, 0.2)',
+        boxShadow: '0 10px 30px rgba(124, 92, 252, 0.08)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+      }}
+    >
+      {/* CARD HEADER */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 12, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 900, fontFamily: "'Outfit', sans-serif", color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>Performers of the Week & Month</span>
+          </div>
+          <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+            Official CEGS Recruitment Hall of Fame
+          </div>
+        </div>
+        <span
+          style={{
+            background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+            color: '#92400E',
+            border: '1px solid #FCD34D',
+            padding: '3px 9px',
+            borderRadius: 99,
+            fontSize: 10,
+            fontWeight: 800,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            boxShadow: '0 1px 3px rgba(245, 158, 11, 0.15)',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          ★ Top Joiners
+        </span>
+      </div>
+
+      {/* 1. PERFORMER OF THE WEEK */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #FFFDF5 0%, #FEF9C3 50%, #FEF3C7 100%)',
+          borderRadius: 16,
+          padding: '14px 16px',
+          border: '1px solid #FDE68A',
+          boxShadow: '0 2px 10px rgba(245, 158, 11, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span
+            style={{
+              background: '#F59E0B',
+              color: '#FFFFFF',
+              padding: '3px 9px',
+              borderRadius: 99,
+              fontSize: 10,
+              fontWeight: 900,
+              letterSpacing: '0.04em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              boxShadow: '0 1px 4px rgba(245, 158, 11, 0.3)'
+            }}
+          >
+            ⭐ PERFORMER OF THE WEEK
+          </span>
+          <span style={{ fontSize: 11, color: '#92400E', fontWeight: 800 }}>
+            {weekLabel}
+          </span>
+        </div>
+
+        {performerOfWeek ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <PerformerAvatar performer={performerOfWeek} photo={weekPhoto} type="week" />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 900,
+                    color: '#111827',
+                    fontFamily: "'Outfit', sans-serif",
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                  title={performerOfWeek.name}
+                >
+                  {performerOfWeek.name}
+                </div>
+                <div style={{ fontSize: 11, color: '#92400E', fontWeight: 600, marginTop: 1 }}>
+                  {performerOfWeek.role || 'Recruiter'} · {performerOfWeek.employee_id || ''}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.9)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: 12,
+                padding: '9px 12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                border: '1px solid rgba(251, 191, 36, 0.4)',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 10, color: '#78350F', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                  Week Joiners
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 900, color: '#059669', marginTop: 1 }}>
+                  {performerOfWeek.weekActual ?? 0}{' '}
+                  <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>
+                    / {performerOfWeek.weekTarget ?? 6} Target
+                  </span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 10, color: '#78350F', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                  Weekly Reward
+                </div>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 900,
+                    color: performerOfWeek.weekAchieved ? '#D97706' : '#B45309',
+                    marginTop: 1
+                  }}
+                >
+                  {performerOfWeek.weekAchieved ? '₹5,000 Bonus' : 'Target Pending'}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{ color: '#92400E', fontSize: 11.5, fontStyle: 'italic', padding: '10px 0', textAlign: 'center' }}>
+            No weekly performance targets active.
+          </div>
+        )}
+      </div>
+
+      {/* 2. PERFORMER OF THE MONTH */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 50%, #DBEAFE 100%)',
+          borderRadius: 16,
+          padding: '14px 16px',
+          border: '1px solid #BFDBFE',
+          boxShadow: '0 2px 10px rgba(37, 99, 235, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span
+            style={{
+              background: '#2563EB',
+              color: '#FFFFFF',
+              padding: '3px 9px',
+              borderRadius: 99,
+              fontSize: 10,
+              fontWeight: 900,
+              letterSpacing: '0.04em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              boxShadow: '0 1px 4px rgba(37, 99, 235, 0.3)'
+            }}
+          >
+            👑 PERFORMER OF THE MONTH
+          </span>
+          <span style={{ fontSize: 11, color: '#1E40AF', fontWeight: 800 }}>
+            {monthLabel}
+          </span>
+        </div>
+
+        {performerOfMonth ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <PerformerAvatar performer={performerOfMonth} photo={monthPhoto} type="month" />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 900,
+                    color: '#111827',
+                    fontFamily: "'Outfit', sans-serif",
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                  title={performerOfMonth.name}
+                >
+                  {performerOfMonth.name}
+                </div>
+                <div style={{ fontSize: 11, color: '#1E40AF', fontWeight: 600, marginTop: 1 }}>
+                  {performerOfMonth.role || 'Recruiter'} · {performerOfMonth.employee_id || ''}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.9)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: 12,
+                padding: '9px 12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                border: '1px solid rgba(147, 197, 253, 0.4)',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 10, color: '#1E40AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                  Total Month Joiners
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 900, color: '#2563EB', marginTop: 1 }}>
+                  {performerOfMonth.monthlyJoiners ?? 0}{' '}
+                  <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>Joiners</span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 10, color: '#1E40AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                  Weekly Targets Won
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 900, color: '#059669', marginTop: 1 }}>
+                  {performerOfMonth.weeklyWins ?? '—'} Weeks
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{ color: '#1E40AF', fontSize: 11.5, fontStyle: 'italic', padding: '10px 0', textAlign: 'center' }}>
+            No monthly performance recorded yet.
+          </div>
+        )}
+      </div>
+
+      {/* QUICK FOOTER ACTION */}
+      <a
+        href="/campaign/targets"
+        onClick={(e) => {
+          if (setView) {
+            e.preventDefault();
+            setView('campaign');
+          }
+        }}
+        style={{
+          textAlign: 'center',
+          fontSize: 11.5,
+          fontWeight: 800,
+          color: 'var(--accent, #7C5CFC)',
+          textDecoration: 'none',
+          padding: '8px 12px',
+          borderRadius: 12,
+          background: 'rgba(124, 92, 252, 0.05)',
+          border: '1px dashed rgba(124, 92, 252, 0.3)',
+          display: 'block',
+          transition: 'all 0.2s ease',
+        }}
+      >
+        View Campaign Targets & Joiners →
+      </a>
+    </div>
+  );
+}
+
 export function DashboardPage({ db, save, user, setView, setQuickViewUser, setChatTargetUser, openChatWithUser, openChatWithGroup, setChatTargetGroup, setShowMessengerInbox }) {
   const isIT = (user?.role || '').toLowerCase() === 'it_team';
 
@@ -1891,49 +2346,47 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  }
  };
 
- // ── CHECKLIST TRACKER SECTIONS (NEW HIRING & ONBOARDING) ──
- const [activeChecklistCategory, setActiveChecklistCategory] = useState('new_hiring'); // 'new_hiring' | 'onboarding'
- const [checklistsData, setChecklistsData] = useState({
- new_hiring: [
- { label: 'Offer Letter & Employment Contract', done: true, sub: '100% Signed' },
- { label: 'Background Verification & Document Audit', done: true, sub: 'Verified & Approved' },
- { label: 'IT Workstation & Laptop Allocation', done: true, sub: 'Assigned (MacBook M3)' },
- { label: 'Email & CEGS HRMS Credentials Setup', done: true, sub: 'Credentials Issued' },
- { label: 'First Day HR Orientation & Welcome Sync', done: false, sub: 'Scheduled for 10:00 AM' },
- { label: 'Department Mentor Assignment', done: false, sub: 'In Progress' }
- ],
- onboarding: [
- { label: 'Office Tour', done: true, sub: '100% Complete' },
- { label: 'Introduction to Management', done: true, sub: '50% Review' },
- { label: 'Work Tool setup', done: true, sub: '25% Setup' },
- { label: 'Intro to Colleagues', done: false, sub: 'Not Started' },
- { label: 'Job Responsibilities alignment', done: false, sub: 'Not Started' }
- ]
- });
+ // Live Recruitment Performance Tasks & Targets Data
+  const [campaignData, setCampaignData] = useState(null);
+  const [loadingCampaign, setLoadingCampaign] = useState(true);
 
- const activeChecklist = checklistsData[activeChecklistCategory] || [];
+  useEffect(() => {
+    let cancelled = false;
+    const loadCampaignData = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+        if (!token) {
+          if (!cancelled) setLoadingCampaign(false);
+          return;
+        }
+        const res = await fetch('/api/campaigns', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (!cancelled) setCampaignData(json);
+        }
+      } catch (err) {
+        console.warn('Failed to load recruitment performers data:', err);
+      } finally {
+        if (!cancelled) setLoadingCampaign(false);
+      }
+    };
+    loadCampaignData();
 
- const toggleCheck = (idx) => {
- const updated = activeChecklist.map((c, i) => i === idx ? { ...c, done: !c.done } : c);
- setChecklistsData({ ...checklistsData, [activeChecklistCategory]: updated });
- };
+    // Auto-refresh every 60s when tab is active
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      loadCampaignData();
+    }, 60000);
 
- const addCheckItem = () => {
- const label = prompt('Enter new task description:');
- if (label) {
- const updated = [...activeChecklist, { label, done: false, sub: 'Not Started' }];
- setChecklistsData({ ...checklistsData, [activeChecklistCategory]: updated });
- }
- };
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
- const deleteLastCheckItem = () => {
- if (activeChecklist.length > 0) {
- const updated = activeChecklist.slice(0, -1);
- setChecklistsData({ ...checklistsData, [activeChecklistCategory]: updated });
- }
- };
-
- // Task lists filtered by status
+  // Task lists filtered by status
  const userTasks = (db.workTasks || []).filter(t => isAdmin || t.uid === user.id);
  const todoTasks = userTasks.filter(t => ['todo', 'pending'].includes(t.status));
  const progressTasks = userTasks.filter(t => t.status === 'in_progress');
@@ -2760,142 +3213,78 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  </button>
  </div>
 
- {/* WIDGET 2: Checklist Tracker or IT Operational Status */}
- {isIT ? (
- <>
- <div className="card" style={{ padding: 20, borderRadius: 24, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14 }}>
- <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
- <div>
- <div style={{ fontSize: 15, fontWeight: 900, color: '#111827' }}>Attendance & Shift</div>
- <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>Office GPS & Daily Schedule</div>
- </div>
- <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '3px 10px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>
- Active Session
- </span>
- </div>
- <div style={{ background: '#F8FAFC', borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid #E2E8F0', fontSize: 12 }}>
- <div style={{ display: 'flex', justifyContent: 'space-between' }}>
- <span style={{ color: '#64748B', fontWeight: 600 }}>Work Mode:</span>
- <span style={{ fontWeight: 800, color: '#0F172A' }}>WFO (Office GPS)</span>
- </div>
- <div style={{ display: 'flex', justifyContent: 'space-between' }}>
- <span style={{ color: '#64748B', fontWeight: 600 }}>Daily Shift:</span>
- <span style={{ fontWeight: 800, color: '#0F172A' }}>9h (Mon-Fri) / 6h (Sat)</span>
- </div>
- <div style={{ display: 'flex', justifyContent: 'space-between' }}>
- <span style={{ color: '#64748B', fontWeight: 600 }}>Shift Time:</span>
- <span style={{ fontWeight: 800, color: '#0284C7' }}>09:30 AM - 06:30 PM</span>
- </div>
- </div>
- <div style={{ display: 'flex', gap: 8 }}>
- <button type="button" onClick={() => setView ? setView('attendance') : null} className="btn btn-sm btn-ghost" style={{ flex: 1, padding: '7px', fontSize: 11.5, fontWeight: 800, borderRadius: 10 }}>
- Punches & Times
- </button>
- <button type="button" onClick={() => setView ? setView('leaves') : null} className="btn btn-sm" style={{ flex: 1, padding: '7px', fontSize: 11.5, fontWeight: 800, borderRadius: 10, background: '#0284c7', color: '#fff', border: 'none' }}>
- Apply Leave
- </button>
- </div>
- </div>
+ {/* WIDGET 2: Performers of the Week & Month (Recruitment Hall of Fame) - Shown for all users */}
+          <PerformersHallOfFameWidget
+            campaignData={campaignData}
+            db={db}
+            user={user}
+            setView={setView}
+            loading={loadingCampaign}
+          />
 
- <div className="card" style={{ padding: 20, borderRadius: 24, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
- <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
- <div style={{ fontSize: 15, fontWeight: 900, color: '#111827' }}>Leave Balance</div>
- <button type="button" onClick={() => setView ? setView('leaves') : null} style={{ border: 'none', background: 'transparent', fontSize: 11.5, fontWeight: 800, color: '#0284c7', cursor: 'pointer' }}>
- Manage →
- </button>
- </div>
- <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, textAlign: 'center' }}>
- <div style={{ background: '#F0FDF4', padding: '10px 4px', borderRadius: 12, border: '1px solid #BBF7D0' }}>
- <div style={{ fontSize: 18, fontWeight: 900, color: '#15803D' }}>12</div>
- <div style={{ fontSize: 10, color: '#166534', fontWeight: 700, marginTop: 2 }}>Available</div>
- </div>
- <div style={{ background: '#EFF6FF', padding: '10px 4px', borderRadius: 12, border: '1px solid #BFDBFE' }}>
- <div style={{ fontSize: 18, fontWeight: 900, color: '#1D4ED8' }}>0</div>
- <div style={{ fontSize: 10, color: '#1E40AF', fontWeight: 700, marginTop: 2 }}>Taken</div>
- </div>
- <div style={{ background: '#FFFBEB', padding: '10px 4px', borderRadius: 12, border: '1px solid #FDE68A' }}>
- <div style={{ fontSize: 18, fontWeight: 900, color: '#B45309' }}>0</div>
- <div style={{ fontSize: 10, color: '#92400E', fontWeight: 700, marginTop: 2 }}>Pending HR</div>
- </div>
- </div>
- </div>
- </>
- ) : (
- <div className="checklist-card">
- <div className="checklist-header" style={{ marginBottom: 12 }}>
- <div>
- <div className="checklist-title">Checklist tracker</div>
- <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>August 2026</div>
- </div>
- <span style={{ fontSize: 11, fontWeight: 800, background: '#F3E8FF', color: 'var(--accent)', padding: '3px 10px', borderRadius: 99 }}>
- {activeChecklist.filter(c => c.done).length} / {activeChecklist.length} Done
- </span>
- </div>
+          {/* IT Team Operational Cards (Attendance, Shift & Leave Balance) */}
+          {isIT && (
+            <>
+              <div className="card" style={{ padding: 20, borderRadius: 24, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: '#111827' }}>Attendance & Shift</div>
+                    <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>Office GPS & Daily Schedule</div>
+                  </div>
+                  <span style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '3px 10px', borderRadius: 99, fontSize: 10.5, fontWeight: 800 }}>
+                    Active Session
+                  </span>
+                </div>
+                <div style={{ background: '#F8FAFC', borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid #E2E8F0', fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748B', fontWeight: 600 }}>Work Mode:</span>
+                    <span style={{ fontWeight: 800, color: '#0F172A' }}>WFO (Office GPS)</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748B', fontWeight: 600 }}>Daily Shift:</span>
+                    <span style={{ fontWeight: 800, color: '#0F172A' }}>9h (Mon-Fri) / 6h (Sat)</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748B', fontWeight: 600 }}>Shift Time:</span>
+                    <span style={{ fontWeight: 800, color: '#0284C7' }}>09:30 AM - 06:30 PM</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => setView ? setView('attendance') : null} className="btn btn-sm btn-ghost" style={{ flex: 1, padding: '7px', fontSize: 11.5, fontWeight: 800, borderRadius: 10 }}>
+                    Punches & Times
+                  </button>
+                  <button type="button" onClick={() => setView ? setView('leaves') : null} className="btn btn-sm" style={{ flex: 1, padding: '7px', fontSize: 11.5, fontWeight: 800, borderRadius: 10, background: '#0284c7', color: '#fff', border: 'none' }}>
+                    Apply Leave
+                  </button>
+                </div>
+              </div>
 
- {/* SECTION SWITCHER PILLS FOR NEW HIRING & ONBOARDING */}
- <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'var(--bg-subtle, #F1F5F9)', padding: 4, borderRadius: 99 }}>
- <button 
- type="button" 
- style={{
- flex: 1,
- border: 'none',
- borderRadius: 99,
- padding: '6px 10px',
- fontSize: 11.5,
- fontWeight: 800,
- cursor: 'pointer',
- background: activeChecklistCategory === 'new_hiring' ? 'var(--accent)' : 'transparent',
- color: activeChecklistCategory === 'new_hiring' ? '#FFFFFF' : 'var(--text-secondary, #64748B)',
- transition: 'all 0.2s ease',
- boxShadow: activeChecklistCategory === 'new_hiring' ? '0 2px 6px rgba(124,92,252,0.25)' : 'none'
- }}
- onClick={() => setActiveChecklistCategory('new_hiring')}
- >
- New Hiring
- </button>
- <button 
- type="button" 
- style={{
- flex: 1,
- border: 'none',
- borderRadius: 99,
- padding: '6px 10px',
- fontSize: 11.5,
- fontWeight: 800,
- cursor: 'pointer',
- background: activeChecklistCategory === 'onboarding' ? 'var(--accent)' : 'transparent',
- color: activeChecklistCategory === 'onboarding' ? '#FFFFFF' : 'var(--text-secondary, #64748B)',
- transition: 'all 0.2s ease',
- boxShadow: activeChecklistCategory === 'onboarding' ? '0 2px 6px rgba(124,92,252,0.25)' : 'none'
- }}
- onClick={() => setActiveChecklistCategory('onboarding')}
- >
- Onboarding
- </button>
- </div>
+              <div className="card" style={{ padding: 20, borderRadius: 24, background: '#FFFFFF', border: '1px solid #E5E7EB', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: '#111827' }}>Leave Balance</div>
+                  <button type="button" onClick={() => setView ? setView('leaves') : null} style={{ border: 'none', background: 'transparent', fontSize: 11.5, fontWeight: 800, color: '#0284c7', cursor: 'pointer' }}>
+                    Manage →
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, textAlign: 'center' }}>
+                  <div style={{ background: '#F0FDF4', padding: '10px 4px', borderRadius: 12, border: '1px solid #BBF7D0' }}>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#15803D' }}>12</div>
+                    <div style={{ fontSize: 10, color: '#166534', fontWeight: 700, marginTop: 2 }}>Available</div>
+                  </div>
+                  <div style={{ background: '#EFF6FF', padding: '10px 4px', borderRadius: 12, border: '1px solid #BFDBFE' }}>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#1D4ED8' }}>0</div>
+                    <div style={{ fontSize: 10, color: '#1E40AF', fontWeight: 700, marginTop: 2 }}>Taken</div>
+                  </div>
+                  <div style={{ background: '#FFFBEB', padding: '10px 4px', borderRadius: 12, border: '1px solid #FDE68A' }}>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#B45309' }}>0</div>
+                    <div style={{ fontSize: 10, color: '#92400E', fontWeight: 700, marginTop: 2 }}>Pending HR</div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
 
- <div className="checklist-items-list">
- {activeChecklist.map((c, idx) => (
- <div key={idx} className="checklist-row-item">
- <div className="checklist-item-details">
- <span className="checklist-item-label" style={{ textDecoration: c.done ? 'line-through' : 'none', opacity: c.done ? 0.6 : 1 }}>{c.label}</span>
- <span className="checklist-item-sub">{c.sub}</span>
- </div>
- <label className="switch-control">
- <input type="checkbox" checked={c.done} onChange={() => toggleCheck(idx)} />
- <span className="switch-slider"></span>
- </label>
- </div>
- ))}
- </div>
- <div style={{ display: 'flex', gap: 8, marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
- <button className="btn btn-sm btn-ghost" style={{ flex: 1, padding: '6px' }} onClick={addCheckItem}>+ Add Item</button>
- <button className="btn btn-sm btn-red" style={{ padding: '6px 12px' }} onClick={deleteLastCheckItem}>- Delete</button>
- </div>
- </div>
- )}
-
- {/* WIDGET 3: Progress Donut Graph */}
+          {/* WIDGET 3: Progress Donut Graph */}
  <div className="donut-graph-widget">
  <div style={{ fontWeight: 800, fontSize: 14 }}>{isIT ? 'IT Tasks Completion' : 'Graph Status Overview'}</div>
  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '20px 0' }}>

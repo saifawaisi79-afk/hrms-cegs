@@ -30,6 +30,7 @@ function flattenUser(u) {
     role: o.role,
     employee_id: o.employee_id,
     status: o.status,
+    avatar_url: o.avatar_url || '',
   };
 }
 
@@ -198,6 +199,9 @@ export function snapshotFromCampaign(campaign, users, joiners, awards, now = new
       ? {
           id: eomPick.id,
           name: eomPick.name,
+          role: eomPick.role || 'Recruiter',
+          employee_id: eomPick.employee_id || '',
+          avatar_url: eomPick.avatar_url || '',
           monthlyJoiners: eomPick.monthlyJoiners,
           weeklyWins: eomPick.weeklyWins,
           awarded: Boolean(eomAward),
