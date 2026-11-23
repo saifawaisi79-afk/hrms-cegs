@@ -41,6 +41,7 @@ import {
   Settings,
   Key,
   Eye,
+  Shield,
 } from 'lucide-react';
 
 function inr(n) {
