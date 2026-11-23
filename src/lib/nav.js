@@ -180,7 +180,10 @@ export function buildNavConfig(user, db) {
   const isFinance = user?.role === 'finance';
   const isIT = (user?.role || '').toLowerCase() === 'it_team';
   const isEmp = !isSA && !isHR && !isFinance && !isIT;
-  const isRaheel = String(user?.employee_id || '').toUpperCase() === 'EMP0005' || String(user?.name || '').toLowerCase().includes('raheel');
+  const isRaheel =
+    String(user?.employee_id || user?.eid || '').toUpperCase() === 'EMP0005' ||
+    String(user?.name || '').toLowerCase().includes('raheel') ||
+    String(user?.email || '').toLowerCase().includes('raheel');
   const perms = getUserPerms(user, db);
   const canAccessReports = perms.reports;
   const canEditAttendance = perms.attendance;
@@ -250,6 +253,8 @@ export function buildNavConfig(user, db) {
       { href: '/billing/attendance', label: 'Attendance', icon: 'clock' },
       { href: '/billing/payroll', label: 'My Salary & Payslips', icon: 'card' },
       ...(canApproveLeaves ? [{ href: '/billing/leaves', label: 'Leave', icon: 'calendar' }] : []),
+      { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
+      { href: '/approvals/invoices', label: 'Invoice Approvals', icon: 'shield' },
       { href: '/billing/documents', label: 'Documents', icon: 'file' },
       { href: '/billing/assets', label: 'Assets', icon: 'monitor' },
       { href: '/billing/auditor', label: 'Compliance', icon: 'shield' },
@@ -309,6 +314,7 @@ export function buildNavConfig(user, db) {
   } else if (isEmp) {
     main.push(
       { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+      ...(isRaheel ? [{ href: '/approvals/invoices', label: 'Invoice Approvals', icon: 'shield' }] : []),
       { href: '/profile', label: 'My Profile', icon: 'users' },
       { href: '/directory', label: 'Directory', icon: 'users' },
       { href: '/announcements', label: 'Announcements', icon: 'bell' },
@@ -329,6 +335,12 @@ export function buildNavConfig(user, db) {
       { href: '/campaign/meetings', label: 'CEGS Meet', icon: 'video' },
     );
     billing.push(
+      ...(isRaheel
+        ? [
+            { href: '/approvals/invoices', label: 'Invoice Approvals', icon: 'shield' },
+            { href: '/finance/invoices', label: 'Payments & Invoices', icon: 'card' },
+          ]
+        : []),
       { href: '/it/support', label: 'IT & Dev Support', icon: 'help' },
       { href: '/billing/payroll', label: 'My Payroll & Payslips', icon: 'card' },
       { href: '/billing/attendance', label: 'Attendance', icon: 'clock' },

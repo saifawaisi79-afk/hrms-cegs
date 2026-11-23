@@ -1774,8 +1774,16 @@ export function FinanceInvoicesView() {
   const router = useRouter();
 
   // Access Guard: Allow finance, super_admin, admin, it_team, recruiters, and all authorized personnel viewing billing readiness
+  const isRaheel = Boolean(
+    user && (
+      String(user.employee_id || user.eid || '').toUpperCase() === 'EMP0005' ||
+      String(user.name || '').toLowerCase().includes('raheel') ||
+      String(user.email || '').toLowerCase().includes('raheel')
+    )
+  );
+
   const isFinanceAdmin = Boolean(
-    user && (user.role === 'finance' || user.role === 'super_admin' || user.role === 'admin' || user.role === 'it_team')
+    user && (user.role === 'finance' || user.role === 'super_admin' || user.role === 'admin' || user.role === 'it_team' || isRaheel)
   );
 
   // If non-finance staff visits directly without tab, default smoothly to Weekly Update (A)
@@ -3419,6 +3427,30 @@ export function FinanceInvoicesView() {
           </button>
 
           {/* GENERATE INVOICE BUTTON */}
+          {/* INVOICE APPROVALS & VERIFICATION LINK */}
+          <a
+            href="/approvals/invoices"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '9px 16px',
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+              color: '#38BDF8',
+              fontSize: 13,
+              fontWeight: 800,
+              textDecoration: 'none',
+              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.15)',
+              transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.03)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            <Shield size={15} />
+            <span>Invoice Approvals</span>
+          </a>
+
           <button
             type="button"
             onClick={() => {
