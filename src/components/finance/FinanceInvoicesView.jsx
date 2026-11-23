@@ -1887,17 +1887,17 @@ export function FinanceInvoicesView() {
   const [invoiceForm, setInvoiceForm] = useState({
     client: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
     invoiceNo: '',
-    projectMilestone: 'Candidate Placement & Seat Billing (7 Seats)',
-    amount: '43660',
-    basicAmount: 37000,
-    sgstAmount: 3330,
-    cgstAmount: 3330,
+    projectMilestone: 'Candidate Placement & Seat Billing',
+    amount: '0',
+    basicAmount: 0,
+    sgstAmount: 0,
+    cgstAmount: 0,
     dueDate: '30 days',
     status: 'Pending',
-    notes: 'Official Form GST INV – 1 candidate placement and seat billing across 7 processes.',
-    items: ISON_SAMPLE_ITEMS,
+    notes: 'Official Form GST INV – 1 candidate placement and seat billing.',
+    items: [],
     templateType: 'GST_INV_1',
-    amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+    amountInWords: '',
     signatureImage: DEFAULT_SIGNATURE_STAMP,
   });
   const [savingInvoice, setSavingInvoice] = useState(false);
@@ -2532,10 +2532,6 @@ export function FinanceInvoicesView() {
     const tmpl = getClientTemplate(inv.client, inv.templateType);
     const cfg = CLIENT_CONFIGS[tmpl] || CLIENT_CONFIGS.GST_INV_1;
     let loadedItems = Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : [];
-    if (loadedItems.length === 0) {
-      loadedItems = cfg.sampleItems || ISON_SAMPLE_ITEMS;
-    }
-
     setEditingInvoice({
       id: inv.id || inv._id,
       invoiceNo: inv.invoiceNo || '',
@@ -2742,20 +2738,23 @@ export function FinanceInvoicesView() {
   // Helper: Add a blank candidate row to New Invoice Form
   const addInvoiceFormItem = () => {
     const tmplKey = getClientTemplate(invoiceForm.client, invoiceForm.templateType);
+    const formProcesses = getCompanyProcesses(invoiceForm.client);
+    const defaultProc = formProcesses.length > 0 ? formProcesses[0].name : '';
+    const defaultRate = formProcesses.length > 0 ? (formProcesses[0].rate || 0) : 0;
     const newItems = [
       ...(invoiceForm.items || []),
       {
         sno: String((invoiceForm.items || []).length + 1).padStart(2, '0'),
-        empId: 'CEGS-' + String((invoiceForm.items || []).length + 1).padStart(2, '0'),
+        empId: '',
         employeeName: '',
         phone: '',
-        designation: 'Business AssociateOperation.',
+        designation: '',
         status: 'Active',
-        doj: new Date().toLocaleDateString('en-GB'),
-        processLob: 'Process',
-        ratePerSeat: 5000,
+        doj: '',
+        processLob: defaultProc,
+        ratePerSeat: defaultRate,
         sacCode: tmplKey.includes('ALTRUIST') ? 'BPO' : '99851',
-        amount: 5000,
+        amount: defaultRate,
       },
     ];
     const totalBasic = newItems.reduce((acc, it) => acc + (Number(it.amount) || Number(it.ratePerSeat) || 0), 0);
@@ -2770,7 +2769,7 @@ export function FinanceInvoicesView() {
       sgstAmount: sgst,
       cgstAmount: cgst,
       amount: String(total),
-      amountInWords: numberToWordsINR(total),
+      amountInWords: total > 0 ? numberToWordsINR(total) : '',
     });
   };
 
@@ -3247,17 +3246,17 @@ export function FinanceInvoicesView() {
       setInvoiceForm({
         client: 'ISON XPERIENCES INDIA PRIVATE LIMITED',
         invoiceNo: '',
-        projectMilestone: 'Candidate Placement & Seat Billing (7 Seats)',
-        amount: '43660',
-        basicAmount: 37000,
-        sgstAmount: 3330,
-        cgstAmount: 3330,
+        projectMilestone: 'Candidate Placement & Seat Billing',
+        amount: '0',
+        basicAmount: 0,
+        sgstAmount: 0,
+        cgstAmount: 0,
         dueDate: '30 days',
         status: 'Pending',
-        notes: 'Official Form GST INV – 1 candidate placement and seat billing across 7 processes.',
-        items: ISON_SAMPLE_ITEMS,
+        notes: 'Official Form GST INV – 1 candidate placement and seat billing.',
+        items: [],
         templateType: 'GST_INV_1',
-        amountInWords: 'Forty-Three thousand Six Hundred Sixty only.',
+        amountInWords: '',
         signatureImage: (typeof window !== 'undefined' && localStorage.getItem('cegs_signature_stamp')) || DEFAULT_SIGNATURE_STAMP,
       });
     } catch {
@@ -3460,6 +3459,13 @@ export function FinanceInvoicesView() {
               setInvoiceForm((prev) => ({
                 ...prev,
                 invoiceNo: `INV-${String(invoices.length + 1).padStart(3, '0')}`,
+                items: [],
+                projectMilestone: 'Candidate Placement & Seat Billing',
+                amount: '0',
+                basicAmount: 0,
+                sgstAmount: 0,
+                cgstAmount: 0,
+                amountInWords: '',
               }));
               setShowGenerateInvoiceModal(true);
             }}
@@ -5904,20 +5910,20 @@ export function FinanceInvoicesView() {
                             ...invoiceForm,
                             client: val,
                             projectMilestone: `${cfg.badge} Placement & Service Billing`,
-                            amount: String(cfg.sampleTotal),
-                            basicAmount: cfg.sampleBasic,
-                            sgstAmount: cfg.sampleSgst,
-                            cgstAmount: cfg.sampleCgst,
+                            amount: '0',
+                            basicAmount: 0,
+                            sgstAmount: 0,
+                            cgstAmount: 0,
                             dueDate: '30 days',
                             notes: `${cfg.badge} official billing invoice`,
-                            items: cfg.sampleItems.map((it) => ({ ...it })),
+                            items: [],
                             templateType: tmpl,
                             clientAddress: cfg.defaultAddress,
                             clientGstin: cfg.defaultGstin,
-                            amountInWords: cfg.words,
+                            amountInWords: '',
                           });
                         } else {
-                          setInvoiceForm({ ...invoiceForm, client: val });
+                          setInvoiceForm({ ...invoiceForm, client: val, items: [] });
                         }
                       }}
                       style={{
