@@ -535,7 +535,7 @@ function authHeaders() {
 const DEFAULT_SIGNATURE_STAMP = '/signatures/usman-zabi-digital-signature.jpg';
 
 // Fallback seed invoices matching the official client templates
-const DEFAULT_INVOICES = [
+export const DEFAULT_INVOICES = [
   {
     id: 'seed-ison-1',
     _id: 'seed-ison-1',

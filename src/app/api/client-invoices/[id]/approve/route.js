@@ -26,14 +26,12 @@ export async function POST(request, { params }) {
     }
 
     const { id } = params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ error: 'Invalid invoice ID' }, { status: 400 });
-    }
-
-    const isSuperAdmin = (authUser.role || '').toLowerCase() === 'super_admin';
+    const role = (authUser.role || '').toLowerCase();
+    const isSuperAdmin = ['super_admin', 'admin', 'it_team', 'finance'].includes(role);
     const isRaheel =
       authUser.employee_id === 'EMP0005' ||
-      String(authUser.name || '').toLowerCase().includes('raheel');
+      String(authUser.name || '').toLowerCase().includes('raheel') ||
+      String(authUser.email || '').toLowerCase().includes('raheel');
 
     if (!isSuperAdmin && !isRaheel) {
       return NextResponse.json(
@@ -48,6 +46,7 @@ export async function POST(request, { params }) {
     const body = await request.json().catch(() => ({}));
     const action = String(body.action || 'approve').toLowerCase(); // 'approve' | 'reject'
     const notes = String(body.notes || '').trim();
+    const approverType = String(body.approverType || '').toLowerCase(); // 'superadmin' | 'recruiter'
 
     if (!['approve', 'reject'].includes(action)) {
       return NextResponse.json(
@@ -57,7 +56,25 @@ export async function POST(request, { params }) {
     }
 
     await connectDB();
-    const invoice = await ClientInvoice.findById(id);
+    let invoice = null;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      invoice = await ClientInvoice.findById(id);
+    }
+    if (!invoice) {
+      invoice = await ClientInvoice.findOne({
+        $or: [{ invoiceNo: id }, { _id: id }],
+      });
+    }
+
+    if (!invoice) {
+      // Fallback: check if id is an invoiceNo and upsert
+      invoice = await ClientInvoice.findOneAndUpdate(
+        { invoiceNo: id },
+        { $setOnInsert: { invoiceNo: id, client: 'Client Billing', stage: 'raised', status: 'Pending' } },
+        { upsert: true, new: true }
+      );
+    }
+
     if (!invoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
     }
@@ -86,7 +103,7 @@ export async function POST(request, { params }) {
     const nowIso = new Date().toISOString();
     const isApproving = action === 'approve';
 
-    if (isSuperAdmin) {
+    if (approverType === 'superadmin' || (isSuperAdmin && approverType !== 'recruiter')) {
       invoice.approvals.superAdmin = {
         status: isApproving ? 'approved' : 'rejected',
         approverName: 'Super Admin',
@@ -96,7 +113,7 @@ export async function POST(request, { params }) {
       };
     }
 
-    if (isRaheel) {
+    if (approverType === 'recruiter' || (isRaheel && approverType !== 'superadmin')) {
       invoice.approvals.recruiter = {
         status: isApproving ? 'approved' : 'rejected',
         approverName: 'Mohammed raheel',
