@@ -136,7 +136,7 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
     if (apiInvoices) {
       setInvoices(mergeApiInvoicesWithRaised(getInitialRaisedInvoices(), apiInvoices));
     } else {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_auth_token') : null;
+      const token = typeof window !== 'undefined' ? (localStorage.getItem('cegs_token') || localStorage.getItem('cegs_auth_token') || localStorage.getItem('token')) : null;
       fetch('/api/client-invoices', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
@@ -419,7 +419,7 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
       // 3. Mark paid on backend MongoDB if it's an API invoice
       try {
         const invId = inv.id || inv._id;
-        const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_auth_token') : null;
+        const token = typeof window !== 'undefined' ? (localStorage.getItem('cegs_token') || localStorage.getItem('cegs_auth_token') || localStorage.getItem('token')) : null;
         await fetch('/api/client-invoices', {
           method: 'POST',
           headers: {

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
+import { getAuthToken } from '@/lib/auth-client';
 import { TeamVisitsFinanceCard } from '@/components/attendance/TeamVisitsMonitor';
 import { WeeklyUpdateSection } from './WeeklyUpdateSection';
 import { BillRaisedSection } from './BillRaisedSection';
@@ -517,7 +518,12 @@ function numberToWordsINR(num) {
 }
 
 function authHeaders() {
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('cegs_token') : '';
+  const token =
+    getAuthToken() ||
+    (typeof localStorage !== 'undefined'
+      ? localStorage.getItem('cegs_token') || localStorage.getItem('cegs_auth_token') || localStorage.getItem('token')
+      : '') ||
+    '';
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -1789,8 +1795,8 @@ export function FinanceInvoicesView() {
       </div>
     );
   }
-  const [invoices, setInvoices] = useState([]);
-  const [clients, setClients] = useState([]);
+  const [invoices, setInvoices] = useState(DEFAULT_INVOICES);
+  const [clients, setClients] = useState(DEFAULT_CLIENTS);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
 
@@ -1970,10 +1976,22 @@ export function FinanceInvoicesView() {
         img.onload = () => {
           try {
             const canvas = document.createElement('canvas');
-            canvas.width = img.naturalWidth || img.width || 400;
-            canvas.height = img.naturalHeight || img.height || 120;
+            const maxW = 400;
+            const maxH = 150;
+            let w = img.naturalWidth || img.width || 400;
+            let h = img.naturalHeight || img.height || 120;
+            if (w > maxW) {
+              h = Math.round((h * maxW) / w);
+              w = maxW;
+            }
+            if (h > maxH) {
+              w = Math.round((w * maxH) / h);
+              h = maxH;
+            }
+            canvas.width = w;
+            canvas.height = h;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
+            ctx.drawImage(img, 0, 0, w, h);
             const pngDataUrl = canvas.toDataURL('image/png');
             applyStamp(pngDataUrl);
           } catch {
@@ -1993,23 +2011,23 @@ export function FinanceInvoicesView() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const headers = authHeaders();
+      const [invRes, clientRes] = await Promise.allSettled([
+        fetch('/api/client-invoices', { headers }),
+        fetch('/api/clients', { headers }),
+      ]);
+
       // 1. Fetch Invoices
-      const invRes = await fetch('/api/client-invoices', { headers: authHeaders() });
-      if (invRes.ok) {
-        const invData = await invRes.json();
-        if (Array.isArray(invData)) {
+      if (invRes.status === 'fulfilled' && invRes.value.ok) {
+        const invData = await invRes.value.json().catch(() => null);
+        if (Array.isArray(invData) && invData.length > 0) {
           setInvoices(invData);
-        } else {
-          setInvoices([]);
         }
-      } else {
-        setInvoices([]);
       }
 
       // 2. Fetch Clients
-      const clientRes = await fetch('/api/clients', { headers: authHeaders() });
-      if (clientRes.ok) {
-        const clientData = await clientRes.json();
+      if (clientRes.status === 'fulfilled' && clientRes.value.ok) {
+        const clientData = await clientRes.value.json().catch(() => null);
         if (Array.isArray(clientData) && clientData.length > 0) {
           const map = new Map();
           clientData.forEach((c) => {
@@ -2020,16 +2038,14 @@ export function FinanceInvoicesView() {
               map.set(key, { ...c, name: norm });
             }
           });
-          setClients(Array.from(map.values()));
-        } else {
-          setClients(DEFAULT_CLIENTS);
+          const list = Array.from(map.values());
+          if (list.length > 0) {
+            setClients(list);
+          }
         }
-      } else {
-        setClients(DEFAULT_CLIENTS);
       }
     } catch (err) {
       console.error('Failed to load invoices or clients:', err);
-      setClients(DEFAULT_CLIENTS);
     } finally {
       setLoading(false);
     }

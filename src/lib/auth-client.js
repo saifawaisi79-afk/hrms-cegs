@@ -4,12 +4,19 @@ export const AUTH_USER_KEY = 'cegs_user';
 
 export function getAuthToken() {
   if (typeof window === 'undefined') return null;
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  let token = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (token) return token;
+
+  // Fallback: check alternate storage keys
+  token = localStorage.getItem('cegs_auth_token') || localStorage.getItem('token');
   if (token) return token;
 
   // Fallback: read from document.cookie if localStorage is empty
   try {
-    const match = document.cookie.match(/(?:^|; )cegs_token=([^;]*)/);
+    const match =
+      document.cookie.match(/(?:^|; )cegs_token=([^;]*)/) ||
+      document.cookie.match(/(?:^|; )cegs_auth_token=([^;]*)/) ||
+      document.cookie.match(/(?:^|; )token=([^;]*)/);
     if (match) return decodeURIComponent(match[1]);
   } catch {}
   return null;

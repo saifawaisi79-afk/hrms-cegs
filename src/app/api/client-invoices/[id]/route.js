@@ -42,25 +42,36 @@ const patchSchema = z.object({
   approvals: z.any().optional(),
 });
 
+function canFinance(user) {
+  if (!user) return false;
+  const r = String(user.role || '').toLowerCase();
+  return ['admin', 'super_admin', 'finance', 'it_team'].includes(r);
+}
+
 function flatten(doc) {
   const o = doc.toObject ? doc.toObject() : doc;
   const approvals = o.approvals || {
     recruiter: { status: 'pending', approverName: 'Mohammed raheel', employeeId: 'EMP0005', approvedAt: '', approvedBy: '', notes: '' },
     superAdmin: { status: 'pending', approverName: 'Super Admin', approvedAt: '', approvedBy: '', notes: '' },
   };
+  let signatureImage = o.signatureImage || '/signatures/usman-zabi-digital-signature.jpg';
+  if (typeof signatureImage === 'string' && (signatureImage.startsWith('data:') || signatureImage.length > 500)) {
+    signatureImage = '/signatures/usman-zabi-digital-signature.jpg';
+  }
   return {
     ...o,
     id: o._id?.toString(),
     _id: o._id?.toString(),
     approvalStatus: o.approvalStatus || 'pending',
     approvals,
+    signatureImage,
   };
 }
 
 export async function PATCH(request, { params }) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
-  if (!requireRole(authUser, ['admin', 'super_admin', 'finance'])) {
+  if (!canFinance(authUser)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   const { id } = params;
@@ -82,7 +93,7 @@ export async function PATCH(request, { params }) {
 export async function DELETE(request, { params }) {
   const authUser = getAuthUser(request);
   if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
-  if (!requireRole(authUser, ['admin', 'super_admin', 'finance'])) {
+  if (!canFinance(authUser)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   const { id } = params;

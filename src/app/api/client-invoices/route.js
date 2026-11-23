@@ -12,7 +12,9 @@ import { todayIsoDate, normalizeCandidateDate } from '@/lib/candidate-dates';
 export const dynamic = 'force-dynamic';
 
 function canFinance(user) {
-  return requireRole(user, ['admin', 'super_admin', 'finance']);
+  if (!user) return false;
+  const r = String(user.role || '').toLowerCase();
+  return ['admin', 'super_admin', 'finance', 'it_team'].includes(r);
 }
 
 function flatten(doc) {
@@ -21,49 +23,100 @@ function flatten(doc) {
     recruiter: { status: 'pending', approverName: 'Mohammed raheel', employeeId: 'EMP0005', approvedAt: '', approvedBy: '', notes: '' },
     superAdmin: { status: 'pending', approverName: 'Super Admin', approvedAt: '', approvedBy: '', notes: '' },
   };
+  let signatureImage = o.signatureImage || '/signatures/usman-zabi-digital-signature.jpg';
+  if (typeof signatureImage === 'string' && (signatureImage.startsWith('data:') || signatureImage.length > 500)) {
+    signatureImage = '/signatures/usman-zabi-digital-signature.jpg';
+  }
   return {
     ...o,
     id: o._id?.toString(),
     _id: o._id?.toString(),
     approvalStatus: o.approvalStatus || 'pending',
     approvals,
+    signatureImage,
   };
 }
 
 async function syncEligibleJoiners() {
-  const today = todayIsoDate();
-  const joiners = await JoinerEntry.find({}).lean();
-  for (const joiner of joiners) {
-    const bill = joinerBillEligible(joiner, today);
-    if (!bill) continue;
-    const joinerId = joiner._id.toString();
-    const existing = await ClientInvoice.findOne({ joinerId });
-    if (existing) {
-      if (existing.stage === 'to_raise' && !existing.invoiceId) {
-        existing.candidateName = joiner.name || existing.candidateName;
-        existing.phone = joiner.phone || existing.phone;
-        existing.client = joiner.process || existing.client;
-        existing.joiningDate = bill.joiningDate;
-        existing.billingDate = bill.billingDate;
-        existing.monthKey = bill.monthKey;
-        existing.recruiter = joiner.recruiterName || existing.recruiter;
-        await existing.save();
+  try {
+    const today = todayIsoDate();
+    const joiners = await JoinerEntry.find({}).lean();
+    if (!joiners || joiners.length === 0) return;
+
+    const eligibleMap = new Map();
+    for (const joiner of joiners) {
+      const bill = joinerBillEligible(joiner, today);
+      if (bill) {
+        eligibleMap.set(joiner._id.toString(), { joiner, bill });
       }
-      continue;
     }
-    await ClientInvoice.create({
-      stage: 'to_raise',
-      monthKey: bill.monthKey,
-      joinerId,
-      candidateName: joiner.name || '',
-      phone: joiner.phone || '',
-      client: joiner.process || '',
-      joiningDate: bill.joiningDate,
-      billingDate: bill.billingDate,
-      recruiter: joiner.recruiterName || '',
-      status: '',
-      invoiceId: '',
-    });
+
+    if (eligibleMap.size === 0) return;
+
+    const joinerIds = Array.from(eligibleMap.keys());
+    const existingInvoices = await ClientInvoice.find({ joinerId: { $in: joinerIds } });
+    const existingMap = new Map(existingInvoices.map((inv) => [inv.joinerId, inv]));
+
+    const toCreate = [];
+    for (const [joinerId, { joiner, bill }] of eligibleMap) {
+      const existing = existingMap.get(joinerId);
+      if (existing) {
+        if (existing.stage === 'to_raise' && !existing.invoiceId) {
+          let modified = false;
+          if (joiner.name && existing.candidateName !== joiner.name) {
+            existing.candidateName = joiner.name;
+            modified = true;
+          }
+          if (joiner.phone && existing.phone !== joiner.phone) {
+            existing.phone = joiner.phone;
+            modified = true;
+          }
+          if (joiner.process && existing.client !== joiner.process) {
+            existing.client = joiner.process;
+            modified = true;
+          }
+          if (existing.joiningDate !== bill.joiningDate) {
+            existing.joiningDate = bill.joiningDate;
+            modified = true;
+          }
+          if (existing.billingDate !== bill.billingDate) {
+            existing.billingDate = bill.billingDate;
+            modified = true;
+          }
+          if (existing.monthKey !== bill.monthKey) {
+            existing.monthKey = bill.monthKey;
+            modified = true;
+          }
+          if (joiner.recruiterName && existing.recruiter !== joiner.recruiterName) {
+            existing.recruiter = joiner.recruiterName;
+            modified = true;
+          }
+          if (modified) {
+            await existing.save().catch(() => {});
+          }
+        }
+      } else {
+        toCreate.push({
+          stage: 'to_raise',
+          monthKey: bill.monthKey,
+          joinerId,
+          candidateName: joiner.name || '',
+          phone: joiner.phone || '',
+          client: joiner.process || '',
+          joiningDate: bill.joiningDate,
+          billingDate: bill.billingDate,
+          recruiter: joiner.recruiterName || '',
+          status: '',
+          invoiceId: '',
+        });
+      }
+    }
+
+    if (toCreate.length > 0) {
+      await ClientInvoice.insertMany(toCreate, { ordered: false }).catch(() => {});
+    }
+  } catch (err) {
+    console.error('Error syncing eligible joiners:', err);
   }
 }
 
@@ -401,56 +454,68 @@ async function seedCrmInvoicesIfEmpty() {
 }
 
 export async function GET(request) {
-  const authUser = getAuthUser(request);
-  if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
-  if (!canFinance(authUser)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-  await connectDB();
-  await syncEligibleJoiners();
-  await seedCrmInvoicesIfEmpty();
-
-  const url = new URL(request.url);
-  const stage = url.searchParams.get('stage');
-  const month = url.searchParams.get('month');
-  const client = url.searchParams.get('client');
-  const status = url.searchParams.get('status');
-  const search = url.searchParams.get('search');
-
-  let deletedNos = [];
   try {
-    const delSetting = await SystemSetting.findOne({ key: 'crm_deleted_invoices' });
-    if (delSetting?.value) {
-      deletedNos = JSON.parse(delSetting.value);
+    const authUser = getAuthUser(request);
+    if (!authUser) return NextResponse.json({ error: 'Access token required' }, { status: 401 });
+    if (!canFinance(authUser)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+    await connectDB();
+    // Non-blocking background sync so GET response returns immediately in milliseconds
+    syncEligibleJoiners().catch((err) => console.error('Background joiner sync error:', err));
+    await seedCrmInvoicesIfEmpty().catch((err) => console.error('Seed CRM invoices error:', err));
+
+    const url = new URL(request.url);
+    const stage = url.searchParams.get('stage');
+    const month = url.searchParams.get('month');
+    const client = url.searchParams.get('client');
+    const status = url.searchParams.get('status');
+    const search = url.searchParams.get('search');
+
+    let deletedNos = [];
+    try {
+      const delSetting = await SystemSetting.findOne({ key: 'crm_deleted_invoices' });
+      if (delSetting?.value) {
+        deletedNos = JSON.parse(delSetting.value);
+      }
+    } catch {}
+
+    const filter = {};
+    if (deletedNos && deletedNos.length > 0) {
+      const allVariants = [];
+      deletedNos.forEach((no) => {
+        if (no) {
+          allVariants.push(String(no));
+          allVariants.push(String(no).toUpperCase());
+          allVariants.push(String(no).toLowerCase());
+        }
+      });
+      filter.invoiceNo = { $nin: allVariants };
     }
-  } catch {}
 
-  const filter = {};
-  if (deletedNos && deletedNos.length > 0) {
-    filter.invoiceNo = {
-      $nin: deletedNos.map((no) => new RegExp(`^${String(no).replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i')),
-    };
-  }
+    if (stage) filter.stage = stage;
+    if (month) filter.monthKey = month;
+    if (client && client !== 'ALL') {
+      filter.client = { $regex: new RegExp(`^${client}$`, 'i') };
+    }
+    if (status && status !== 'ALL') {
+      filter.status = { $regex: new RegExp(`^${status}$`, 'i') };
+    }
+    if (search) {
+      const q = search.trim();
+      filter.$or = [
+        { client: { $regex: q, $options: 'i' } },
+        { invoiceNo: { $regex: q, $options: 'i' } },
+        { projectMilestone: { $regex: q, $options: 'i' } },
+        { candidateName: { $regex: q, $options: 'i' } },
+      ];
+    }
 
-  if (stage) filter.stage = stage;
-  if (month) filter.monthKey = month;
-  if (client && client !== 'ALL') {
-    filter.client = { $regex: new RegExp(`^${client}$`, 'i') };
+    const rows = await ClientInvoice.find(filter).sort({ createdAt: -1, invoiceNo: -1 }).lean();
+    return NextResponse.json(rows.map(flatten));
+  } catch (err) {
+    console.error('Error in GET /api/client-invoices:', err);
+    return NextResponse.json({ error: 'Failed to fetch client invoices' }, { status: 500 });
   }
-  if (status && status !== 'ALL') {
-    filter.status = { $regex: new RegExp(`^${status}$`, 'i') };
-  }
-  if (search) {
-    const q = search.trim();
-    filter.$or = [
-      { client: { $regex: q, $options: 'i' } },
-      { invoiceNo: { $regex: q, $options: 'i' } },
-      { projectMilestone: { $regex: q, $options: 'i' } },
-      { candidateName: { $regex: q, $options: 'i' } },
-    ];
-  }
-
-  const rows = await ClientInvoice.find(filter).sort({ createdAt: -1, invoiceNo: -1 }).lean();
-  return NextResponse.json(rows.map(flatten));
 }
 
 export async function POST(request) {
@@ -522,7 +587,10 @@ export async function POST(request) {
       placeOfService: String(body.placeOfService || 'Bangalore').trim(),
       templateType: String(body.templateType || 'GST_INV_1').trim(),
       amountInWords: String(body.amountInWords || '').trim(),
-      signatureImage: String(body.signatureImage || '/signatures/usman-zabi-digital-signature.jpg').trim(),
+      signatureImage: (() => {
+        const sig = String(body.signatureImage || '/signatures/usman-zabi-digital-signature.jpg').trim();
+        return (sig.startsWith('data:') || sig.length > 500) ? '/signatures/usman-zabi-digital-signature.jpg' : sig;
+      })(),
       items: Array.isArray(body.items) ? body.items : [],
       notes: String(body.notes || '').trim(),
     });
@@ -572,7 +640,10 @@ export async function POST(request) {
     if (body.dateTimeOfService !== undefined) updateFields.dateTimeOfService = String(body.dateTimeOfService).trim();
     if (body.placeOfService !== undefined) updateFields.placeOfService = String(body.placeOfService).trim();
     if (body.templateType !== undefined) updateFields.templateType = String(body.templateType).trim();
-    if (body.signatureImage !== undefined) updateFields.signatureImage = String(body.signatureImage).trim();
+    if (body.signatureImage !== undefined) {
+      const sig = String(body.signatureImage).trim();
+      updateFields.signatureImage = (sig.startsWith('data:') || sig.length > 500) ? '/signatures/usman-zabi-digital-signature.jpg' : sig;
+    }
     if (body.amountInWords !== undefined) updateFields.amountInWords = String(body.amountInWords).trim();
     if (body.items !== undefined && Array.isArray(body.items)) updateFields.items = body.items;
     if (body.notes !== undefined) updateFields.notes = String(body.notes).trim();
