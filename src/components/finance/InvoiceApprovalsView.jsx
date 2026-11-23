@@ -120,22 +120,40 @@ export function InvoiceApprovalsView() {
     [canApprove, isSuperAdmin, isRaheel]
   );
 
+  // Check if invoice is approved by either approver (Raheel or Super Admin)
+  const isInvoiceApproved = useCallback((inv) => {
+    return (
+      inv.approvalStatus === 'approved' ||
+      inv.approvals?.recruiter?.status === 'approved' ||
+      inv.approvals?.superAdmin?.status === 'approved'
+    );
+  }, []);
+
+  const isInvoiceRejected = useCallback((inv) => {
+    return (
+      inv.approvalStatus === 'rejected' &&
+      inv.approvals?.recruiter?.status !== 'approved' &&
+      inv.approvals?.superAdmin?.status !== 'approved'
+    );
+  }, []);
+
   // Filtered invoices
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
       const myStatus = myApprovalStatus(inv);
-      const overall = inv.approvalStatus || 'pending';
+      const isApproved = isInvoiceApproved(inv);
+      const isRejected = isInvoiceRejected(inv);
 
       if (tabFilter === 'pending_me') {
         if (canApprove) {
           if (myStatus !== 'pending') return false;
         } else {
-          if (overall === 'approved') return false;
+          if (isApproved) return false;
         }
       } else if (tabFilter === 'approved') {
-        if (overall !== 'approved') return false;
+        if (!isApproved) return false;
       } else if (tabFilter === 'rejected') {
-        if (overall !== 'rejected') return false;
+        if (!isRejected) return false;
       }
 
       if (!search.trim()) return true;
@@ -147,7 +165,7 @@ export function InvoiceApprovalsView() {
         String(inv.candidateName || '').toLowerCase().includes(q)
       );
     });
-  }, [invoices, tabFilter, search, myApprovalStatus, canApprove]);
+  }, [invoices, tabFilter, search, myApprovalStatus, canApprove, isInvoiceApproved, isInvoiceRejected]);
 
   // Counts for tabs
   const tabCounts = useMemo(() => {
@@ -157,18 +175,19 @@ export function InvoiceApprovalsView() {
 
     invoices.forEach((inv) => {
       const myStatus = myApprovalStatus(inv);
-      const overall = inv.approvalStatus || 'pending';
+      const approvedOk = isInvoiceApproved(inv);
+      const rejectedOk = isInvoiceRejected(inv);
       if (canApprove) {
         if (myStatus === 'pending') pendingMe++;
       } else {
-        if (overall !== 'approved') pendingMe++;
+        if (!approvedOk) pendingMe++;
       }
-      if (overall === 'approved') approved++;
-      if (overall === 'rejected') rejected++;
+      if (approvedOk) approved++;
+      if (rejectedOk) rejected++;
     });
 
     return { all: invoices.length, pendingMe, approved, rejected };
-  }, [invoices, myApprovalStatus, canApprove]);
+  }, [invoices, myApprovalStatus, canApprove, isInvoiceApproved, isInvoiceRejected]);
 
   // Handle Approve or Reject submission
   const handleActionSubmit = async () => {
@@ -227,15 +246,15 @@ export function InvoiceApprovalsView() {
       >
         <div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 10px', background: 'rgba(255,255,255,0.1)', borderRadius: 99, fontSize: 12, fontWeight: 700, color: '#38BDF8', marginBottom: 10 }}>
-            <Shield size={14} /> Dual-Approval Invoice Governance
+            <Shield size={14} /> Invoice Verification Governance
           </div>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em' }}>
             Client Invoice Approvals & Verification
           </h1>
           <p style={{ margin: '6px 0 0', fontSize: 14, color: '#94A3B8', maxWidth: 700 }}>
-            Before the finance team can email client invoices, mandatory dual verification is required from{' '}
-            <strong style={{ color: '#F8FAFC' }}>Mohammed Raheel (EMP0005 • Recruiter)</strong> and{' '}
-            <strong style={{ color: '#F8FAFC' }}>Super Admin</strong>.
+            Before the finance team can email client invoices, approval is required from either{' '}
+            <strong style={{ color: '#F8FAFC' }}>Mohammed Raheel (EMP0005 • Recruiter)</strong> or{' '}
+            <strong style={{ color: '#F8FAFC' }}>Super Admin</strong>. Approval from either one immediately unlocks the invoice for emailing.
           </p>
         </div>
 
@@ -286,7 +305,7 @@ export function InvoiceApprovalsView() {
 
         <div style={{ background: '#ECFDF5', borderRadius: 16, padding: '18px 20px', border: '1.5px solid #A7F3D0', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.08)' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <CheckCircle2 size={14} /> Fully Approved (2/2)
+            <CheckCircle2 size={14} /> Approved (Unlocked)
           </div>
           <div style={{ fontSize: 28, fontWeight: 900, color: '#065F46', marginTop: 4 }}>{tabCounts.approved}</div>
           <div style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>Unlocked for emailing to client</div>
@@ -308,9 +327,9 @@ export function InvoiceApprovalsView() {
           {/* Tabs */}
           <div style={{ display: 'inline-flex', background: '#F1F5F9', padding: 4, borderRadius: 12, gap: 4 }}>
             {[
-              { key: 'pending_me', label: canApprove ? 'Awaiting My Review' : 'Pending', count: tabCounts.pendingMe },
+              { key: 'pending_me', label: canApprove ? 'Awaiting My Review' : 'Pending Approval', count: tabCounts.pendingMe },
               { key: 'all', label: 'All Invoices', count: tabCounts.all },
-              { key: 'approved', label: 'Fully Approved', count: tabCounts.approved },
+              { key: 'approved', label: 'Approved (Unlocked)', count: tabCounts.approved },
               { key: 'rejected', label: 'Changes Requested', count: tabCounts.rejected },
             ].map((tab) => (
               <button
@@ -429,8 +448,8 @@ export function InvoiceApprovalsView() {
                 filteredInvoices.map((inv) => {
                   const recApp = inv.approvals?.recruiter || { status: 'pending' };
                   const saApp = inv.approvals?.superAdmin || { status: 'pending' };
-                  const isFullyApproved = inv.approvalStatus === 'approved';
-                  const isRejected = inv.approvalStatus === 'rejected';
+                  const isFullyApproved = isInvoiceApproved(inv);
+                  const isRejected = isInvoiceRejected(inv);
                   const userApproved =
                     (isSuperAdmin && saApp.status === 'approved') ||
                     (isRaheel && recApp.status === 'approved');
@@ -607,6 +626,7 @@ export function InvoiceApprovalsView() {
                       <td style={{ padding: '14px 18px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         {isFullyApproved ? (
                           <span
+                            title="Approved! Email option unlocked for finance team."
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -619,7 +639,7 @@ export function InvoiceApprovalsView() {
                               color: '#FFFFFF',
                             }}
                           >
-                            <CheckCircle2 size={13} /> Ready to Email (2/2)
+                            <CheckCircle2 size={13} /> Ready to Email
                           </span>
                         ) : isRejected ? (
                           <span
@@ -647,11 +667,12 @@ export function InvoiceApprovalsView() {
                               borderRadius: 99,
                               fontSize: 11.5,
                               fontWeight: 700,
-                              background: '#F1F5F9',
-                              color: '#475569',
+                              background: '#FFFBEB',
+                              color: '#B45309',
+                              border: '1px solid #FDE68A',
                             }}
                           >
-                            <Clock size={13} /> In Review
+                            <Clock size={13} /> Awaiting Approval
                           </span>
                         )}
                       </td>
@@ -920,7 +941,7 @@ export function InvoiceApprovalsView() {
               {/* Approval History Box */}
               <div style={{ background: '#F8FAFC', borderRadius: 12, padding: 16, border: '1px solid #E2E8F0' }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: '#334155', textTransform: 'uppercase', marginBottom: 10 }}>
-                  Dual-Approval Audit History
+                  Approval Audit History
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 10, border: '1px solid #E2E8F0' }}>

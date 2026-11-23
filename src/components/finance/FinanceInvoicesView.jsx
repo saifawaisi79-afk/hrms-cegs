@@ -4311,19 +4311,24 @@ export function FinanceInvoicesView() {
                           </span>
                         )}
 
-                        {/* Dual-Approval Status Badge */}
+                        {/* Approval Status Badge */}
                         {(() => {
-                          const isApproved = inv.approvalStatus === 'approved';
-                          const isRejected = inv.approvalStatus === 'rejected';
-                          const isPartially = inv.approvalStatus === 'partially_approved';
                           const recOk = inv.approvals?.recruiter?.status === 'approved';
                           const saOk = inv.approvals?.superAdmin?.status === 'approved';
+                          const isApproved = inv.approvalStatus === 'approved' || recOk || saOk;
+                          const isRejected = inv.approvalStatus === 'rejected' && !isApproved;
 
                           if (isApproved) {
+                            const approverLabel =
+                              recOk && saOk
+                                ? 'Raheel & Super Admin'
+                                : recOk
+                                ? 'Mohammed Raheel'
+                                : 'Super Admin';
                             return (
                               <div style={{ marginTop: 4 }}>
                                 <span
-                                  title="Dual approved by Mohammed raheel & Super Admin. Ready to email."
+                                  title={`Approved by ${approverLabel}. Ready to email.`}
                                   style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -4337,7 +4342,7 @@ export function FinanceInvoicesView() {
                                     border: '1px solid #A7F3D0',
                                   }}
                                 >
-                                  ✓ Dual Approved
+                                  ✓ Approved
                                 </span>
                               </div>
                             );
@@ -4370,7 +4375,7 @@ export function FinanceInvoicesView() {
                           return (
                             <div style={{ marginTop: 4 }}>
                               <span
-                                title={`Approvals required before emailing:\n• Raheel (EMP0005): ${recOk ? 'Approved' : 'Pending'}\n• Super Admin: ${saOk ? 'Approved' : 'Pending'}`}
+                                title="Requires approval from either Mohammed Raheel (EMP0005) or Super Admin before emailing to client."
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
@@ -4379,12 +4384,12 @@ export function FinanceInvoicesView() {
                                   borderRadius: 99,
                                   fontSize: 10.5,
                                   fontWeight: 700,
-                                  background: isPartially ? '#EFF6FF' : '#FFFBEB',
-                                  color: isPartially ? '#1D4ED8' : '#B45309',
-                                  border: isPartially ? '1px solid #BFDBFE' : '1px solid #FDE68A',
+                                  background: '#FFFBEB',
+                                  color: '#B45309',
+                                  border: '1px solid #FDE68A',
                                 }}
                               >
-                                ⏳ {isPartially ? '1/2 Approved' : 'Awaiting 2 Approvals'}
+                                ⏳ Awaiting Approval
                               </span>
                             </div>
                           );
@@ -4394,21 +4399,24 @@ export function FinanceInvoicesView() {
                       {/* ACTIONS: EDIT INVOICE (USER REQUIREMENT 2) + REMINDER + MARK PAID + DOWNLOAD */}
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, justifyContent: 'flex-end' }}>
-                          {/* SEND EMAIL BUTTON (MULTIPLE RECIPIENTS FORM WITH DUAL APPROVAL GATE) */}
+                          {/* SEND EMAIL BUTTON (UNLOCKED WHEN EITHER RAHEEL OR SUPER ADMIN APPROVES) */}
                           {(() => {
-                            const isApproved = inv.approvalStatus === 'approved';
+                            const isApproved =
+                              inv.approvalStatus === 'approved' ||
+                              inv.approvals?.recruiter?.status === 'approved' ||
+                              inv.approvals?.superAdmin?.status === 'approved';
                             return (
                               <button
                                 type="button"
                                 title={
                                   isApproved
-                                    ? 'Send invoice directly to multiple recipient email IDs'
-                                    : 'Locked: Requires dual approval from Mohammed Raheel (EMP0005) & Super Admin before emailing to client'
+                                    ? 'Send invoice directly to client via email'
+                                    : 'Locked: Requires approval from Mohammed Raheel (EMP0005) or Super Admin before emailing to client'
                                 }
                                 onClick={() => {
                                   if (!isApproved) {
                                     showToast(
-                                      '⚠️ Cannot email: Invoice requires 2 approvals before emailing (Mohammed Raheel EMP0005 & Super Admin).',
+                                      '⚠️ Cannot email: Invoice requires approval from either Mohammed Raheel (EMP0005) or Super Admin before emailing.',
                                       'error'
                                     );
                                     return;
@@ -4443,7 +4451,7 @@ export function FinanceInvoicesView() {
                                   }
                                 }}
                               >
-                                {isApproved ? <Mail size={13} /> : <Lock size={12} />}
+                                {isApproved ? <Mail size={13} /> : <Lock size={13} />}
                                 <span>{isApproved ? 'Email' : 'Locked'}</span>
                               </button>
                             );
@@ -6770,16 +6778,19 @@ export function FinanceInvoicesView() {
                     />
                   </label>
 
-                  {/* SEND VIA EMAIL BUTTON (MULTIPLE RECIPIENTS WITH DUAL APPROVAL GATE) */}
+                  {/* SEND VIA EMAIL BUTTON (UNLOCKED WHEN EITHER RAHEEL OR SUPER ADMIN APPROVES) */}
                   {(() => {
-                    const isApproved = previewInvoice?.approvalStatus === 'approved';
+                    const isApproved =
+                      previewInvoice?.approvalStatus === 'approved' ||
+                      previewInvoice?.approvals?.recruiter?.status === 'approved' ||
+                      previewInvoice?.approvals?.superAdmin?.status === 'approved';
                     return (
                       <button
                         type="button"
                         onClick={() => {
                           if (!isApproved) {
                             showToast(
-                              '⚠️ Cannot email: Invoice requires dual approval from Mohammed Raheel (EMP0005) & Super Admin before emailing to client.',
+                              '⚠️ Cannot email: Invoice requires approval from Mohammed Raheel (EMP0005) or Super Admin before emailing to client.',
                               'error'
                             );
                             return;
@@ -6806,11 +6817,11 @@ export function FinanceInvoicesView() {
                         title={
                           isApproved
                             ? 'Send invoice directly via email'
-                            : 'Locked: Requires dual approval from Mohammed Raheel & Super Admin'
+                            : 'Locked: Requires approval from Mohammed Raheel or Super Admin'
                         }
                       >
                         {isApproved ? <Mail size={15} /> : <Lock size={14} />}
-                        <span>{isApproved ? 'Send via Email' : 'Awaiting Approvals'}</span>
+                        <span>{isApproved ? 'Send via Email' : 'Awaiting Approval'}</span>
                       </button>
                     );
                   })()}

@@ -107,16 +107,16 @@ export async function POST(request, { params }) {
       };
     }
 
-    // Evaluate overall approval status
+    // Evaluate overall approval status: Either Mohammed Raheel OR Super Admin approval unlocks the invoice
     const recStatus = invoice.approvals.recruiter?.status || 'pending';
     const saStatus = invoice.approvals.superAdmin?.status || 'pending';
 
-    if (recStatus === 'rejected' || saStatus === 'rejected') {
-      invoice.approvalStatus = 'rejected';
-    } else if (recStatus === 'approved' && saStatus === 'approved') {
+    if (recStatus === 'approved' || saStatus === 'approved') {
       invoice.approvalStatus = 'approved';
-    } else if (recStatus === 'approved' || saStatus === 'approved') {
-      invoice.approvalStatus = 'partially_approved';
+    } else if (recStatus === 'rejected' && saStatus === 'rejected') {
+      invoice.approvalStatus = 'rejected';
+    } else if (recStatus === 'rejected' || saStatus === 'rejected') {
+      invoice.approvalStatus = 'rejected';
     } else {
       invoice.approvalStatus = 'pending';
     }
@@ -132,7 +132,7 @@ export async function POST(request, { params }) {
         ? `✅ ${invDisplay} Approved by ${actorName}`
         : `⚠️ ${invDisplay} Changes Requested by ${actorName}`;
       const notifMsg = isApproving
-        ? `${invDisplay} (${invoice.client}) was approved. Status: ${invoice.approvalStatus === 'approved' ? 'Fully Approved (Ready to email to client)' : 'Awaiting remaining approval'}.`
+        ? `${invDisplay} (${invoice.client}) was approved by ${actorName}. Unlocked for emailing to client.`
         : `${invDisplay} was rejected with remark: "${notes || 'Please review and adjust placement seats'}".`;
 
       await Notification.create({

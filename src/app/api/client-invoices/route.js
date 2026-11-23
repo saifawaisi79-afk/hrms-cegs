@@ -27,11 +27,19 @@ function flatten(doc) {
   if (typeof signatureImage === 'string' && (signatureImage.startsWith('data:') || signatureImage.length > 500)) {
     signatureImage = '/signatures/usman-zabi-digital-signature.jpg';
   }
+  let approvalStatus = o.approvalStatus || 'pending';
+  const recStatus = approvals?.recruiter?.status || 'pending';
+  const saStatus = approvals?.superAdmin?.status || 'pending';
+  if (recStatus === 'approved' || saStatus === 'approved') {
+    approvalStatus = 'approved';
+  } else if (recStatus === 'rejected' && saStatus === 'rejected') {
+    approvalStatus = 'rejected';
+  }
   return {
     ...o,
     id: o._id?.toString(),
     _id: o._id?.toString(),
-    approvalStatus: o.approvalStatus || 'pending',
+    approvalStatus,
     approvals,
     signatureImage,
   };

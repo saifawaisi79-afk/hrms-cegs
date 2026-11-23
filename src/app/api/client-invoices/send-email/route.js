@@ -337,18 +337,16 @@ ${customMessage || `Dear ${clientName} Accounts & Finance Team,\n\nPlease find t
         if (typeof invoiceId === 'string' && invoiceId.match(/^[0-9a-fA-F]{24}$/)) {
           const dbInv = await ClientInvoice.findById(invoiceId).lean();
           if (dbInv) {
-            // Verify Dual-Approval before emailing client (Mohammed Raheel EMP0005 & Super Admin)
-            if (dbInv.approvalStatus !== 'approved') {
-              const recStatus = dbInv.approvals?.recruiter?.status || 'pending';
-              const saStatus = dbInv.approvals?.superAdmin?.status || 'pending';
-              const pendingWho = [];
-              if (recStatus !== 'approved') pendingWho.push('Mohammed raheel (EMP0005 • Recruiter)');
-              if (saStatus !== 'approved') pendingWho.push('Super Admin');
+            // Verify Approval before emailing client: Either Mohammed Raheel (EMP0005) OR Super Admin approval is required
+            const recStatus = dbInv.approvals?.recruiter?.status || 'pending';
+            const saStatus = dbInv.approvals?.superAdmin?.status || 'pending';
+            const hasEitherApproved = dbInv.approvalStatus === 'approved' || recStatus === 'approved' || saStatus === 'approved';
 
+            if (!hasEitherApproved) {
               return NextResponse.json(
                 {
                   success: false,
-                  error: `Cannot email invoice #${dbInv.invoiceNo || 'INV'}: Dual approval is required before emailing to client. Awaiting approval from: ${pendingWho.join(' and ')}.`,
+                  error: `Cannot email invoice #${dbInv.invoiceNo || 'INV'}: Approval is required from either Mohammed Raheel (EMP0005) or Super Admin before emailing to client.`,
                   approvalStatus: dbInv.approvalStatus || 'pending',
                 },
                 { status: 403 }
