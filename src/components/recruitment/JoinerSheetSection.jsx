@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getRecruiters } from '@/lib/nav';
 import { normalizeCandidateDate, formatSheetDateDisplay } from '@/lib/candidate-dates';
+import { getCompanyPayoutDays, getProcessPayoutAmount } from '@/lib/company-process-payouts';
 
 const GLOBAL_API_BASE = '/api';
 
@@ -171,8 +172,9 @@ function mapJoinedCandidate(cand, index) {
   const dojIso = normalizeCandidateDate(rawDoj);
   const formattedDoj = dojIso ? formatSheetDateDisplay(dojIso) : (rawDoj ? formatCellDate(rawDoj) : '');
 
-  // Auto-populate billing date (default 60 days after joining date)
-  const rawBilling = cand.billingDate || (dojIso ? addDaysToDate(dojIso, 60) : '');
+  // Auto-populate billing date based on company & process payout days (45, 60, 90 days)
+  const payoutDays = getCompanyPayoutDays(companyVal || processVal);
+  const rawBilling = cand.billingDate || (dojIso ? addDaysToDate(dojIso, payoutDays) : '');
   const billingIso = normalizeCandidateDate(rawBilling);
   const formattedBilling = billingIso ? formatSheetDateDisplay(billingIso) : (rawBilling ? formatCellDate(rawBilling) : '');
 
@@ -479,8 +481,11 @@ export function JoinerSheetSection({
       if (!ov) return base;
       const ovDoj = ov.dateOfJoining ? formatCellDate(ov.dateOfJoining) : '';
       const finalDoj = ovDoj || base.dateOfJoining || '';
+      const ovCompany = ov.company || base.company || '';
+      const ovProcess = ov.process || base.process || '';
+      const payoutDays = getCompanyPayoutDays(ovCompany || ovProcess);
       const ovBilling = ov.billingDate ? formatCellDate(ov.billingDate) : '';
-      const finalBilling = ovBilling || base.billingDate || (finalDoj ? formatCellDate(addDaysToDate(finalDoj, 60)) : '');
+      const finalBilling = ovBilling || base.billingDate || (finalDoj ? formatCellDate(addDaysToDate(finalDoj, payoutDays)) : '');
       const ovInterview = ov.interviewDate ? formatCellDate(ov.interviewDate) : '';
       const finalInterview = ovInterview || base.interviewDate || '';
 
@@ -527,7 +532,8 @@ export function JoinerSheetSection({
     return list.map((r) => {
       const doj = r.dateOfJoining || r.joiningDate || r.rawDate || r.createdAt || '';
       const formattedDoj = formatCellDate(doj);
-      const billing = r.billingDate || (doj ? addDaysToDate(doj, 60) : '');
+      const payoutDays = getCompanyPayoutDays(r.company || r.process);
+      const billing = r.billingDate || (doj ? addDaysToDate(doj, payoutDays) : '');
       const formattedBilling = formatCellDate(billing);
       const formattedInterview = formatCellDate(r.interviewDate);
       return {
@@ -1087,6 +1093,7 @@ export function JoinerSheetSection({
         return (cleanPhone && cp === cleanPhone) || (cleanName && cn === cleanName);
       });
 
+      const payoutRate = getProcessPayoutAmount(row.company || row.process, row.process || row.company) || 5000;
       const newCandidateObj = {
         id: `joiner_${row.id || row._id || row.candidateId || Date.now()}`,
         candidateName: row.name,
@@ -1099,9 +1106,9 @@ export function JoinerSheetSection({
         empId: row.employeeCode || 'Pending',
         empStatus: 'ACTIVE',
         billingStatus: 'Ready to Invoice',
-        bi: 5900,
-        ai: 5400,
-        remarks: '8-Week Active Followup completed in Joiner Sheet',
+        bi: payoutRate,
+        ai: payoutRate,
+        remarks: 'Followup completed in Joiner Sheet · Ready to Bill',
         source: 'joiner_8wks_active',
       };
 
@@ -1934,11 +1941,33 @@ export function JoinerSheetSection({
                 const isReadyToBill = isW8Active || allActive;
 
                 return (
-                  <tr key={rid} style={{ background: isReadyToBill ? 'rgba(236, 253, 245, 0.35)' : undefined }}>
-                    <td style={{ fontWeight: 800, padding: '8px 10px', color: '#64748B' }}>
+                  <tr
+                    key={rid}
+                    style={{
+                      background: hasInactive
+                        ? '#FEF2F2'
+                        : isReadyToBill
+                        ? 'rgba(236, 253, 245, 0.45)'
+                        : undefined,
+                      borderLeft: hasInactive
+                        ? '4px solid #EF4444'
+                        : isReadyToBill
+                        ? '4px solid #10B981'
+                        : undefined,
+                      transition: 'background 0.2s ease',
+                    }}
+                  >
+                    <td style={{ fontWeight: 800, padding: '8px 10px', color: hasInactive ? '#DC2626' : '#64748B' }}>
                       {idx + 1}
                     </td>
-                    {cell(row.name)}
+                    <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700, color: hasInactive ? '#B91C1C' : '#0f172a', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+                      <span>{row.name ? row.name.toUpperCase() : '—'}</span>
+                      {hasInactive && (
+                        <span style={{ marginLeft: 6, fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', fontWeight: 800 }}>
+                          INACTIVE
+                        </span>
+                      )}
+                    </td>
                     {cell(row.phone)}
                     {cell(row.process)}
                     {cell(row.company || (dynamicCompanyTabs.slice(1).find(c => String(row.process || '').toUpperCase().includes(c)) || '—'))}
@@ -2131,10 +2160,33 @@ export function JoinerSheetSection({
                     {(canEditEntry || canDelete) && (
                       <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
+                          {/* Inactive Marker Badge */}
+                          {hasInactive && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                padding: '4px 8px',
+                                borderRadius: 8,
+                                fontSize: 11,
+                                fontWeight: 800,
+                                background: '#FEE2E2',
+                                color: '#991B1B',
+                                border: '1px solid #FECACA',
+                              }}
+                              title="Candidate marked inactive in follow-up"
+                            >
+                              <span>🚫 Inactive</span>
+                            </span>
+                          )}
                           {/* Ready to Bill Redirect Badge */}
                           {isReadyToBill && (
                             <a
                               href={`/finance/invoices?tab=weekly&search=${encodeURIComponent(row.name)}`}
+                              onClick={() => {
+                                syncCandidateToWeeklyTracker(row);
+                              }}
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -2148,8 +2200,9 @@ export function JoinerSheetSection({
                                 border: '1px solid #10B981',
                                 textDecoration: 'none',
                                 boxShadow: '0 2px 6px rgba(16, 185, 129, 0.15)',
+                                cursor: 'pointer',
                               }}
-                              title="Candidate completed 8-week follow-up and is Ready to Bill! Click to view in Billing Candidate Details."
+                              title="Candidate completed follow-up and is Ready to Bill! Click to view in Billing Candidate Details."
                             >
                               <span>⚡ Ready to Bill →</span>
                             </a>

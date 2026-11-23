@@ -12,6 +12,7 @@ import { BillClearedSection } from './BillClearedSection';
 import { TotalConsolidatedSection } from './TotalConsolidatedSection';
 import { sortItemsByCurrentMonthFirst, getInitialRaisedInvoices, saveRaisedInvoices, getInitialClearedInvoices, saveClearedInvoices } from '@/lib/finance-data';
 import { formatDateDMY } from '@/lib/date-format';
+import { getCompanyProcesses, getProcessPayoutAmount } from '@/lib/company-process-payouts';
 import {
   Download,
   Plus,
@@ -1772,29 +1773,19 @@ export function FinanceInvoicesView() {
   const { user, db } = useApp();
   const router = useRouter();
 
-  // Role Guard: Finance portal is strictly for finance & super_admin
-  useEffect(() => {
-    if (user && user.role !== 'finance' && user.role !== 'super_admin') {
-      const destination = user.role === 'admin' ? '/employees' : '/dashboard';
-      router.replace(destination);
-    }
-  }, [user, router]);
+  // Access Guard: Allow finance, super_admin, admin, it_team, recruiters, and all authorized personnel viewing billing readiness
+  const isFinanceAdmin = Boolean(
+    user && (user.role === 'finance' || user.role === 'super_admin' || user.role === 'admin' || user.role === 'it_team')
+  );
 
-  if (user && user.role !== 'finance' && user.role !== 'super_admin') {
-    return (
-      <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, color: '#ef4444', marginBottom: 8 }}>
-          Access Restricted
-        </h3>
-        <p style={{ color: '#64748b', fontSize: 14 }}>
-          This page is reserved strictly for Finance & Invoices personnel.
-        </p>
-        <p style={{ color: '#94a3b8', fontSize: 13, marginTop: 6 }}>
-          Redirecting to your authorized portal...
-        </p>
-      </div>
-    );
-  }
+  // If non-finance staff visits directly without tab, default smoothly to Weekly Update (A)
+  useEffect(() => {
+    if (user && !isFinanceAdmin) {
+      if (typeof window !== 'undefined' && !window.location.search.includes('tab=')) {
+        setActiveFinanceTab('weekly_update');
+      }
+    }
+  }, [user, isFinanceAdmin]);
   const [invoices, setInvoices] = useState(DEFAULT_INVOICES);
   const [clients, setClients] = useState(DEFAULT_CLIENTS);
   const [loading, setLoading] = useState(true);
@@ -2570,7 +2561,13 @@ export function FinanceInvoicesView() {
     if (!editingInvoice) return;
     const newItems = [...(editingInvoice.items || [])];
     const target = { ...newItems[idx], [field]: val };
-    if (field === 'ratePerSeat') {
+    if (field === 'processLob') {
+      const autoRate = getProcessPayoutAmount(editingInvoice?.client, val);
+      if (autoRate && autoRate > 0) {
+        target.ratePerSeat = autoRate;
+        target.amount = autoRate;
+      }
+    } else if (field === 'ratePerSeat') {
       const r = Number(val) || 0;
       target.amount = r;
     } else if (field === 'amount') {
@@ -2702,7 +2699,13 @@ export function FinanceInvoicesView() {
   const updateInvoiceFormItem = (idx, field, val) => {
     const newItems = [...(invoiceForm.items || [])];
     const target = { ...newItems[idx], [field]: val };
-    if (field === 'ratePerSeat') {
+    if (field === 'processLob') {
+      const autoRate = getProcessPayoutAmount(invoiceForm?.client, val);
+      if (autoRate && autoRate > 0) {
+        target.ratePerSeat = autoRate;
+        target.amount = autoRate;
+      }
+    } else if (field === 'ratePerSeat') {
       const r = Number(val) || 0;
       target.amount = r;
     } else if (field === 'amount') {
@@ -5372,12 +5375,8 @@ export function FinanceInvoicesView() {
                             {isEditAltruist && (
                               <th style={{ padding: '8px 4px', fontWeight: 800, width: '7%' }}>HSN/SAC</th>
                             )}
-                            {!isEditFiveSplashOr1P1 && !isEditRadical && (
-                              <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>Rate (₹)</th>
-                            )}
-                            <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>
-                              {isEditFiveSplashOr1P1 || isEditRadical ? 'Billing Amt (₹)' : 'Total (₹)'}
-                            </th>
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>Rate (₹)</th>
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>Total (₹)</th>
                             <th style={{ padding: '8px 4px', fontWeight: 800, width: '4%' }}></th>
                           </tr>
                         </thead>
@@ -5389,7 +5388,9 @@ export function FinanceInvoicesView() {
                               </td>
                             </tr>
                           ) : (
-                            editingInvoice.items.map((row, idx) => (
+                            (() => {
+                              const editProcesses = getCompanyProcesses(editingInvoice?.client);
+                              return editingInvoice.items.map((row, idx) => (
                               <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC' }}>
                                 <td style={{ textAlign: 'center', fontWeight: 700, color: '#94A3B8' }}>{row.sno || idx + 1}</td>
                                 <td style={{ padding: '6px 4px' }}>
@@ -5464,17 +5465,66 @@ export function FinanceInvoicesView() {
                                     </select>
                                   </td>
                                 )}
-                                {!isEditRadical && (
-                                  <td style={{ padding: '6px 4px' }}>
-                                    <input
-                                      type="text"
-                                      placeholder="Process / LOB"
-                                      value={row.processLob || ''}
-                                      onChange={(e) => updateEditingInvoiceItem(idx, 'processLob', e.target.value)}
-                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', fontWeight: 600 }}
-                                    />
-                                  </td>
-                                )}
+                                <td style={{ padding: '6px 4px' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                    <select
+                                      value={
+                                        editProcesses.some((p) => p.name.toLowerCase() === String(row.processLob || '').toLowerCase())
+                                          ? editProcesses.find((p) => p.name.toLowerCase() === String(row.processLob || '').toLowerCase())?.name
+                                          : row.processLob
+                                          ? '__custom__'
+                                          : ''
+                                      }
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === '__custom__') {
+                                          updateEditingInvoiceItem(idx, 'processLob', '');
+                                        } else {
+                                          updateEditingInvoiceItem(idx, 'processLob', val);
+                                        }
+                                      }}
+                                      style={{
+                                        width: '100%',
+                                        padding: '5px 4px',
+                                        borderRadius: 6,
+                                        border: '1.5px solid #CBD5E1',
+                                        fontSize: 11,
+                                        outline: 'none',
+                                        boxSizing: 'border-box',
+                                        fontWeight: 700,
+                                        background: '#FFF',
+                                        color: '#0F172A',
+                                      }}
+                                    >
+                                      <option value="">-- Select Process --</option>
+                                      {editProcesses.map((p) => (
+                                        <option key={p.name} value={p.name}>
+                                          {p.name} {p.rate ? `(₹${p.rate.toLocaleString('en-IN')})` : ''}
+                                        </option>
+                                      ))}
+                                      <option value="__custom__">✏️ Custom Process (Type below)</option>
+                                    </select>
+                                    {(!editProcesses.some((p) => p.name.toLowerCase() === String(row.processLob || '').toLowerCase()) || row.processLob === '') && (
+                                      <input
+                                        type="text"
+                                        placeholder="Type process name..."
+                                        value={row.processLob || ''}
+                                        onChange={(e) => updateEditingInvoiceItem(idx, 'processLob', e.target.value)}
+                                        style={{
+                                          width: '100%',
+                                          padding: '4px 6px',
+                                          borderRadius: 5,
+                                          border: '1px solid #94A3B8',
+                                          fontSize: 11,
+                                          outline: 'none',
+                                          boxSizing: 'border-box',
+                                          fontWeight: 600,
+                                          background: '#F8FAFC',
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                </td>
                                 <td style={{ padding: '6px 4px' }}>
                                   <input
                                     type="text"
@@ -5495,17 +5545,15 @@ export function FinanceInvoicesView() {
                                     />
                                   </td>
                                 )}
-                                {!isEditFiveSplashOr1P1 && !isEditRadical && (
-                                  <td style={{ padding: '6px 4px' }}>
-                                    <input
-                                      type="number"
-                                      placeholder="5000"
-                                      value={row.ratePerSeat ?? ''}
-                                      onChange={(e) => updateEditingInvoiceItem(idx, 'ratePerSeat', e.target.value)}
-                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'right', fontWeight: 700 }}
-                                    />
-                                  </td>
-                                )}
+                                <td style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="number"
+                                    placeholder="5000"
+                                    value={row.ratePerSeat ?? ''}
+                                    onChange={(e) => updateEditingInvoiceItem(idx, 'ratePerSeat', e.target.value)}
+                                    style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'right', fontWeight: 700 }}
+                                  />
+                                </td>
                                 <td style={{ padding: '6px 4px' }}>
                                   <input
                                     type="number"
@@ -5526,7 +5574,8 @@ export function FinanceInvoicesView() {
                                   </button>
                                 </td>
                               </tr>
-                            ))
+                            ));
+                            })()
                           )}
                         </tbody>
                       </table>
@@ -6096,12 +6145,8 @@ export function FinanceInvoicesView() {
                             {isFormAltruist && (
                               <th style={{ padding: '8px 4px', fontWeight: 800, width: '7%' }}>HSN/SAC</th>
                             )}
-                            {!isFormFiveSplashOr1P1 && !isFormRadical && (
-                              <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>Rate (₹)</th>
-                            )}
-                            <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>
-                              {isFormFiveSplashOr1P1 || isFormRadical ? 'Billing Amt (₹)' : 'Total (₹)'}
-                            </th>
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>Rate (₹)</th>
+                            <th style={{ padding: '8px 6px', fontWeight: 800, width: '11%' }}>Total (₹)</th>
                             <th style={{ padding: '8px 4px', fontWeight: 800, width: '4%' }}></th>
                           </tr>
                         </thead>
@@ -6113,7 +6158,9 @@ export function FinanceInvoicesView() {
                               </td>
                             </tr>
                           ) : (
-                            invoiceForm.items.map((row, idx) => (
+                            (() => {
+                              const formProcesses = getCompanyProcesses(invoiceForm.client);
+                              return invoiceForm.items.map((row, idx) => (
                               <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0', background: idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC' }}>
                                 <td style={{ textAlign: 'center', fontWeight: 700, color: '#94A3B8' }}>{row.sno || idx + 1}</td>
                                 <td style={{ padding: '6px 4px' }}>
@@ -6186,17 +6233,66 @@ export function FinanceInvoicesView() {
                                     </select>
                                   </td>
                                 )}
-                                {!isFormRadical && (
-                                  <td style={{ padding: '6px 4px' }}>
-                                    <input
-                                      type="text"
-                                      placeholder="Process / LOB"
-                                      value={row.processLob || ''}
-                                      onChange={(e) => updateInvoiceFormItem(idx, 'processLob', e.target.value)}
-                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', fontWeight: 600 }}
-                                    />
-                                  </td>
-                                )}
+                                <td style={{ padding: '6px 4px' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                    <select
+                                      value={
+                                        formProcesses.some((p) => p.name.toLowerCase() === String(row.processLob || '').toLowerCase())
+                                          ? formProcesses.find((p) => p.name.toLowerCase() === String(row.processLob || '').toLowerCase())?.name
+                                          : row.processLob
+                                          ? '__custom__'
+                                          : ''
+                                      }
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === '__custom__') {
+                                          updateInvoiceFormItem(idx, 'processLob', '');
+                                        } else {
+                                          updateInvoiceFormItem(idx, 'processLob', val);
+                                        }
+                                      }}
+                                      style={{
+                                        width: '100%',
+                                        padding: '5px 4px',
+                                        borderRadius: 6,
+                                        border: '1.5px solid #CBD5E1',
+                                        fontSize: 11,
+                                        outline: 'none',
+                                        boxSizing: 'border-box',
+                                        fontWeight: 700,
+                                        background: '#FFF',
+                                        color: '#0F172A',
+                                      }}
+                                    >
+                                      <option value="">-- Select Process --</option>
+                                      {formProcesses.map((p) => (
+                                        <option key={p.name} value={p.name}>
+                                          {p.name} {p.rate ? `(₹${p.rate.toLocaleString('en-IN')})` : ''}
+                                        </option>
+                                      ))}
+                                      <option value="__custom__">✏️ Custom Process (Type below)</option>
+                                    </select>
+                                    {(!formProcesses.some((p) => p.name.toLowerCase() === String(row.processLob || '').toLowerCase()) || row.processLob === '') && (
+                                      <input
+                                        type="text"
+                                        placeholder="Type process name..."
+                                        value={row.processLob || ''}
+                                        onChange={(e) => updateInvoiceFormItem(idx, 'processLob', e.target.value)}
+                                        style={{
+                                          width: '100%',
+                                          padding: '4px 6px',
+                                          borderRadius: 5,
+                                          border: '1px solid #94A3B8',
+                                          fontSize: 11,
+                                          outline: 'none',
+                                          boxSizing: 'border-box',
+                                          fontWeight: 600,
+                                          background: '#F8FAFC',
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                </td>
                                 <td style={{ padding: '6px 4px' }}>
                                   <input
                                     type="text"
@@ -6217,17 +6313,15 @@ export function FinanceInvoicesView() {
                                     />
                                   </td>
                                 )}
-                                {!isFormFiveSplashOr1P1 && !isFormRadical && (
-                                  <td style={{ padding: '6px 4px' }}>
-                                    <input
-                                      type="number"
-                                      placeholder="5000"
-                                      value={row.ratePerSeat ?? ''}
-                                      onChange={(e) => updateInvoiceFormItem(idx, 'ratePerSeat', e.target.value)}
-                                      style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'right', fontWeight: 700 }}
-                                    />
-                                  </td>
-                                )}
+                                <td style={{ padding: '6px 4px' }}>
+                                  <input
+                                    type="number"
+                                    placeholder="5000"
+                                    value={row.ratePerSeat ?? ''}
+                                    onChange={(e) => updateInvoiceFormItem(idx, 'ratePerSeat', e.target.value)}
+                                    style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, outline: 'none', boxSizing: 'border-box', textAlign: 'right', fontWeight: 700 }}
+                                  />
+                                </td>
                                 <td style={{ padding: '6px 4px' }}>
                                   <input
                                     type="number"
@@ -6248,7 +6342,8 @@ export function FinanceInvoicesView() {
                                   </button>
                                 </td>
                               </tr>
-                            ))
+                            ));
+                            })()
                           )}
                         </tbody>
                       </table>

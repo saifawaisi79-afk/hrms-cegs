@@ -32,6 +32,7 @@ import {
   formatMonthLabel,
   sortItemsByCurrentMonthFirst,
 } from '@/lib/finance-data';
+import { getProcessPayoutAmount } from '@/lib/company-process-payouts';
 
 export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRaised }) {
   const [batches, setBatches] = useState(getInitialWeeklyBatches);
@@ -100,6 +101,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 return;
               }
 
+              const payoutRate = getProcessPayoutAmount(j.company || j.process, j.process || j.company) || 5000;
               toAdd.push({
                 id: `joiner_${j._id || j.id || Date.now()}`,
                 candidateName: j.name,
@@ -112,10 +114,10 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 empId: j.employeeCode || 'Pending',
                 empStatus: 'ACTIVE',
                 billingStatus: 'Ready to Invoice',
-                bi: 5900,
-                ai: 5400,
+                bi: payoutRate,
+                ai: payoutRate,
                 source: 'joiner_8wks_active',
-                remarks: 'Completed 8-Week Followups in Joiners Sheet',
+                remarks: 'Completed Followup in Joiners Sheet · Ready to Bill',
               });
             });
 

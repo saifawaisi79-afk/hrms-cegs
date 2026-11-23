@@ -1,4 +1,5 @@
 import { normalizeCandidateDate, todayIsoDate } from '@/lib/candidate-dates';
+import { getCompanyPayoutDays } from '@/lib/company-process-payouts';
 
 const LEFT_NOTE = /left|resign|abscond|inactive|drop/i;
 
@@ -14,12 +15,14 @@ export function joinerLeftEarly(joiner) {
   return LEFT_NOTE.test(notes);
 }
 
-/** Eligible for a to-raise row: joined at least 56 days ago and still in the company. */
+/** Eligible for a to-raise row: joined required days ago (per company agreement) and still active in company. */
 export function joinerBillEligible(joiner, today = todayIsoDate()) {
   const join = normalizeCandidateDate(joiner?.dateOfJoining);
   if (!join) return null;
   if (joinerLeftEarly(joiner)) return null;
-  const due = addIsoDays(join, 56);
+  const company = joiner?.company || joiner?.process || '';
+  const days = getCompanyPayoutDays(company) || 60;
+  const due = addIsoDays(join, days);
   if (due > today) return null;
   const billing = normalizeCandidateDate(joiner?.billingDate) || due;
   return {
