@@ -42,3 +42,38 @@ export function gstBreakdown(basicAmount, moneyReceived) {
   const diff = needToReceive - received;
   return { gstAmount, totalInvoice, tdsAmount, needToReceive, diff };
 }
+
+export function parseInvoiceSortNumber(str) {
+  if (!str) return -1;
+  const s = String(str).trim();
+  if (/^INV-20\d\d-/i.test(s)) {
+    const digits = s.match(/\d+/g);
+    return digits && digits.length > 1 ? parseInt(digits[digits.length - 1], 10) : 0;
+  }
+  const m = s.match(/INV-?0*(\d+)/i);
+  if (m) {
+    return parseInt(m[1], 10);
+  }
+  const anyM = s.match(/\d+/g);
+  return anyM ? parseInt(anyM[anyM.length - 1], 10) : 0;
+}
+
+export function sortInvoicesDescending(items) {
+  if (!Array.isArray(items)) return [];
+  return [...items].sort((a, b) => {
+    const numA = parseInvoiceSortNumber(a?.invoiceNo);
+    const numB = parseInvoiceSortNumber(b?.invoiceNo);
+    if (numA !== numB) {
+      return numB - numA; // 263, 262, 261, 260...
+    }
+    const sA = String(a?.invoiceNo || '');
+    const sB = String(b?.invoiceNo || '');
+    if (sA !== sB) {
+      return sB.localeCompare(sA, undefined, { numeric: true });
+    }
+    const tA = new Date(a?.createdAt || a?.invoiceDate || 0).getTime();
+    const tB = new Date(b?.createdAt || b?.invoiceDate || 0).getTime();
+    return tB - tA;
+  });
+}
+

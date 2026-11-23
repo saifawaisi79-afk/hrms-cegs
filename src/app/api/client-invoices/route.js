@@ -6,7 +6,7 @@ import ClientInvoice from '@/lib/models/ClientInvoice';
 import JoinerEntry from '@/lib/models/JoinerEntry';
 import SystemSetting from '@/lib/models/SystemSetting';
 import { getAuthUser, requireRole } from '@/lib/auth';
-import { joinerBillEligible } from '@/lib/client-invoice-rules';
+import { joinerBillEligible, sortInvoicesDescending } from '@/lib/client-invoice-rules';
 import { todayIsoDate, normalizeCandidateDate } from '@/lib/candidate-dates';
 
 export const dynamic = 'force-dynamic';
@@ -529,6 +529,7 @@ export async function GET(request) {
       await seedCrmInvoicesIfEmpty(true).catch(() => {});
       rows = await ClientInvoice.find(filter).sort({ createdAt: -1, invoiceNo: -1 }).lean();
     }
+    rows = sortInvoicesDescending(rows);
     return NextResponse.json(rows.map(flatten));
   } catch (err) {
     console.error('Error in GET /api/client-invoices:', err);

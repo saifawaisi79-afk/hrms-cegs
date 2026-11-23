@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { normalizeCandidateDate, formatSheetDateDisplay } from '@/lib/candidate-dates';
 import { formatDateDMY } from '@/lib/date-format';
+import { sortInvoicesDescending } from '@/lib/client-invoice-rules';
 import { useApp } from '@/contexts/AppContext';
 import { getAuthToken } from '@/lib/auth-client';
 import { Store } from '@/components/hrms/HrmsLegacy';
@@ -206,7 +207,7 @@ export function InvoiceApprovalsView() {
 
   // Filtered invoices
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
+    const list = invoices.filter((inv) => {
       const myStatus = myApprovalStatus(inv);
       const isApproved = isInvoiceApproved(inv);
       const isRejected = isInvoiceRejected(inv);
@@ -232,6 +233,7 @@ export function InvoiceApprovalsView() {
         String(inv.candidateName || '').toLowerCase().includes(q)
       );
     });
+    return sortInvoicesDescending(list);
   }, [invoices, tabFilter, search, myApprovalStatus, canApprove, isInvoiceApproved, isInvoiceRejected]);
 
   // Counts for tabs

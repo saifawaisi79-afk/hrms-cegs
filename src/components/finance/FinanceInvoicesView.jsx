@@ -12,6 +12,7 @@ import { BillClearedSection } from './BillClearedSection';
 import { TotalConsolidatedSection } from './TotalConsolidatedSection';
 import { sortItemsByCurrentMonthFirst, getInitialRaisedInvoices, saveRaisedInvoices, getInitialClearedInvoices, saveClearedInvoices } from '@/lib/finance-data';
 import { formatDateDMY } from '@/lib/date-format';
+import { sortInvoicesDescending } from '@/lib/client-invoice-rules';
 import { getCompanyProcesses, getProcessPayoutAmount } from '@/lib/company-process-payouts';
 import {
   Download,
@@ -2430,7 +2431,7 @@ export function FinanceInvoicesView() {
 
   // Filtered invoices for billing details table
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
+    const list = invoices.filter((inv) => {
       if (!inv.invoiceNo && !inv.projectMilestone) return false;
 
       // Company filter
@@ -2473,8 +2474,8 @@ export function FinanceInvoicesView() {
       return true;
     });
 
-    // Current month entries shown first, rest descending chronologically
-    return sortItemsByCurrentMonthFirst(list, (inv) => inv.paidDate || inv.invoiceDate || inv.dueDate || inv.createdAt || '');
+    // Invoices strictly sorted in descending sequence (263, 262, 261, 260...)
+    return sortInvoicesDescending(list);
   }, [invoices, selectedCompany, selectedStatus, selectedMonth, searchQuery]);
 
   // Action: Mark Invoice as Paid
