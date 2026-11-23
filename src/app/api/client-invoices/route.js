@@ -678,10 +678,29 @@ export async function POST(request) {
     const invoiceNo = body.invoiceNo;
     if (!id && !invoiceNo) return NextResponse.json({ error: 'Invoice ID or invoiceNo is required' }, { status: 400 });
 
-    const conditions = [];
+    // If a valid MongoDB _id is provided, delete ONLY that specific invoice document
     if (id && mongoose.Types.ObjectId.isValid(id)) {
-      conditions.push({ _id: new mongoose.Types.ObjectId(id) });
+      await ClientInvoice.deleteOne({ _id: new mongoose.Types.ObjectId(id) });
+      try {
+        const delSetting = await SystemSetting.findOne({ key: 'crm_deleted_invoices' });
+        let currentList = [];
+        if (delSetting?.value) {
+          try { currentList = JSON.parse(delSetting.value); } catch {}
+        }
+        // Only track the deleted document's ID so other invoices with same or similar number are never blocked
+        const updatedList = Array.from(new Set([...currentList, String(id).toUpperCase()]));
+        await SystemSetting.findOneAndUpdate(
+          { key: 'crm_deleted_invoices' },
+          { value: JSON.stringify(updatedList) },
+          { upsert: true }
+        );
+      } catch (e) {
+        console.warn('Failed to update crm_deleted_invoices list:', e);
+      }
+      return NextResponse.json({ success: true, message: 'Invoice deleted successfully' });
     }
+
+    const conditions = [];
     if (id && typeof id === 'string') {
       conditions.push({ invoiceNo: id.trim() });
       conditions.push({ invoiceId: id.trim() });

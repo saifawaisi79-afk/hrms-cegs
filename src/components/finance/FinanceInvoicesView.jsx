@@ -2924,8 +2924,8 @@ export function FinanceInvoicesView() {
 
     setDeletingInvoiceId(invId || invNo);
     try {
-      // Optimistic removal from table
-      setInvoices((prev) => prev.filter((i) => (i.id || i._id) !== invId && i.invoiceNo !== invNo));
+      // Optimistic removal from table by specific invoice ID
+      setInvoices((prev) => prev.filter((i) => (invId ? (i.id || i._id) !== invId : i.invoiceNo !== invNo)));
       showToast(`Invoice ${invNo} deleted successfully.`);
 
       const res = await fetch('/api/client-invoices', {
@@ -2947,13 +2947,13 @@ export function FinanceInvoicesView() {
       try {
         const existingRaised = getInitialRaisedInvoices();
         const updatedRaised = existingRaised.filter(
-          (r) => r.invoiceNo !== inv.invoiceNo && r.id !== invId && r._id !== invId
+          (r) => (invId ? (r.id !== invId && r._id !== invId) : r.invoiceNo !== inv.invoiceNo)
         );
         saveRaisedInvoices(updatedRaised);
 
         const existingCleared = getInitialClearedInvoices();
         const updatedCleared = existingCleared.filter(
-          (c) => c.invoiceNo !== inv.invoiceNo && c.id !== invId && c._id !== invId
+          (c) => (invId ? (c.id !== invId && c._id !== invId) : c.invoiceNo !== inv.invoiceNo)
         );
         saveClearedInvoices(updatedCleared);
 
