@@ -196,6 +196,21 @@ export function TeamWorkReportModal({
     return false;
   };
 
+  // Parse dates flexibly (handling extra spaces like "24 /10/ 26")
+  const parseFlexDateIso = (val) => {
+    if (!val) return '';
+    const cleaned = String(val).replace(/\s*([/-])\s*/g, '$1').trim();
+    return normalizeCandidateDate(cleaned);
+  };
+
+  const overlayByCandId = useMemo(() => {
+    const m = new Map();
+    (overlays || []).forEach((j) => {
+      if (j.candidateId) m.set(String(j.candidateId), j);
+    });
+    return m;
+  }, [overlays]);
+
   const manualActiveJoiners = useMemo(() => {
     const candCandidateIds = new Set((rangeCandidates || []).map((c) => String(c.id || c._id)));
     const candNamePhones = new Set((rangeCandidates || []).map((c) => `${String(c.name || '').trim().toLowerCase()}|${String(c.number || '').replace(/\D/g, '')}`));
@@ -206,12 +221,11 @@ export function TeamWorkReportModal({
       const np = `${String(j.name || '').trim().toLowerCase()}|${String(j.phone || '').replace(/\D/g, '')}`;
       if (candNamePhones.has(np)) return false;
 
-      const rawDate = j.dateOfJoining || j.rawDate || j.createdAt;
-      const iso = normalizeCandidateDate(rawDate);
-      if (iso) {
-        return iso >= fromDate && iso <= toDate;
-      }
-      return true;
+      // Only include if it has a valid parseable joining date inside the selected range
+      const rawDate = j.dateOfJoining || j.rawDate || (!j.candidateId && !j.dateOfJoining ? j.createdAt : '');
+      const iso = parseFlexDateIso(rawDate);
+      if (!iso) return false;
+      return iso >= fromDate && iso <= toDate;
     });
   }, [overlays, rangeCandidates, fromDate, toDate]);
 
@@ -230,6 +244,13 @@ export function TeamWorkReportModal({
       if (!isJoined) return false;
       // Only count active joiners (exclude inactive)
       if (isCandidateInactiveJoiner(cand)) return false;
+      // If Joiner Sheet overlay has an explicit DOJ outside the selected date range, exclude it
+      const cid = cand.id || cand._id;
+      const ov = cid ? overlayByCandId.get(String(cid)) : null;
+      if (ov && ov.dateOfJoining) {
+        const dojIso = parseFlexDateIso(ov.dateOfJoining);
+        if (dojIso && (dojIso < fromDate || dojIso > toDate)) return false;
+      }
       return true;
     }
     return false;
