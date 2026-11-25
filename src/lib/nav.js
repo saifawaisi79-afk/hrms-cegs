@@ -152,7 +152,7 @@ export function getRecruiters(db, candidates = []) {
     const name = String(u.name).trim();
     if (!name) return;
     const status = String(u.status || 'active').toLowerCase();
-    if (status && status !== 'active') return;
+    if (status === 'inactive') return;
     if (u.role === 'super_admin') {
       pushUnique(elevatedNames, name);
       return;

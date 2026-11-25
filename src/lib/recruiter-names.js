@@ -6,6 +6,8 @@
 const FIRST_NAME_ALIASES = {
   aswin: 'ashwin',
   ashwin: 'ashwin',
+  ashwinp: 'ashwin',
+  aswinp: 'ashwin',
   nushrath: 'nusrath',
   nusrath: 'nusrath',
 };
@@ -18,7 +20,9 @@ export function normalizePersonName(name) {
 }
 
 function canonicalFirstToken(name) {
-  const first = normalizePersonName(name).split(' ')[0] || '';
+  const norm = normalizePersonName(name);
+  if (norm === 'ashwinp' || norm === 'aswinp') return 'ashwin';
+  const first = norm.split(' ')[0] || '';
   return FIRST_NAME_ALIASES[first] || first;
 }
 
@@ -27,6 +31,7 @@ export function employeeNamesMatch(a, b) {
   const y = normalizePersonName(b);
   if (!x || !y) return false;
   if (x === y) return true;
+  if (x.replace(/[\s\.\-_]/g, '') === y.replace(/[\s\.\-_]/g, '')) return true;
   const xf = canonicalFirstToken(x);
   const yf = canonicalFirstToken(y);
   if (xf && xf === yf && xf.length >= 3) return true;
