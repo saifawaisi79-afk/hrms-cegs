@@ -1,50 +1,84 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Search,
   Download,
   Plus,
   ArrowRight,
-  Filter,
   CheckCircle,
-  AlertCircle,
-  Clock,
   Building,
-  UserCheck,
-  Users,
-  FileSpreadsheet,
   X,
-  Upload,
   Info,
-  Calendar,
+  RefreshCw,
 } from 'lucide-react';
 import {
   inr,
-  getInitialWeeklyBatches,
-  saveWeeklyBatches,
-  getInitialOctoberCandidates,
-  saveOctoberCandidates,
+  calculateDraftInvoice,
   getClientPocs,
   getClientPayouts,
-  extractMonthKey,
   getCurrentMonthKey,
   formatMonthLabel,
-  sortItemsByCurrentMonthFirst,
 } from '@/lib/finance-data';
-import { getProcessPayoutAmount } from '@/lib/company-process-payouts';
+import {
+  COMPANY_PAYOUT_CONFIG,
+  getCompanyPayoutDays,
+  getCompanyProcesses,
+  resolveJoinerPayoutInfo,
+} from '@/lib/company-process-payouts';
+import { addDaysIso } from '@/lib/campaign-weeks';
+import { formatSheetDateDisplay } from '@/lib/candidate-dates';
+
+function todayDayMonth() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
 export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRaised }) {
-  const [batches, setBatches] = useState(getInitialWeeklyBatches);
-  const [candidates, setCandidates] = useState(getInitialOctoberCandidates);
+  const [batches, setBatches] = useState([]);
+  const [candidates, setCandidates] = useState([]);
+  const [availableMonthsFromApi, setAvailableMonthsFromApi] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [savingCandidate, setSavingCandidate] = useState(false);
+
   const pocs = useMemo(() => getClientPocs(), []);
   const payouts = useMemo(() => getClientPayouts(), []);
 
-  // View mode: 'batches' (weekly sheets) or 'candidates' (detailed candidates sheet)
+  // View mode: 'candidates' (detailed candidates sheet) or 'batches' (weekly sheets)
   const [viewMode, setViewMode] = useState('candidates');
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
+
+  const loadLiveTracker = useCallback(async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+    if (!token) {
+      setLoadError('Please log in to view live Joiner Sheet billing data.');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setLoadError('');
+    try {
+      const res = await fetch('/api/finance/weekly-tracker', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLoadError(data.error || 'Failed to load live billing tracker.');
+      } else {
+        setCandidates(Array.isArray(data.candidates) ? data.candidates : []);
+        setBatches(Array.isArray(data.batches) ? data.batches : []);
+        setAvailableMonthsFromApi(Array.isArray(data.availableMonths) ? data.availableMonths : []);
+      }
+    } catch (err) {
+      console.error('Weekly tracker fetch error:', err);
+      setLoadError('Network error while loading live Joiner Sheet data.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // 1. URL search parameter detection for instant redirection from Joiner Sheet
   useEffect(() => {
@@ -58,80 +92,17 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     }
   }, []);
 
-  // 2. Storage event listener to keep candidates in sync across tabs and updates
+  // 2. Load live tracker from MongoDB + refresh on cross-component storage updates
   useEffect(() => {
-    const handleStorageUpdate = (e) => {
-      if (e?.detail?.key === 'cegs_oct_candidates' || !e?.detail) {
-        setCandidates(getInitialOctoberCandidates());
-      }
+    loadLiveTracker();
+    const handleStorageUpdate = () => {
+      loadLiveTracker();
     };
     if (typeof window !== 'undefined') {
       window.addEventListener('finance_storage_update', handleStorageUpdate);
       return () => window.removeEventListener('finance_storage_update', handleStorageUpdate);
     }
-  }, []);
-
-  // 3. Auto-load 8-week active joiners from database and ensure they appear in Candidate Details
-  useEffect(() => {
-    fetch('/api/joiners')
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        const rows = Array.isArray(data) ? data : (data?.rows || []);
-        if (!rows.length) return;
-
-        const eligibleJoiners = rows.filter((r) => {
-          const w8 = String(r.week8 || '').toLowerCase();
-          if (w8.includes('active') || w8.includes('working')) return true;
-          return ['week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'week8'].every((k) => {
-            const v = String(r[k] || '').toLowerCase();
-            return v.includes('active') || v.includes('working');
-          });
-        });
-
-        if (eligibleJoiners.length > 0) {
-          setCandidates((prev) => {
-            const existingPhones = new Set(prev.map((c) => String(c.phone || '').replace(/\D/g, '')));
-            const existingNames = new Set(prev.map((c) => String(c.candidateName || '').toLowerCase().trim()));
-            const toAdd = [];
-
-            eligibleJoiners.forEach((j) => {
-              const cleanPhone = String(j.phone || '').replace(/\D/g, '');
-              const cleanName = String(j.name || '').toLowerCase().trim();
-              if ((cleanPhone && existingPhones.has(cleanPhone)) || (cleanName && existingNames.has(cleanName))) {
-                return;
-              }
-
-              const payoutRate = getProcessPayoutAmount(j.company || j.process, j.process || j.company) || 5000;
-              toAdd.push({
-                id: `joiner_${j._id || j.id || Date.now()}`,
-                candidateName: j.name,
-                phone: j.phone,
-                client: j.company || j.process || 'ISON',
-                process: j.process || j.company || 'Customer Support',
-                joiningDate: j.dateOfJoining || new Date().toISOString().slice(0, 10),
-                billingDate: j.billingDate || new Date().toISOString().slice(0, 10),
-                recruiter: j.recruiterName || '—',
-                empId: j.employeeCode || 'Pending',
-                empStatus: 'ACTIVE',
-                billingStatus: 'Ready to Invoice',
-                bi: payoutRate,
-                ai: payoutRate,
-                source: 'joiner_8wks_active',
-                remarks: 'Completed Followup in Joiners Sheet · Ready to Bill',
-              });
-            });
-
-            if (toAdd.length > 0) {
-              const merged = [...toAdd, ...prev];
-              saveOctoberCandidates(merged);
-              return merged;
-            }
-            return prev;
-          });
-        }
-      })
-      .catch(() => {});
-  }, []);
+  }, [loadLiveTracker]);
   const [selectedClient, setSelectedClient] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedPeriod, setSelectedPeriod] = useState('ALL');
@@ -145,9 +116,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [showPocDrawer, setShowPocDrawer] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState([]);
-  const [selectedBatchIds, setSelectedBatchIds] = useState([]);
 
   // Toast feedback
   const [toastMsg, setToastMsg] = useState('');
@@ -156,22 +125,31 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     setTimeout(() => setToastMsg(''), 3500);
   };
 
+  const makeDefaultForm = () => {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const defaultClient = 'iSON';
+    const defaultProcess = 'Flipkart';
+    const payout = resolveJoinerPayoutInfo(defaultClient, defaultProcess);
+    const tax = calculateDraftInvoice(payout.rate, 0.18, 0.10);
+    const days = getCompanyPayoutDays(defaultClient);
+    return {
+      candidateName: '',
+      phone: '',
+      client: defaultClient,
+      process: defaultProcess,
+      joiningDate: todayIso,
+      billingDate: addDaysIso(todayIso, days),
+      recruiter: '',
+      bi: tax.totalInvoiceValue,
+      ai: tax.expectedReceipt,
+      empId: '',
+      empStatus: 'ACTIVE',
+      remarks: '',
+    };
+  };
+
   // Add Candidate Form
-  const [newCandidateForm, setNewCandidateForm] = useState({
-    candidateName: '',
-    phone: '',
-    client: 'ISON',
-    process: 'Flipkart',
-    joiningDate: new Date().toISOString().slice(0, 10),
-    billingDate: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10),
-    recruiter: '',
-    bi: 5900,
-    ai: 5400,
-    empId: '',
-    empStatus: 'ACTIVE',
-    billingStatus: 'Ready to Invoice',
-    remarks: '',
-  });
+  const [newCandidateForm, setNewCandidateForm] = useState(makeDefaultForm);
 
   // Client Options
   const clientOptions = useMemo(() => {
@@ -184,87 +162,80 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     return Array.from(list).sort();
   }, [viewMode, candidates, batches]);
 
-  // Available Months for Monthly Filter (Current Month included)
+  // Available Months for Monthly Filter (All live months from Joiner Sheet, newest first)
   const availableMonths = useMemo(() => {
-    const set = new Set();
-    const curKey = getCurrentMonthKey();
-    set.add(curKey);
-    candidates.forEach((c) => {
-      const k = c.monthKey || extractMonthKey(c.billingDate) || extractMonthKey(c.joiningDate);
-      if (k) set.add(k);
-    });
-    batches.forEach((b) => {
-      const k = extractMonthKey(b.dateToBeRaised) || extractMonthKey(b.period);
-      if (k) set.add(k);
-    });
+    if (availableMonthsFromApi.length > 0) return availableMonthsFromApi;
+    const set = new Set([getCurrentMonthKey()]);
+    candidates.forEach((c) => c.monthKey && set.add(c.monthKey));
+    batches.forEach((b) => b.monthKey && set.add(b.monthKey));
     return Array.from(set).sort().reverse();
-  }, [candidates, batches]);
+  }, [availableMonthsFromApi, candidates, batches]);
 
-  // Period / Month Options (for legacy batch filter)
-  const periodOptions = useMemo(() => {
-    const set = new Set();
-    if (viewMode === 'batches') {
-      batches.forEach((b) => b.period && set.add(b.period));
-    }
-    return Array.from(set).slice(0, 20);
-  }, [viewMode, batches]);
-
-  // Filtered Candidates (Current Month entries shown first)
+  // Filtered Candidates (live, newest joining date first)
   const filteredCandidates = useMemo(() => {
-    const list = candidates.filter((item) => {
+    const q = searchQuery.toLowerCase().trim();
+    return candidates.filter((item) => {
       const matchSearch =
-        !searchQuery ||
-        item.candidateName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.phone?.includes(searchQuery) ||
-        item.process?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.recruiter?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.empId?.toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        item.candidateName?.toLowerCase().includes(q) ||
+        item.phone?.includes(q) ||
+        item.process?.toLowerCase().includes(q) ||
+        item.client?.toLowerCase().includes(q) ||
+        item.recruiter?.toLowerCase().includes(q) ||
+        item.empId?.toLowerCase().includes(q);
       const matchClient = selectedClient === 'ALL' || item.client?.toLowerCase() === selectedClient.toLowerCase();
       const matchStatus = selectedStatus === 'ALL' || item.billingStatus?.toLowerCase() === selectedStatus.toLowerCase();
-      const candMonth = item.monthKey || extractMonthKey(item.billingDate) || extractMonthKey(item.joiningDate);
-      const matchMonth = selectedMonth === 'ALL' || candMonth === selectedMonth;
+      const matchMonth = selectedMonth === 'ALL' || item.monthKey === selectedMonth;
       return matchSearch && matchClient && matchStatus && matchMonth;
     });
-
-    return sortItemsByCurrentMonthFirst(list, (c) => c.billingDate || c.joiningDate || c.monthKey);
   }, [candidates, searchQuery, selectedClient, selectedStatus, selectedMonth]);
 
-  // Filtered Batches (Current Month entries shown first)
+  // Filtered Batches (live Company x Week batches, newest week first)
   const filteredBatches = useMemo(() => {
-    const list = batches.filter((item) => {
+    const q = searchQuery.toLowerCase().trim();
+    return batches.filter((item) => {
       const matchSearch =
-        !searchQuery ||
-        item.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.period?.toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        item.company?.toLowerCase().includes(q) ||
+        item.period?.toLowerCase().includes(q) ||
+        item.status?.toLowerCase().includes(q);
       const matchClient = selectedClient === 'ALL' || item.company?.toLowerCase() === selectedClient.toLowerCase();
       const matchPeriod = selectedPeriod === 'ALL' || item.period === selectedPeriod;
-      const matchStatus = selectedStatus === 'ALL' || item.status?.toLowerCase() === selectedStatus.toLowerCase();
-      const batchMonth = extractMonthKey(item.dateToBeRaised) || extractMonthKey(item.period);
-      const matchMonth = selectedMonth === 'ALL' || batchMonth === selectedMonth;
+      let matchStatus = true;
+      if (selectedStatus !== 'ALL') {
+        const stLower = String(item.status || '').toLowerCase();
+        if (selectedStatus === 'Has Drops') matchStatus = (item.droppedCount || 0) > 0;
+        else matchStatus = stLower.includes(selectedStatus.toLowerCase());
+      }
+      const matchMonth = selectedMonth === 'ALL' || item.monthKey === selectedMonth;
       return matchSearch && matchClient && matchPeriod && matchStatus && matchMonth;
     });
-
-    return sortItemsByCurrentMonthFirst(list, (b) => b.dateToBeRaised || b.period);
   }, [batches, searchQuery, selectedClient, selectedPeriod, selectedStatus, selectedMonth]);
 
-  // Summary KPI Metrics
+  // Summary KPI Metrics (dynamically computed from live records; inactive/dropped deducted from totals)
   const metrics = useMemo(() => {
     if (viewMode === 'candidates') {
-      const totalCount = candidates.length;
-      const readyCount = candidates.filter((c) => c.billingStatus === 'Ready to Invoice').length;
-      const pendingCount = candidates.filter((c) => c.billingStatus !== 'Ready to Invoice' && c.billingStatus !== 'Moved to Bill Raised').length;
-      const totalBi = candidates.reduce((s, c) => s + (Number(c.bi) || 0), 0);
-      const totalAi = candidates.reduce((s, c) => s + (Number(c.ai) || 0), 0);
-      return { totalCount, readyCount, pendingCount, totalBi, totalAi };
+      const scope = filteredCandidates;
+      const activeList = scope.filter((c) => c.empStatus === 'ACTIVE');
+      const totalCount = scope.length;
+      const readyCount = scope.filter((c) => c.billingStatus === 'Ready to Invoice').length;
+      const pendingCount = scope.filter(
+        (c) => c.billingStatus !== 'Ready to Invoice' && c.billingStatus !== 'Moved to Bill Raised'
+      ).length;
+      const totalBi = activeList.reduce((s, c) => s + (Number(c.bi) || 0), 0);
+      const totalAi = activeList.reduce((s, c) => s + (Number(c.ai) || 0), 0);
+      return { totalCount, activeCount: activeList.length, readyCount, pendingCount, totalBi, totalAi };
     } else {
-      const totalCount = batches.reduce((s, b) => s + (Number(b.candidates) || 0), 0);
-      const totalBi = 904020; // Official reported total from workbook row 226
-      const totalAi = 819740;
-      const readyCount = batches.filter((b) => b.status === 'Active' || b.status?.toLowerCase().includes('no drop')).length;
-      const pendingCount = batches.length - readyCount;
-      return { totalCount, readyCount, pendingCount, totalBi, totalAi };
+      const scope = filteredBatches;
+      const totalCount = scope.reduce((s, b) => s + (Number(b.candidates) || 0), 0);
+      const readyCount = scope.reduce((s, b) => s + (Number(b.readyCount) || 0), 0);
+      const droppedTotal = scope.reduce((s, b) => s + (Number(b.droppedCount) || 0), 0);
+      const pendingCount = Math.max(0, totalCount - readyCount) + droppedTotal;
+      const totalBi = scope.reduce((s, b) => s + (Number(b.bi) || 0), 0);
+      const totalAi = scope.reduce((s, b) => s + (Number(b.ai) || 0), 0);
+      return { totalCount, activeCount: totalCount, readyCount, pendingCount, totalBi, totalAi };
     }
-  }, [viewMode, candidates, batches]);
+  }, [viewMode, filteredCandidates, filteredBatches]);
 
   // Pagination Slice
   const activeItems = viewMode === 'candidates' ? filteredCandidates : filteredBatches;
@@ -282,8 +253,8 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             'SL No': c.slNo,
             'Candidate Name': c.candidateName,
             Phone: c.phone,
-            Process: c.process,
             Client: c.client,
+            Process: c.process,
             'Joining Date': c.joiningDate,
             'Billing Eligibility Date': c.billingDate,
             Recruiter: c.recruiter,
@@ -298,7 +269,8 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             'SL No': b.slNo,
             'Company Name': b.company,
             Period: b.period,
-            Candidates: b.candidates,
+            'Active Candidates': b.candidates,
+            'Dropped Candidates': b.droppedCount || 0,
             'BI (Basic)': b.bi,
             'AI (After Incentive)': b.ai,
             'Date to be Raised': b.dateToBeRaised,
@@ -322,50 +294,78 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     triggerToast('Exported CSV successfully!');
   };
 
-  // Add Candidate Action
-  const handleAddCandidate = (e) => {
+  // Update Company/Process/Date in Add Candidate form & auto-recalculate BI, AI, Billing Date
+  const updateCandidateFormField = (patch) => {
+    setNewCandidateForm((prev) => {
+      const next = { ...prev, ...patch };
+      if ('client' in patch && !('process' in patch)) {
+        const procs = getCompanyProcesses(next.client);
+        next.process = procs[0]?.name || '';
+      }
+      if ('client' in patch || 'process' in patch || 'joiningDate' in patch) {
+        const payout = resolveJoinerPayoutInfo(next.client, next.process);
+        const tax = calculateDraftInvoice(payout.rate, 0.18, 0.10);
+        const days = getCompanyPayoutDays(next.client);
+        if (!('bi' in patch)) next.bi = tax.totalInvoiceValue;
+        if (!('ai' in patch)) next.ai = tax.expectedReceipt;
+        if (next.joiningDate && !('billingDate' in patch)) {
+          next.billingDate = addDaysIso(next.joiningDate, days);
+        }
+      }
+      return next;
+    });
+  };
+
+  // Persist Add Candidate directly to MongoDB (/api/joiners) and sync live
+  const handleAddCandidate = async (e) => {
     e.preventDefault();
     if (!newCandidateForm.candidateName.trim()) {
       return alert('Candidate name is required');
     }
-    const newCand = {
-      id: 'cand-' + Date.now(),
-      slNo: candidates.length + 1,
-      candidateName: newCandidateForm.candidateName.trim(),
-      phone: newCandidateForm.phone.trim(),
-      client: newCandidateForm.client.trim(),
-      process: newCandidateForm.process.trim(),
-      joiningDate: newCandidateForm.joiningDate,
-      billingDate: newCandidateForm.billingDate,
-      recruiter: newCandidateForm.recruiter.trim(),
-      bi: Number(newCandidateForm.bi) || 5900,
-      ai: Number(newCandidateForm.ai) || 5400,
-      empId: newCandidateForm.empId.trim() || 'Pending',
-      empStatus: newCandidateForm.empStatus,
-      billingStatus: newCandidateForm.empStatus === 'ACTIVE' ? 'Ready to Invoice' : 'Pending Eligibility',
-      remarks: newCandidateForm.remarks.trim(),
-      monthKey: newCandidateForm.billingDate?.slice(0, 7) || '2026-10',
-    };
-    const updated = [newCand, ...candidates];
-    setCandidates(updated);
-    saveOctoberCandidates(updated);
-    setShowAddModal(false);
-    triggerToast(`Added candidate ${newCand.candidateName} successfully!`);
-    setNewCandidateForm({
-      candidateName: '',
-      phone: '',
-      client: 'ISON',
-      process: 'Flipkart',
-      joiningDate: new Date().toISOString().slice(0, 10),
-      billingDate: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10),
-      recruiter: '',
-      bi: 5900,
-      ai: 5400,
-      empId: '',
-      empStatus: 'ACTIVE',
-      billingStatus: 'Ready to Invoice',
-      remarks: '',
-    });
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+    if (!token) {
+      return alert('Please log in to add candidates.');
+    }
+    setSavingCandidate(true);
+    try {
+      const dm = todayDayMonth();
+      const isInactive = newCandidateForm.empStatus === 'INACTIVE';
+      const payload = {
+        name: newCandidateForm.candidateName.trim().toUpperCase(),
+        phone: newCandidateForm.phone.trim(),
+        company: newCandidateForm.client.trim().toUpperCase(),
+        process: newCandidateForm.process.trim().toUpperCase(),
+        dateOfJoining: formatSheetDateDisplay(newCandidateForm.joiningDate) || newCandidateForm.joiningDate,
+        billingDate: formatSheetDateDisplay(newCandidateForm.billingDate) || newCandidateForm.billingDate,
+        employeeCode: newCandidateForm.empId.trim().toUpperCase(),
+        recruiterName: newCandidateForm.recruiter.trim().toUpperCase(),
+        week1: isInactive ? `Inactive (${dm})` : `Active (${dm})`,
+      };
+
+      const res = await fetch('/api/joiners', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        alert(json.error || 'Failed to save candidate to Joiner Sheet.');
+        return;
+      }
+
+      setShowAddModal(false);
+      setNewCandidateForm(makeDefaultForm());
+      triggerToast(`Saved ${payload.name} to Joiner Sheet & Weekly Tracker!`);
+      await loadLiveTracker();
+    } catch (err) {
+      console.error('Failed to add candidate:', err);
+      alert('Network error while saving candidate.');
+    } finally {
+      setSavingCandidate(false);
+    }
   };
 
   // Move Candidates to Bill Raised
@@ -373,38 +373,26 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     const selected = candidates.filter((c) => selectedCandidateIds.includes(c.id));
     if (!selected.length) return;
 
-    // Business rule validation:
-    const invalid = selected.filter((c) => !c.empId || c.empId === 'Pending' || c.empStatus !== 'ACTIVE');
-    if (invalid.length > 0) {
+    const inactive = selected.filter((c) => c.empStatus !== 'ACTIVE');
+    if (inactive.length > 0) {
+      return alert(`${inactive.length} candidate(s) are INACTIVE / DROPPED in Joiner Sheet and cannot be billed.`);
+    }
+
+    const missingId = selected.filter((c) => !c.empId || c.empId === 'Pending');
+    if (missingId.length > 0) {
       const confirmProceed = window.confirm(
-        `${invalid.length} candidate(s) are marked INACTIVE or have missing Employee IDs. Move only eligible active candidates?`
+        `${missingId.length} candidate(s) do not have an Employee ID yet. Proceed to Payments & Invoices anyway?`
       );
       if (!confirmProceed) return;
     }
 
-    const eligible = selected.filter((c) => c.empStatus === 'ACTIVE' && c.empId && c.empId !== 'Pending');
-    if (!eligible.length) {
-      return alert('No eligible active candidates with valid Employee IDs to raise.');
-    }
-
-    // Mark as moved in Weekly Update
-    const updated = candidates.map((c) => {
-      if (eligible.some((e) => e.id === c.id)) {
-        return { ...c, billingStatus: 'Moved to Bill Raised' };
-      }
-      return c;
-    });
-    setCandidates(updated);
-    saveOctoberCandidates(updated);
-
-    // Call callback to add to Bill Raised B
     if (onMoveCandidatesToRaised) {
-      onMoveCandidatesToRaised(eligible);
+      onMoveCandidatesToRaised(selected);
     }
 
     setShowMoveModal(false);
     setSelectedCandidateIds([]);
-    triggerToast(`Successfully moved ${eligible.length} candidate(s) to Bill Raised (B)!`);
+    triggerToast(`Moved ${selected.length} active candidate(s) to Payments & Invoices!`);
   };
 
   return (
@@ -522,6 +510,28 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
               Weekly Batches ({batches.length})
             </button>
           </div>
+
+          {/* REFRESH BUTTON */}
+          <button
+            onClick={loadLiveTracker}
+            disabled={loading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 12,
+              border: '1px solid #CBD5E1',
+              background: '#FFFFFF',
+              color: '#334155',
+              fontSize: 12.5,
+              fontWeight: 700,
+              cursor: loading ? 'wait' : 'pointer',
+            }}
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <span>{loading ? 'Syncing...' : 'Refresh'}</span>
+          </button>
 
           {/* CLIENT POCs BUTTON */}
           <button
@@ -657,7 +667,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             {metrics.readyCount}
           </div>
           <div style={{ fontSize: 11.5, color: '#0D9488', fontWeight: 600, marginTop: 4 }}>
-            Passed 60-day threshold &amp; active
+            Passed payout threshold &amp; Emp ID ready
           </div>
         </div>
 
@@ -695,7 +705,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             {inr(metrics.totalBi)}
           </div>
           <div style={{ fontSize: 11.5, color: '#2563EB', fontWeight: 600, marginTop: 4 }}>
-            Workbook Component A (To Be Raised)
+            Live Joiner Sheet active gross (+18% GST)
           </div>
         </div>
 
@@ -818,14 +828,16 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             {viewMode === 'candidates' ? (
               <>
                 <option value="Ready to Invoice">Ready to Invoice</option>
-                <option value="Pending Eligibility">Pending Eligibility</option>
+                <option value="Pending Emp ID">Pending Emp ID</option>
+                <option value="In Notice Period">In Notice Period</option>
+                <option value="Dropped / Inactive">Dropped / Inactive</option>
                 <option value="Moved to Bill Raised">Moved to Bill Raised</option>
               </>
             ) : (
               <>
-                <option value="Active">Active / No drop</option>
-                <option value="1drop">1 Drop</option>
-                <option value="2 Drops">2 Drops</option>
+                <option value="Ready to Raise">Ready to Raise</option>
+                <option value="Notice Period">In Notice Period</option>
+                <option value="Has Drops">Has Drops</option>
               </>
             )}
           </select>
@@ -886,6 +898,23 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
         )}
       </div>
 
+      {loadError && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 16px',
+            borderRadius: 12,
+            background: '#FEF2F2',
+            border: '1px solid #FECACA',
+            color: '#991B1B',
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          {loadError}
+        </div>
+      )}
+
       {/* DATA TABLE CONTAINER */}
       <div
         style={{
@@ -911,7 +940,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                       }
                       onChange={(e) => {
                         if (e.target.checked) {
-                          const pageIds = pagedItems.map((item) => item.id);
+                          const pageIds = pagedItems.filter((item) => item.empStatus === 'ACTIVE').map((item) => item.id);
                           setSelectedCandidateIds((prev) => Array.from(new Set([...prev, ...pageIds])));
                         } else {
                           const pageIds = pagedItems.map((item) => item.id);
@@ -936,7 +965,13 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 </tr>
               </thead>
               <tbody>
-                {pagedItems.length === 0 ? (
+                {loading && pagedItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={14} style={{ padding: 40, textAlign: 'center', color: '#64748B', fontWeight: 600 }}>
+                      Loading live Joiner Sheet billing records...
+                    </td>
+                  </tr>
+                ) : pagedItems.length === 0 ? (
                   <tr>
                     <td colSpan={14} style={{ padding: 40, textAlign: 'center', color: '#64748B' }}>
                       No candidate billing records found matching your filters.
@@ -945,15 +980,23 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 ) : (
                   pagedItems.map((cand, idx) => {
                     const isSelected = selectedCandidateIds.includes(cand.id);
+                    const isDropped = cand.empStatus !== 'ACTIVE' || cand.billingStatus === 'Dropped / Inactive';
                     const isReady = cand.billingStatus === 'Ready to Invoice';
                     const isMoved = cand.billingStatus === 'Moved to Bill Raised';
+                    const isNotice = cand.billingStatus === 'In Notice Period';
 
                     return (
                       <tr
                         key={cand.id || idx}
                         style={{
                           borderBottom: '1px solid #F1F5F9',
-                          background: isSelected ? '#F0FDFA' : idx % 2 === 0 ? '#FFFFFF' : '#FAFCFF',
+                          background: isDropped
+                            ? '#FEF2F2'
+                            : isSelected
+                            ? '#F0FDFA'
+                            : idx % 2 === 0
+                            ? '#FFFFFF'
+                            : '#FAFCFF',
                           transition: 'background 0.1s ease',
                         }}
                       >
@@ -961,7 +1004,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            disabled={isMoved}
+                            disabled={isMoved || isDropped}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setSelectedCandidateIds((prev) => [...prev, cand.id]);
@@ -971,34 +1014,57 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                             }}
                           />
                         </td>
-                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#64748B' }}>{cand.slNo}</td>
-                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A' }}>
+                        <td style={{ padding: '10px 14px', fontWeight: 700, color: isDropped ? '#DC2626' : '#64748B' }}>
+                          {cand.slNo}
+                        </td>
+                        <td style={{ padding: '10px 14px', fontWeight: 700, color: isDropped ? '#991B1B' : '#0F172A' }}>
                           {cand.candidateName}
                         </td>
                         <td style={{ padding: '10px 14px', color: '#475569' }}>{cand.phone || '—'}</td>
                         <td style={{ padding: '10px 14px' }}>
+                          <div style={{ fontWeight: 700, color: '#1E3A8A', fontSize: 11.5 }}>{cand.client}</div>
                           <span
                             style={{
-                              padding: '2px 8px',
+                              display: 'inline-block',
+                              marginTop: 2,
+                              padding: '1px 7px',
                               borderRadius: 6,
                               background: '#F1F5F9',
                               color: '#334155',
                               fontWeight: 600,
-                              fontSize: 11.5,
+                              fontSize: 11,
                             }}
                           >
                             {cand.process || cand.client}
                           </span>
                         </td>
-                        <td style={{ padding: '10px 14px', color: '#475569' }}>{cand.joiningDate || '—'}</td>
-                        <td style={{ padding: '10px 14px', color: '#475569' }}>{cand.billingDate || '—'}</td>
+                        <td style={{ padding: '10px 14px', color: '#475569', whiteSpace: 'nowrap' }}>{cand.joiningDate || '—'}</td>
+                        <td style={{ padding: '10px 14px', color: '#475569', whiteSpace: 'nowrap' }}>{cand.billingDate || '—'}</td>
                         <td style={{ padding: '10px 14px', color: '#475569', fontWeight: 600 }}>
                           {cand.recruiter || '—'}
                         </td>
-                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>{inr(cand.bi)}</td>
-                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#7C3AED' }}>{inr(cand.ai)}</td>
+                        <td
+                          style={{
+                            padding: '10px 14px',
+                            fontWeight: 700,
+                            color: isDropped ? '#94A3B8' : '#2563EB',
+                            textDecoration: isDropped ? 'line-through' : 'none',
+                          }}
+                        >
+                          {inr(cand.bi)}
+                        </td>
+                        <td
+                          style={{
+                            padding: '10px 14px',
+                            fontWeight: 700,
+                            color: isDropped ? '#94A3B8' : '#7C3AED',
+                            textDecoration: isDropped ? 'line-through' : 'none',
+                          }}
+                        >
+                          {inr(cand.ai)}
+                        </td>
                         <td style={{ padding: '10px 14px', fontFamily: 'monospace', color: '#334155', fontWeight: 600 }}>
-                          {cand.empId || 'NA'}
+                          {cand.empId || 'Pending'}
                         </td>
                         <td style={{ padding: '10px 14px' }}>
                           <span
@@ -1021,15 +1087,24 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                               borderRadius: 99,
                               fontSize: 11,
                               fontWeight: 700,
-                              background: isMoved
+                              whiteSpace: 'nowrap',
+                              background: isDropped
+                                ? '#FEE2E2'
+                                : isMoved
                                 ? '#EEF2FF'
                                 : isReady
                                 ? '#CCFBF1'
+                                : isNotice
+                                ? '#F1F5F9'
                                 : '#FEF3C7',
-                              color: isMoved
+                              color: isDropped
+                                ? '#991B1B'
+                                : isMoved
                                 ? '#4338CA'
                                 : isReady
                                 ? '#0F766E'
+                                : isNotice
+                                ? '#475569'
                                 : '#B45309',
                             }}
                           >
@@ -1039,6 +1114,8 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                         <td style={{ padding: '10px 14px', textAlign: 'center' }}>
                           {isMoved ? (
                             <span style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>In Bill Raised</span>
+                          ) : isDropped ? (
+                            <span style={{ fontSize: 11, color: '#DC2626', fontWeight: 700 }}>Dropped</span>
                           ) : (
                             <button
                               onClick={() => {
@@ -1067,7 +1144,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
               </tbody>
             </table>
           ) : (
-            /* WEEKLY BATCHES TABLE (From Weekly Update A sheet) */
+            /* WEEKLY BATCHES TABLE (Live Company x Week from Joiner Sheet) */
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
               <thead>
                 <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700 }}>
@@ -1082,56 +1159,86 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 </tr>
               </thead>
               <tbody>
-                {pagedItems.length === 0 ? (
+                {loading && pagedItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#64748B', fontWeight: 600 }}>
+                      Analysing Joiner Sheet weekly batches...
+                    </td>
+                  </tr>
+                ) : pagedItems.length === 0 ? (
                   <tr>
                     <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#64748B' }}>
                       No weekly batches found matching your filters.
                     </td>
                   </tr>
                 ) : (
-                  pagedItems.map((batch, idx) => (
-                    <tr
-                      key={batch.id || idx}
-                      style={{
-                        borderBottom: '1px solid #F1F5F9',
-                        background: idx % 2 === 0 ? '#FFFFFF' : '#FAFCFF',
-                      }}
-                    >
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#64748B' }}>{batch.slNo}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A' }}>{batch.company}</td>
-                      <td style={{ padding: '10px 14px', color: '#334155' }}>
-                        <span
-                          style={{
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            background: '#F1F5F9',
-                            fontWeight: 600,
-                            fontSize: 11.5,
-                          }}
-                        >
-                          {batch.period}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px', fontWeight: 800, color: '#0F172A' }}>{batch.candidates}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>{inr(batch.bi)}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#7C3AED' }}>{inr(batch.ai)}</td>
-                      <td style={{ padding: '10px 14px', color: '#475569' }}>{batch.dateToBeRaised || '—'}</td>
-                      <td style={{ padding: '10px 14px' }}>
-                        <span
-                          style={{
-                            padding: '2px 8px',
-                            borderRadius: 99,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            background: batch.status?.toLowerCase().includes('drop') ? '#FEF3C7' : '#DCFCE7',
-                            color: batch.status?.toLowerCase().includes('drop') ? '#B45309' : '#15803D',
-                          }}
-                        >
-                          {batch.status || 'Active'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                  pagedItems.map((batch, idx) => {
+                    const stLower = String(batch.status || '').toLowerCase();
+                    const isAllDropped = batch.candidates === 0 && (batch.droppedCount || 0) > 0;
+                    const isReadyBatch = stLower.includes('ready');
+                    return (
+                      <tr
+                        key={batch.id || idx}
+                        style={{
+                          borderBottom: '1px solid #F1F5F9',
+                          background: isAllDropped ? '#FEF2F2' : idx % 2 === 0 ? '#FFFFFF' : '#FAFCFF',
+                        }}
+                      >
+                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#64748B' }}>{batch.slNo}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A' }}>{batch.company}</td>
+                        <td style={{ padding: '10px 14px', color: '#334155' }}>
+                          <span
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              background: '#F1F5F9',
+                              fontWeight: 600,
+                              fontSize: 11.5,
+                            }}
+                          >
+                            {batch.period}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', fontWeight: 800, color: '#0F172A' }}>
+                          {batch.candidates}
+                          {batch.droppedCount > 0 && (
+                            <span style={{ fontSize: 11, color: '#DC2626', fontWeight: 600, marginLeft: 6 }}>
+                              (+{batch.droppedCount} drop)
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>{inr(batch.bi)}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#7C3AED' }}>{inr(batch.ai)}</td>
+                        <td style={{ padding: '10px 14px', color: '#475569', whiteSpace: 'nowrap' }}>{batch.dateToBeRaised || '—'}</td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <span
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: isAllDropped
+                                ? '#FEE2E2'
+                                : stLower.includes('drop')
+                                ? '#FEF3C7'
+                                : isReadyBatch
+                                ? '#DCFCE7'
+                                : '#EFF6FF',
+                              color: isAllDropped
+                                ? '#991B1B'
+                                : stLower.includes('drop')
+                                ? '#B45309'
+                                : isReadyBatch
+                                ? '#15803D'
+                                : '#1D4ED8',
+                            }}
+                          >
+                            {batch.status || 'Active'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1248,7 +1355,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                     type="text"
                     required
                     value={newCandidateForm.candidateName}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, candidateName: e.target.value })}
+                    onChange={(e) => updateCandidateFormField({ candidateName: e.target.value })}
                     placeholder="e.g. Shaik Ansar Basha"
                     style={{
                       width: '100%',
@@ -1265,7 +1372,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                   <input
                     type="text"
                     value={newCandidateForm.phone}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, phone: e.target.value })}
+                    onChange={(e) => updateCandidateFormField({ phone: e.target.value })}
                     placeholder="e.g. 7095143067"
                     style={{
                       width: '100%',
@@ -1282,10 +1389,9 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Client / Company *</label>
-                  <input
-                    type="text"
+                  <select
                     value={newCandidateForm.client}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, client: e.target.value })}
+                    onChange={(e) => updateCandidateFormField({ client: e.target.value })}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -1293,16 +1399,25 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                       border: '1px solid #CBD5E1',
                       marginTop: 4,
                       fontSize: 13,
+                      background: '#FFFFFF',
                     }}
-                  />
+                  >
+                    {Object.keys(COMPANY_PAYOUT_CONFIG).map((compName) => (
+                      <option key={compName} value={compName}>
+                        {compName}
+                      </option>
+                    ))}
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Process / Requirement</label>
                   <input
                     type="text"
+                    list="weekly-add-process-options"
                     value={newCandidateForm.process}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, process: e.target.value })}
-                    placeholder="e.g. Flipkart, SMB"
+                    onChange={(e) => updateCandidateFormField({ process: e.target.value })}
+                    placeholder="e.g. Flipkart, AirTel Black, Traya"
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -1312,6 +1427,13 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                       fontSize: 13,
                     }}
                   />
+                  <datalist id="weekly-add-process-options">
+                    {getCompanyProcesses(newCandidateForm.client).map((p) => (
+                      <option key={p.name} value={p.name}>
+                        {p.name} (₹{p.rate})
+                      </option>
+                    ))}
+                  </datalist>
                 </div>
               </div>
 
@@ -1321,7 +1443,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                   <input
                     type="date"
                     value={newCandidateForm.joiningDate}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, joiningDate: e.target.value })}
+                    onChange={(e) => updateCandidateFormField({ joiningDate: e.target.value })}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -1337,7 +1459,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                   <input
                     type="date"
                     value={newCandidateForm.billingDate}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, billingDate: e.target.value })}
+                    onChange={(e) => updateCandidateFormField({ billingDate: e.target.value })}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -1356,8 +1478,8 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                   <input
                     type="text"
                     value={newCandidateForm.recruiter}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, recruiter: e.target.value })}
-                    placeholder="e.g. Hussain"
+                    onChange={(e) => updateCandidateFormField({ recruiter: e.target.value })}
+                    placeholder="e.g. Ashwin P"
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -1373,7 +1495,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                   <input
                     type="number"
                     value={newCandidateForm.bi}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, bi: Number(e.target.value) })}
+                    onChange={(e) => updateCandidateFormField({ bi: Number(e.target.value) })}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -1389,7 +1511,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                   <input
                     type="number"
                     value={newCandidateForm.ai}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, ai: Number(e.target.value) })}
+                    onChange={(e) => updateCandidateFormField({ ai: Number(e.target.value) })}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -1408,7 +1530,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                   <input
                     type="text"
                     value={newCandidateForm.empId}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, empId: e.target.value })}
+                    onChange={(e) => updateCandidateFormField({ empId: e.target.value })}
                     placeholder="e.g. ISBL08782"
                     style={{
                       width: '100%',
@@ -1424,7 +1546,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Employee Status</label>
                   <select
                     value={newCandidateForm.empStatus}
-                    onChange={(e) => setNewCandidateForm({ ...newCandidateForm, empStatus: e.target.value })}
+                    onChange={(e) => updateCandidateFormField({ empStatus: e.target.value })}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -1459,6 +1581,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 </button>
                 <button
                   type="submit"
+                  disabled={savingCandidate}
                   style={{
                     padding: '8px 20px',
                     borderRadius: 10,
@@ -1467,10 +1590,11 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                     color: '#FFFFFF',
                     fontSize: 13,
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: savingCandidate ? 'wait' : 'pointer',
+                    opacity: savingCandidate ? 0.7 : 1,
                   }}
                 >
-                  Save Candidate Entry
+                  {savingCandidate ? 'Saving to Joiner Sheet...' : 'Save Candidate Entry'}
                 </button>
               </div>
             </form>
