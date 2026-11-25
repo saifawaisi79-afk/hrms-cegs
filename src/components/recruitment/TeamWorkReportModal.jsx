@@ -27,9 +27,11 @@ export function TeamWorkReportModal({
   const [selectedRecruiter, setSelectedRecruiter] = useState('ALL');
   const [loading, setLoading] = useState(false);
   const [rangeCandidates, setRangeCandidates] = useState([]);
+  const [overlays, setOverlays] = useState([]);
+  const [campaignSnapshot, setCampaignSnapshot] = useState(null);
   const [fetchError, setFetchError] = useState(null);
 
-  // Fetch all candidate records in the specified date range from MongoDB Atlas
+  // Fetch all candidate records, joiners, and monthly campaign in the specified date range from MongoDB Atlas
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -42,18 +44,34 @@ export function TeamWorkReportModal({
       try {
         const url = `/api/candidates?fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`;
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await fetch(url, { headers });
+        const monthKey = (toDate || today).slice(0, 7);
+
+        const [cRes, jRes, campRes] = await Promise.all([
+          fetch(url, { headers }),
+          fetch('/api/joiners', { headers }),
+          fetch(`/api/campaigns?month=${encodeURIComponent(monthKey)}`, { headers }),
+        ]);
 
         if (cancelled) return;
 
-        if (res.ok) {
-          const data = await res.json();
+        if (cRes.ok) {
+          const data = await cRes.json();
           if (Array.isArray(data)) {
             setRangeCandidates(data);
-            setLoading(false);
-            return;
           }
         }
+        if (jRes && jRes.ok) {
+          const jData = await jRes.json();
+          if (Array.isArray(jData)) {
+            setOverlays(jData);
+          }
+        }
+        if (campRes && campRes.ok) {
+          const campData = await campRes.json();
+          setCampaignSnapshot(campData);
+        }
+        setLoading(false);
+        return;
       } catch (err) {
         console.warn('Range fetch fallback:', err);
       }
@@ -74,7 +92,7 @@ export function TeamWorkReportModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, fromDate, toDate, currentDayCandidates]);
+  }, [isOpen, fromDate, toDate, currentDayCandidates, today]);
 
   // Quick Presets
   const applyPreset = (preset) => {
@@ -115,6 +133,88 @@ export function TeamWorkReportModal({
     }
   };
 
+  // Helper: check if a joiner record is marked inactive
+  const isJoinerRecordInactive = (j) => {
+    if (!j) return false;
+    const weekKeys = ['week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'week8'];
+    for (const wk of weekKeys) {
+      const val = String(j[wk] || '').trim().toLowerCase();
+      if (
+        val.includes('inactive') ||
+        val.includes('drop') ||
+        val.includes('left') ||
+        val.includes('resign') ||
+        val.includes('abscond')
+      ) {
+        return true;
+      }
+    }
+    const statusStr = String(j.status || '').trim().toLowerCase();
+    if (
+      statusStr.includes('inactive') ||
+      statusStr.includes('drop') ||
+      statusStr.includes('left') ||
+      statusStr.includes('resign') ||
+      statusStr.includes('abscond')
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const inactiveJoinerKeys = useMemo(() => {
+    const ids = new Set();
+    const namePhones = new Set();
+    (overlays || []).forEach((j) => {
+      if (isJoinerRecordInactive(j)) {
+        if (j.candidateId) ids.add(String(j.candidateId));
+        const cleanName = String(j.name || '').trim().toLowerCase();
+        const cleanPhone = String(j.phone || '').replace(/\D/g, '');
+        if (cleanName) namePhones.add(`${cleanName}|${cleanPhone}`);
+      }
+    });
+    return { ids, namePhones };
+  }, [overlays]);
+
+  const isCandidateInactiveJoiner = (cand) => {
+    const cid = cand.id || cand._id;
+    if (cid && inactiveJoinerKeys.ids.has(String(cid))) return true;
+    const cleanName = String(cand.name || '').trim().toLowerCase();
+    const cleanPhone = String(cand.number || cand.phone || '').replace(/\D/g, '');
+    if (cleanName && inactiveJoinerKeys.namePhones.has(`${cleanName}|${cleanPhone}`)) return true;
+
+    const text = `${cand.response || ''} ${cand.followUp1 || ''} ${cand.followUp2 || ''} ${cand.followUp3 || ''} ${cand.category || ''}`.toLowerCase();
+    if (
+      text.includes('inactive') ||
+      text.includes('drop') ||
+      text.includes('left') ||
+      text.includes('resign') ||
+      text.includes('abscond')
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const manualActiveJoiners = useMemo(() => {
+    const candCandidateIds = new Set((rangeCandidates || []).map((c) => String(c.id || c._id)));
+    const candNamePhones = new Set((rangeCandidates || []).map((c) => `${String(c.name || '').trim().toLowerCase()}|${String(c.number || '').replace(/\D/g, '')}`));
+
+    return (overlays || []).filter((j) => {
+      if (isJoinerRecordInactive(j)) return false;
+      if (j.candidateId && candCandidateIds.has(String(j.candidateId))) return false;
+      const np = `${String(j.name || '').trim().toLowerCase()}|${String(j.phone || '').replace(/\D/g, '')}`;
+      if (candNamePhones.has(np)) return false;
+
+      const rawDate = j.dateOfJoining || j.rawDate || j.createdAt;
+      const iso = normalizeCandidateDate(rawDate);
+      if (iso) {
+        return iso >= fromDate && iso <= toDate;
+      }
+      return true;
+    });
+  }, [overlays, rangeCandidates, fromDate, toDate]);
+
   // Helper: Categorize tasks matching the 5 performance tasks
   const candidateMatches = (cand, task) => {
     if (task === 'calls') {
@@ -125,7 +225,13 @@ export function TeamWorkReportModal({
     if (task === 'interviews') return text.includes('interview') || text.includes('scheduled') || /\bschedule\b/.test(text);
     if (task === 'walkins') return /walk\s*-?\s*in/.test(text) || text.includes('walkin') || text.includes('visited');
     if (task === 'selected') return text.includes('selected') || text.includes('hired');
-    if (task === 'joined') return text.includes('joined') || text.includes('joining') || String(cand.category || '').toLowerCase() === 'joined';
+    if (task === 'joined') {
+      const isJoined = text.includes('joined') || text.includes('joining') || String(cand.category || '').toLowerCase() === 'joined';
+      if (!isJoined) return false;
+      // Only count active joiners (exclude inactive)
+      if (isCandidateInactiveJoiner(cand)) return false;
+      return true;
+    }
     return false;
   };
 
@@ -135,23 +241,29 @@ export function TeamWorkReportModal({
       ? employeeList
       : employeeList.filter((e) => employeeNamesMatch(e, selectedRecruiter));
 
+    const campEmployees = campaignSnapshot?.snapshot?.employees || campaignSnapshot?.employees || [];
+
     // Map each recruiter with stats
     const rows = list.map((empName, index) => {
       const empCands = rangeCandidates.filter((c) => employeeNamesMatch(c.employee, empName));
+      const empManualJoiners = manualActiveJoiners.filter((j) => employeeNamesMatch(j.recruiterName, empName));
 
-      // Aggregate calls, interviews, walkins, selections, joinings
+      // Aggregate calls, interviews, walkins, selections, joinings (only active joinings counted)
       const calls = empCands.filter((c) => candidateMatches(c, 'calls')).length;
       const itvs = empCands.filter((c) => candidateMatches(c, 'interviews')).length;
       const walks = empCands.filter((c) => candidateMatches(c, 'walkins')).length;
       const sels = empCands.filter((c) => candidateMatches(c, 'selected')).length;
-      const jnds = empCands.filter((c) => candidateMatches(c, 'joined')).length;
+      const jnds = empCands.filter((c) => candidateMatches(c, 'joined')).length + empManualJoiners.length;
 
       // Group by distinct active days to calculate daily targets & average achievement
-      const activeDates = new Set(
-        empCands
+      const activeDates = new Set([
+        ...empCands
           .map((c) => normalizeCandidateDate(c.date || c.createdAt))
-          .filter(Boolean)
-      );
+          .filter(Boolean),
+        ...empManualJoiners
+          .map((j) => normalizeCandidateDate(j.dateOfJoining || j.rawDate || j.createdAt))
+          .filter(Boolean),
+      ]);
       const activeDaysCount = Math.max(1, activeDates.size);
 
       // Standard recruiter daily targets: 80 calls, 15 itvs, 5 walks, 3 sels, 1 join
@@ -160,6 +272,10 @@ export function TeamWorkReportModal({
       const walksTarget = 5 * activeDaysCount;
       const selsTarget = 3 * activeDaysCount;
       const jndsTarget = 1 * activeDaysCount;
+
+      // Monthly target for this recruiter (from campaign or benchmark 25)
+      const campEmp = campEmployees.find((ce) => employeeNamesMatch(ce.name || ce.user?.name, empName));
+      const monthlyTarget = campEmp?.monthlyTarget || 25;
 
       const cS = Math.min(20, Math.round((calls / callsTarget) * 20));
       const iS = Math.min(20, Math.round((itvs / itvsTarget) * 20));
@@ -182,7 +298,7 @@ export function TeamWorkReportModal({
         slNo: index + 1,
         name: empName,
         activeDays: activeDaysCount,
-        totalEntries: empCands.length,
+        totalEntries: empCands.length + empManualJoiners.length,
         calls,
         callsTarget,
         itvs,
@@ -193,6 +309,7 @@ export function TeamWorkReportModal({
         selsTarget,
         jnds,
         jndsTarget,
+        monthlyTarget,
         score,
         status,
         statusColor,
@@ -205,7 +322,8 @@ export function TeamWorkReportModal({
     const totalWalks = rows.reduce((acc, r) => acc + r.walks, 0);
     const totalSels = rows.reduce((acc, r) => acc + r.sels, 0);
     const totalJnds = rows.reduce((acc, r) => acc + r.jnds, 0);
-    const totalCandidatesLogged = rangeCandidates.length;
+    const totalMonthlyTarget = campaignSnapshot?.campaign?.monthlyTeamTarget || rows.reduce((acc, r) => acc + (r.monthlyTarget || 25), 0);
+    const totalCandidatesLogged = rangeCandidates.length + manualActiveJoiners.length;
     const avgScore = rows.length > 0 ? Math.round(rows.reduce((acc, r) => acc + r.score, 0) / rows.length) : 0;
 
     return {
@@ -216,12 +334,13 @@ export function TeamWorkReportModal({
         walks: totalWalks,
         sels: totalSels,
         jnds: totalJnds,
+        totalMonthlyTarget,
         candidates: totalCandidatesLogged,
         avgScore,
         recruitersCount: rows.length,
       },
     };
-  }, [employeeList, selectedRecruiter, rangeCandidates]);
+  }, [employeeList, selectedRecruiter, rangeCandidates, manualActiveJoiners, campaignSnapshot]);
 
   // Date-wise breakdown (each day in the range)
   const dailyDateBreakdown = useMemo(() => {
@@ -251,13 +370,34 @@ export function TeamWorkReportModal({
       if (candidateMatches(cand, 'joined')) dayObj.jnds++;
     });
 
+    manualActiveJoiners.forEach((j) => {
+      const rawDate = j.dateOfJoining || j.rawDate || j.createdAt;
+      const d = normalizeCandidateDate(rawDate) || 'Unknown';
+      if (!datesMap.has(d)) {
+        datesMap.set(d, {
+          date: d,
+          calls: 0,
+          itvs: 0,
+          walks: 0,
+          sels: 0,
+          jnds: 0,
+          total: 0,
+          recruiters: new Set(),
+        });
+      }
+      const dayObj = datesMap.get(d);
+      dayObj.total++;
+      dayObj.jnds++;
+      if (j.recruiterName) dayObj.recruiters.add(j.recruiterName);
+    });
+
     return Array.from(datesMap.values())
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((item) => ({
         ...item,
         recruitersActive: item.recruiters.size,
       }));
-  }, [rangeCandidates]);
+  }, [rangeCandidates, manualActiveJoiners, inactiveJoinerKeys]);
 
   // Action: Export to Excel (.xlsx)
   const handleExportExcel = () => {
@@ -277,10 +417,9 @@ export function TeamWorkReportModal({
         'Walk-ins Target': r.walksTarget,
         'Selected Today': r.sels,
         'Selected Target': r.selsTarget,
-        'Joined Today': r.jnds,
-        'Joined Target': r.jndsTarget,
+        'Joined (Active)': r.jnds,
+        'Monthly Target': `${r.jnds} / ${r.monthlyTarget} (${Math.round((r.jnds / (r.monthlyTarget || 1)) * 100)}%)`,
         'Performance Score (%)': `${r.score}%`,
-        'Performance Status': r.status,
       }));
 
       // Append Total Row
@@ -296,10 +435,9 @@ export function TeamWorkReportModal({
         'Walk-ins Target': '-',
         'Selected Today': teamReportData.totals.sels,
         'Selected Target': '-',
-        'Joined Today': teamReportData.totals.jnds,
-        'Joined Target': '-',
+        'Joined (Active)': teamReportData.totals.jnds,
+        'Monthly Target': `${teamReportData.totals.jnds} / ${teamReportData.totals.totalMonthlyTarget} (${Math.round((teamReportData.totals.jnds / (teamReportData.totals.totalMonthlyTarget || 1)) * 100)}%)`,
         'Performance Score (%)': `${teamReportData.totals.avgScore}% Avg`,
-        'Performance Status': teamReportData.totals.avgScore >= 60 ? 'Target Achieved' : 'Review Required',
       });
 
       const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
@@ -558,7 +696,7 @@ export function TeamWorkReportModal({
             </div>
           </div>
 
-          <h3 style="font-size: 12px; margin: 0 0 6px 0; color: #1F2937;">1. Individual Recruiter Breakdown (Min 60% Required · &lt;40% Half-Day Absent Risk)</h3>
+          <h3 style="font-size: 12px; margin: 0 0 6px 0; color: #1F2937;">1. Individual Recruiter Breakdown (Min 60% Required · Monthly Target Progress)</h3>
           <table>
             <thead>
               <tr>
@@ -571,7 +709,7 @@ export function TeamWorkReportModal({
                 <th style="text-align: center;">Selected</th>
                 <th style="text-align: center;">Joined</th>
                 <th style="text-align: center;">Score</th>
-                <th style="text-align: center;">Status</th>
+                <th style="text-align: center;">Target</th>
               </tr>
             </thead>
             <tbody>
@@ -584,11 +722,11 @@ export function TeamWorkReportModal({
                   <td style="text-align: center;">${r.itvs} / ${r.itvsTarget}</td>
                   <td style="text-align: center;">${r.walks} / ${r.walksTarget}</td>
                   <td style="text-align: center;">${r.sels} / ${r.selsTarget}</td>
-                  <td style="text-align: center;">${r.jnds} / ${r.jndsTarget}</td>
+                  <td style="text-align: center; font-weight: 800; color: #059669;">${r.jnds}</td>
                   <td style="text-align: center; font-weight: 800;">${r.score}%</td>
                   <td style="text-align: center;">
-                    <span class="${r.score >= 60 ? 'status-done' : r.score < 40 ? 'status-danger' : 'status-risk'}">
-                      ${r.status}
+                    <span class="${r.jnds >= r.monthlyTarget ? 'status-done' : r.jnds >= Math.round(r.monthlyTarget * 0.4) ? 'status-risk' : 'status-danger'}" style="padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 800;">
+                      ${r.jnds} / ${r.monthlyTarget} (${Math.round((r.jnds / (r.monthlyTarget || 1)) * 100)}%)
                     </span>
                   </td>
                 </tr>
@@ -600,9 +738,11 @@ export function TeamWorkReportModal({
                 <td style="text-align: center;">${teamReportData.totals.itvs}</td>
                 <td style="text-align: center;">${teamReportData.totals.walks}</td>
                 <td style="text-align: center;">${teamReportData.totals.sels}</td>
-                <td style="text-align: center;">${teamReportData.totals.jnds}</td>
+                <td style="text-align: center; font-weight: 800; color: #059669;">${teamReportData.totals.jnds}</td>
                 <td style="text-align: center;">${teamReportData.totals.avgScore}%</td>
-                <td style="text-align: center;">${teamReportData.totals.avgScore >= 60 ? 'Passed' : 'At Risk'}</td>
+                <td style="text-align: center; font-weight: 900;">
+                  ${teamReportData.totals.jnds} / ${teamReportData.totals.totalMonthlyTarget} (${Math.round((teamReportData.totals.jnds / (teamReportData.totals.totalMonthlyTarget || 1)) * 100)}%)
+                </td>
               </tr>
             </tbody>
           </table>
@@ -940,15 +1080,15 @@ export function TeamWorkReportModal({
                       </span>
                       <span
                         style={{
-                          background: r.score >= 60 ? '#ECFDF5' : r.score < 40 ? '#FEE2E2' : '#FEF3C7',
-                          color: r.score >= 60 ? '#065F46' : r.score < 40 ? '#991B1B' : '#92400E',
+                          background: r.jnds >= r.monthlyTarget ? '#ECFDF5' : r.jnds >= Math.round(r.monthlyTarget * 0.4) ? '#FEF3C7' : '#FEE2E2',
+                          color: r.jnds >= r.monthlyTarget ? '#065F46' : r.jnds >= Math.round(r.monthlyTarget * 0.4) ? '#92400E' : '#991B1B',
                           borderRadius: 99,
-                          padding: '2px 8px',
-                          fontSize: 10,
+                          padding: '3px 10px',
+                          fontSize: 10.5,
                           fontWeight: 800,
                         }}
                       >
-                        {r.score >= 60 ? 'Done' : r.score < 40 ? 'Half-day risk' : 'At risk'}
+                        Target: {r.jnds} / {r.monthlyTarget} ({Math.round((r.jnds / (r.monthlyTarget || 1)) * 100)}%)
                       </span>
                     </div>
                   </div>

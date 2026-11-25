@@ -120,6 +120,23 @@ export function getFirstInactiveWeekIndex(row) {
   return -1;
 }
 
+/** Check if candidate is active (not dropped/inactive in follow-up weeks or status) */
+export function isJoinerActive(row) {
+  if (!row) return false;
+  if (getFirstInactiveWeekIndex(row) !== -1) return false;
+  const statusStr = String(row.status || '').trim().toLowerCase();
+  if (
+    statusStr.includes('inactive') ||
+    statusStr.includes('drop') ||
+    statusStr.includes('left') ||
+    statusStr.includes('resign') ||
+    statusStr.includes('abscond')
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function sheetText(cand) {
   return `${cand?.response || ''} ${cand?.followUp1 || ''} ${cand?.followUp2 || ''} ${cand?.followUp3 || ''} ${cand?.category || ''}`
     .toLowerCase()
@@ -575,7 +592,9 @@ export function JoinerSheetSection({
     allRows.forEach((r) => {
       const ym = extractRowYearMonth(r);
       const k = ym ? ym.key : 'unassigned';
-      counts[k] = (counts[k] || 0) + 1;
+      if (isJoinerActive(r)) {
+        counts[k] = (counts[k] || 0) + 1;
+      }
       if (ym && !monthMap.has(k)) {
         monthMap.set(k, ym);
       }
@@ -596,6 +615,10 @@ export function JoinerSheetSection({
 
     const sortedMonths = [...monthMap.values()].sort((a, b) => b.key.localeCompare(a.key));
     return { availableMonths: sortedMonths, monthCounts: counts };
+  }, [allRows]);
+
+  const totalActiveCount = useMemo(() => {
+    return allRows.filter(isJoinerActive).length;
   }, [allRows]);
 
   const filtered = useMemo(() => {
@@ -629,12 +652,13 @@ export function JoinerSheetSection({
   }, [allRows, companyTab, monthFilter, search]);
 
   const tabCounts = useMemo(() => {
-    const baseList = monthFilter === 'ALL'
+    const baseList = (monthFilter === 'ALL'
       ? allRows
       : allRows.filter((r) => {
           const ym = extractRowYearMonth(r);
           return (ym ? ym.key : 'unassigned') === monthFilter;
-        });
+        })
+    ).filter(isJoinerActive);
 
     const counts = { ALL: baseList.length };
     const knownCompanies = dynamicCompanyTabs.slice(1).filter((k) => k !== 'OTHER');
@@ -649,7 +673,7 @@ export function JoinerSheetSection({
       }).length;
     });
     return counts;
-  }, [allRows, monthFilter]);
+  }, [allRows, monthFilter, dynamicCompanyTabs]);
 
   const authHeaders = () => ({
     'Content-Type': 'application/json',
@@ -1448,7 +1472,7 @@ export function JoinerSheetSection({
               onChange={(e) => setMonthFilter(e.target.value)}
               aria-label="Filter by month"
             >
-              <option value="ALL">📅 All Months ({allRows.length})</option>
+              <option value="ALL">📅 All Months ({totalActiveCount})</option>
               {availableMonths.map((m) => (
                 <option key={m.key} value={m.key}>
                   📅 {m.label} ({monthCounts[m.key] || 0})
@@ -1533,7 +1557,7 @@ export function JoinerSheetSection({
             boxShadow: monthFilter === 'ALL' ? '0 2px 6px rgba(37,99,235,0.2)' : 'none',
           }}
         >
-          All Months ({allRows.length})
+          All Months ({totalActiveCount})
         </button>
         {availableMonths.slice(0, 6).map((m) => (
           <button
