@@ -12,6 +12,30 @@
 
 import { normalizeCandidateDate } from '@/lib/candidate-dates';
 import { istIsoDate } from '@/lib/ist-time';
+import { employeeNamesMatch } from '@/lib/recruiter-names';
+
+const WEEK_KEYS = ['week1', 'week2', 'week3', 'week4', 'week5', 'week6', 'week7', 'week8'];
+
+function hasInactiveKeyword(val) {
+  const str = String(val || '').trim().toLowerCase();
+  if (!str) return false;
+  return (
+    str.includes('inactive') ||
+    str.includes('drop') ||
+    str.includes('left') ||
+    str.includes('resign') ||
+    str.includes('abscond')
+  );
+}
+
+export function isJoinerEntryInactive(j) {
+  if (!j) return false;
+  for (const wk of WEEK_KEYS) {
+    if (hasInactiveKeyword(j[wk])) return true;
+  }
+  if (hasInactiveKeyword(j.status)) return true;
+  return false;
+}
 
 function sheetText(cand) {
   return `${cand?.response || ''} ${cand?.followUp1 || ''} ${cand?.followUp2 || ''} ${cand?.followUp3 || ''} ${cand?.category || ''}`
@@ -28,6 +52,10 @@ export function isJoinedCandidate(cand) {
   );
 }
 
+export function isCandidateInactive(cand) {
+  return hasInactiveKeyword(sheetText(cand));
+}
+
 function normName(s) {
   return String(s || '').trim().toLowerCase();
 }
@@ -36,8 +64,14 @@ function normPhone(s) {
   return String(s || '').replace(/\D/g, '');
 }
 
+function parseFlexDateIso(value) {
+  if (!value) return '';
+  const cleaned = String(value).replace(/\s*([/-])\s*/g, '$1').trim();
+  return normalizeCandidateDate(cleaned);
+}
+
 function isoFrom(value, fallbackCreated) {
-  const fromField = normalizeCandidateDate(value);
+  const fromField = parseFlexDateIso(value);
   if (fromField) return fromField;
   if (fallbackCreated) {
     try {
@@ -54,14 +88,40 @@ function isoFrom(value, fallbackCreated) {
  */
 export function collectValidJoiners(joinerEntries = [], candidates = []) {
   const byKey = new Map();
+  const inactiveIds = new Set();
+  const inactiveNamePhones = new Set();
+
+  const candById = new Map();
+  (candidates || []).forEach((c) => {
+    const cid = String(c.id || c._id || '').trim();
+    if (cid) candById.set(cid, c);
+  });
 
   (joinerEntries || []).forEach((j) => {
     const name = String(j.name || '').trim();
     if (!name) return;
-    const iso = isoFrom(j.dateOfJoining, j.createdAt);
-    if (!iso) return;
     const cid = String(j.candidateId || '').trim();
-    const key = cid || `p:${normPhone(j.phone)}|${normName(name)}`;
+    const npKey = `p:${normPhone(j.phone)}|${normName(name)}`;
+    const key = cid || npKey;
+
+    if (isJoinerEntryInactive(j)) {
+      if (cid) inactiveIds.add(cid);
+      inactiveNamePhones.add(npKey);
+      return;
+    }
+
+    let iso = '';
+    if (j.dateOfJoining && String(j.dateOfJoining).trim()) {
+      // Explicit DOJ must parse cleanly; never fall back to createdAt for text like "1st July" / "yet to join"
+      iso = parseFlexDateIso(j.dateOfJoining);
+    } else if (cid && candById.has(cid)) {
+      const linked = candById.get(cid);
+      iso = isoFrom(linked.date, linked.createdAt);
+    } else if (!cid) {
+      iso = isoFrom('', j.createdAt);
+    }
+    if (!iso) return;
+
     byKey.set(key, {
       isoDate: iso,
       recruiterName: String(j.recruiterName || '').trim(),
@@ -72,10 +132,17 @@ export function collectValidJoiners(joinerEntries = [], candidates = []) {
 
   (candidates || []).forEach((c) => {
     if (!isJoinedCandidate(c)) return;
+    if (isCandidateInactive(c)) return;
     const name = String(c.name || '').trim();
     if (!name) return;
     const cid = String(c.id || c._id || '').trim();
-    const key = cid || `p:${normPhone(c.number)}|${normName(name)}`;
+    const npKey = `p:${normPhone(c.number)}|${normName(name)}`;
+    const key = cid || npKey;
+
+    if ((cid && inactiveIds.has(cid)) || inactiveNamePhones.has(npKey)) {
+      return;
+    }
+
     if (byKey.has(key)) {
       const existing = byKey.get(key);
       if (!existing.recruiterName && c.employee) {
@@ -97,18 +164,20 @@ export function collectValidJoiners(joinerEntries = [], candidates = []) {
 }
 
 export function countJoinersFor(joiners, recruiterName, startIso, endIso) {
-  const want = normName(recruiterName);
-  if (!want) return 0;
+  if (!String(recruiterName || '').trim()) return 0;
   return joiners.filter(
-    (j) => normName(j.recruiterName) === want && j.isoDate >= startIso && j.isoDate <= endIso
+    (j) =>
+      employeeNamesMatch(j.recruiterName, recruiterName) &&
+      j.isoDate >= startIso &&
+      j.isoDate <= endIso
   ).length;
 }
 
 export function lastJoinerIso(joiners, recruiterName, startIso, endIso) {
-  const want = normName(recruiterName);
+  if (!String(recruiterName || '').trim()) return '';
   let last = '';
   joiners.forEach((j) => {
-    if (normName(j.recruiterName) !== want) return;
+    if (!employeeNamesMatch(j.recruiterName, recruiterName)) return;
     if (j.isoDate < startIso || j.isoDate > endIso) return;
     if (j.isoDate > last) last = j.isoDate;
   });
