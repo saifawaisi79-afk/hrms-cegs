@@ -242,6 +242,43 @@ export const COMPANY_PAYOUT_CONFIG = {
 };
 
 /**
+ * Canonical aliases for real-world typos / shorthand process labels seen in HRMS sheets.
+ */
+const PROCESS_TYPO_ALIASES = {
+  estilata: 'etisalat',
+  icic: 'icici',
+  ujivan: 'ujjivan',
+  ujjavan: 'ujjivan',
+  lemon: 'lemonn',
+  snabbit: 'snapbit',
+  'airtel black': 'airtel black',
+  'customer support role': 'customer support',
+  'traya process': 'traya',
+};
+
+function normalizeProcessToken(rawProcess) {
+  const cleaned = String(rawProcess || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return PROCESS_TYPO_ALIASES[cleaned] || cleaned;
+}
+
+function findMatchingProcess(processes = [], pLower) {
+  if (!pLower || !Array.isArray(processes) || processes.length === 0) return null;
+  // 1. Exact match (or exact alias match)
+  const exact = processes.find((p) => p.name.toLowerCase() === pLower);
+  if (exact) return exact;
+  // 2. Substring match (skip ultra-short numeric codes like '101' unless exact word)
+  return (
+    processes.find((p) => {
+      const itemLower = p.name.toLowerCase();
+      if (/^\d+$/.test(itemLower)) {
+        return new RegExp(`\\b${itemLower}\\b`).test(pLower);
+      }
+      return pLower.includes(itemLower) || itemLower.includes(pLower);
+    }) || null
+  );
+}
+
+/**
  * Find canonical company configuration by raw company name or string
  */
 export function getCompanyConfig(rawCompany) {
@@ -256,8 +293,8 @@ export function getCompanyConfig(rawCompany) {
   }
 
   // Fallback heuristic
-  if (lower.includes('altruist')) {
-    if (lower.includes('gb') || lower.includes('garvebhavi') || lower.includes('begur')) {
+  if (lower.includes('altruist') || lower.includes('altrust')) {
+    if (lower.includes('gb') || lower.includes('garvebhavi') || lower.includes('begur') || lower.includes('amr')) {
       return { canonicalName: 'Altruist GBPalya', ...COMPANY_PAYOUT_CONFIG['Altruist GBPalya'] };
     }
     return { canonicalName: 'Altruist AKR', ...COMPANY_PAYOUT_CONFIG['Altruist AKR'] };
@@ -293,25 +330,80 @@ export function getCompanyProcesses(rawCompany) {
 }
 
 /**
+ * Detailed lookup returning canonical company, matched process name, rate (INR), and whether a process matched.
+ * For generic 'ALTRUIST' without branch qualifier, checks both Altruist AKR and Altruist GBPalya processes.
+ */
+export function resolveJoinerPayoutInfo(rawCompany, rawProcess) {
+  if (!rawCompany && !rawProcess) {
+    return { rate: 5000, canonicalCompany: 'Other', matchedProcess: '', isExactMatch: false };
+  }
+  const cLower = String(rawCompany || '').trim().toLowerCase();
+  const pNorm = normalizeProcessToken(rawProcess);
+
+  const isGenericAltruist =
+    (cLower.includes('altruist') || cLower.includes('altrust')) &&
+    !cLower.includes('akr') &&
+    !cLower.includes('kudlu') &&
+    !cLower.includes('gb') &&
+    !cLower.includes('garvebhavi') &&
+    !cLower.includes('begur');
+
+  if (isGenericAltruist && pNorm) {
+    for (const branch of ['Altruist GBPalya', 'Altruist AKR']) {
+      const bCfg = COMPANY_PAYOUT_CONFIG[branch];
+      const hit = findMatchingProcess(bCfg.processes, pNorm);
+      if (hit && hit.rate !== undefined) {
+        return {
+          rate: hit.rate,
+          canonicalCompany: branch,
+          matchedProcess: hit.name,
+          isExactMatch: true,
+        };
+      }
+    }
+  }
+
+  const cfg = getCompanyConfig(rawCompany);
+  if (!cfg) {
+    return {
+      rate: 5000,
+      canonicalCompany: String(rawCompany || 'Other').trim().toUpperCase() || 'Other',
+      matchedProcess: String(rawProcess || '').trim(),
+      isExactMatch: false,
+    };
+  }
+
+  if (!pNorm) {
+    return {
+      rate: cfg.defaultRate || 5000,
+      canonicalCompany: cfg.canonicalName,
+      matchedProcess: '',
+      isExactMatch: false,
+    };
+  }
+
+  const matched = findMatchingProcess(cfg.processes, pNorm);
+  if (matched && matched.rate !== undefined) {
+    return {
+      rate: matched.rate,
+      canonicalCompany: cfg.canonicalName,
+      matchedProcess: matched.name,
+      isExactMatch: true,
+    };
+  }
+
+  return {
+    rate: cfg.defaultRate || 5000,
+    canonicalCompany: cfg.canonicalName,
+    matchedProcess: String(rawProcess || '').trim(),
+    isExactMatch: false,
+  };
+}
+
+/**
  * Look up the exact payout amount for a company and process.
  * If not specifically listed, returns company default rate or 5000.
  */
 export function getProcessPayoutAmount(rawCompany, rawProcess) {
-  if (!rawCompany && !rawProcess) return 5000;
-  const cfg = getCompanyConfig(rawCompany);
-  if (!cfg) return 5000;
-
-  if (!rawProcess) return cfg.defaultRate || 5000;
-
-  const pLower = String(rawProcess).trim().toLowerCase();
-  const matched = cfg.processes.find((p) => {
-    const itemLower = p.name.toLowerCase();
-    return itemLower === pLower || pLower.includes(itemLower) || itemLower.includes(pLower);
-  });
-
-  if (matched && matched.rate !== undefined) {
-    return matched.rate;
-  }
-
-  return cfg.defaultRate || 5000;
+  return resolveJoinerPayoutInfo(rawCompany, rawProcess).rate;
 }

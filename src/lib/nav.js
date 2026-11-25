@@ -198,6 +198,7 @@ export function buildNavConfig(user, db) {
     main.push(
       { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
       { href: '/users', label: 'Users', icon: 'users' },
+      { href: '/admin/revenue-sheets', label: 'Revenue Sheets', icon: 'trending' },
       { href: '/admin/it-tasks', label: 'IT Team Task Management', icon: 'wrench' },
       { href: '/billing/permissions', label: 'Permissions', icon: 'shield' },
       { href: '/settings', label: 'System Settings', icon: 'settings' },
