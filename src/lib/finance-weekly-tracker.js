@@ -271,6 +271,7 @@ export function buildLiveWeeklyTracker({
   });
 
   // 3. Enrich every candidate with Payout, BI (+18% GST), AI (-10% TDS), Billing Date, and Readiness
+  const EXCLUDED_WEEKLY_MONTHS = new Set(['2025-07', '2026-07', '2026-08']);
   const monthSet = new Set();
   const enrichTrackerItem = (item, recordMonth = true) => {
     const payout = resolveJoinerPayoutInfo(item.rawCompany, item.rawProcess);
@@ -288,7 +289,9 @@ export function buildLiveWeeklyTracker({
     }
 
     const monthKey = item.joiningIso ? item.joiningIso.slice(0, 7) : '';
-    if (recordMonth && monthKey) monthSet.add(monthKey);
+    if (recordMonth && monthKey && !EXCLUDED_WEEKLY_MONTHS.has(monthKey)) {
+      monthSet.add(monthKey);
+    }
 
     const tax = calculateDraftInvoice(payout.rate, 0.18, 0.10);
     const empStatus = item.inactive ? 'INACTIVE' : 'ACTIVE';
@@ -349,9 +352,12 @@ export function buildLiveWeeklyTracker({
     };
   };
 
-  const liveCandidates = [...mergedByKey.values()].map((it) => enrichTrackerItem(it, true));
+  const liveCandidates = [...mergedByKey.values()]
+    .map((it) => enrichTrackerItem(it, true))
+    .filter((c) => !EXCLUDED_WEEKLY_MONTHS.has(c.monthKey));
   const deletedCandidates = [...deletedByKey.values()]
     .map((it) => enrichTrackerItem(it, false))
+    .filter((c) => !EXCLUDED_WEEKLY_MONTHS.has(c.monthKey))
     .sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || '') || a.candidateName.localeCompare(b.candidateName))
     .map((c, idx) => ({ ...c, slNo: idx + 1 }));
 

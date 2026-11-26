@@ -240,13 +240,16 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     return Array.from(list).sort();
   }, [viewMode, candidates, deletedCandidates, batches]);
 
-  // Available Months for Monthly Filter (All live months from Joiner Sheet, newest first)
+  // Available Months for Monthly Filter (Excluding July 2025, July 2026, August 2026; newest first)
   const availableMonths = useMemo(() => {
-    if (availableMonthsFromApi.length > 0) return availableMonthsFromApi;
+    const excludedMonths = new Set(['2025-07', '2026-07', '2026-08']);
+    if (availableMonthsFromApi.length > 0) {
+      return availableMonthsFromApi.filter((m) => !excludedMonths.has(m));
+    }
     const set = new Set([getCurrentMonthKey()]);
-    candidates.forEach((c) => c.monthKey && set.add(c.monthKey));
-    batches.forEach((b) => b.monthKey && set.add(b.monthKey));
-    return Array.from(set).sort().reverse();
+    candidates.forEach((c) => c.monthKey && !excludedMonths.has(c.monthKey) && set.add(c.monthKey));
+    batches.forEach((b) => b.monthKey && !excludedMonths.has(b.monthKey) && set.add(b.monthKey));
+    return Array.from(set).filter((m) => !excludedMonths.has(m)).sort().reverse();
   }, [availableMonthsFromApi, candidates, batches]);
 
   const filterParams = { searchQuery, selectedClient, selectedStatus, selectedMonth };
