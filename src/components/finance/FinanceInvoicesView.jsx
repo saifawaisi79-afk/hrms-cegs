@@ -1800,7 +1800,7 @@ export function FinanceInvoicesView() {
       }
     }
   }, [user, isFinanceAdmin]);
-  const [invoices, setInvoices] = useState(DEFAULT_INVOICES);
+  const [invoices, setInvoices] = useState([]);
   const [weeklyCount, setWeeklyCount] = useState(null);
   const [clients, setClients] = useState(DEFAULT_CLIENTS);
   const [loading, setLoading] = useState(true);
@@ -3765,6 +3765,12 @@ export function FinanceInvoicesView() {
           onInvoiceCleared={() => handleTabChange('bill_cleared')}
           onNavigateToCleared={() => handleTabChange('bill_cleared')}
           onRefresh={loadData}
+          onPreviewInvoice={(inv) => {
+            const target = inv?.rawInvoice || inv;
+            setPreviewInvoice(target);
+            setPreviewTemplateMode(getClientTemplate(target.client, target.templateType));
+          }}
+          onDownloadPdf={handleDownloadInvoicePdf}
         />
       )}
 
@@ -3774,6 +3780,12 @@ export function FinanceInvoicesView() {
           apiInvoices={invoices}
           onNavigateToPayments={() => handleTabChange('payments_invoices')}
           onRefresh={loadData}
+          onPreviewInvoice={(inv) => {
+            const target = inv?.rawInvoice || inv;
+            setPreviewInvoice(target);
+            setPreviewTemplateMode(getClientTemplate(target.client, target.templateType));
+          }}
+          onDownloadPdf={handleDownloadInvoicePdf}
         />
       )}
 

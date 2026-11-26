@@ -108,32 +108,38 @@ export function dedupeByInvoiceNo(list = []) {
 
 export function normalizeApiInvoiceRow(apiInv) {
   const invNo = String(apiInv?.invoiceNo || '').trim();
-  const bAmt = Number(apiInv?.basicAmount) || (apiInv?.amount ? Math.round(Number(apiInv.amount) / 1.18) : 0);
-  const tAmt = Number(apiInv?.amount) || (bAmt + Math.round(bAmt * 0.18));
+  const rawAmt = Number(apiInv?.amount) || 0;
+  const bAmt = Number(apiInv?.basicAmount) || (rawAmt ? Math.round(rawAmt / 1.18) : 0);
   const gAmt =
     apiInv?.sgstAmount != null && apiInv?.cgstAmount != null
       ? Number(apiInv.sgstAmount) + Number(apiInv.cgstAmount)
       : apiInv?.gstAmount != null
       ? Number(apiInv.gstAmount)
+      : rawAmt > bAmt && bAmt > 0
+      ? rawAmt - bAmt
       : Math.round(bAmt * 0.18);
-  const tdsAmt = apiInv?.tdsAmount != null ? Number(apiInv.tdsAmount) : Math.round(bAmt * 0.1);
-  const expected = tAmt - tdsAmt;
+  const tAmt = rawAmt || bAmt + gAmt;
+  const sgstAmt = apiInv?.sgstAmount != null ? Number(apiInv.sgstAmount) : Math.round(gAmt / 2);
+  const cgstAmt = apiInv?.cgstAmount != null ? Number(apiInv.cgstAmount) : gAmt - sgstAmt;
+  const tdsAmt = Number(apiInv?.tdsAmount) > 0 ? Number(apiInv.tdsAmount) : 0;
+  const expected = Math.max(0, tAmt - tdsAmt);
   const isPaid =
     String(apiInv?.status || '').toLowerCase() === 'paid' ||
     String(apiInv?.stage || '').toLowerCase() === 'cleared';
   const actual = isPaid
-    ? (Number(apiInv?.actualReceipt) || expected)
-    : (Number(apiInv?.actualReceipt) || Number(apiInv?.moneyReceived) || 0);
+    ? Number(apiInv?.actualReceipt) || Number(apiInv?.moneyReceived) || expected
+    : Number(apiInv?.actualReceipt) || Number(apiInv?.moneyReceived) || 0;
   const outstanding = isPaid ? 0 : Math.max(0, expected - actual);
 
+  const milestoneText = `${apiInv?.projectMilestone || ''} ${apiInv?.notes || ''}`;
+  const seatMatch = milestoneText.match(/(\d+)\s*(Seats|Seat|candidates|candidate)/i);
   let cCount = 1;
-  if (Array.isArray(apiInv?.items) && apiInv.items.length > 0) {
-    cCount = apiInv.items.length;
-  } else if (apiInv?.candidateCount) {
+  if (Number(apiInv?.candidateCount) > 0) {
     cCount = Number(apiInv.candidateCount);
-  } else if (apiInv?.projectMilestone) {
-    const m = String(apiInv.projectMilestone).match(/(\d+)\s*(Seats|candidates|seat|candidate)/i);
-    if (m) cCount = parseInt(m[1], 10);
+  } else if (seatMatch) {
+    cCount = parseInt(seatMatch[1], 10);
+  } else if (Array.isArray(apiInv?.items) && apiInv.items.length > 0) {
+    cCount = apiInv.items.length;
   }
 
   const dateStr = apiInv?.invoiceDate
@@ -143,19 +149,26 @@ export function normalizeApiInvoiceRow(apiInv) {
     : new Date().toISOString().slice(0, 10);
 
   return {
+    ...(apiInv || {}),
     id: apiInv?._id || apiInv?.id || `inv-${invNo}`,
+    _id: apiInv?._id || apiInv?.id || `inv-${invNo}`,
+    rawInvoice: apiInv,
     invoiceNo: invNo,
     rawInvoiceNo: invNo.replace(/^INV-/i, ''),
     client: apiInv?.client || 'Client',
-    projectMilestone: apiInv?.projectMilestone || '',
+    projectMilestone: apiInv?.projectMilestone || 'Candidate Placement & Seat Billing',
     candidateCount: cCount,
     invoiceDate: dateStr,
     clearedDate: apiInv?.paidDate || dateStr,
+    paidDate: apiInv?.paidDate || (isPaid ? dateStr : ''),
     revisedRequested: apiInv?.revisedRequested || '',
     revisedSent: apiInv?.revisedSent || '',
     bi: bAmt,
-    ai: apiInv?.ai ? Number(apiInv.ai) : Math.round(bAmt * 0.9),
+    ai: tAmt,
+    amount: tAmt,
     basicAmount: bAmt,
+    sgstAmount: sgstAmt,
+    cgstAmount: cgstAmt,
     gstAmount: gAmt,
     totalInvoiceValue: tAmt,
     tdsAmount: tdsAmt,
@@ -164,13 +177,14 @@ export function normalizeApiInvoiceRow(apiInv) {
     amountReceived: actual,
     outstandingBalance: outstanding,
     dueDate: apiInv?.dueDate || '30 days',
-    status: isPaid ? 'Paid' : (apiInv?.status || 'Pending'),
+    status: isPaid ? 'Paid' : apiInv?.status || 'Pending',
     stage: apiInv?.stage || (isPaid ? 'cleared' : 'raised'),
     gstStatus: apiInv?.gstStatus || (isPaid ? 'Reconciled' : 'Pending'),
     gstAmtStatus: apiInv?.gstAmtStatus || (isPaid ? 'GST Cleared' : 'Pending'),
     paymentReference: apiInv?.paymentReference || (isPaid ? 'BANK-SETTLED' : ''),
     clearedBy: apiInv?.clearedBy || 'Finance Operations',
     remarks: apiInv?.notes || apiInv?.projectMilestone || '',
+    notes: apiInv?.notes || '',
     items: Array.isArray(apiInv?.items) ? apiInv.items : [],
     source: 'payments_invoices',
   };

@@ -36,7 +36,14 @@ export function mergeApiInvoicesWithRaised(_localList = [], apiList = []) {
   return extractRaisedInvoicesFromApi(apiList);
 }
 
-export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavigateToCleared, onRefresh }) {
+export function BillRaisedSection({
+  apiInvoices = null,
+  onInvoiceCleared,
+  onNavigateToCleared,
+  onRefresh,
+  onPreviewInvoice,
+  onDownloadPdf,
+}) {
   const [invoices, setInvoices] = useState(() => extractRaisedInvoicesFromApi(apiInvoices || []));
 
   // Sync cleanly whenever apiInvoices prop updates (or fetch directly if mounted standalone)
@@ -58,7 +65,7 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
           setInvoices(extractRaisedInvoicesFromApi(data));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [apiInvoices]);
 
   // Trigger parent refresh when another tab dispatches finance_storage_update
@@ -77,7 +84,7 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
           .then((data) => {
             if (Array.isArray(data)) setInvoices(extractRaisedInvoicesFromApi(data));
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     };
 
@@ -134,12 +141,14 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
 
   // Filtered Invoices (Current Month entries shown first)
   const filteredInvoices = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
     const list = invoices.filter((inv) => {
       const matchSearch =
-        !searchQuery ||
-        inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.client?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.remarks?.toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        inv.invoiceNo?.toLowerCase().includes(q) ||
+        inv.client?.toLowerCase().includes(q) ||
+        inv.projectMilestone?.toLowerCase().includes(q) ||
+        inv.remarks?.toLowerCase().includes(q);
       const matchClient = selectedClient === 'ALL' || inv.client?.toLowerCase() === selectedClient.toLowerCase();
       const matchStatus = selectedStatus === 'ALL' || inv.status?.toLowerCase() === selectedStatus.toLowerCase();
       const invMonth = extractMonthKey(inv.invoiceDate || inv.dueDate);
@@ -150,16 +159,16 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
     return sortItemsByCurrentMonthFirst(list, (inv) => inv.invoiceDate || inv.dueDate);
   }, [invoices, searchQuery, selectedClient, selectedStatus, selectedMonth]);
 
-  // Metrics
+  // Metrics (exact values matching Payments & Invoices)
   const metrics = useMemo(() => {
     const count = invoices.length;
-    const totalBi = invoices.reduce((s, i) => s + (Number(i.bi) || 0), 0);
-    const totalAi = invoices.reduce((s, i) => s + (Number(i.ai) || 0), 0);
+    const totalBasic = invoices.reduce((s, i) => s + (Number(i.basicAmount) || 0), 0);
+    const totalGst = invoices.reduce((s, i) => s + (Number(i.gstAmount) || 0), 0);
+    const totalValue = invoices.reduce((s, i) => s + (Number(i.totalInvoiceValue) || 0), 0);
     const totalReceived = invoices.reduce((s, i) => s + (Number(i.actualReceipt) || 0), 0);
     const totalPending = invoices.reduce((s, i) => s + (Number(i.outstandingBalance) || 0), 0);
-    const overdueCount = invoices.filter((i) => i.status === 'Overdue' || (Number(i.outstandingBalance) > 0 && i.dueDate?.includes('Past'))).length;
 
-    return { count, totalBi, totalAi, totalReceived, totalPending, overdueCount };
+    return { count, totalBasic, totalGst, totalValue, totalReceived, totalPending };
   }, [invoices]);
 
   // Client POC Lookup
@@ -177,23 +186,16 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
     const rows = filteredInvoices.map((inv) => ({
       'Invoice No': inv.invoiceNo,
       Client: inv.client,
+      'Project / Milestone': inv.projectMilestone || '',
       'Invoice Date': inv.invoiceDate,
-      Candidates: inv.candidateCount,
-      'BI (Basic)': inv.bi,
-      'AI (Net)': inv.ai,
+      Seats: inv.candidateCount,
       'Basic Amount': inv.basicAmount,
       'GST (18%)': inv.gstAmount,
       'Total Value': inv.totalInvoiceValue,
-      'TDS (10%)': inv.tdsAmount,
-      'Expected Receipt': inv.expectedReceipt,
       'Actual Receipt': inv.actualReceipt,
       'Outstanding Balance': inv.outstandingBalance,
       'Due Date': inv.dueDate,
       Status: inv.status,
-      'GST Status': inv.gstStatus,
-      'TDS Status': inv.tdsStatus,
-      'Revised Requested': inv.revisedRequested,
-      'Revised Sent': inv.revisedSent,
       Remarks: inv.remarks || '',
     }));
 
@@ -468,10 +470,12 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Invoices Raised</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#0F172A', marginTop: 4 }}>{metrics.count}</div>
-          <div style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600, marginTop: 4 }}>Active issued invoices</div>
+          <div style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600, marginTop: 4 }}>
+            Pending in Payments &amp; Invoices
+          </div>
         </div>
 
-        {/* CARD 2: Total BI */}
+        {/* CARD 2: Total Basic */}
         <div
           style={{
             background: '#FFFFFF',
@@ -481,14 +485,14 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
             boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
           }}
         >
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total BI (Basic Invoice)</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#2563EB', marginTop: 4 }}>{inr(metrics.totalBi)}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total Basic Amount</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#2563EB', marginTop: 4 }}>{inr(metrics.totalBasic)}</div>
           <div style={{ fontSize: 11.5, color: '#2563EB', fontWeight: 600, marginTop: 4 }}>
-            Synced from Payments &amp; Invoices
+            Pre-GST seat billing total
           </div>
         </div>
 
-        {/* CARD 3: Total AI */}
+        {/* CARD 3: Total GST */}
         <div
           style={{
             background: '#FFFFFF',
@@ -498,14 +502,14 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
             boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
           }}
         >
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total AI (Net Margin)</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#7C3AED', marginTop: 4 }}>{inr(metrics.totalAi)}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total GST (18%)</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#7C3AED', marginTop: 4 }}>{inr(metrics.totalGst)}</div>
           <div style={{ fontSize: 11.5, color: '#7C3AED', fontWeight: 600, marginTop: 4 }}>
-            Net earnings post incentive
+            CGST + SGST (9% + 9%)
           </div>
         </div>
 
-        {/* CARD 4: Total Amount Received */}
+        {/* CARD 4: Total Invoice Value */}
         <div
           style={{
             background: '#FFFFFF',
@@ -515,11 +519,13 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
             boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
           }}
         >
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total Amount Received</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total Invoice Value</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: '#059669', marginTop: 4 }}>
-            {inr(metrics.totalReceived)}
+            {inr(metrics.totalValue)}
           </div>
-          <div style={{ fontSize: 11.5, color: '#059669', fontWeight: 600, marginTop: 4 }}>Direct bank credit</div>
+          <div style={{ fontSize: 11.5, color: '#059669', fontWeight: 600, marginTop: 4 }}>
+            Matches Payments &amp; Invoices ({inr(metrics.totalReceived)} paid)
+          </div>
         </div>
 
         {/* CARD 5: Total Pending Amount */}
@@ -693,16 +699,15 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
             <thead>
               <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700 }}>
                 <th style={{ padding: '12px 14px' }}>INVOICE NO</th>
-                <th style={{ padding: '12px 14px' }}>CLIENT &amp; POC</th>
+                <th style={{ padding: '12px 14px' }}>CLIENT &amp; PROJECT MILESTONE</th>
                 <th style={{ padding: '12px 14px' }}>INVOICE DATE</th>
-                <th style={{ padding: '12px 14px' }}>CANDIDATES</th>
+                <th style={{ padding: '12px 14px' }}>SEATS</th>
                 <th style={{ padding: '12px 14px' }}>BASIC AMOUNT</th>
                 <th style={{ padding: '12px 14px' }}>GST @ 18%</th>
                 <th style={{ padding: '12px 14px' }}>TOTAL VALUE</th>
-                <th style={{ padding: '12px 14px' }}>TDS @ 10%</th>
-                <th style={{ padding: '12px 14px' }}>EXPECTED RECEIPT</th>
-                <th style={{ padding: '12px 14px' }}>ACTUAL RECEIPT</th>
+                <th style={{ padding: '12px 14px' }}>RECEIVED</th>
                 <th style={{ padding: '12px 14px' }}>OUTSTANDING</th>
+                <th style={{ padding: '12px 14px' }}>DUE</th>
                 <th style={{ padding: '12px 14px' }}>STATUS</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center' }}>ACTIONS</th>
               </tr>
@@ -710,7 +715,7 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
             <tbody>
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={13} style={{ padding: 40, textAlign: 'center', color: '#64748B' }}>
+                  <td colSpan={12} style={{ padding: 40, textAlign: 'center', color: '#64748B' }}>
                     No raised invoices found.
                   </td>
                 </tr>
@@ -749,24 +754,23 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
                       </td>
                       <td style={{ padding: '10px 14px' }}>
                         <div style={{ fontWeight: 700, color: '#0F172A' }}>{inv.client}</div>
+                        {inv.projectMilestone && (
+                          <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}>{inv.projectMilestone}</div>
+                        )}
                         {poc && (
-                          <div style={{ fontSize: 11, color: '#0F766E', marginTop: 2 }}>
+                          <div style={{ fontSize: 10.5, color: '#0F766E', marginTop: 2 }}>
                             POC: {poc.billingPocName || poc.hrPocName}
                           </div>
                         )}
                       </td>
                       <td style={{ padding: '10px 14px', color: '#475569', whiteSpace: 'nowrap' }}>{inv.invoiceDate}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A' }}>
-                        {inv.candidateCount} Seats
+                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                        {inv.candidateCount} {inv.candidateCount === 1 ? 'Seat' : 'Seats'}
                       </td>
                       <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>{inr(inv.basicAmount)}</td>
                       <td style={{ padding: '10px 14px', color: '#64748B' }}>{inr(inv.gstAmount)}</td>
                       <td style={{ padding: '10px 14px', fontWeight: 800, color: '#0F172A' }}>
                         {inr(inv.totalInvoiceValue)}
-                      </td>
-                      <td style={{ padding: '10px 14px', color: '#D97706' }}>{inr(inv.tdsAmount)}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0D9488' }}>
-                        {inr(inv.expectedReceipt)}
                       </td>
                       <td style={{ padding: '10px 14px', fontWeight: 700, color: '#059669' }}>
                         {inr(inv.actualReceipt)}
@@ -779,6 +783,9 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
                         }}
                       >
                         {inr(inv.outstandingBalance)}
+                      </td>
+                      <td style={{ padding: '10px 14px', color: '#64748B', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {inv.dueDate || '30 days'}
                       </td>
                       <td style={{ padding: '10px 14px' }}>
                         <span
@@ -795,30 +802,67 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
                         </span>
                       </td>
                       <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        {/* Action: Paid or Pending dropdown */}
-                        <select
-                          value={isCleared || inv.status === 'Paid' ? 'Paid' : 'Pending'}
-                          onChange={(e) => handleActionStatusChange(inv, e.target.value)}
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: 8,
-                            fontSize: 11.5,
-                            fontWeight: 800,
-                            border: isCleared || inv.status === 'Paid' ? '1.5px solid #10B981' : '1.5px solid #F59E0B',
-                            background: isCleared || inv.status === 'Paid' ? '#ECFDF5' : '#FFFBEB',
-                            color: isCleared || inv.status === 'Paid' ? '#047857' : '#B45309',
-                            cursor: 'pointer',
-                            outline: 'none',
-                            boxShadow:
-                              isCleared || inv.status === 'Paid'
-                                ? '0 1px 3px rgba(16, 185, 129, 0.18)'
-                                : '0 1px 3px rgba(245, 158, 11, 0.18)',
-                            transition: 'all 0.15s ease',
-                          }}
-                        >
-                          <option value="Pending">Pending</option>
-                          <option value="Paid">Paid</option>
-                        </select>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <button
+                            onClick={() =>
+                              onPreviewInvoice ? onPreviewInvoice(inv.rawInvoice || inv) : setViewInvoice(inv)
+                            }
+                            title="Preview Official Invoice"
+                            style={{
+                              padding: '5px 8px',
+                              borderRadius: 7,
+                              border: '1px solid #CBD5E1',
+                              background: '#FFFFFF',
+                              color: '#334155',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <Eye size={13} />
+                          </button>
+                          {onDownloadPdf && (
+                            <button
+                              onClick={() => onDownloadPdf(inv.rawInvoice || inv)}
+                              title="Download Invoice PDF"
+                              style={{
+                                padding: '5px 8px',
+                                borderRadius: 7,
+                                border: '1px solid #CBD5E1',
+                                background: '#FFFFFF',
+                                color: '#334155',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <Download size={13} />
+                            </button>
+                          )}
+                          <select
+                            value={isCleared || inv.status === 'Paid' ? 'Paid' : 'Pending'}
+                            onChange={(e) => handleActionStatusChange(inv, e.target.value)}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: 8,
+                              fontSize: 11.5,
+                              fontWeight: 800,
+                              border: isCleared || inv.status === 'Paid' ? '1.5px solid #10B981' : '1.5px solid #F59E0B',
+                              background: isCleared || inv.status === 'Paid' ? '#ECFDF5' : '#FFFBEB',
+                              color: isCleared || inv.status === 'Paid' ? '#047857' : '#B45309',
+                              cursor: 'pointer',
+                              outline: 'none',
+                              boxShadow:
+                                isCleared || inv.status === 'Paid'
+                                  ? '0 1px 3px rgba(16, 185, 129, 0.18)'
+                                  : '0 1px 3px rgba(245, 158, 11, 0.18)',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Paid">Paid</option>
+                          </select>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1137,10 +1181,15 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
                 <div>
                   <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>CLIENT</div>
                   <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>{viewInvoice.client}</div>
+                  {viewInvoice.projectMilestone && (
+                    <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{viewInvoice.projectMilestone}</div>
+                  )}
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>INVOICE DATE</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#334155' }}>{viewInvoice.invoiceDate}</div>
+                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>INVOICE DATE &amp; DUE</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#334155' }}>
+                    {viewInvoice.invoiceDate} · {viewInvoice.dueDate || '30 days'}
+                  </div>
                 </div>
               </div>
 
@@ -1168,21 +1217,21 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
                   </div>
                 </div>
                 <div>
-                  <div style={{ color: '#64748B' }}>TDS @ 10%</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: '#D97706', marginTop: 2 }}>
-                    {inr(viewInvoice.tdsAmount)}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ color: '#64748B' }}>Gross Value</div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0F172A', marginTop: 2 }}>
+                  <div style={{ color: '#64748B' }}>Total Value</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: '#059669', marginTop: 2 }}>
                     {inr(viewInvoice.totalInvoiceValue)}
                   </div>
                 </div>
                 <div>
-                  <div style={{ color: '#64748B' }}>Expected Receipt</div>
+                  <div style={{ color: '#64748B' }}>Seats</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0F172A', marginTop: 2 }}>
+                    {viewInvoice.candidateCount}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#64748B' }}>Received</div>
                   <div style={{ fontWeight: 800, fontSize: 15, color: '#0D9488', marginTop: 2 }}>
-                    {inr(viewInvoice.expectedReceipt)}
+                    {inr(viewInvoice.actualReceipt)}
                   </div>
                 </div>
                 <div>
@@ -1192,6 +1241,31 @@ export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavi
                   </div>
                 </div>
               </div>
+
+              {Array.isArray(viewInvoice.items) && viewInvoice.items.length > 0 && (
+                <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 10 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569' }}>
+                        <th style={{ padding: '7px 10px' }}>EMP ID</th>
+                        <th style={{ padding: '7px 10px' }}>CANDIDATE</th>
+                        <th style={{ padding: '7px 10px' }}>PROCESS</th>
+                        <th style={{ padding: '7px 10px', textAlign: 'right' }}>AMOUNT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewInvoice.items.map((it, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                          <td style={{ padding: '6px 10px', fontFamily: 'monospace', color: '#475569' }}>{it.empId || '—'}</td>
+                          <td style={{ padding: '6px 10px', fontWeight: 700, color: '#0F172A' }}>{it.employeeName || '—'}</td>
+                          <td style={{ padding: '6px 10px', color: '#475569' }}>{it.processLob || '—'}</td>
+                          <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700 }}>{inr(it.amount || it.ratePerSeat || 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {viewInvoice.revisionHistory?.length > 0 && (
                 <div>

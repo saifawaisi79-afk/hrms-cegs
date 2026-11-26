@@ -25,7 +25,13 @@ import {
 } from '@/lib/finance-data';
 import { extractClearedInvoicesFromApi } from '@/lib/client-invoice-rules';
 
-export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, onRefresh }) {
+export function BillClearedSection({
+  apiInvoices = null,
+  onNavigateToPayments,
+  onRefresh,
+  onPreviewInvoice,
+  onDownloadPdf,
+}) {
   const [clearedInvoices, setClearedInvoices] = useState(() => extractClearedInvoicesFromApi(apiInvoices || []));
 
   // Sync cleanly from Payments & Invoices API data (deduplicated, zero workbook seed data)
@@ -121,13 +127,15 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
 
   // Filtered Cleared Invoices (Current Month entries shown first)
   const filteredInvoices = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
     const list = clearedInvoices.filter((inv) => {
       const matchSearch =
-        !searchQuery ||
-        inv.invoiceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.client?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.paymentReference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.remarks?.toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        inv.invoiceNo?.toLowerCase().includes(q) ||
+        inv.client?.toLowerCase().includes(q) ||
+        inv.projectMilestone?.toLowerCase().includes(q) ||
+        inv.paymentReference?.toLowerCase().includes(q) ||
+        inv.remarks?.toLowerCase().includes(q);
       const matchClient = selectedClient === 'ALL' || inv.client?.toLowerCase() === selectedClient.toLowerCase();
       const matchGst = selectedGstStatus === 'ALL' || inv.gstStatus?.toLowerCase() === selectedGstStatus.toLowerCase();
       const invMonth = extractMonthKey(inv.clearedDate || inv.invoiceDate);
@@ -138,16 +146,16 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
     return sortItemsByCurrentMonthFirst(list, (inv) => inv.clearedDate || inv.invoiceDate);
   }, [clearedInvoices, searchQuery, selectedClient, selectedGstStatus, selectedMonth]);
 
-  // Summary Metrics
+  // Summary Metrics (exact values from Payments & Invoices)
   const metrics = useMemo(() => {
     const count = clearedInvoices.length;
-    const totalBi = clearedInvoices.reduce((s, i) => s + (Number(i.bi) || 0), 0); // ~₹17,73,072
-    const totalAi = clearedInvoices.reduce((s, i) => s + (Number(i.ai) || 0), 0); // ~₹15,34,740
+    const totalBasic = clearedInvoices.reduce((s, i) => s + (Number(i.basicAmount) || 0), 0);
+    const totalGst = clearedInvoices.reduce((s, i) => s + (Number(i.gstAmount) || 0), 0);
+    const totalValue = clearedInvoices.reduce((s, i) => s + (Number(i.totalInvoiceValue) || 0), 0);
     const totalReceived = clearedInvoices.reduce((s, i) => s + (Number(i.amountReceived) || 0), 0);
     const gstReconciledCount = clearedInvoices.filter((i) => i.gstStatus === 'Reconciled' || i.gstStatus === 'Raised').length;
-    const tdsReconciledCount = clearedInvoices.filter((i) => !i.remarks?.includes('No TDS')).length;
 
-    return { count, totalBi, totalAi, totalReceived, gstReconciledCount, tdsReconciledCount };
+    return { count, totalBasic, totalGst, totalValue, totalReceived, gstReconciledCount };
   }, [clearedInvoices]);
 
   // Pagination Slice
@@ -163,16 +171,17 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
     const rows = filteredInvoices.map((inv) => ({
       'Invoice No': inv.invoiceNo,
       Client: inv.client,
+      'Project / Milestone': inv.projectMilestone || '',
       'Invoice Date': inv.invoiceDate,
-      Candidates: inv.candidateCount,
-      'BI (Basic Cleared)': inv.bi,
-      'AI (Net Cleared)': inv.ai,
-      'Amount Received': inv.amountReceived,
+      Seats: inv.candidateCount,
+      'Basic Amount': inv.basicAmount,
+      'GST (18%)': inv.gstAmount,
+      'Invoice Total': inv.totalInvoiceValue,
+      'Amount Paid': inv.amountReceived,
       'Cleared Date': inv.clearedDate,
       'Payment Reference': inv.paymentReference || '',
-      'GST Reconciliation Status': inv.gstStatus || '',
-      'GST Amount Status': inv.gstAmtStatus || '',
-      'Cleared By': inv.clearedBy || 'Finance Auditor',
+      'GST Status': inv.gstStatus || '',
+      'Cleared By': inv.clearedBy || 'Finance Operations',
       Remarks: inv.remarks || '',
     }));
 
@@ -321,29 +330,12 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Cleared Invoices</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#0F172A', marginTop: 4 }}>{metrics.count}</div>
-          <div style={{ fontSize: 11.5, color: '#059669', fontWeight: 600, marginTop: 4 }}>Fully settled in bank</div>
-        </div>
-
-        {/* CARD 2: Total Cleared BI */}
-        <div
-          style={{
-            background: '#FFFFFF',
-            borderRadius: 16,
-            padding: '16px 20px',
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-          }}
-        >
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total Cleared BI (Gross)</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#059669', marginTop: 4 }}>
-            {inr(metrics.totalBi)}
-          </div>
           <div style={{ fontSize: 11.5, color: '#059669', fontWeight: 600, marginTop: 4 }}>
-            Synced from Payments &amp; Invoices
+            Paid in Payments &amp; Invoices
           </div>
         </div>
 
-        {/* CARD 3: Total Cleared AI */}
+        {/* CARD 2: Total Basic */}
         <div
           style={{
             background: '#FFFFFF',
@@ -353,16 +345,54 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
             boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
           }}
         >
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total Cleared AI (Net)</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total Basic Amount</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#2563EB', marginTop: 4 }}>
+            {inr(metrics.totalBasic)}
+          </div>
+          <div style={{ fontSize: 11.5, color: '#2563EB', fontWeight: 600, marginTop: 4 }}>
+            Pre-GST seat billing value
+          </div>
+        </div>
+
+        {/* CARD 3: Total GST */}
+        <div
+          style={{
+            background: '#FFFFFF',
+            borderRadius: 16,
+            padding: '16px 20px',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total GST (18%)</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: '#7C3AED', marginTop: 4 }}>
-            {inr(metrics.totalAi)}
+            {inr(metrics.totalGst)}
           </div>
           <div style={{ fontSize: 11.5, color: '#7C3AED', fontWeight: 600, marginTop: 4 }}>
-            Post 10% TDS net margin
+            CGST + SGST (9% + 9%)
           </div>
         </div>
 
-        {/* CARD 4: GST Reconciled */}
+        {/* CARD 4: Total Invoice Value Cleared */}
+        <div
+          style={{
+            background: '#FFFFFF',
+            borderRadius: 16,
+            padding: '16px 20px',
+            border: '1px solid #E2E8F0',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total Invoice Cleared</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#059669', marginTop: 4 }}>
+            {inr(metrics.totalValue)}
+          </div>
+          <div style={{ fontSize: 11.5, color: '#059669', fontWeight: 600, marginTop: 4 }}>
+            Matches Payments &amp; Invoices ({inr(metrics.totalReceived)} received)
+          </div>
+        </div>
+
+        {/* CARD 5: GST Reconciled */}
         <div
           style={{
             background: '#FFFFFF',
@@ -373,30 +403,11 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>GST Reconciled</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#2563EB', marginTop: 4 }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#D97706', marginTop: 4 }}>
             {metrics.gstReconciledCount} Invoices
           </div>
-          <div style={{ fontSize: 11.5, color: '#2563EB', fontWeight: 600, marginTop: 4 }}>
-            Differentiated from cash receipt
-          </div>
-        </div>
-
-        {/* CARD 5: TDS Reconciled */}
-        <div
-          style={{
-            background: '#FFFFFF',
-            borderRadius: 16,
-            padding: '16px 20px',
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-          }}
-        >
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>TDS Reconciled</div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#D97706', marginTop: 4 }}>
-            {metrics.tdsReconciledCount} Invoices
-          </div>
           <div style={{ fontSize: 11.5, color: '#D97706', fontWeight: 600, marginTop: 4 }}>
-            Form 16 / 26AS matching
+            Form GST INV-1 verified
           </div>
         </div>
       </div>
@@ -609,16 +620,16 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
             <thead>
               <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700 }}>
                 <th style={{ padding: '12px 14px' }}>INVOICE NO</th>
-                <th style={{ padding: '12px 14px' }}>CLIENT</th>
+                <th style={{ padding: '12px 14px' }}>CLIENT &amp; PROJECT MILESTONE</th>
                 <th style={{ padding: '12px 14px' }}>INVOICE DATE</th>
-                <th style={{ padding: '12px 14px' }}>CANDIDATES</th>
-                <th style={{ padding: '12px 14px' }}>BI (CLEARED)</th>
-                <th style={{ padding: '12px 14px' }}>AI (NET)</th>
-                <th style={{ padding: '12px 14px' }}>AMOUNT CLEARED</th>
+                <th style={{ padding: '12px 14px' }}>SEATS</th>
+                <th style={{ padding: '12px 14px' }}>BASIC AMOUNT</th>
+                <th style={{ padding: '12px 14px' }}>GST @ 18%</th>
+                <th style={{ padding: '12px 14px' }}>INVOICE TOTAL</th>
+                <th style={{ padding: '12px 14px' }}>AMOUNT PAID</th>
                 <th style={{ padding: '12px 14px' }}>CLEARING DATE</th>
                 <th style={{ padding: '12px 14px' }}>PAYMENT REF / UTR</th>
                 <th style={{ padding: '12px 14px' }}>GST STATUS</th>
-                <th style={{ padding: '12px 14px' }}>AUDIT &amp; CLEARED BY</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center' }}>ACTIONS</th>
               </tr>
             </thead>
@@ -643,30 +654,22 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
                     >
                       <td style={{ padding: '10px 14px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap' }}>
                         {inv.invoiceNo}
-                        {isSuspectedDuplicate && (
-                          <span
-                            title="Duplicate combination in source workbook"
-                            style={{
-                              marginLeft: 6,
-                              padding: '1px 5px',
-                              borderRadius: 4,
-                              background: '#FEE2E2',
-                              color: '#B91C1C',
-                              fontSize: 10,
-                              fontWeight: 700,
-                            }}
-                          >
-                            REPEAT
-                          </span>
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <div style={{ fontWeight: 700, color: '#0F172A' }}>{inv.client}</div>
+                        {inv.projectMilestone && (
+                          <div style={{ fontSize: 11.5, color: '#475569', marginTop: 2 }}>{inv.projectMilestone}</div>
                         )}
                       </td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A' }}>{inv.client}</td>
                       <td style={{ padding: '10px 14px', color: '#475569', whiteSpace: 'nowrap' }}>{inv.invoiceDate}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A' }}>
-                        {inv.candidateCount} Seats
+                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                        {inv.candidateCount} {inv.candidateCount === 1 ? 'Seat' : 'Seats'}
                       </td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#059669' }}>{inr(inv.bi)}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#7C3AED' }}>{inr(inv.ai)}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>{inr(inv.basicAmount)}</td>
+                      <td style={{ padding: '10px 14px', color: '#64748B' }}>{inr(inv.gstAmount)}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 800, color: '#059669' }}>
+                        {inr(inv.totalInvoiceValue)}
+                      </td>
                       <td style={{ padding: '10px 14px', fontWeight: 800, color: '#0F172A' }}>
                         {inr(inv.amountReceived)}
                       </td>
@@ -674,7 +677,7 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
                         {inv.clearedDate || inv.invoiceDate}
                       </td>
                       <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 11.5, color: '#334155' }}>
-                        {inv.paymentReference || 'NEFT-CONFIRMED'}
+                        {inv.paymentReference || 'BANK-SETTLED'}
                       </td>
                       <td style={{ padding: '10px 14px' }}>
                         <span
@@ -690,15 +693,13 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
                           {inv.gstStatus || 'Reconciled'}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 14px', color: '#475569', fontSize: 12 }}>
-                        <div style={{ fontWeight: 600, color: '#0F172A' }}>{inv.clearedBy || 'Finance Auditor'}</div>
-                        <div style={{ fontSize: 10.5, color: '#64748B' }}>Verified Bank Settlement</div>
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                      <td style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                           <button
-                            onClick={() => setViewInvoice(inv)}
-                            title="View Verified Record"
+                            onClick={() =>
+                              onPreviewInvoice ? onPreviewInvoice(inv.rawInvoice || inv) : setViewInvoice(inv)
+                            }
+                            title="Preview Official Invoice"
                             style={{
                               padding: '4px 8px',
                               borderRadius: 6,
@@ -706,14 +707,34 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
                               background: '#FFFFFF',
                               color: '#334155',
                               cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
                             }}
                           >
                             <Eye size={13} />
                           </button>
+                          {onDownloadPdf && (
+                            <button
+                              onClick={() => onDownloadPdf(inv.rawInvoice || inv)}
+                              title="Download Invoice PDF"
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                                border: '1px solid #CBD5E1',
+                                background: '#FFFFFF',
+                                color: '#334155',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <Download size={13} />
+                            </button>
+                          )}
                           {onNavigateToPayments && (
                             <button
                               onClick={() => onNavigateToPayments(inv)}
-                              title="Post / View in Payments & Invoices (Stage 4 Final Settlement)"
+                              title="View in Payments & Invoices"
                               style={{
                                 padding: '4px 8px',
                                 borderRadius: 6,
@@ -970,32 +991,64 @@ export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, o
                 <span style={{ color: '#64748B', fontSize: 12 }}>Client:</span>
                 <span style={{ fontWeight: 800, color: '#0F172A', fontSize: 13 }}>{viewInvoice.client}</span>
               </div>
+              {viewInvoice.projectMilestone && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+                  <span style={{ color: '#64748B', fontSize: 12 }}>Project / Milestone:</span>
+                  <span style={{ fontWeight: 600, color: '#334155', fontSize: 12.5 }}>{viewInvoice.projectMilestone}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
-                <span style={{ color: '#64748B', fontSize: 12 }}>Invoice Date:</span>
-                <span style={{ color: '#0F172A', fontSize: 13 }}>{viewInvoice.invoiceDate}</span>
+                <span style={{ color: '#64748B', fontSize: 12 }}>Invoice Date / Cleared Date:</span>
+                <span style={{ color: '#0F172A', fontSize: 13 }}>
+                  {viewInvoice.invoiceDate} / {viewInvoice.clearedDate || viewInvoice.invoiceDate}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
-                <span style={{ color: '#64748B', fontSize: 12 }}>Gross Amount Cleared (BI):</span>
-                <span style={{ fontWeight: 800, color: '#059669', fontSize: 15 }}>{inr(viewInvoice.bi)}</span>
+                <span style={{ color: '#64748B', fontSize: 12 }}>Basic Amount + GST (18%):</span>
+                <span style={{ fontWeight: 700, color: '#2563EB', fontSize: 13 }}>
+                  {inr(viewInvoice.basicAmount)} + {inr(viewInvoice.gstAmount)}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
-                <span style={{ color: '#64748B', fontSize: 12 }}>Net Cleared Margin (AI):</span>
-                <span style={{ fontWeight: 800, color: '#7C3AED', fontSize: 15 }}>{inr(viewInvoice.ai)}</span>
+                <span style={{ color: '#64748B', fontSize: 12 }}>Total Invoice Value &amp; Paid:</span>
+                <span style={{ fontWeight: 800, color: '#059669', fontSize: 15 }}>
+                  {inr(viewInvoice.totalInvoiceValue)} ({inr(viewInvoice.amountReceived)} Paid)
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                 <span style={{ color: '#64748B', fontSize: 12 }}>Payment Reference:</span>
                 <span style={{ fontFamily: 'monospace', color: '#334155', fontSize: 12 }}>
-                  {viewInvoice.paymentReference || 'NEFT-CONFIRMED'}
+                  {viewInvoice.paymentReference || 'BANK-SETTLED'}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                 <span style={{ color: '#64748B', fontSize: 12 }}>GST Status:</span>
                 <span style={{ color: '#0F766E', fontWeight: 700, fontSize: 12 }}>{viewInvoice.gstStatus || 'Reconciled'}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
-                <span style={{ color: '#64748B', fontSize: 12 }}>Audited &amp; Cleared By:</span>
-                <span style={{ color: '#0F172A', fontWeight: 600, fontSize: 12 }}>{viewInvoice.clearedBy || 'Finance Auditor'}</span>
-              </div>
+              {Array.isArray(viewInvoice.items) && viewInvoice.items.length > 0 && (
+                <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 10 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569' }}>
+                        <th style={{ padding: '6px 8px' }}>EMP ID</th>
+                        <th style={{ padding: '6px 8px' }}>CANDIDATE</th>
+                        <th style={{ padding: '6px 8px' }}>PROCESS</th>
+                        <th style={{ padding: '6px 8px', textAlign: 'right' }}>AMOUNT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewInvoice.items.map((it, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                          <td style={{ padding: '5px 8px', fontFamily: 'monospace', color: '#475569' }}>{it.empId || '—'}</td>
+                          <td style={{ padding: '5px 8px', fontWeight: 700, color: '#0F172A' }}>{it.employeeName || '—'}</td>
+                          <td style={{ padding: '5px 8px', color: '#475569' }}>{it.processLob || '—'}</td>
+                          <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 700 }}>{inr(it.amount || it.ratePerSeat || 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               {viewInvoice.remarks && (
                 <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 8, fontSize: 12, color: '#475569' }}>
                   <strong>Remarks:</strong> {viewInvoice.remarks}
