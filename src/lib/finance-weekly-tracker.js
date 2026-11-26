@@ -126,19 +126,35 @@ export function buildLiveWeeklyTracker({
 
   const inactiveIds = new Set();
   const inactiveNamePhones = new Set();
+  const excludedCandidateIds = new Set();
+  const excludedNamePhones = new Set();
+  const deletedCandidateIds = new Set();
+  const deletedNamePhones = new Set();
+
   (joinerEntries || []).forEach((j) => {
+    const cid = String(j.candidateId || '').trim();
+    const np = `${normName(j.name)}|${normPhone(j.phone)}`;
+    if (j.weeklyExcluded) {
+      if (cid) excludedCandidateIds.add(cid);
+      if (np !== '|') excludedNamePhones.add(np);
+      return;
+    }
+    if (j.weeklyDeleted) {
+      if (cid) deletedCandidateIds.add(cid);
+      if (np !== '|') deletedNamePhones.add(np);
+    }
     if (isJoinerEntryInactive(j)) {
-      const cid = String(j.candidateId || '').trim();
       if (cid) inactiveIds.add(cid);
-      const np = `${normName(j.name)}|${normPhone(j.phone)}`;
       if (np !== '|') inactiveNamePhones.add(np);
     }
   });
 
   const mergedByKey = new Map();
+  const deletedByKey = new Map();
 
-  // 1. Ingest JoinerEntry rows (overlays + manual rows)
+  // 1. Ingest JoinerEntry rows (overlays + manual rows), routing soft-deleted rows to Recycle Bin
   (joinerEntries || []).forEach((j) => {
+    if (j.weeklyExcluded) return;
     const name = String(j.name || '').trim();
     if (!name) return;
     const jid = String(j._id || j.id || '').trim();
@@ -162,7 +178,7 @@ export function buildLiveWeeklyTracker({
     const rawRecruiter = String(j.recruiterName || linked?.employee || '').trim();
     const inactive = isJoinerEntryInactive(j) || (linked ? isCandidateInactive(linked) : false);
 
-    mergedByKey.set(key, {
+    const record = {
       id: cid ? `cand_${cid}` : `joiner_${jid || key}`,
       overlayId: jid,
       candidateId: cid,
@@ -179,10 +195,18 @@ export function buildLiveWeeklyTracker({
       all8Active: !inactive && hasAll8WeeksActive(j),
       remarks: extractFollowupNote(j, linked) || 'Live from Joiner Sheet',
       source: cid ? 'joiner_sheet' : 'joiner_manual',
-    });
+      deletedAt: String(j.weeklyDeletedAt || '').trim(),
+      deletedBy: String(j.weeklyDeletedBy || '').trim(),
+    };
+
+    if (j.weeklyDeleted) {
+      deletedByKey.set(key, record);
+    } else {
+      mergedByKey.set(key, record);
+    }
   });
 
-  // 2. Ingest joined Candidates without an overlay row yet
+  // 2. Ingest joined Candidates without an overlay row yet (respecting permanent exclusions and recycle bin)
   (candidates || []).forEach((c) => {
     if (!isJoinedCandidate(c)) return;
     const name = String(c.name || '').trim();
@@ -191,6 +215,23 @@ export function buildLiveWeeklyTracker({
     const phone = String(c.number || '').trim();
     const np = `${normName(name)}|${normPhone(phone)}`;
     const key = cid || `p:${np}`;
+
+    if ((cid && excludedCandidateIds.has(cid)) || (np !== '|' && excludedNamePhones.has(np))) {
+      return;
+    }
+
+    const deletedTarget =
+      deletedByKey.get(key) ||
+      ((cid && deletedCandidateIds.has(cid)) || (np !== '|' && deletedNamePhones.has(np)));
+    if (deletedTarget) {
+      if (typeof deletedTarget === 'object') {
+        if (!deletedTarget.rawRecruiter && c.employee) deletedTarget.rawRecruiter = String(c.employee).trim();
+        if (!deletedTarget.rawCompany && c.company) deletedTarget.rawCompany = String(c.company).trim();
+        if (!deletedTarget.rawProcess && c.process) deletedTarget.rawProcess = String(c.process).trim();
+        if (!deletedTarget.phone && phone) deletedTarget.phone = phone;
+      }
+      return;
+    }
 
     if (mergedByKey.has(key)) {
       const existing = mergedByKey.get(key);
@@ -224,12 +265,14 @@ export function buildLiveWeeklyTracker({
       all8Active: false,
       remarks: extractFollowupNote(null, c) || 'Joined on Targets Sheet',
       source: 'targets_joined',
+      deletedAt: '',
+      deletedBy: '',
     });
   });
 
   // 3. Enrich every candidate with Payout, BI (+18% GST), AI (-10% TDS), Billing Date, and Readiness
   const monthSet = new Set();
-  const liveCandidates = [...mergedByKey.values()].map((item) => {
+  const enrichTrackerItem = (item, recordMonth = true) => {
     const payout = resolveJoinerPayoutInfo(item.rawCompany, item.rawProcess);
     const client = payout.canonicalCompany || item.rawCompany || 'Other';
     const process = payout.matchedProcess || item.rawProcess || client;
@@ -245,14 +288,13 @@ export function buildLiveWeeklyTracker({
     }
 
     const monthKey = item.joiningIso ? item.joiningIso.slice(0, 7) : '';
-    if (monthKey) monthSet.add(monthKey);
+    if (recordMonth && monthKey) monthSet.add(monthKey);
 
     const tax = calculateDraftInvoice(payout.rate, 0.18, 0.10);
     const empStatus = item.inactive ? 'INACTIVE' : 'ACTIVE';
     const cleanEmpId = item.empId ? item.empId.toUpperCase() : 'Pending';
     const hasValidEmpId = Boolean(cleanEmpId && cleanEmpId !== 'PENDING' && cleanEmpId !== 'NA' && cleanEmpId !== '-');
 
-    // Check if already raised in a ClientInvoice
     const matchedInvoiceNo =
       (item.overlayId && billedJoinerIds.has(item.overlayId) && 'Billed') ||
       (item.candidateId && billedJoinerIds.has(item.candidateId) && 'Billed') ||
@@ -302,8 +344,16 @@ export function buildLiveWeeklyTracker({
       lockInPassed,
       remarks: item.remarks,
       source: item.source,
+      deletedAt: item.deletedAt || '',
+      deletedBy: item.deletedBy || '',
     };
-  });
+  };
+
+  const liveCandidates = [...mergedByKey.values()].map((it) => enrichTrackerItem(it, true));
+  const deletedCandidates = [...deletedByKey.values()]
+    .map((it) => enrichTrackerItem(it, false))
+    .sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || '') || a.candidateName.localeCompare(b.candidateName))
+    .map((c, idx) => ({ ...c, slNo: idx + 1 }));
 
   // Sort candidates newest joining date descending
   liveCandidates.sort((a, b) => {
@@ -422,6 +472,7 @@ export function buildLiveWeeklyTracker({
 
   return {
     candidates: indexedCandidates,
+    deletedCandidates,
     batches: batchesSorted,
     availableMonths,
     generatedAt: new Date().toISOString(),

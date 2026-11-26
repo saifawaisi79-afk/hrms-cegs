@@ -12,7 +12,12 @@ import { BillClearedSection } from './BillClearedSection';
 import { TotalConsolidatedSection } from './TotalConsolidatedSection';
 import { sortItemsByCurrentMonthFirst, getInitialRaisedInvoices, saveRaisedInvoices, getInitialClearedInvoices, saveClearedInvoices } from '@/lib/finance-data';
 import { formatDateDMY } from '@/lib/date-format';
-import { sortInvoicesDescending } from '@/lib/client-invoice-rules';
+import {
+  sortInvoicesDescending,
+  extractPaymentsInvoicesFromApi,
+  extractRaisedInvoicesFromApi,
+  extractClearedInvoicesFromApi,
+} from '@/lib/client-invoice-rules';
 import { getCompanyProcesses, getProcessPayoutAmount } from '@/lib/company-process-payouts';
 import {
   Download,
@@ -1796,12 +1801,32 @@ export function FinanceInvoicesView() {
     }
   }, [user, isFinanceAdmin]);
   const [invoices, setInvoices] = useState(DEFAULT_INVOICES);
+  const [weeklyCount, setWeeklyCount] = useState(null);
   const [clients, setClients] = useState(DEFAULT_CLIENTS);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
 
   // 5 Finance Tabs state: 'weekly_update', 'bill_raised', 'bill_cleared', 'total_abcd', 'payments_invoices'
   const [activeFinanceTab, setActiveFinanceTab] = useState('payments_invoices');
+
+  const tabCounts = useMemo(() => ({
+    payments: extractPaymentsInvoicesFromApi(invoices).length,
+    raised: extractRaisedInvoicesFromApi(invoices).length,
+    cleared: extractClearedInvoicesFromApi(invoices).length,
+  }), [invoices]);
+
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) return;
+    fetch('/api/finance/weekly-tracker', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.candidates)) {
+          setWeeklyCount(data.candidates.length);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -3612,7 +3637,7 @@ export function FinanceInvoicesView() {
             transition: 'all 0.2s ease',
           }}
         >
-          Weekly Update (A) (147)
+          Weekly Update (A){weeklyCount != null ? ` (${weeklyCount})` : ''}
         </button>
 
         {/* TAB 2: Payments & Invoices (Stage 2) */}
@@ -3635,7 +3660,7 @@ export function FinanceInvoicesView() {
             transition: 'all 0.2s ease',
           }}
         >
-          Payments &amp; Invoices (B) ({invoices.length})
+          Payments &amp; Invoices (B) ({tabCounts.payments})
         </button>
 
         {/* TAB 3: Bill Raised (Stage 3) */}
@@ -3658,7 +3683,7 @@ export function FinanceInvoicesView() {
             transition: 'all 0.2s ease',
           }}
         >
-          Bill Raised (C) (22)
+          Bill Raised (C) ({tabCounts.raised})
         </button>
 
         {/* TAB 4: Bill Cleared (Stage 4) */}
@@ -3681,7 +3706,7 @@ export function FinanceInvoicesView() {
             transition: 'all 0.2s ease',
           }}
         >
-          Bill Cleared (D) (95)
+          Bill Cleared (D) ({tabCounts.cleared})
         </button>
 
         {/* TAB 5: Total (A+B+C+D) - ON HOLD */}
@@ -3729,6 +3754,7 @@ export function FinanceInvoicesView() {
         <WeeklyUpdateSection
           onNavigateToRaised={() => handleTabChange('payments_invoices')}
           onMoveCandidatesToRaised={() => handleTabChange('payments_invoices')}
+          onCountChange={setWeeklyCount}
         />
       )}
 
@@ -3738,12 +3764,17 @@ export function FinanceInvoicesView() {
           apiInvoices={invoices}
           onInvoiceCleared={() => handleTabChange('bill_cleared')}
           onNavigateToCleared={() => handleTabChange('bill_cleared')}
+          onRefresh={loadData}
         />
       )}
 
       {/* SECTION 3: BILL CLEARED (STAGE 3) */}
       {activeFinanceTab === 'bill_cleared' && (
-        <BillClearedSection onNavigateToPayments={() => handleTabChange('payments_invoices')} />
+        <BillClearedSection
+          apiInvoices={invoices}
+          onNavigateToPayments={() => handleTabChange('payments_invoices')}
+          onRefresh={loadData}
+        />
       )}
 
       {/* SECTION 4: TOTAL (A+B+C+D) - PAGE ON HOLD WITH BLUR */}

@@ -11,6 +11,8 @@ import {
   X,
   Info,
   RefreshCw,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import {
   inr,
@@ -34,18 +36,39 @@ function todayDayMonth() {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRaised }) {
+function filterWeeklyCandidates(list, { searchQuery, selectedClient, selectedStatus, selectedMonth }) {
+  const q = String(searchQuery || '').toLowerCase().trim();
+  return (list || []).filter((item) => {
+    const matchSearch =
+      !q ||
+      item.candidateName?.toLowerCase().includes(q) ||
+      item.phone?.includes(q) ||
+      item.process?.toLowerCase().includes(q) ||
+      item.client?.toLowerCase().includes(q) ||
+      item.recruiter?.toLowerCase().includes(q) ||
+      item.empId?.toLowerCase().includes(q);
+    const matchClient = selectedClient === 'ALL' || item.client?.toLowerCase() === selectedClient.toLowerCase();
+    const matchStatus = selectedStatus === 'ALL' || item.billingStatus?.toLowerCase() === selectedStatus.toLowerCase();
+    const matchMonth = selectedMonth === 'ALL' || item.monthKey === selectedMonth;
+    return matchSearch && matchClient && matchStatus && matchMonth;
+  });
+}
+
+export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRaised, onCountChange }) {
   const [batches, setBatches] = useState([]);
   const [candidates, setCandidates] = useState([]);
+  const [deletedCandidates, setDeletedCandidates] = useState([]);
   const [availableMonthsFromApi, setAvailableMonthsFromApi] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [savingCandidate, setSavingCandidate] = useState(false);
+  const [recyclingId, setRecyclingId] = useState('');
+  const [confirmPermanentCand, setConfirmPermanentCand] = useState(null);
 
   const pocs = useMemo(() => getClientPocs(), []);
   const payouts = useMemo(() => getClientPayouts(), []);
 
-  // View mode: 'candidates' (detailed candidates sheet) or 'batches' (weekly sheets)
+  // View mode: 'candidates' (detailed candidates sheet), 'batches' (weekly sheets), or 'recycle' (deleted register)
   const [viewMode, setViewMode] = useState('candidates');
 
   // Filters
@@ -68,9 +91,13 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
       if (!res.ok) {
         setLoadError(data.error || 'Failed to load live billing tracker.');
       } else {
-        setCandidates(Array.isArray(data.candidates) ? data.candidates : []);
+        const nextCandidates = Array.isArray(data.candidates) ? data.candidates : [];
+        const nextDeleted = Array.isArray(data.deletedCandidates) ? data.deletedCandidates : [];
+        setCandidates(nextCandidates);
+        setDeletedCandidates(nextDeleted);
         setBatches(Array.isArray(data.batches) ? data.batches : []);
         setAvailableMonthsFromApi(Array.isArray(data.availableMonths) ? data.availableMonths : []);
+        if (onCountChange) onCountChange(nextCandidates.length);
       }
     } catch (err) {
       console.error('Weekly tracker fetch error:', err);
@@ -78,7 +105,56 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onCountChange]);
+
+  const handleRecycleAction = async (cand, action) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : null;
+    if (!token) {
+      triggerToast('Please log in to update Weekly Update records.');
+      return;
+    }
+    setRecyclingId(cand.id);
+    try {
+      const res = await fetch('/api/finance/weekly-tracker/recycle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action,
+          overlayId: cand.overlayId || '',
+          candidateId: cand.candidateId || '',
+          candidateName: cand.candidateName || '',
+          phone: cand.phone || '',
+          company: cand.rawClient || cand.client || '',
+          process: cand.rawProcess || cand.process || '',
+          joiningDate: cand.joiningIso || cand.joiningDate || '',
+          recruiter: cand.recruiter || '',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        triggerToast(data.error || 'Failed to update Recycle Bin');
+      } else {
+        setSelectedCandidateIds((prev) => prev.filter((id) => id !== cand.id));
+        setConfirmPermanentCand(null);
+        await loadLiveTracker();
+        if (action === 'delete') {
+          triggerToast(`${cand.candidateName} moved to Recycle Bin.`);
+        } else if (action === 'restore') {
+          triggerToast(`${cand.candidateName} restored to Weekly Update (A).`);
+        } else {
+          triggerToast(`${cand.candidateName} permanently deleted.`);
+        }
+      }
+    } catch (err) {
+      console.error('Recycle bin error:', err);
+      triggerToast('Network error while updating Recycle Bin.');
+    } finally {
+      setRecyclingId('');
+    }
+  };
 
   // 1. URL search parameter detection for instant redirection from Joiner Sheet
   useEffect(() => {
@@ -156,11 +232,13 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     const list = new Set();
     if (viewMode === 'candidates') {
       candidates.forEach((c) => c.client && list.add(c.client));
+    } else if (viewMode === 'recycle') {
+      deletedCandidates.forEach((c) => c.client && list.add(c.client));
     } else {
       batches.forEach((b) => b.company && list.add(b.company));
     }
     return Array.from(list).sort();
-  }, [viewMode, candidates, batches]);
+  }, [viewMode, candidates, deletedCandidates, batches]);
 
   // Available Months for Monthly Filter (All live months from Joiner Sheet, newest first)
   const availableMonths = useMemo(() => {
@@ -171,24 +249,19 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     return Array.from(set).sort().reverse();
   }, [availableMonthsFromApi, candidates, batches]);
 
+  const filterParams = { searchQuery, selectedClient, selectedStatus, selectedMonth };
+
   // Filtered Candidates (live, newest joining date first)
-  const filteredCandidates = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return candidates.filter((item) => {
-      const matchSearch =
-        !q ||
-        item.candidateName?.toLowerCase().includes(q) ||
-        item.phone?.includes(q) ||
-        item.process?.toLowerCase().includes(q) ||
-        item.client?.toLowerCase().includes(q) ||
-        item.recruiter?.toLowerCase().includes(q) ||
-        item.empId?.toLowerCase().includes(q);
-      const matchClient = selectedClient === 'ALL' || item.client?.toLowerCase() === selectedClient.toLowerCase();
-      const matchStatus = selectedStatus === 'ALL' || item.billingStatus?.toLowerCase() === selectedStatus.toLowerCase();
-      const matchMonth = selectedMonth === 'ALL' || item.monthKey === selectedMonth;
-      return matchSearch && matchClient && matchStatus && matchMonth;
-    });
-  }, [candidates, searchQuery, selectedClient, selectedStatus, selectedMonth]);
+  const filteredCandidates = useMemo(
+    () => filterWeeklyCandidates(candidates, filterParams),
+    [candidates, searchQuery, selectedClient, selectedStatus, selectedMonth]
+  );
+
+  // Filtered Recycle Bin Candidates
+  const filteredDeletedCandidates = useMemo(
+    () => filterWeeklyCandidates(deletedCandidates, filterParams),
+    [deletedCandidates, searchQuery, selectedClient, selectedStatus, selectedMonth]
+  );
 
   // Filtered Batches (live Company x Week batches, newest week first)
   const filteredBatches = useMemo(() => {
@@ -212,10 +285,10 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
     });
   }, [batches, searchQuery, selectedClient, selectedPeriod, selectedStatus, selectedMonth]);
 
-  // Summary KPI Metrics (dynamically computed from live records; inactive/dropped deducted from totals)
+  // Summary KPI Metrics (dynamically computed from live records; inactive/dropped & deleted excluded from active totals)
   const metrics = useMemo(() => {
-    if (viewMode === 'candidates') {
-      const scope = filteredCandidates;
+    if (viewMode === 'candidates' || viewMode === 'recycle') {
+      const scope = viewMode === 'recycle' ? filteredDeletedCandidates : filteredCandidates;
       const activeList = scope.filter((c) => c.empStatus === 'ACTIVE');
       const totalCount = scope.length;
       const readyCount = scope.filter((c) => c.billingStatus === 'Ready to Invoice').length;
@@ -235,10 +308,15 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
       const totalAi = scope.reduce((s, b) => s + (Number(b.ai) || 0), 0);
       return { totalCount, activeCount: totalCount, readyCount, pendingCount, totalBi, totalAi };
     }
-  }, [viewMode, filteredCandidates, filteredBatches]);
+  }, [viewMode, filteredCandidates, filteredDeletedCandidates, filteredBatches]);
 
   // Pagination Slice
-  const activeItems = viewMode === 'candidates' ? filteredCandidates : filteredBatches;
+  const activeItems =
+    viewMode === 'candidates'
+      ? filteredCandidates
+      : viewMode === 'recycle'
+      ? filteredDeletedCandidates
+      : filteredBatches;
   const totalPages = Math.ceil(activeItems.length / pageSize) || 1;
   const pagedItems = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -248,8 +326,8 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
   // Export to CSV
   const handleExportCsv = () => {
     const rows =
-      viewMode === 'candidates'
-        ? filteredCandidates.map((c) => ({
+      viewMode === 'candidates' || viewMode === 'recycle'
+        ? (viewMode === 'recycle' ? filteredDeletedCandidates : filteredCandidates).map((c) => ({
             'SL No': c.slNo,
             'Candidate Name': c.candidateName,
             Phone: c.phone,
@@ -263,6 +341,9 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             'Employee ID': c.empId,
             'Employee Status': c.empStatus,
             'Billing Readiness Status': c.billingStatus,
+            ...(viewMode === 'recycle'
+              ? { 'Deleted At': c.deletedAt || '', 'Deleted By': c.deletedBy || '' }
+              : {}),
             Remarks: c.remarks || '',
           }))
         : filteredBatches.map((b) => ({
@@ -509,6 +590,30 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             >
               Weekly Batches ({batches.length})
             </button>
+            <button
+              onClick={() => {
+                setViewMode('recycle');
+                setCurrentPage(1);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 14px',
+                borderRadius: 8,
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                border: 'none',
+                background: viewMode === 'recycle' ? '#FFFFFF' : 'transparent',
+                color: viewMode === 'recycle' ? '#DC2626' : '#64748B',
+                boxShadow: viewMode === 'recycle' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <Trash2 size={13} />
+              <span>Recycle Bin ({deletedCandidates.length})</span>
+            </button>
           </div>
 
           {/* REFRESH BUTTON */}
@@ -642,7 +747,11 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>
-            {viewMode === 'candidates' ? 'Total Candidates Registered' : 'Active Billing Candidates'}
+            {viewMode === 'candidates'
+              ? 'Total Candidates Registered'
+              : viewMode === 'recycle'
+              ? 'Candidates in Recycle Bin'
+              : 'Active Billing Candidates'}
           </div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
             {metrics.totalCount}
@@ -758,7 +867,13 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
           <Search size={16} color="#94A3B8" />
           <input
             type="text"
-            placeholder={viewMode === 'candidates' ? 'Search candidate name, phone, recruiter, emp ID...' : 'Search company name, period...'}
+            placeholder={
+              viewMode === 'candidates'
+                ? 'Search candidate name, phone, recruiter, emp ID...'
+                : viewMode === 'recycle'
+                ? 'Search deleted candidate name, phone, recruiter, client...'
+                : 'Search company name, period...'
+            }
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -825,7 +940,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             }}
           >
             <option value="ALL">All Statuses</option>
-            {viewMode === 'candidates' ? (
+            {viewMode === 'candidates' || viewMode === 'recycle' ? (
               <>
                 <option value="Ready to Invoice">Ready to Invoice</option>
                 <option value="Pending Emp ID">Pending Emp ID</option>
@@ -1111,31 +1226,54 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                             {cand.billingStatus}
                           </span>
                         </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                          {isMoved ? (
-                            <span style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>In Bill Raised</span>
-                          ) : isDropped ? (
-                            <span style={{ fontSize: 11, color: '#DC2626', fontWeight: 700 }}>Dropped</span>
-                          ) : (
+                        <td style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            {isMoved ? (
+                              <span style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>In Bill Raised</span>
+                            ) : isDropped ? (
+                              <span style={{ fontSize: 11, color: '#DC2626', fontWeight: 700 }}>Dropped</span>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setSelectedCandidateIds([cand.id]);
+                                  setShowMoveModal(true);
+                                }}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 8,
+                                  border: '1px solid #CBD5E1',
+                                  background: '#FFFFFF',
+                                  color: '#0F766E',
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Raise
+                              </button>
+                            )}
                             <button
-                              onClick={() => {
-                                setSelectedCandidateIds([cand.id]);
-                                setShowMoveModal(true);
-                              }}
+                              onClick={() => handleRecycleAction(cand, 'delete')}
+                              disabled={recyclingId === cand.id}
+                              title="Move entry to Recycle Bin"
                               style={{
-                                padding: '4px 10px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '4px 9px',
                                 borderRadius: 8,
-                                border: '1px solid #CBD5E1',
-                                background: '#FFFFFF',
-                                color: '#0F766E',
+                                border: '1px solid #FECACA',
+                                background: '#FEF2F2',
+                                color: '#DC2626',
                                 fontSize: 11.5,
                                 fontWeight: 700,
-                                cursor: 'pointer',
+                                cursor: recyclingId === cand.id ? 'wait' : 'pointer',
                               }}
                             >
-                              Raise
+                              <Trash2 size={12} />
+                              <span>{recyclingId === cand.id ? '...' : 'Delete'}</span>
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1143,6 +1281,146 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 )}
               </tbody>
             </table>
+          ) : viewMode === 'recycle' ? (
+            /* RECYCLE BIN TABLE (Soft-deleted entries with Restore & Permanent Delete) */
+            <div>
+              <div
+                style={{
+                  padding: '10px 16px',
+                  background: '#FEF2F2',
+                  borderBottom: '1px solid #FECACA',
+                  color: '#991B1B',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <span>
+                  Deleted entries are excluded from active Weekly Update (A), Weekly Batches, and BI/AI billing totals.
+                  Restore to bring them back, or Permanent Delete to remove them permanently.
+                </span>
+                <span style={{ fontWeight: 800 }}>{filteredDeletedCandidates.length} in Recycle Bin</span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700 }}>
+                    <th style={{ padding: '12px 14px' }}>SL NO</th>
+                    <th style={{ padding: '12px 14px' }}>CANDIDATE NAME</th>
+                    <th style={{ padding: '12px 14px' }}>PHONE</th>
+                    <th style={{ padding: '12px 14px' }}>PROCESS / CLIENT</th>
+                    <th style={{ padding: '12px 14px' }}>JOINING DATE</th>
+                    <th style={{ padding: '12px 14px' }}>RECRUITER</th>
+                    <th style={{ padding: '12px 14px' }}>BI / AI</th>
+                    <th style={{ padding: '12px 14px' }}>DELETED BY</th>
+                    <th style={{ padding: '12px 14px', textAlign: 'center' }}>ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading && pagedItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} style={{ padding: 40, textAlign: 'center', color: '#64748B', fontWeight: 600 }}>
+                        Loading Recycle Bin...
+                      </td>
+                    </tr>
+                  ) : pagedItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} style={{ padding: 40, textAlign: 'center', color: '#64748B' }}>
+                        Recycle Bin is empty.
+                      </td>
+                    </tr>
+                  ) : (
+                    pagedItems.map((cand, idx) => (
+                      <tr
+                        key={cand.id || idx}
+                        style={{
+                          borderBottom: '1px solid #F1F5F9',
+                          background: idx % 2 === 0 ? '#FFFFFF' : '#FFFDFD',
+                        }}
+                      >
+                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#64748B' }}>{cand.slNo}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A' }}>{cand.candidateName}</td>
+                        <td style={{ padding: '10px 14px', color: '#475569' }}>{cand.phone || '—'}</td>
+                        <td style={{ padding: '10px 14px' }}>
+                          <div style={{ fontWeight: 700, color: '#1E3A8A', fontSize: 11.5 }}>{cand.client}</div>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              marginTop: 2,
+                              padding: '1px 7px',
+                              borderRadius: 6,
+                              background: '#F1F5F9',
+                              color: '#334155',
+                              fontWeight: 600,
+                              fontSize: 11,
+                            }}
+                          >
+                            {cand.process || cand.client}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 14px', color: '#475569', whiteSpace: 'nowrap' }}>{cand.joiningDate || '—'}</td>
+                        <td style={{ padding: '10px 14px', color: '#475569', fontWeight: 600 }}>{cand.recruiter || '—'}</td>
+                        <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontWeight: 700, color: '#2563EB' }}>{inr(cand.bi)}</div>
+                          <div style={{ fontSize: 11, color: '#7C3AED', fontWeight: 600 }}>{inr(cand.ai)}</div>
+                        </td>
+                        <td style={{ padding: '10px 14px', fontSize: 11.5, color: '#64748B' }}>
+                          <div style={{ fontWeight: 700, color: '#334155' }}>{cand.deletedBy || 'Finance'}</div>
+                          <div>{cand.deletedAt ? String(cand.deletedAt).slice(0, 10) : '—'}</div>
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <button
+                              onClick={() => handleRecycleAction(cand, 'restore')}
+                              disabled={recyclingId === cand.id}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '5px 10px',
+                                borderRadius: 8,
+                                border: '1px solid #A7F3D0',
+                                background: '#ECFDF5',
+                                color: '#047857',
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                cursor: recyclingId === cand.id ? 'wait' : 'pointer',
+                              }}
+                            >
+                              <RotateCcw size={12} />
+                              <span>Restore</span>
+                            </button>
+                            <button
+                              onClick={() => setConfirmPermanentCand(cand)}
+                              disabled={recyclingId === cand.id}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '5px 10px',
+                                borderRadius: 8,
+                                border: 'none',
+                                background: '#DC2626',
+                                color: '#FFFFFF',
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                cursor: recyclingId === cand.id ? 'wait' : 'pointer',
+                              }}
+                            >
+                              <Trash2 size={12} />
+                              <span>Permanent Delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           ) : (
             /* WEEKLY BATCHES TABLE (Live Company x Week from Joiner Sheet) */
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
@@ -1871,6 +2149,110 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRM PERMANENT DELETE FROM RECYCLE BIN */}
+      {confirmPermanentCand && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: 18,
+              width: '100%',
+              maxWidth: 440,
+              boxShadow: '0 20px 40px rgba(0,0,0,0.28)',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ padding: '18px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: '#FEE2E2',
+                  color: '#DC2626',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Trash2 size={18} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#0F172A' }}>
+                  Permanently Delete Entry?
+                </h3>
+                <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                  This cannot be undone from the Recycle Bin.
+                </div>
+              </div>
+            </div>
+            <div style={{ padding: '16px 20px', fontSize: 13, color: '#334155', lineHeight: 1.55 }}>
+              You are about to permanently remove <strong>{confirmPermanentCand.candidateName}</strong>
+              {confirmPermanentCand.client ? ` (${confirmPermanentCand.client})` : ''} from Weekly Update (A).
+              {confirmPermanentCand.candidateId ? (
+                <div style={{ marginTop: 8, fontSize: 12, color: '#64748B' }}>
+                  Note: Recruiter Targets history remains intact, while this entry will be permanently hidden from Weekly Update (A).
+                </div>
+              ) : null}
+            </div>
+            <div
+              style={{
+                padding: '12px 20px',
+                background: '#F8FAFC',
+                borderTop: '1px solid #E2E8F0',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+              }}
+            >
+              <button
+                onClick={() => setConfirmPermanentCand(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 10,
+                  border: '1px solid #CBD5E1',
+                  background: '#FFFFFF',
+                  color: '#334155',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleRecycleAction(confirmPermanentCand, 'permanent_delete')}
+                disabled={recyclingId === confirmPermanentCand.id}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#DC2626',
+                  color: '#FFFFFF',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: recyclingId === confirmPermanentCand.id ? 'wait' : 'pointer',
+                }}
+              >
+                {recyclingId === confirmPermanentCand.id ? 'Deleting...' : 'Permanent Delete'}
               </button>
             </div>
           </div>

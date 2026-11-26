@@ -21,143 +21,63 @@ import {
 } from 'lucide-react';
 import {
   inr,
-  calculateDraftInvoice,
-  getInitialRaisedInvoices,
-  saveRaisedInvoices,
-  getInitialClearedInvoices,
-  saveClearedInvoices,
   getClientPocs,
   extractMonthKey,
   getCurrentMonthKey,
   formatMonthLabel,
   sortItemsByCurrentMonthFirst,
 } from '@/lib/finance-data';
+import { extractRaisedInvoicesFromApi } from '@/lib/client-invoice-rules';
 
 /**
- * Merges raised invoices with client invoices from Payments & Invoices (/api/client-invoices)
- * Deduplicating by normalized invoice number.
+ * Normalizes and deduplicates live raised & pending invoices strictly from Payments & Invoices.
  */
-export function mergeApiInvoicesWithRaised(localList = [], apiList = []) {
-  const map = new Map();
-  const norm = (no) => String(no || '').trim().toUpperCase();
-
-  (localList || []).forEach((inv) => {
-    const key = norm(inv.invoiceNo);
-    if (key) map.set(key, inv);
-  });
-
-  (apiList || []).forEach((apiInv) => {
-    const invNo = apiInv.invoiceNo;
-    const key = norm(invNo);
-    if (!key) return;
-
-    const bAmt = Number(apiInv.basicAmount) || (apiInv.amount ? Math.round(Number(apiInv.amount) / 1.18) : 0);
-    const tAmt = Number(apiInv.amount) || (bAmt + Math.round(bAmt * 0.18));
-    const gAmt =
-      apiInv.sgstAmount != null && apiInv.cgstAmount != null
-        ? Number(apiInv.sgstAmount) + Number(apiInv.cgstAmount)
-        : apiInv.gstAmount != null
-        ? Number(apiInv.gstAmount)
-        : Math.round(bAmt * 0.18);
-    const tdsAmt = apiInv.tdsAmount != null ? Number(apiInv.tdsAmount) : Math.round(bAmt * 0.1);
-    const expected = tAmt - tdsAmt;
-    const isPaid = String(apiInv.status || '').toLowerCase() === 'paid';
-    const actual = isPaid ? Number(apiInv.actualReceipt) || expected : Number(apiInv.actualReceipt) || 0;
-    const outstanding = isPaid ? 0 : Math.max(0, expected - actual);
-
-    let cCount = 1;
-    if (Array.isArray(apiInv.items) && apiInv.items.length > 0) {
-      cCount = apiInv.items.length;
-    } else if (apiInv.candidateCount) {
-      cCount = Number(apiInv.candidateCount);
-    } else if (apiInv.projectMilestone) {
-      const m = apiInv.projectMilestone.match(/(\d+)\s*(Seats|candidates|seat|candidate)/i);
-      if (m) cCount = parseInt(m[1], 10);
-    }
-
-    const dateStr = apiInv.invoiceDate
-      ? apiInv.invoiceDate
-      : apiInv.createdAt
-      ? new Date(apiInv.createdAt).toISOString().slice(0, 10)
-      : new Date().toISOString().slice(0, 10);
-
-    if (map.has(key)) {
-      const existing = map.get(key);
-      map.set(key, {
-        ...existing,
-        client: existing.client || apiInv.client,
-        candidateCount: existing.candidateCount || cCount,
-        basicAmount: existing.basicAmount || bAmt,
-        gstAmount: existing.gstAmount || gAmt,
-        totalInvoiceValue: existing.totalInvoiceValue || tAmt,
-        tdsAmount: existing.tdsAmount || tdsAmt,
-        expectedReceipt: existing.expectedReceipt || expected,
-        actualReceipt: existing.actualReceipt != null ? existing.actualReceipt : actual,
-        outstandingBalance: existing.outstandingBalance != null ? existing.outstandingBalance : outstanding,
-      });
-    } else {
-      map.set(key, {
-        id: apiInv._id || apiInv.id || `raised-api-${invNo}`,
-        invoiceNo: invNo,
-        rawInvoiceNo: String(invNo).replace(/^INV-/i, ''),
-        client: apiInv.client || 'Client',
-        candidateCount: cCount,
-        invoiceDate: dateStr,
-        revisedRequested: apiInv.revisedRequested || '',
-        revisedSent: apiInv.revisedSent || '',
-        bi: bAmt,
-        ai: apiInv.ai ? Number(apiInv.ai) : Math.round(bAmt * 0.9),
-        basicAmount: bAmt,
-        gstAmount: gAmt,
-        totalInvoiceValue: tAmt,
-        tdsAmount: tdsAmt,
-        expectedReceipt: expected,
-        actualReceipt: actual,
-        outstandingBalance: outstanding,
-        dueDate: apiInv.dueDate || '30 days',
-        status: isPaid ? 'Paid / Cleared' : apiInv.status || 'Raised',
-        remarks: apiInv.notes || apiInv.projectMilestone || '',
-        source: 'payments_invoices',
-      });
-    }
-  });
-
-  return Array.from(map.values());
+export function mergeApiInvoicesWithRaised(_localList = [], apiList = []) {
+  return extractRaisedInvoicesFromApi(apiList);
 }
 
-export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNavigateToCleared }) {
-  const [invoices, setInvoices] = useState(() => {
-    const local = getInitialRaisedInvoices();
-    return mergeApiInvoicesWithRaised(local, apiInvoices);
-  });
+export function BillRaisedSection({ apiInvoices = null, onInvoiceCleared, onNavigateToCleared, onRefresh }) {
+  const [invoices, setInvoices] = useState(() => extractRaisedInvoicesFromApi(apiInvoices || []));
 
-  // Re-merge when apiInvoices prop updates or fetch directly if empty
+  // Sync cleanly whenever apiInvoices prop updates (or fetch directly if mounted standalone)
   useEffect(() => {
-    if (apiInvoices) {
-      setInvoices(mergeApiInvoicesWithRaised(getInitialRaisedInvoices(), apiInvoices));
-    } else {
-      const token = typeof window !== 'undefined' ? (localStorage.getItem('cegs_token') || localStorage.getItem('cegs_auth_token') || localStorage.getItem('token')) : null;
-      fetch('/api/client-invoices', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-        .then((res) => (res.ok ? res.json() : []))
-        .then((data) => {
-          if (Array.isArray(data)) {
-            setInvoices(mergeApiInvoicesWithRaised(getInitialRaisedInvoices(), data));
-          }
-        })
-        .catch(() => {});
+    if (Array.isArray(apiInvoices)) {
+      setInvoices(extractRaisedInvoicesFromApi(apiInvoices));
+      return;
     }
+    const token =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('cegs_token') || localStorage.getItem('cegs_auth_token') || localStorage.getItem('token')
+        : null;
+    fetch('/api/client-invoices', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setInvoices(extractRaisedInvoicesFromApi(data));
+        }
+      })
+      .catch(() => {});
   }, [apiInvoices]);
 
-  // Listen to finance_storage_update events (triggered on invoice generate/pay)
+  // Trigger parent refresh when another tab dispatches finance_storage_update
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const handleUpdate = () => {
-      const fresh = getInitialRaisedInvoices();
-      if (apiInvoices && apiInvoices.length > 0) {
-        setInvoices(mergeApiInvoicesWithRaised(fresh, apiInvoices));
+      if (onRefresh) {
+        onRefresh();
       } else {
-        setInvoices(fresh);
+        const token =
+          localStorage.getItem('cegs_token') || localStorage.getItem('cegs_auth_token') || localStorage.getItem('token');
+        fetch('/api/client-invoices', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+          .then((res) => (res.ok ? res.json() : []))
+          .then((data) => {
+            if (Array.isArray(data)) setInvoices(extractRaisedInvoicesFromApi(data));
+          })
+          .catch(() => {});
       }
     };
 
@@ -167,7 +87,7 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
       window.removeEventListener('finance_storage_update', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
     };
-  }, [apiInvoices]);
+  }, [onRefresh]);
   const pocs = useMemo(() => getClientPocs(), []);
 
   // Filter & Search states
@@ -326,7 +246,6 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
     });
 
     setInvoices(updated);
-    saveRaisedInvoices(updated);
     setRecordPaymentModal(null);
     setPaymentAmount('');
     setPaymentRef('');
@@ -358,7 +277,6 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
     });
 
     setInvoices(updated);
-    saveRaisedInvoices(updated);
     setRevisionModal(null);
     setRevisionNotes('');
     setNewRevisionNumber('');
@@ -366,16 +284,16 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
   };
 
   // Action Handler: Status change between Paid and Pending
-  // If Paid: mark fully cleared, add to Bill Cleared ledger, update API, navigate to Bill Cleared page
+  // If Paid: mark fully cleared in MongoDB (/api/client-invoices), refresh parent register, move to Bill Cleared
   const handleActionStatusChange = async (inv, newStatus) => {
+    const token =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('cegs_token') || localStorage.getItem('cegs_auth_token') || localStorage.getItem('token')
+        : null;
+    const invId = inv.id || inv._id;
+
     if (newStatus === 'Paid') {
       const expected = Number(inv.expectedReceipt) || Number(inv.totalInvoiceValue) || 0;
-      const totalVal = Number(inv.totalInvoiceValue) || (Number(inv.basicAmount) + Number(inv.gstAmount)) || expected;
-      const basic = Number(inv.basicAmount) || Number(inv.bi) || Math.round(totalVal / 1.18);
-      const gst = Number(inv.gstAmount) || (totalVal - basic);
-      const tds = Number(inv.tdsAmount) || Math.round(basic * 0.1);
-      const ai = Number(inv.ai) || Math.round(basic * 0.9);
-
       const updatedInv = {
         ...inv,
         status: 'Paid',
@@ -384,42 +302,9 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
         clearedDate: new Date().toISOString().slice(0, 10),
       };
 
-      // 1. Update raised invoices in local state and storage
-      const updatedRaised = invoices.map((i) => (i.invoiceNo === inv.invoiceNo ? updatedInv : i));
-      setInvoices(updatedRaised);
-      saveRaisedInvoices(updatedRaised);
+      setInvoices((prev) => prev.filter((i) => i.invoiceNo !== inv.invoiceNo));
 
-      // 2. Add to Cleared Invoices list (Bill Cleared Page)
-      const existingCleared = getInitialClearedInvoices();
-      const clearedItem = {
-        id: `cleared-${inv.invoiceNo || Date.now()}`,
-        invoiceNo: inv.invoiceNo,
-        rawInvoiceNo: String(inv.invoiceNo || '').replace(/^INV-/i, ''),
-        client: inv.client,
-        candidateCount: inv.candidateCount || 1,
-        invoiceDate: inv.invoiceDate || new Date().toISOString().slice(0, 10),
-        clearedDate: new Date().toISOString().slice(0, 10),
-        bi: basic,
-        ai: ai,
-        basicAmount: basic,
-        gstAmount: gst,
-        totalInvoiceValue: totalVal,
-        amountReceived: expected,
-        tdsAmount: tds,
-        status: 'Cleared',
-        gstStatus: 'Reconciled',
-        gstAmtStatus: 'GST Cleared',
-        paymentReference: inv.paymentReference || 'BANK-TRANSFER-' + Date.now(),
-        clearedBy: 'Finance Operations',
-        remarks: inv.remarks ? `${inv.remarks} | Cleared from Bill Raised` : 'Cleared from Bill Raised',
-      };
-      const updatedClearedList = [clearedItem, ...existingCleared.filter((c) => c.invoiceNo !== inv.invoiceNo)];
-      saveClearedInvoices(updatedClearedList);
-
-      // 3. Mark paid on backend MongoDB if it's an API invoice
       try {
-        const invId = inv.id || inv._id;
-        const token = typeof window !== 'undefined' ? (localStorage.getItem('cegs_token') || localStorage.getItem('cegs_auth_token') || localStorage.getItem('token')) : null;
         await fetch('/api/client-invoices', {
           method: 'POST',
           headers: {
@@ -431,42 +316,42 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
             id: invId,
           }),
         });
+        if (onRefresh) await onRefresh();
       } catch (err) {
         console.warn('Backend mark_paid sync error:', err);
       }
 
-      // 4. Dispatch storage update
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('finance_storage_update', { detail: { type: 'cleared', invoiceNo: inv.invoiceNo } })
         );
       }
 
-      triggerToast(`🎉 Invoice ${inv.invoiceNo} marked as Paid! Moved to Bill Cleared.`);
+      triggerToast(`Invoice ${inv.invoiceNo} marked as Paid! Moved to Bill Cleared.`);
 
-      // 5. Move to Bill Cleared page
       if (onInvoiceCleared) {
         onInvoiceCleared(updatedInv);
       } else if (onNavigateToCleared) {
         onNavigateToCleared();
       }
     } else {
-      // Setting back to Pending
-      const expected = Number(inv.expectedReceipt) || Number(inv.totalInvoiceValue) || 0;
-      const updatedInv = {
-        ...inv,
-        status: 'Pending',
-        actualReceipt: 0,
-        outstandingBalance: expected,
-      };
-      const updatedRaised = invoices.map((i) => (i.invoiceNo === inv.invoiceNo ? updatedInv : i));
-      setInvoices(updatedRaised);
-      saveRaisedInvoices(updatedRaised);
-
-      // Remove from cleared if previously there
-      const existingCleared = getInitialClearedInvoices();
-      const updatedCleared = existingCleared.filter((c) => c.invoiceNo !== inv.invoiceNo);
-      saveClearedInvoices(updatedCleared);
+      try {
+        await fetch('/api/client-invoices', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            action: 'edit_invoice',
+            id: invId,
+            status: 'Pending',
+          }),
+        });
+        if (onRefresh) await onRefresh();
+      } catch (err) {
+        console.warn('Backend status revert error:', err);
+      }
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -599,7 +484,7 @@ export function BillRaisedSection({ apiInvoices = [], onInvoiceCleared, onNaviga
           <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B' }}>Total BI (Basic Invoice)</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: '#2563EB', marginTop: 4 }}>{inr(metrics.totalBi)}</div>
           <div style={{ fontSize: 11.5, color: '#2563EB', fontWeight: 600, marginTop: 4 }}>
-            Detail sheet total (₹2,82,860)
+            Synced from Payments &amp; Invoices
           </div>
         </div>
 

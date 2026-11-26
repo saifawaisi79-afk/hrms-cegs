@@ -77,3 +77,132 @@ export function sortInvoicesDescending(items) {
   });
 }
 
+export function dedupeByInvoiceNo(list = []) {
+  const map = new Map();
+  (list || []).forEach((inv) => {
+    const rawNo = String(inv?.invoiceNo || '').trim();
+    if (!rawNo) return;
+    const key = rawNo.toUpperCase();
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, inv);
+      return;
+    }
+    // Keep canonical record: Paid wins over Pending, populated items over summary, higher amount over zero
+    const existingItems = Array.isArray(existing.items) ? existing.items.length : 0;
+    const nextItems = Array.isArray(inv.items) ? inv.items.length : 0;
+    const existingPaid = String(existing.status || '').toLowerCase() === 'paid' ? 1 : 0;
+    const nextPaid = String(inv.status || '').toLowerCase() === 'paid' ? 1 : 0;
+    const existingAmt = Number(existing.amount || existing.basicAmount || 0);
+    const nextAmt = Number(inv.amount || inv.basicAmount || 0);
+    if (
+      nextPaid > existingPaid ||
+      (nextPaid === existingPaid && nextItems > existingItems) ||
+      (nextPaid === existingPaid && nextItems === existingItems && nextAmt > existingAmt)
+    ) {
+      map.set(key, inv);
+    }
+  });
+  return sortInvoicesDescending(Array.from(map.values()));
+}
+
+export function normalizeApiInvoiceRow(apiInv) {
+  const invNo = String(apiInv?.invoiceNo || '').trim();
+  const bAmt = Number(apiInv?.basicAmount) || (apiInv?.amount ? Math.round(Number(apiInv.amount) / 1.18) : 0);
+  const tAmt = Number(apiInv?.amount) || (bAmt + Math.round(bAmt * 0.18));
+  const gAmt =
+    apiInv?.sgstAmount != null && apiInv?.cgstAmount != null
+      ? Number(apiInv.sgstAmount) + Number(apiInv.cgstAmount)
+      : apiInv?.gstAmount != null
+      ? Number(apiInv.gstAmount)
+      : Math.round(bAmt * 0.18);
+  const tdsAmt = apiInv?.tdsAmount != null ? Number(apiInv.tdsAmount) : Math.round(bAmt * 0.1);
+  const expected = tAmt - tdsAmt;
+  const isPaid =
+    String(apiInv?.status || '').toLowerCase() === 'paid' ||
+    String(apiInv?.stage || '').toLowerCase() === 'cleared';
+  const actual = isPaid
+    ? (Number(apiInv?.actualReceipt) || expected)
+    : (Number(apiInv?.actualReceipt) || Number(apiInv?.moneyReceived) || 0);
+  const outstanding = isPaid ? 0 : Math.max(0, expected - actual);
+
+  let cCount = 1;
+  if (Array.isArray(apiInv?.items) && apiInv.items.length > 0) {
+    cCount = apiInv.items.length;
+  } else if (apiInv?.candidateCount) {
+    cCount = Number(apiInv.candidateCount);
+  } else if (apiInv?.projectMilestone) {
+    const m = String(apiInv.projectMilestone).match(/(\d+)\s*(Seats|candidates|seat|candidate)/i);
+    if (m) cCount = parseInt(m[1], 10);
+  }
+
+  const dateStr = apiInv?.invoiceDate
+    ? String(apiInv.invoiceDate)
+    : apiInv?.createdAt
+    ? new Date(apiInv.createdAt).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+
+  return {
+    id: apiInv?._id || apiInv?.id || `inv-${invNo}`,
+    invoiceNo: invNo,
+    rawInvoiceNo: invNo.replace(/^INV-/i, ''),
+    client: apiInv?.client || 'Client',
+    projectMilestone: apiInv?.projectMilestone || '',
+    candidateCount: cCount,
+    invoiceDate: dateStr,
+    clearedDate: apiInv?.paidDate || dateStr,
+    revisedRequested: apiInv?.revisedRequested || '',
+    revisedSent: apiInv?.revisedSent || '',
+    bi: bAmt,
+    ai: apiInv?.ai ? Number(apiInv.ai) : Math.round(bAmt * 0.9),
+    basicAmount: bAmt,
+    gstAmount: gAmt,
+    totalInvoiceValue: tAmt,
+    tdsAmount: tdsAmt,
+    expectedReceipt: expected,
+    actualReceipt: actual,
+    amountReceived: actual,
+    outstandingBalance: outstanding,
+    dueDate: apiInv?.dueDate || '30 days',
+    status: isPaid ? 'Paid' : (apiInv?.status || 'Pending'),
+    stage: apiInv?.stage || (isPaid ? 'cleared' : 'raised'),
+    gstStatus: apiInv?.gstStatus || (isPaid ? 'Reconciled' : 'Pending'),
+    gstAmtStatus: apiInv?.gstAmtStatus || (isPaid ? 'GST Cleared' : 'Pending'),
+    paymentReference: apiInv?.paymentReference || (isPaid ? 'BANK-SETTLED' : ''),
+    clearedBy: apiInv?.clearedBy || 'Finance Operations',
+    remarks: apiInv?.notes || apiInv?.projectMilestone || '',
+    items: Array.isArray(apiInv?.items) ? apiInv.items : [],
+    source: 'payments_invoices',
+  };
+}
+
+export function extractPaymentsInvoicesFromApi(apiList = []) {
+  return dedupeByInvoiceNo(
+    (apiList || []).filter((inv) => {
+      const hasNo = String(inv?.invoiceNo || '').trim() !== '';
+      const stage = String(inv?.stage || '').toLowerCase();
+      return hasNo && stage !== 'to_raise';
+    })
+  );
+}
+
+export function extractRaisedInvoicesFromApi(apiList = []) {
+  return extractPaymentsInvoicesFromApi(apiList)
+    .filter((inv) => {
+      const stage = String(inv?.stage || '').toLowerCase();
+      const status = String(inv?.status || '').toLowerCase();
+      return stage !== 'cleared' && status !== 'paid';
+    })
+    .map(normalizeApiInvoiceRow);
+}
+
+export function extractClearedInvoicesFromApi(apiList = []) {
+  return extractPaymentsInvoicesFromApi(apiList)
+    .filter((inv) => {
+      const stage = String(inv?.stage || '').toLowerCase();
+      const status = String(inv?.status || '').toLowerCase();
+      return stage === 'cleared' || status === 'paid';
+    })
+    .map(normalizeApiInvoiceRow);
+}
+

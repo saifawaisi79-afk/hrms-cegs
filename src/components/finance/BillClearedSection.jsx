@@ -18,32 +18,63 @@ import {
 } from 'lucide-react';
 import {
   inr,
-  getInitialClearedInvoices,
-  saveClearedInvoices,
-  detectDuplicateInvoices,
   extractMonthKey,
   getCurrentMonthKey,
   formatMonthLabel,
   sortItemsByCurrentMonthFirst,
 } from '@/lib/finance-data';
+import { extractClearedInvoicesFromApi } from '@/lib/client-invoice-rules';
 
-export function BillClearedSection({ onNavigateToPayments }) {
-  const [clearedInvoices, setClearedInvoices] = useState(getInitialClearedInvoices);
+export function BillClearedSection({ apiInvoices = null, onNavigateToPayments, onRefresh }) {
+  const [clearedInvoices, setClearedInvoices] = useState(() => extractClearedInvoicesFromApi(apiInvoices || []));
 
-  // Sync when an invoice is moved/cleared from Bill Raised
+  // Sync cleanly from Payments & Invoices API data (deduplicated, zero workbook seed data)
   useEffect(() => {
-    const handleUpdate = () => {
-      setClearedInvoices(getInitialClearedInvoices());
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('finance_storage_update', handleUpdate);
-      window.addEventListener('storage', handleUpdate);
-      return () => {
-        window.removeEventListener('finance_storage_update', handleUpdate);
-        window.removeEventListener('storage', handleUpdate);
-      };
+    if (Array.isArray(apiInvoices)) {
+      setClearedInvoices(extractClearedInvoicesFromApi(apiInvoices));
+      return;
     }
-  }, []);
+    const token =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('cegs_token') || localStorage.getItem('cegs_auth_token') || localStorage.getItem('token')
+        : null;
+    fetch('/api/client-invoices', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setClearedInvoices(extractClearedInvoicesFromApi(data));
+        }
+      })
+      .catch(() => {});
+  }, [apiInvoices]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleUpdate = () => {
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        const token =
+          localStorage.getItem('cegs_token') || localStorage.getItem('cegs_auth_token') || localStorage.getItem('token');
+        fetch('/api/client-invoices', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+          .then((res) => (res.ok ? res.json() : []))
+          .then((data) => {
+            if (Array.isArray(data)) setClearedInvoices(extractClearedInvoicesFromApi(data));
+          })
+          .catch(() => {});
+      }
+    };
+    window.addEventListener('finance_storage_update', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('finance_storage_update', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [onRefresh]);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,10 +97,8 @@ export function BillClearedSection({ onNavigateToPayments }) {
     setTimeout(() => setToastMsg(''), 3500);
   };
 
-  // Duplicate Detection Analysis
-  const duplicateGroups = useMemo(() => {
-    return detectDuplicateInvoices(clearedInvoices);
-  }, [clearedInvoices]);
+  // Invoices are deduplicated directly from Payments & Invoices
+  const duplicateGroups = useMemo(() => [], []);
 
   // Client Options
   const clientOptions = useMemo(() => {
@@ -310,7 +339,7 @@ export function BillClearedSection({ onNavigateToPayments }) {
             {inr(metrics.totalBi)}
           </div>
           <div style={{ fontSize: 11.5, color: '#059669', fontWeight: 600, marginTop: 4 }}>
-            Workbook row 97 (₹17,73,072)
+            Synced from Payments &amp; Invoices
           </div>
         </div>
 
@@ -329,7 +358,7 @@ export function BillClearedSection({ onNavigateToPayments }) {
             {inr(metrics.totalAi)}
           </div>
           <div style={{ fontSize: 11.5, color: '#7C3AED', fontWeight: 600, marginTop: 4 }}>
-            Workbook row 97 (₹15,34,740)
+            Post 10% TDS net margin
           </div>
         </div>
 

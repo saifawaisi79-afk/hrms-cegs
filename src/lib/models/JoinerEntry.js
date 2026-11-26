@@ -26,6 +26,11 @@ const JoinerEntrySchema = new mongoose.Schema(
     /** Link to Targets candidate when auto-pulled from sheet */
     candidateId: { type: String, default: '' },
     createdBy: { type: String, default: '' },
+    /** Soft-delete & permanent-exclusion flags scoped to Weekly Update (A) */
+    weeklyDeleted: { type: Boolean, default: false },
+    weeklyDeletedAt: { type: String, default: '' },
+    weeklyDeletedBy: { type: String, default: '' },
+    weeklyExcluded: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -33,5 +38,6 @@ const JoinerEntrySchema = new mongoose.Schema(
 JoinerEntrySchema.index({ candidateId: 1 });
 JoinerEntrySchema.index({ process: 1 });
 JoinerEntrySchema.index({ company: 1 });
+JoinerEntrySchema.index({ weeklyDeleted: 1, weeklyExcluded: 1 });
 
 export default mongoose.models.JoinerEntry || mongoose.model('JoinerEntry', JoinerEntrySchema);
