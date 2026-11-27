@@ -96,7 +96,14 @@ export function recordAttendanceWarning(save, db, { uid, type, note, date }) {
     });
   }
 
-  persistAttendanceWarningRemote({ type, note, date: isoDate, uid });
+  persistAttendanceWarningRemote({ type, note, date: isoDate, uid }).then((remote) => {
+    if (remote?.waived && save) {
+      const cleaned = (db?.attendanceWarnings || []).filter(
+        (w) => !(String(w.uid) === String(uid) && w.type === type && String(w.date).slice(0, 10) === isoDate)
+      );
+      save('attendanceWarnings', cleaned);
+    }
+  });
 
   return count;
 }
@@ -153,7 +160,14 @@ export function recordEarlyLogoutWarning(save, db, { uid, note, date }) {
     });
   }
 
-  persistAttendanceWarningRemote({ type, note, date: isoDate, uid });
+  persistAttendanceWarningRemote({ type, note, date: isoDate, uid }).then((remote) => {
+    if (remote?.waived && save) {
+      const cleaned = (db?.attendanceWarnings || []).filter(
+        (w) => !(String(w.uid) === String(uid) && w.type === type && String(w.date).slice(0, 10) === isoDate)
+      );
+      save('attendanceWarnings', cleaned);
+    }
+  });
   return earlyCount;
 }
 

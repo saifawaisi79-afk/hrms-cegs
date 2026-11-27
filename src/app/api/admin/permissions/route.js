@@ -7,7 +7,7 @@ import SystemSetting from '@/lib/models/SystemSetting';
 import PermissionLog from '@/lib/models/PermissionLog';
 import { getAuthUser } from '@/lib/auth';
 import { toIsoDate } from '@/lib/auto-absent';
-import { syncPayrollAttendanceDeduction } from '@/lib/attendance-deductions';
+import { persistAttendanceWarning, syncPayrollAttendanceDeduction } from '@/lib/attendance-deductions';
 import { getRequiredShiftHours } from '@/lib/attendance-policy';
 
 export const dynamic = 'force-dynamic';
@@ -327,7 +327,7 @@ export async function POST(request) {
       });
     }
 
-    // 4. Toggle 40% performance clause waiver for a date
+    // 4. Toggle 40% performance clause waiver for a date (single employee or ALL)
     if (action === 'toggle_40_clause') {
       const { userId, date, ignore, reason } = body;
       if (!userId || !date) return NextResponse.json({ error: 'userId and date are required' }, { status: 400 });
@@ -356,6 +356,47 @@ export async function POST(request) {
         { value: JSON.stringify(waivers) },
         { upsert: true, new: true }
       );
+
+      // Sync Attendance clause40_waived flag & clear <40% breaches + recalculate Payroll
+      const [yearStr, monthStr] = String(date).split('-');
+      const syncMonth = parseInt(monthStr, 10);
+      const syncYear = parseInt(yearStr, 10);
+      const clauseTypes = ['below_40_percent', 'performance_below_40', 'clause40'];
+
+      if (userId === 'ALL') {
+        await Attendance.updateMany(
+          { date },
+          { $set: { clause40_waived: !!ignore, clause40_reason: ignore ? (reason || 'Batch 40% Clause waived') : '' } }
+        );
+        if (ignore) {
+          const affectedUserIds = await AttendanceWarning.find({ date, type: { $in: clauseTypes } }).distinct('user_id');
+          await AttendanceWarning.deleteMany({ date, type: { $in: clauseTypes } });
+          if (syncMonth && syncYear) {
+            for (const uid of affectedUserIds) {
+              try {
+                await syncPayrollAttendanceDeduction(uid, syncMonth, syncYear);
+              } catch (e) {
+                console.warn('Sync payroll on batch 40% waiver error:', e.message);
+              }
+            }
+          }
+        }
+      } else if (targetUser) {
+        await Attendance.updateOne(
+          { user_id: userId, date },
+          { $set: { clause40_waived: !!ignore, clause40_reason: ignore ? (reason || '40% Performance Clause waived') : '' } }
+        );
+        if (ignore) {
+          await AttendanceWarning.deleteMany({ user_id: userId, date, type: { $in: clauseTypes } });
+        }
+        if (syncMonth && syncYear) {
+          try {
+            await syncPayrollAttendanceDeduction(userId, syncMonth, syncYear);
+          } catch (e) {
+            console.warn('Sync payroll on 40% waiver error:', e.message);
+          }
+        }
+      }
 
       await recordPermissionLog({
         userId: targetUser ? targetUser._id : authUser.id,
@@ -389,40 +430,11 @@ export async function POST(request) {
         targetUser = await User.findById(userId).lean();
       }
 
-      // Update Attendance record if single employee
-      if (targetUser) {
-        const updateFields = {
-          early_logout_allowed: !!allowed,
-          early_logout_reason: allowed ? (reason || 'Approved early departure') : '',
-        };
+      const [yearStr, monthStr] = String(date).split('-');
+      const syncMonth = parseInt(monthStr, 10);
+      const syncYear = parseInt(yearStr, 10);
 
-        // If currently half_day due to early clock out, restore to present
-        const currentAtt = await Attendance.findOne({ user_id: userId, date }).lean();
-        if (allowed && currentAtt?.status === 'half_day') {
-          updateFields.status = 'present';
-        }
-
-        await Attendance.findOneAndUpdate(
-          { user_id: userId, date },
-          { $set: updateFields },
-          { upsert: true }
-        );
-
-        // Delete any early_clock_out warning for this employee on this date
-        if (allowed) {
-          await AttendanceWarning.deleteMany({ user_id: userId, date, type: 'early_clock_out' });
-
-          // Sync payroll deduction
-          const [yearStr, monthStr] = date.split('-');
-          try {
-            await syncPayrollAttendanceDeduction(userId, parseInt(monthStr, 10), parseInt(yearStr, 10));
-          } catch (e) {
-            console.warn('Sync payroll deduction on early logout clearance:', e.message);
-          }
-        }
-      }
-
-      // Also persist in SystemSettings array for fast lookup during check-out
+      // Persist early_logout_waivers first so warning-restore checks stay accurate
       const key = `early_logout_waivers_${date}`;
       const existing = await SystemSetting.findOne({ key }).lean();
       let waivers = [];
@@ -441,6 +453,77 @@ export async function POST(request) {
         { value: JSON.stringify(waivers) },
         { upsert: true, new: true }
       );
+
+      // Update Attendance & Early Logout warnings/payroll
+      if (userId === 'ALL') {
+        await Attendance.updateMany(
+          { date },
+          {
+            $set: {
+              early_logout_allowed: !!allowed,
+              early_logout_reason: allowed ? (reason || 'Approved early departure') : '',
+            },
+          }
+        );
+        if (allowed) {
+          const affectedUserIds = await AttendanceWarning.find({ date, type: 'early_clock_out' }).distinct('user_id');
+          await AttendanceWarning.deleteMany({ date, type: 'early_clock_out' });
+          if (syncMonth && syncYear) {
+            for (const uid of affectedUserIds) {
+              try {
+                await syncPayrollAttendanceDeduction(uid, syncMonth, syncYear);
+              } catch (e) {
+                console.warn('Sync payroll on batch early logout clearance:', e.message);
+              }
+            }
+          }
+        }
+      } else if (targetUser) {
+        const updateFields = {
+          early_logout_allowed: !!allowed,
+          early_logout_reason: allowed ? (reason || 'Approved early departure') : '',
+        };
+
+        // If currently half_day due to early clock out, restore to present
+        const currentAtt = await Attendance.findOne({ user_id: userId, date }).lean();
+        if (allowed && currentAtt?.status === 'half_day') {
+          updateFields.status = 'present';
+        }
+
+        await Attendance.findOneAndUpdate(
+          { user_id: userId, date },
+          { $set: updateFields },
+          { upsert: true }
+        );
+
+        if (allowed) {
+          // Delete any early_clock_out warning for this employee on this date
+          await AttendanceWarning.deleteMany({ user_id: userId, date, type: 'early_clock_out' });
+        } else if (
+          currentAtt?.check_out_time &&
+          Number(currentAtt.work_hours || 0) < getRequiredShiftHours(date)
+        ) {
+          // Re-enforce: restore early_clock_out warning if they already clocked out before shift hours
+          try {
+            await persistAttendanceWarning({
+              userId,
+              type: 'early_clock_out',
+              date,
+              note: `Early clock-out at ${currentAtt.check_out_time} (${currentAtt.work_hours || 0}h / ${getRequiredShiftHours(date)}h completed)`,
+            });
+          } catch (e) {
+            console.warn('Restore early_clock_out warning error:', e.message);
+          }
+        }
+
+        if (syncMonth && syncYear) {
+          try {
+            await syncPayrollAttendanceDeduction(userId, syncMonth, syncYear);
+          } catch (e) {
+            console.warn('Sync payroll deduction on early logout update:', e.message);
+          }
+        }
+      }
 
       await recordPermissionLog({
         userId: targetUser ? targetUser._id : authUser.id,

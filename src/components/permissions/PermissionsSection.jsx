@@ -268,6 +268,7 @@ export function PermissionsSection({ db, save, user }) {
           return e;
         }));
         notify(`Attendance for ${emp.name} marked ON-TIME. Late penalty cleared!`);
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('hrms:payroll-sync'));
         fetchPermissionsData(selectedDate);
       } else {
         notify('Failed to override attendance', 'error');
@@ -332,6 +333,7 @@ export function PermissionsSection({ db, save, user }) {
       if (res.ok) {
         setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, clause40_waived: nextVal } : e));
         notify(`40% Performance Clause ${nextVal ? 'Waived / Ignored' : 'Re-enforced'} for ${emp.name}`);
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('hrms:payroll-sync'));
         fetchPermissionsData(selectedDate);
       } else {
         notify('Failed to update 40% clause waiver', 'error');
@@ -397,6 +399,7 @@ export function PermissionsSection({ db, save, user }) {
       if (res.ok) {
         setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, early_logout_allowed: allowed, early_logout_reason: allowed ? reason : '' } : e));
         notify(`Early Logout ${allowed ? 'Authorized' : 'Revoked'} for ${emp.name}`);
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('hrms:payroll-sync'));
         fetchPermissionsData(selectedDate);
       } else {
         notify('Failed to update Early Logout permission', 'error');
@@ -474,6 +477,7 @@ export function PermissionsSection({ db, save, user }) {
           if (res.ok) {
             setEmployees(prev => prev.map(e => ({ ...e, clause40_waived: true })));
             notify(`40% clause waived for ALL employees on ${selectedDate}`);
+            if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('hrms:payroll-sync'));
             fetchPermissionsData(selectedDate);
           }
         } catch {

@@ -248,7 +248,10 @@ export function getEmployeeMonthlyDeductionBreakdown(warnings, userId, month, ye
   let totalFreeWarnings = 0;
 
   const items = userWarnings.map((w, idx) => {
-    const typeKey = String(w.type || 'other');
+    const rawType = String(w.type || 'other');
+    const typeKey = (rawType === 'below_40_percent' || rawType === 'performance_below_40' || rawType === 'clause40')
+      ? 'below_40_percent'
+      : rawType;
     categoryCounts[typeKey] = (categoryCounts[typeKey] || 0) + 1;
     const countForThisMistake = categoryCounts[typeKey];
 

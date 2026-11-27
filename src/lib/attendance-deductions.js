@@ -7,6 +7,8 @@ import Payroll from '@/lib/models/Payroll';
 import User from '@/lib/models/User';
 import Notification from '@/lib/models/Notification';
 import Timesheet from '@/lib/models/Timesheet';
+import Attendance from '@/lib/models/Attendance';
+import SystemSetting from '@/lib/models/SystemSetting';
 import {
   WARNINGS_PER_HALF_DAY,
   monthYearFromDate,
@@ -183,6 +185,53 @@ export async function persistAttendanceWarning({ userId, type, note, date }) {
   const [yearStr, monthStr] = isoDate.split('-');
   const month = parseInt(monthStr, 10);
   const year = parseInt(yearStr, 10);
+
+  // Honor HR Permissions overrides / waivers for this date before recording any breach
+  const uidStr = String(userId);
+  let waivedByPermission = false;
+  try {
+    const attRec = await Attendance.findOne({ user_id: userId, date: isoDate }).select('source status early_logout_allowed clause40_waived').lean();
+    if (type === 'late_clock_in' && attRec?.source === 'override' && attRec?.status === 'present') {
+      waivedByPermission = true;
+    } else if (type === 'early_clock_out') {
+      if (attRec?.early_logout_allowed) {
+        waivedByPermission = true;
+      } else {
+        const setting = await SystemSetting.findOne({ key: `early_logout_waivers_${isoDate}` }).lean();
+        if (setting?.value) {
+          const ids = JSON.parse(setting.value).map(String);
+          if (ids.includes('ALL') || ids.includes(uidStr)) waivedByPermission = true;
+        }
+      }
+    } else if (type === 'below_40_percent' || type === 'performance_below_40' || type === 'clause40') {
+      if (attRec?.clause40_waived) {
+        waivedByPermission = true;
+      } else {
+        const setting = await SystemSetting.findOne({ key: `clause40_waivers_${isoDate}` }).lean();
+        if (setting?.value) {
+          const ids = JSON.parse(setting.value).map(String);
+          if (ids.includes('ALL') || ids.includes(uidStr)) waivedByPermission = true;
+        }
+      }
+    }
+  } catch {}
+
+  if (waivedByPermission) {
+    const { lateCount, earlyCount, totalCount } = await countSavedMonthlyWarnings(userId, month, year);
+    const payroll = await syncPayrollAttendanceDeduction(userId, month, year);
+    return {
+      created: false,
+      waived: true,
+      duplicate: false,
+      warning: null,
+      lateCount,
+      earlyCount,
+      totalCount,
+      halfDaysCut: calcTotalHalfDaysCut(lateCount, earlyCount),
+      attendancePenalty: calcCombinedAttendancePenalty(Number(payroll?.basic_salary) || 0, lateCount, earlyCount),
+      payroll: payroll ? flattenPayrollSlip(payroll) : null,
+    };
+  }
 
   let created = false;
   let doc;

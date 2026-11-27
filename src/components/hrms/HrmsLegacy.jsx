@@ -5578,6 +5578,13 @@ export function PayrollPage({ db, save, user, setView }) {
     }
   }, [canViewAllStaff, payrollTab]);
 
+  // Refresh live warnings & payroll slips from Mongo whenever Payroll view opens or month switches
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.id) {
+      window.dispatchEvent(new CustomEvent('hrms:payroll-sync'));
+    }
+  }, [user?.id, month, year]);
+
   const profileUser =
     (db.users || []).find(
       (u) =>
@@ -5740,9 +5747,8 @@ export function PayrollPage({ db, save, user, setView }) {
       const overtime = Number(saved.overtime) || 0;
       const bonus = Number(saved.bonus) || 0;
       const live = buildPayParts(emp, selectedMonthNum, selectedYearNum);
-      const deductions = (saved.deductions != null && saved.deductions !== 0)
-        ? (basic !== Number(saved.basic ?? saved.basic_salary) ? live.deductions : Number(saved.deductions))
-        : live.deductions;
+      const hasLiveWarnings = live.totalWarnings > 0 || Number(saved.attendanceWarnings ?? saved.attendance_warnings ?? 0) > 0;
+      const deductions = hasLiveWarnings ? live.deductions : (Number(saved.deductions) || live.deductions);
       const net = basic + allowances + overtime + bonus - deductions;
       return {
         ...saved,
@@ -10978,6 +10984,9 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
   useEffect(() => {
     if (!isEmp || !user?.id || !save) return;
     if (!isHalfDayAbsentRisk) return;
+    try {
+      if (localStorage.getItem(`cegs_clause40_waived_${user.id}_${sheetDate}`) === '1' || localStorage.getItem(`cegs_clause40_waived_ALL_${sheetDate}`) === '1') return;
+    } catch {}
     const dayKey = `cegs_perf40_warn_${user.id}_${sheetDate}`;
     try {
       if (localStorage.getItem(dayKey) === '1') return;

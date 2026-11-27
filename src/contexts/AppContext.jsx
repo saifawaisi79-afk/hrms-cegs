@@ -458,12 +458,13 @@ export function AppProvider({ children }) {
     let cancelled = false;
     const pull = async () => {
       try {
+        const activeToken = getAuthToken() || token;
         const [warnRes, payRes] = await Promise.all([
           fetch(`${API_BASE}/attendance-warnings`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: `Bearer ${activeToken}` },
           }),
           fetch(`${API_BASE}/payroll`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: `Bearer ${activeToken}` },
           }),
         ]);
         if (cancelled) return;
@@ -471,16 +472,8 @@ export function AppProvider({ children }) {
           const rows = await warnRes.json();
           if (Array.isArray(rows) && !cancelled) {
             setDb((prev) => {
-              const byKey = new Map();
-              (prev.attendanceWarnings || []).forEach((w) => {
-                byKey.set(`${String(w.uid)}|${String(w.date || '').slice(0, 10)}|${w.type}`, w);
-              });
-              rows.forEach((w) => {
-                byKey.set(`${String(w.uid)}|${String(w.date || '').slice(0, 10)}|${w.type}`, w);
-              });
-              const next = [...byKey.values()];
-              Store.set('attendanceWarnings', next);
-              return { ...prev, attendanceWarnings: next };
+              Store.set('attendanceWarnings', rows);
+              return { ...prev, attendanceWarnings: rows };
             });
           }
         }
@@ -498,29 +491,28 @@ export function AppProvider({ children }) {
               attendancePenalty: p.attendancePenalty ?? p.attendance_penalty ?? p.deductions ?? 0,
             }));
             setDb((prev) => {
-              const byKey = new Map();
               const validUserIds = new Set((prev.users || []).map((u) => String(u.id || u._id)));
-              (prev.payroll || []).forEach((p) => {
+              const filtered = mapped.filter((p) => {
                 const uidStr = String(p.uid || p.user_id || '');
-                if (validUserIds.size > 0 && !validUserIds.has(uidStr)) return;
-                byKey.set(`${String(p.uid)}|${p.month}|${p.year}`, p);
+                return validUserIds.size === 0 || validUserIds.has(uidStr);
               });
-              mapped.forEach((p) => {
-                const uidStr = String(p.uid || p.user_id || '');
-                if (validUserIds.size > 0 && !validUserIds.has(uidStr)) return;
-                byKey.set(`${String(p.uid)}|${p.month}|${p.year}`, p);
-              });
-              const next = [...byKey.values()];
-              Store.set('payroll', next);
-              return { ...prev, payroll: next };
+              Store.set('payroll', filtered);
+              return { ...prev, payroll: filtered };
             });
           }
         }
       } catch {}
     };
     pull();
+    const onPayrollSync = () => { pull(); };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('hrms:payroll-sync', onPayrollSync);
+    }
     return () => {
       cancelled = true;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('hrms:payroll-sync', onPayrollSync);
+      }
     };
   }, [user?.id]);
 
