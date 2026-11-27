@@ -4,6 +4,7 @@ import connectDB from '@/lib/db';
 import Candidate from '@/lib/models/Candidate';
 import { getAuthUser } from '@/lib/auth';
 import { candidateDateMongoQuery, sheetDateStorageVariants } from '@/lib/candidate-dates';
+import { reconcileRecruiterSheetWarningsForItems } from '@/lib/attendance-deductions';
 
 function getCurrentTime12(): string {
   try {
@@ -195,6 +196,7 @@ export async function POST(request: Request) {
         time: item.time && item.time.trim() ? item.time : autoNowTime,
       }));
       const inserted = await Candidate.insertMany(dataWithTime);
+      try { await reconcileRecruiterSheetWarningsForItems(dataWithTime); } catch {}
       return NextResponse.json(inserted.map(c => ({ ...c.toObject(), id: c._id.toString() })), { status: 201 });
     }
 
@@ -208,6 +210,7 @@ export async function POST(request: Request) {
       time: parsedSingle.data.time && parsedSingle.data.time.trim() ? parsedSingle.data.time : autoNowTime,
     });
     const candidate = await Candidate.create(singleData);
+    try { await reconcileRecruiterSheetWarningsForItems([singleData]); } catch {}
     return NextResponse.json({ ...candidate.toObject(), id: candidate._id.toString() }, { status: 201 });
   } catch (error: any) {
     console.error('Candidate POST Error:', error);

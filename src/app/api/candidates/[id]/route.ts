@@ -4,6 +4,7 @@ import { z } from 'zod';
 import connectDB from '@/lib/db';
 import Candidate from '@/lib/models/Candidate';
 import { getAuthUser } from '@/lib/auth';
+import { reconcileRecruiterSheetWarningsForItems } from '@/lib/attendance-deductions';
 
 const updateCandidateSchema = z.object({
   slNo: z.number().optional(),
@@ -61,6 +62,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
     }
 
+    try { await reconcileRecruiterSheetWarningsForItems([candidate]); } catch {}
+
     return NextResponse.json({ message: 'Candidate updated successfully', candidate });
   } catch (error: any) {
     console.error('Candidate PUT Error:', error);
@@ -88,6 +91,8 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     if (!candidate) {
       return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
     }
+
+    try { await reconcileRecruiterSheetWarningsForItems([candidate]); } catch {}
 
     return NextResponse.json({ message: 'Candidate deleted successfully' });
   } catch (error: any) {

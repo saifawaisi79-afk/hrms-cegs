@@ -9,6 +9,12 @@ import Notification from '@/lib/models/Notification';
 import Timesheet from '@/lib/models/Timesheet';
 import Attendance from '@/lib/models/Attendance';
 import SystemSetting from '@/lib/models/SystemSetting';
+import Candidate from '@/lib/models/Candidate';
+import Leave from '@/lib/models/Leave';
+import { candidateDateMongoQuery, normalizeCandidateDate } from '@/lib/candidate-dates';
+import { employeeNamesMatch } from '@/lib/recruiter-names';
+import { computeRecruiterDayPerformance } from '@/lib/recruiter-targets';
+import { formatInOfficeTz, istIsoDate } from '@/lib/ist-time';
 import {
   WARNINGS_PER_HALF_DAY,
   monthYearFromDate,
@@ -22,9 +28,9 @@ import {
   halfDaysFromMistakeCount,
   hasCompanyVisitOnRecord,
 } from '@/lib/attendance-policy';
-import { istIsoDate } from '@/lib/ist-time';
 
 export const ATTENDANCE_WARNING_TYPES = ['late_clock_in', 'late_lunch_return', 'early_clock_out', 'below_40_percent', 'performance_below_40', 'clause40'];
+export const BELOW_40_TYPES = ['below_40_percent', 'performance_below_40', 'clause40'];
 
 export function flattenAttendanceWarning(w) {
   const o = w.toObject ? w.toObject() : w;
@@ -176,6 +182,109 @@ const WARNING_MSGS = {
 /**
  * Insert-once warning for a user/date/type. Updates payroll + notifications.
  */
+export async function evaluateBelow40ForUserDate(userId, isoDate, options = {}) {
+  const { allowTodayInProgress = false } = options;
+  const nowIst = formatInOfficeTz(new Date());
+  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return { valid: false, reason: 'invalid_date' };
+  if (isoDate > nowIst.date) return { valid: false, reason: 'future_date' };
+  const dow = new Date(`${isoDate}T12:00:00Z`).getUTCDay();
+  if (dow === 0) return { valid: false, reason: 'sunday' };
+
+  const user = await User.findById(userId).select('name role designation status').lean();
+  if (!user || !['active', 'on_leave'].includes(String(user.status || 'active'))) {
+    return { valid: false, reason: 'inactive_user' };
+  }
+
+  const att = await Attendance.findOne({ user_id: userId, date: isoDate }).select('status source check_out_time early_logout_allowed clause40_waived visit_status company_visit_out_time visit_logs').lean();
+  if (!att || att.status === 'absent') return { valid: false, reason: 'no_attendance' };
+  if (hasCompanyVisitOnRecord(att) || att.clause40_waived) return { valid: false, reason: 'waived_visit_or_clause40' };
+
+  try {
+    const setting = await SystemSetting.findOne({ key: `clause40_waivers_${isoDate}` }).lean();
+    if (setting?.value) {
+      const ids = JSON.parse(setting.value).map(String);
+      if (ids.includes('ALL') || ids.includes(String(userId))) return { valid: false, reason: 'waived_setting' };
+    }
+  } catch {}
+
+  const approvedLeave = await Leave.findOne({
+    user_id: userId,
+    status: 'approved',
+    start_date: { $lte: isoDate },
+    end_date: { $gte: isoDate },
+  }).lean();
+  if (approvedLeave) return { valid: false, reason: 'approved_leave' };
+
+  if (!allowTodayInProgress && isoDate === nowIst.date && !att.check_out_time && nowIst.hour < 19) {
+    return { valid: false, reason: 'shift_in_progress' };
+  }
+
+  const dateQuery = candidateDateMongoQuery(isoDate);
+  const dayCands = dateQuery ? await Candidate.find(dateQuery).lean() : [];
+  const perf = computeRecruiterDayPerformance({
+    candidates: dayCands,
+    empName: user.name,
+    sheetDate: isoDate,
+    user,
+  });
+
+  const t = perf.targets;
+  const accurateNote = `Daily performance ${perf.pct}% (${perf.calls}/${t.calls} calls, ${perf.itvs}/${t.itvs} itv, ${perf.walks}/${t.walks} walkins, ${perf.sels}/${t.sels} sel, ${perf.jnds}/${t.jnds} joined${perf.pct < 40 ? ' — below 40% target' : ''})`;
+  return { valid: true, isBelow40: perf.pct < 40, perf, accurateNote, user };
+}
+
+export async function reconcileRecruiterSheetWarningsForItems(items = []) {
+  if (!Array.isArray(items) || items.length === 0) return { cleared: 0, updated: 0 };
+  const dateSet = new Set();
+  for (const item of items) {
+    const iso = normalizeCandidateDate(item?.date) || istIsoDate();
+    if (iso) dateSet.add(iso);
+  }
+  const dates = [...dateSet];
+  if (dates.length === 0) return { cleared: 0, updated: 0 };
+
+  const existingWarns = await AttendanceWarning.find({
+    date: { $in: dates },
+    type: { $in: BELOW_40_TYPES },
+  }).select('user_id date type note').lean();
+  if (existingWarns.length === 0) return { cleared: 0, updated: 0 };
+
+  const uids = [...new Set(existingWarns.map((w) => String(w.user_id)))];
+  const empNamesInItems = items.map((i) => i?.employee).filter(Boolean);
+  const usersList = await User.find({ _id: { $in: uids } }).select('name').lean();
+  const nameMap = new Map(usersList.map((u) => [String(u._id), u.name]));
+
+  let cleared = 0;
+  let updated = 0;
+  const processedPairs = new Set();
+  for (const w of existingWarns) {
+    const uidStr = String(w.user_id);
+    const uName = nameMap.get(uidStr) || '';
+    if (empNamesInItems.length > 0 && uName && !empNamesInItems.some((en) => employeeNamesMatch(en, uName))) continue;
+    const pairKey = `${uidStr}|${w.date}`;
+    if (processedPairs.has(pairKey)) continue;
+    processedPairs.add(pairKey);
+
+    const resEval = await evaluateBelow40ForUserDate(w.user_id, w.date);
+    const [yStr, mStr] = w.date.split('-');
+    const m = parseInt(mStr, 10);
+    const y = parseInt(yStr, 10);
+
+    if (!resEval.valid || !resEval.isBelow40) {
+      const del = await AttendanceWarning.deleteMany({ user_id: w.user_id, date: w.date, type: { $in: BELOW_40_TYPES } });
+      cleared += del?.deletedCount || 0;
+      if (m && y) await syncPayrollAttendanceDeduction(w.user_id, m, y);
+    } else if (resEval.accurateNote && w.note !== resEval.accurateNote) {
+      await AttendanceWarning.updateMany(
+        { user_id: w.user_id, date: w.date, type: { $in: BELOW_40_TYPES } },
+        { $set: { note: resEval.accurateNote } }
+      );
+      updated++;
+    }
+  }
+  return { cleared, updated };
+}
+
 export async function persistAttendanceWarning({ userId, type, note, date }) {
   if (!ATTENDANCE_WARNING_TYPES.includes(type)) {
     throw new Error('Invalid attendance warning type');
@@ -236,6 +345,32 @@ export async function persistAttendanceWarning({ userId, type, note, date }) {
     };
   }
 
+  let resolvedNote = note || '';
+  if (BELOW_40_TYPES.includes(type)) {
+    const evalRes = await evaluateBelow40ForUserDate(userId, isoDate);
+    if (!evalRes.valid || !evalRes.isBelow40) {
+      await AttendanceWarning.deleteMany({ user_id: userId, date: isoDate, type: { $in: BELOW_40_TYPES } });
+      const { lateCount, earlyCount, totalCount } = await countSavedMonthlyWarnings(userId, month, year);
+      const payroll = await syncPayrollAttendanceDeduction(userId, month, year);
+      return {
+        created: false,
+        waived: !!evalRes.reason?.startsWith('waived'),
+        aboveThreshold: !!(evalRes.valid && !evalRes.isBelow40),
+        reason: evalRes.reason || (evalRes.isBelow40 === false ? 'pct_at_least_40' : 'ineligible'),
+        pct: evalRes.perf?.pct ?? null,
+        duplicate: false,
+        warning: null,
+        lateCount,
+        earlyCount,
+        totalCount,
+        halfDaysCut: calcTotalHalfDaysCut(lateCount, earlyCount),
+        attendancePenalty: calcCombinedAttendancePenalty(Number(payroll?.basic_salary) || 0, lateCount, earlyCount),
+        payroll: payroll ? flattenPayrollSlip(payroll) : null,
+      };
+    }
+    resolvedNote = evalRes.accurateNote;
+  }
+
   let created = false;
   let doc;
   try {
@@ -245,12 +380,16 @@ export async function persistAttendanceWarning({ userId, type, note, date }) {
       date: isoDate,
       month,
       year,
-      note: note || '',
+      note: resolvedNote,
     });
     created = true;
   } catch (err) {
     if (err?.code !== 11000) throw err;
     doc = await AttendanceWarning.findOne({ user_id: userId, date: isoDate, type });
+    if (doc && BELOW_40_TYPES.includes(type) && resolvedNote && doc.note !== resolvedNote) {
+      await AttendanceWarning.updateOne({ _id: doc._id }, { $set: { note: resolvedNote } });
+      doc.note = resolvedNote;
+    }
   }
 
   const { lateCount, earlyCount, totalCount } = await countSavedMonthlyWarnings(userId, month, year);

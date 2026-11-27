@@ -21,6 +21,13 @@ import {
 import { isOversightOnly, getRecruiters } from '@/lib/nav';
 import { formatDateDMY } from '@/lib/date-format';
 import { employeeNamesMatch } from '@/lib/recruiter-names';
+import {
+  isFinanceUserOrEmployee,
+  getRecruitmentTargets,
+  isConnectedCall,
+  candidateMatchesTask,
+} from '@/lib/recruiter-targets';
+export { isFinanceUserOrEmployee, getRecruitmentTargets };
 import { WalkinsSelectionsSection } from '@/components/recruitment/WalkinsSelectionsSection';
 import { JoinerSheetSection } from '@/components/recruitment/JoinerSheetSection';
 import { CompanyManagerModal } from '@/components/recruitment/CompanyManagerModal';
@@ -10365,59 +10372,6 @@ export function TargetMetricCard({ title, icon = 'target', current, target, unit
   );
 }
 
-export const isFinanceUserOrEmployee = (target, dbUsers = []) => {
-  if (!target) return false;
-  if (typeof target === 'object') {
-    if (target.role === 'finance') return true;
-    const t = String(target.title || target.designation || '').toLowerCase();
-    const d = String(target.department || target.department_name || target.dept || '').toLowerCase();
-    if (
-      t.includes('finance') ||
-      t.includes('invoice') ||
-      t.includes('billing') ||
-      t.includes('accounts') ||
-      d.includes('finance') ||
-      d.includes('invoice') ||
-      d.includes('billing') ||
-      d.includes('accounts')
-    ) {
-      return true;
-    }
-    if (target.name) {
-      const match = (dbUsers || []).find(
-        (u) => u && u !== target && String(u.name || '').trim().toLowerCase() === String(target.name).trim().toLowerCase()
-      );
-      if (match && match !== target) return isFinanceUserOrEmployee(match, []);
-    }
-    return false;
-  }
-  const nameStr = String(target).trim().toLowerCase();
-  const matchedUser = (dbUsers || []).find((u) => (u?.name || '').trim().toLowerCase() === nameStr);
-  if (matchedUser) {
-    return isFinanceUserOrEmployee(matchedUser, []);
-  }
-  return false;
-};
-
-export const getRecruitmentTargets = (isFinance) => {
-  if (isFinance) {
-    return {
-      calls: 40,
-      itvs: 7,
-      walks: 2,
-      sels: 1,
-      jnds: 1,
-    };
-  }
-  return {
-    calls: 80,
-    itvs: 15,
-    walks: 5,
-    sels: 3,
-    jnds: 1,
-  };
-};
-
 export function getLiveTime12() {
   try {
     return new Intl.DateTimeFormat('en-IN', {
@@ -10710,11 +10664,6 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const saveDebounceRef = useRef(null);
  const API_BASE = GLOBAL_API_BASE;
 
- const isConnectedCall = (c) => {
- const status = (c.callStatus || '').trim().toLowerCase();
- return status === 'connected' || status.includes('connect');
- };
-
  const getCategoryFromCandidate = (cand) => {
  // Primary bucket for display when a row must pick one category.
  // KPIs use candidateMatchesTask so one entry can credit multiple tasks.
@@ -10727,27 +10676,6 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  if (/\binterview\b|\bscheduled\b|\bschedule\b/.test(text) || text.includes('interview')) return 'interviews';
  if (cand.category) return cand.category;
  return 'calls';
- };
-
- /** One sheet row can mark multiple daily tasks via Response / Follow-up text. */
- const candidateMatchesTask = (cand, task) => {
- if (task === 'calls') return isConnectedCall(cand);
- const text = `${cand.response || ''} ${cand.followUp1 || ''} ${cand.followUp2 || ''} ${cand.followUp3 || ''}`
- .toLowerCase()
- .replace(/\s+/g, ' ');
- if (task === 'interviews') {
- return text.includes('interview') || text.includes('scheduled') || /\bschedule\b/.test(text);
- }
- if (task === 'walkins') {
- return /walk\s*-?\s*in/.test(text) || text.includes('walkin') || text.includes('visited');
- }
- if (task === 'selected') {
- return text.includes('selected') || text.includes('hired');
- }
- if (task === 'joined') {
- return text.includes('joined') || text.includes('joining') || String(cand.category || '').toLowerCase() === 'joined';
- }
- return false;
  };
 
  const showToast = (msg, type = 'info') => {
@@ -10936,16 +10864,15 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
 
  // Strictly enforce user-specific candidate data scoping for employees and HR
  const roleFilteredCandidates = candidates.filter(c => {
- if (isEmp) {
- // Employee sees ONLY candidate entries assigned specifically to them (or newly created rows)
- const currentEmp = (user?.name || '').trim().toLowerCase();
- const candEmp = (c.employee || '').trim().toLowerCase();
- return !candEmp || candEmp === currentEmp;
- }
- if ((isHR || isSA) && selectedEmployeeFilter !== 'ALL') {
- return employeeNamesMatch(c.employee, selectedEmployeeFilter);
- }
- return true;
+   if (isEmp) {
+     // Employee sees ONLY candidate entries assigned specifically to them (or newly created rows)
+     const candEmp = (c.employee || '').trim();
+     return !candEmp || employeeNamesMatch(candEmp, user?.name);
+   }
+   if ((isHR || isSA) && selectedEmployeeFilter !== 'ALL') {
+     return employeeNamesMatch(c.employee, selectedEmployeeFilter);
+   }
+   return true;
  });
 
  const todayTargetCandidates = roleFilteredCandidates.filter(c => matchesSheetDate(c, sheetDate));
@@ -10982,21 +10909,43 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  const isTargetAchieved = totalDayPerformancePct >= 60; // minimum 60% required every day
  const isHalfDayAbsentRisk = totalDayPerformancePct < 40; // below 40% → half-day absent
 
- // Warn employee once per day if performance is under 40% (half-day absent risk)
+  // Warn employee once per working day if performance is under 40% ONLY after sheet loads & end of shift (or past working day), and clear stale warning if score reached >=40%
   useEffect(() => {
     if (!isEmp || !user?.id || !save) return;
-    if (!isHalfDayAbsentRisk) return;
-    if ((db?.attendance || []).some((a) => String(a.uid || a.user_id) === String(user.id) && String(a.date || '').slice(0, 10) === sheetDate && hasCompanyVisitOnRecord(a))) return;
+    if (candidatesLoading) return;
+    const todayIso = todayIsoDate();
+    if (!sheetDate || sheetDate > todayIso) return;
     try {
-      if (localStorage.getItem(`cegs_clause40_waived_${user.id}_${sheetDate}`) === '1' || localStorage.getItem(`cegs_clause40_waived_ALL_${sheetDate}`) === '1') return;
-    } catch {}
+      const parts = sheetDate.split('-').map(Number);
+      if (new Date(parts[0], parts[1] - 1, parts[2]).getDay() === 0) return;
+    } catch { return; }
+    const dayAtt = (db?.attendance || []).find(
+      (a) => String(a.uid || a.user_id) === String(user.id) && String(a.date || '').slice(0, 10) === sheetDate
+    );
+    if (!dayAtt || dayAtt.status === 'absent' || hasCompanyVisitOnRecord(dayAtt)) return;
+
+    if (!isHalfDayAbsentRisk) {
+      const hasStale = (db?.attendanceWarnings || []).some((w) => String(w.uid || w.user_id) === String(user.id) && String(w.date || '').slice(0, 10) === sheetDate && ['below_40_percent', 'performance_below_40', 'clause40'].includes(w.type));
+      if (hasStale) {
+        save('attendanceWarnings', (db.attendanceWarnings || []).filter((w) => !(String(w.uid || w.user_id) === String(user.id) && String(w.date || '').slice(0, 10) === sheetDate && ['below_40_percent', 'performance_below_40', 'clause40'].includes(w.type))));
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('hrms:payroll-sync'));
+      }
+      return;
+    }
+
+    if (sheetDate === todayIso && !dayAtt.out && !dayAtt.check_out_time) {
+      try {
+        const istHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false }).format(new Date()));
+        if (!Number.isFinite(istHour) || istHour < 19) return;
+      } catch { return; }
+    }
+
     const dayKey = `cegs_perf40_warn_${user.id}_${sheetDate}`;
     try {
       if (localStorage.getItem(dayKey) === '1') return;
       localStorage.setItem(dayKey, '1');
-    } catch {
-      return;
-    }
+    } catch { return; }
+    const noteText = `Daily performance ${totalDayPerformancePct}% (${callsMadeCount}/${currentTargets.calls} calls, ${interviewsScheduledTargetCount}/${currentTargets.itvs} itv, ${walkinsTargetCount}/${currentTargets.walks} walkins, ${selectedTodayTargetCount}/${currentTargets.sels} sel, ${joinedTodayTargetCount}/${currentTargets.jnds} joined — below 40% target)`;
     pushHrmsNotification(save, db, {
       to: user.id,
       title: 'Daily Performance <40% Warning',
@@ -11008,10 +10957,10 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
       uid: user.id,
       type: 'below_40_percent',
       date: sheetDate,
-      note: `Daily performance ${totalDayPerformancePct}% (below 40% target)`,
+      note: noteText,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEmp, user?.id, isHalfDayAbsentRisk, sheetDate, totalDayPerformancePct]);
+  }, [isEmp, user?.id, candidatesLoading, isHalfDayAbsentRisk, sheetDate, totalDayPerformancePct]);
 
  const totalCandidatesCount = roleFilteredCandidates.length;
  const todayAddedCount = todayTargetCandidates.length;
