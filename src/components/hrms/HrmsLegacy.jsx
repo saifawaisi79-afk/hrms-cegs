@@ -5570,6 +5570,7 @@ export function PayrollPage({ db, save, user, setView }) {
 
   const [payrollTab, setPayrollTab] = useState(canViewAllStaff ? 'all' : 'mine'); // 'all' | 'mine'
   const [search, setSearch] = useState('');
+  const [holdingUid, setHoldingUid] = useState(null);
 
   useEffect(() => {
     if (!canViewAllStaff && payrollTab !== 'mine') {
@@ -5665,6 +5666,57 @@ export function PayrollPage({ db, save, user, setView }) {
   const selectedMonthNum = Number(month);
   const selectedYearNum = Number(year);
 
+  const toggleHoldSalary = async (record, nextHold) => {
+    const uidStr = String(record?.uid || record?.user_id || '');
+    if (!uidStr || holdingUid) return;
+    setHoldingUid(uidStr);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('cegs_token') : '';
+      const res = await fetch(`${GLOBAL_API_BASE}/payroll`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          userId: uidStr,
+          month: selectedMonthNum,
+          year: selectedYearNum,
+          hold: nextHold,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || 'Could not update salary hold status.');
+        return;
+      }
+      const updatedSlip = data.slip
+        ? {
+            ...data.slip,
+            uid: data.slip.uid || data.slip.user_id || uidStr,
+            basic: data.slip.basic ?? data.slip.basic_salary,
+            net: data.slip.net ?? data.slip.net_salary,
+          }
+        : {
+            ...record,
+            uid: uidStr,
+            user_id: uidStr,
+            month: selectedMonthNum,
+            year: selectedYearNum,
+            status: nextHold ? 'on_hold' : (record.previous_status || (record.date ? 'processed' : 'draft')),
+          };
+      const others = (db.payroll || []).filter(
+        (p) => !(String(p.uid || p.user_id) === uidStr && Number(p.month) === selectedMonthNum && Number(p.year) === selectedYearNum)
+      );
+      save('payroll', [...others, updatedSlip]);
+    } catch (err) {
+      console.error('Payroll hold toggle error:', err);
+      alert('Unable to reach server to update salary hold status.');
+    } finally {
+      setHoldingUid(null);
+    }
+  };
+
   // Active employees
   const activeStaff = (db.users || []).filter(u => ['active', 'on_leave'].includes(u.status) || !u.status);
 
@@ -5742,8 +5794,10 @@ export function PayrollPage({ db, save, user, setView }) {
           year: selectedYearNum,
           basic: Number(pastEmp.basic_salary ?? pastEmp.salary ?? saved.basic ?? saved.basic_salary) || 0,
           allowances: Number(pastEmp.allowances ?? saved.allowances) || 0,
+          overtime: Number(saved.overtime) || 0,
+          bonus: Number(saved.bonus) || 0,
           deductions: Number(saved.deductions ?? saved.attendancePenalty) || 0,
-          net: Number(saved.net ?? saved.net_salary) || 0,
+          net: (Number(pastEmp.basic_salary ?? pastEmp.salary ?? saved.basic ?? saved.basic_salary) || 0) + (Number(pastEmp.allowances ?? saved.allowances) || 0) + (Number(saved.overtime) || 0) + (Number(saved.bonus) || 0) - (Number(saved.deductions ?? saved.attendancePenalty) || 0),
           status: saved.status || 'processed',
         });
       }
@@ -5765,9 +5819,13 @@ export function PayrollPage({ db, save, user, setView }) {
     return empName.toLowerCase().includes(s) || empEid.toLowerCase().includes(s);
   });
 
-  const totalNet = (canViewAllStaff && payrollTab === 'all' ? allStaffMonthRecords : filteredList).reduce((s, p) => s + (Number(p.net) || 0), 0);
-  const totalEmployeesCount = (canViewAllStaff && payrollTab === 'all' ? allStaffMonthRecords : filteredList).length;
+  const activeSummarySource = (canViewAllStaff && payrollTab === 'all') ? filteredList : myEmployeeRecord;
+  const paidSummaryRows = activeSummarySource.filter((p) => String(p.status || '').toLowerCase() !== 'on_hold');
+  const heldSummaryRows = activeSummarySource.filter((p) => String(p.status || '').toLowerCase() === 'on_hold');
+  const totalNet = paidSummaryRows.reduce((s, p) => s + (Number(p.net) || 0), 0);
+  const totalEmployeesCount = paidSummaryRows.length;
   const avgSalary = totalEmployeesCount > 0 ? Math.round(totalNet / totalEmployeesCount) : 0;
+  const totalHeldAmount = heldSummaryRows.reduce((s, p) => s + (Number(p.net) || 0), 0);
 
   const myCurrentRec = myEmployeeRecord[0] || allStaffMonthRecords.find(p => String(p.uid) === String(user?.id));
   const liveMine = buildPayParts(profileUser, selectedMonthNum, selectedYearNum);
@@ -5843,13 +5901,17 @@ export function PayrollPage({ db, save, user, setView }) {
       <div className="stats-grid stagger" style={{ marginBottom: 24 }}>
         {canViewAllStaff && payrollTab === 'all' ? (
           [
-            { l: 'Total Disbursed', v: `₹${totalNet.toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'card' },
-            { l: 'Employees Paid', v: totalEmployeesCount, bg: '#DBEAFE', ic: '#2563EB', icon: 'users' },
-            { l: 'Avg Salary', v: `₹${avgSalary.toLocaleString()}`, bg: '#FEF3C7', ic: '#D97706', icon: 'trending' }
+            { l: 'Total Disbursed', v: `₹${totalNet.toLocaleString()}`, bg: '#D1FAE5', ic: '#059669', icon: 'card', hint: totalHeldAmount > 0 ? `₹${totalHeldAmount.toLocaleString()} on hold` : null },
+            { l: 'Employees Paid', v: totalEmployeesCount, bg: '#DBEAFE', ic: '#2563EB', icon: 'users', hint: heldSummaryRows.length > 0 ? `${heldSummaryRows.length} held` : null },
+            { l: 'Avg Salary', v: `₹${avgSalary.toLocaleString()}`, bg: '#FEF3C7', ic: '#D97706', icon: 'trending', hint: null }
           ].map((s, i) => (
             <div key={i} className="stat-c">
               <div className="stat-icon-wrap" style={{ background: s.bg }}><IC n={s.icon} s={20} c={s.ic}/></div>
-              <div><div className="stat-label">{s.l}</div><div className="stat-value">{s.v}</div></div>
+              <div>
+                <div className="stat-label">{s.l}</div>
+                <div className="stat-value">{s.v}</div>
+                {s.hint && <div style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', marginTop: 2 }}>{s.hint}</div>}
+              </div>
             </div>
           ))
         ) : (
@@ -5867,6 +5929,12 @@ export function PayrollPage({ db, save, user, setView }) {
         )}
       </div>
 
+      {!(canViewAllStaff && payrollTab === 'all') && String(myCurrentRec?.status || '').toLowerCase() === 'on_hold' && (
+        <div style={{ marginBottom: 16, background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 14, padding: '12px 16px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span>Salary On Hold:</span>
+          <span style={{ fontWeight: 500 }}>Your salary disbursement for {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][selectedMonthNum - 1]} {selectedYearNum} is currently placed on hold by Super Admin.</span>
+        </div>
+      )}
       {!(canViewAllStaff && payrollTab === 'all') && (
         <div style={{ marginBottom: 20 }}>
           {(() => {
@@ -5967,11 +6035,11 @@ export function PayrollPage({ db, save, user, setView }) {
       <div className="card" style={{ borderRadius: 20, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>Employee</th><th>Period</th><th className="th-num">Basic</th><th className="th-num">Allowances</th><th className="th-num">Deductions</th><th className="th-num">Net Salary</th><th>Status</th><th>Payslip</th></tr></thead>
+            <thead><tr><th>Employee</th><th>Period</th><th className="th-num">Basic</th><th className="th-num">Allowances</th><th className="th-num">Deductions</th><th className="th-num">Net Salary</th><th>Status</th><th>Payslip</th>{canViewAllStaff && payrollTab === 'all' && <th style={{ textAlign: 'right' }}>Action</th>}</tr></thead>
             <tbody>
               {filteredList.length === 0 && (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={canViewAllStaff && payrollTab === 'all' ? 9 : 8}>
                     <div className="empty-state" style={{ padding: 30 }}>
                       <span className="empty-state-icon"><IC n="card" s={48} style={{ color: 'var(--text-muted)' }}/></span>
                       <h3>No payroll records found</h3>
@@ -5983,11 +6051,15 @@ export function PayrollPage({ db, save, user, setView }) {
               {filteredList.map(p => {
                 const emp = p.emp || (db.users || []).find(u => String(u.id || u._id) === String(p.uid));
                 const monthName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(p.month || selectedMonthNum) - 1];
-                const basicVal = Number(emp?.basic_salary ?? emp?.salary ?? p.basic ?? p.basic_salary ?? 0);
-                const allowVal = Number(emp?.allowances ?? p.allowances ?? 0);
+                const basicVal = Number(p.basic ?? emp?.basic_salary ?? emp?.salary ?? p.basic_salary ?? 0);
+                const allowVal = Number(p.allowances ?? emp?.allowances ?? 0);
+                const overtimeVal = Number(p.overtime ?? 0);
+                const bonusVal = Number(p.bonus ?? 0);
                 const deductVal = Number(p.deductions ?? p.attendancePenalty ?? 0);
-                const netVal = Number(basicVal + allowVal - deductVal);
-                const isProcessed = String(p.status).toLowerCase() === 'processed';
+                const netVal = Number(p.net ?? (basicVal + allowVal + overtimeVal + bonusVal - deductVal));
+                const statusNorm = String(p.status || 'draft').toLowerCase();
+                const isHeld = statusNorm === 'on_hold';
+                const isProcessed = statusNorm === 'processed';
 
                 return (
                   <tr key={p.id}>
@@ -6002,7 +6074,12 @@ export function PayrollPage({ db, save, user, setView }) {
                     </td>
                     <td style={{ fontSize: 13, color: '#4B5563', fontWeight: 600 }}>{monthName} {p.year || selectedYearNum}</td>
                     <td className="td-num" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>₹{basicVal.toLocaleString()}</td>
-                    <td className="td-num" style={{ color: '#059669', fontWeight: 700, fontSize: 13 }}>+₹{allowVal.toLocaleString()}</td>
+                    <td className="td-num" style={{ color: '#059669', fontWeight: 700, fontSize: 13 }}>
+                      <div>+₹{allowVal.toLocaleString()}</div>
+                      {(overtimeVal > 0 || bonusVal > 0) && (
+                        <div style={{ fontSize: 10.5, fontWeight: 600, color: '#2563EB' }}>+₹{(overtimeVal + bonusVal).toLocaleString()} OT/Bonus</div>
+                      )}
+                    </td>
                     <td className="td-num" style={{ color: deductVal > 0 ? '#DC2626' : '#6B7280', fontWeight: 700, fontSize: 13 }}>
                       <div>-₹{deductVal.toLocaleString()}</div>
                       {(() => {
@@ -6047,10 +6124,13 @@ export function PayrollPage({ db, save, user, setView }) {
                         );
                       })()}
                     </td>
-                    <td className="td-num" style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 17, color: '#111827' }}>₹{netVal.toLocaleString()}</td>
+                    <td className="td-num" style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 17, color: isHeld ? '#94A3B8' : '#111827' }}>
+                      <div style={isHeld ? { textDecoration: 'line-through' } : undefined}>₹{netVal.toLocaleString()}</div>
+                      {isHeld && <div style={{ fontSize: 10.5, fontWeight: 700, color: '#DC2626' }}>Withheld</div>}
+                    </td>
                     <td>
-                      <span className={`badge ${isProcessed ? 'b-success' : 'b-warning'}`}>
-                        <span className="badge-dot"/>{isProcessed ? 'PROCESSED' : 'DRAFT'}
+                      <span className={`badge ${isHeld ? 'b-error' : isProcessed ? 'b-success' : 'b-pending'}`}>
+                        <span className="badge-dot"/>{isHeld ? 'ON HOLD' : isProcessed ? 'PROCESSED' : 'DRAFT'}
                       </span>
                     </td>
                     <td>
@@ -6071,6 +6151,20 @@ export function PayrollPage({ db, save, user, setView }) {
                         View / Print Slip
                       </button>
                     </td>
+                    {canViewAllStaff && payrollTab === 'all' && (
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <button
+                          type="button"
+                          disabled={holdingUid === String(p.uid)}
+                          className={`btn btn-sm ${isHeld ? 'btn-info-soft' : 'btn-warning-soft'}`}
+                          style={{ borderRadius: 10, fontWeight: 800, fontSize: 11.5, minWidth: 82 }}
+                          onClick={() => toggleHoldSalary(p, !isHeld)}
+                          title={isHeld ? 'Release hold and include salary in total disbursement' : 'Place this employee salary on hold'}
+                        >
+                          {holdingUid === String(p.uid) ? 'Saving...' : isHeld ? 'Unhold' : 'Hold'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -6105,7 +6199,7 @@ export function PayrollPage({ db, save, user, setView }) {
                   <div className="payslip-row"><span>Tax & Provident Fund</span><span style={{color:'var(--red-dark)'}}>-₹{payslip.deductionTaxPf.toLocaleString()}</span></div>
                 )}
                 <div className="payslip-row"><span>Attendance Warning Deductions{payslip.halfDaysCut ? ` (${payslip.halfDaysCut} half-day)` : ''}{payslip.attendanceWarnings ? ` · ${payslip.attendanceWarnings} warnings` : ''}</span><span style={{color:'var(--red-dark)'}}>-₹{(Number(payslip.attendancePenalty ?? payslip.deductions) || 0).toLocaleString()}</span></div>
-                <div className="payslip-total"><span>Net Salary</span><span style={{color:'var(--green-dark)'}}>₹{(Number(payslip.net) || 0).toLocaleString()}</span></div>
+                <div className="payslip-total"><span>Net Salary</span><span style={{color: String(payslip.status || '').toLowerCase() === 'on_hold' ? '#DC2626' : 'var(--green-dark)'}}>₹{(Number(payslip.net) || 0).toLocaleString()}{String(payslip.status || '').toLowerCase() === 'on_hold' ? ' (ON HOLD)' : ''}</span></div>
                 {(() => {
                   const slipBreakdown = getEmployeeMonthlyDeductionBreakdown(
                     db.attendanceWarnings || [],

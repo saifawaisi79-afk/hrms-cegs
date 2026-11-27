@@ -263,6 +263,12 @@ export async function processMonthlyPayroll(month, year) {
   const employees = await User.find({ status: { $in: ['active', 'on_leave'] } })
     .select('_id basic_salary allowances')
     .lean();
+  const existingSlips = await Payroll.find({ month, year }).select('user_id status').lean();
+  const heldUserIds = new Set(
+    existingSlips
+      .filter((s) => String(s.status || '').toLowerCase() === 'on_hold')
+      .map((s) => String(s.user_id?._id || s.user_id))
+  );
   let count = 0;
   const processedDate = new Date().toISOString().split('T')[0];
 
@@ -282,6 +288,8 @@ export async function processMonthlyPayroll(month, year) {
     const overtime = Math.round(otHours * 25);
     const bonus = 0;
     const warningCount = await countSavedMonthlyWarnings(emp._id, month, year);
+    const isHeld = heldUserIds.has(String(emp._id));
+    const targetStatus = isHeld ? 'on_hold' : 'processed';
 
     await Payroll.findOneAndUpdate(
       { user_id: emp._id, month, year },
@@ -291,7 +299,8 @@ export async function processMonthlyPayroll(month, year) {
           allowances,
           overtime,
           bonus,
-          status: 'processed',
+          status: targetStatus,
+          ...(isHeld ? { previous_status: 'processed' } : {}),
           processed_date: processedDate,
         },
         $setOnInsert: {
@@ -310,7 +319,7 @@ export async function processMonthlyPayroll(month, year) {
     await syncPayrollAttendanceDeduction(emp._id, month, year, warningCount);
     await Payroll.updateOne(
       { user_id: emp._id, month, year },
-      { $set: { status: 'processed', processed_date: processedDate, overtime, bonus } }
+      { $set: { status: targetStatus, processed_date: processedDate, overtime, bonus } }
     );
     count++;
   }

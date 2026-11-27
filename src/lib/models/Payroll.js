@@ -13,7 +13,10 @@ const PayrollSchema = new mongoose.Schema({
   half_days_cut:       { type: Number, default: 0 },
   attendance_penalty:  { type: Number, default: 0 },
   net_salary:     { type: Number, required: true },
-  status:         { type: String, enum: ['processed', 'draft'], default: 'draft' },
+  status:         { type: String, enum: ['processed', 'draft', 'on_hold'], default: 'draft' },
+  previous_status:{ type: String, enum: ['processed', 'draft'], default: 'processed' },
+  held_by:        { type: String, default: null },
+  held_at:        { type: String, default: null },
   processed_date: { type: String, default: null },
 }, { timestamps: true });
 
