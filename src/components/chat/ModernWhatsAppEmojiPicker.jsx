@@ -329,8 +329,9 @@ export function ModernWhatsAppEmojiPicker({ onSelectEmoji, onClose }) {
 
   return (
     <div
+      className="emoji-picker-popover"
       style={{
-        width: 360,
+        width: 'min(360px, 100%)',
         height: 410,
         background: '#FFFFFF',
         borderRadius: 20,

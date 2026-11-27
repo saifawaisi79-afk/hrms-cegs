@@ -721,7 +721,7 @@ export function CegsMeetDashboard({ db, save, user }) {
         </div>
 
         {/* Quick Join Input Box */}
-        <form onSubmit={handleQuickJoin} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <form onSubmit={handleQuickJoin} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', maxWidth: '100%' }}>
           <input
             type="text"
             placeholder="Enter Google Meet code or URL..."
@@ -736,7 +736,9 @@ export function CegsMeetDashboard({ db, save, user }) {
               borderRadius: 10,
               padding: '8px 14px',
               fontSize: 12.5,
-              width: 250,
+              flex: '1 1 200px',
+              minWidth: 0,
+              width: 'min(250px, 100%)',
               outline: 'none',
               fontFamily: 'JetBrains Mono, monospace'
             }}
@@ -852,10 +854,11 @@ export function CegsMeetDashboard({ db, save, user }) {
               }}
             >
               {/* Left Details */}
-              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flex: 1, minWidth: 280 }}>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flex: 1, minWidth: 'min(100%, 280px)' }}>
                 <div style={{
                   width: 44,
                   height: 44,
+                  flexShrink: 0,
                   borderRadius: 12,
                   background: isLive ? '#ECFDF5' : isCompleted ? '#F1F5F9' : '#EFF6FF',
                   color: isLive ? '#059669' : isCompleted ? '#64748B' : '#2563EB',
@@ -867,7 +870,7 @@ export function CegsMeetDashboard({ db, save, user }) {
                   <Video size={20} />
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <span style={{ fontWeight: 800, fontSize: 16, color: '#0F172A' }}>{meet.title}</span>
                     <span style={{
@@ -886,13 +889,13 @@ export function CegsMeetDashboard({ db, save, user }) {
                   </div>
 
                   {meet.google_meet_url && (
-                    <div style={{ fontSize: 12, color: '#2563EB', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ fontSize: 12, color: '#2563EB', marginTop: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
                       <span>Google Meet:</span>
                       <a
                         href={meet.google_meet_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline' }}
+                        style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline', wordBreak: 'break-all', overflowWrap: 'anywhere' }}
                       >
                         {meet.google_meet_url}
                       </a>
@@ -1142,7 +1145,7 @@ export function CegsMeetDashboard({ db, save, user }) {
               </div>
 
               {/* Date, Time & Duration */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div className="r-modal-grid-3">
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>Date *</label>
                   <input
@@ -1350,7 +1353,7 @@ export function CegsMeetDashboard({ db, save, user }) {
 
             {!loadingAttendance && attendanceData && (
               <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                <div className="r-modal-grid-3" style={{ marginBottom: 20 }}>
                   <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 10, textAlign: 'center' }}>
                     <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Invited</div>
                     <div style={{ fontSize: 20, fontWeight: 800, color: '#0F172A' }}>{attendanceData.participantsCount}</div>
@@ -1367,7 +1370,8 @@ export function CegsMeetDashboard({ db, save, user }) {
                   </div>
                 </div>
 
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse', fontSize: 12.5 }}>
                   <thead>
                     <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #CBD5E1', textAlign: 'left' }}>
                       <th style={{ padding: 10, fontWeight: 800, color: '#334155' }}>Employee</th>
@@ -1415,6 +1419,7 @@ export function CegsMeetDashboard({ db, save, user }) {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
           </div>

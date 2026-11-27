@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuthToken } from '@/lib/auth-client';
 import { Store } from '@/components/hrms/HrmsLegacy';
+import { homePathForPortal } from '@/lib/nav';
 
 export default function HomePage() {
   const router = useRouter();
@@ -14,7 +15,7 @@ export default function HomePage() {
       user = Store.get('currentUser');
     } catch {}
     const token = getAuthToken();
-    if (user || token) router.replace('/dashboard');
+    if (user || token) router.replace(homePathForPortal(user?.role));
     else router.replace('/login');
   }, [router]);
 

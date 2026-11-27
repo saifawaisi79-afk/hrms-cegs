@@ -591,13 +591,12 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
             Sheet date
             <input
               type="date"
-              className="form-input"
+              className="form-input filter-control"
               style={{
                 borderRadius: 99,
                 padding: '8px 12px',
                 fontSize: 12,
-                width: 150,
-                minHeight: 40,
+                minHeight: 44,
               }}
               value={sheetDate}
               onChange={(e) => setSheetDate(e.target.value || todayIsoDate())}
@@ -607,19 +606,19 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ borderRadius: 99, minHeight: 40, fontSize: 12 }}
+            style={{ borderRadius: 99, minHeight: 44, fontSize: 12 }}
             onClick={load}
           >
             Refresh
           </button>
           <input
-            className="form-input"
+            className="form-input filter-control"
             style={{
               borderRadius: 99,
               padding: '8px 16px',
               fontSize: 12,
-              width: 200,
-              minHeight: 40,
+              minHeight: 44,
+              width: 210,
             }}
             placeholder="Search name, phone, company..."
             value={search}
@@ -848,14 +847,14 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
               placeholder="HR enters"
             />
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-            <button type="submit" className="btn btn-primary" style={{ borderRadius: 99, minHeight: 40 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 8 }}>
+            <button type="submit" className="btn btn-primary" style={{ borderRadius: 99, minHeight: 44 }}>
               + Add Entry
             </button>
             <button
               type="button"
               className="btn btn-secondary"
-              style={{ borderRadius: 99, minHeight: 40 }}
+              style={{ borderRadius: 99, minHeight: 44 }}
               onClick={resetForm}
             >
               Clear
@@ -865,7 +864,7 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
       )}
 
       <div className="datasheet-scroll">
-        <table className="datasheet-table">
+        <table className="datasheet-table datasheet-table-compact">
           <thead>
             <tr>
               {[
@@ -1048,14 +1047,15 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
                   );
                 }
 
-                const cell = (v, emptyHint) => (
+                const cell = (v, emptyHint, wrap = false) => (
                   <td
+                    className={wrap ? 'datasheet-cell-wrap' : undefined}
                     style={{
                       padding: '10px 12px',
                       fontSize: 12.5,
                       fontWeight: 600,
                       color: v ? 'var(--text-primary)' : '#94A3B8',
-                      whiteSpace: 'nowrap',
+                      whiteSpace: wrap ? 'normal' : 'nowrap',
                       textTransform: 'uppercase',
                     }}
                   >
@@ -1065,7 +1065,7 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
 
                 return (
                   <tr key={rid}>
-                    <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>
+                    <td className="td-num" style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 12px', textAlign: 'left' }}>
                       {idx + 1}
                     </td>
                     {cell(
@@ -1077,9 +1077,9 @@ export function WalkinsSelectionsSection({ db, user, canEdit = true }) {
                     {cell(row.number)}
                     {cell(row.company)}
                     {cell(row.recruiterName)}
-                    {cell(row.process, '—')}
+                    {cell(row.process, '—', true)}
                     {cell(row.rounds, '—')}
-                    {cell(row.furtherUpdate, '—')}
+                    {cell(row.furtherUpdate, '—', true)}
                     {canEdit && (
                       <td style={{ textAlign: 'center' }}>
                         <div className="datasheet-row-actions">

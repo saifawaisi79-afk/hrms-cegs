@@ -76,19 +76,53 @@ export const PORTAL_HOME = {
   IT_TEAM: { role: 'IT_TEAM', path: '/dashboard', label: 'IT Team Portal' },
 };
 
+/** Canonical portal normalization (handles IT_TEAM / it_team casing cleanly) */
+export function normalizePortal(portal) {
+  if (!portal) return '';
+  const raw = String(portal).trim();
+  if (PORTAL_HOME[raw]) return raw;
+  const lower = raw.toLowerCase();
+  if (PORTAL_HOME[lower]) return lower;
+  return '';
+}
+
 export function portalMatchesRole(portal, role) {
   if (!portal) return true;
-  const meta = PORTAL_HOME[portal];
+  const norm = normalizePortal(portal);
+  const meta = PORTAL_HOME[norm];
   if (!meta) return false;
-  return meta.role === role;
+  return String(meta.role).toLowerCase() === String(role || '').trim().toLowerCase();
 }
 
 export function homePathForPortal(portal) {
-  return PORTAL_HOME[portal]?.path || '/dashboard';
+  const norm = normalizePortal(portal);
+  return (norm && PORTAL_HOME[norm]?.path) || '/dashboard';
 }
 
 export function portalLabel(portal) {
-  return PORTAL_HOME[portal]?.label || 'workspace';
+  const norm = normalizePortal(portal);
+  return (norm && PORTAL_HOME[norm]?.label) || 'workspace';
+}
+
+export function portalMismatchMessage(portal) {
+  const norm = normalizePortal(portal);
+  const rawLabel = (norm && PORTAL_HOME[norm]?.label) || 'selected';
+  const cleanLabel = rawLabel.replace(/\s+(portal|panel)$/i, '');
+  return `This account isn't registered for the ${cleanLabel} portal. Please sign in through the correct portal.`;
+}
+
+/** Allow only safe single-slash internal paths (no open redirects or /login loops). */
+export function safeInternalNextPath(rawPath) {
+  if (typeof rawPath !== 'string') return null;
+  const trimmed = rawPath.trim();
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('\\')) {
+    return null;
+  }
+  const base = trimmed.split('?')[0].split('#')[0];
+  if (base === '/login' || base.startsWith('/login/')) {
+    return null;
+  }
+  return trimmed;
 }
 
 /** Canonical permission defaults when db.permissions is missing a key */

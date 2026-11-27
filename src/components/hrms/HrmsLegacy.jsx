@@ -392,8 +392,9 @@ export const IC = ({ n, s = 16, c = 'currentColor', strokeWidth = 1.75, style = 
 /* ========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
  ROOT APP
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== */
-export function LoginPage({ login, db }) {
- const [selectedPortal, setSelectedPortal] = useState('employee');
+export function LoginPage({ login, db, initialPortal = 'employee', nextPath = null }) {
+ const [selectedPortal, setSelectedPortal] = useState(initialPortal || 'employee');
+ useEffect(() => { if (initialPortal) setSelectedPortal(initialPortal); }, [initialPortal]);
  const [email, setEmail] = useState('');
  const [pass, setPass] = useState('');
  const [loading, setLoading] = useState(false);
@@ -470,14 +471,6 @@ export function LoginPage({ login, db }) {
 
   const handleEmailChange = (val) => {
     setEmail(val);
-    const low = String(val || '').trim().toLowerCase();
-    if (low.includes('hussain@') || low.includes('ayathsheikh') || low.includes('madiha')) {
-      setSelectedPortal('admin');
-    } else if (low.includes('heena@') || low.includes('finance') || low.includes('accounts')) {
-      setSelectedPortal('finance');
-    } else if (low.includes('saifawaisi') || low.includes('dev_saif')) {
-      setSelectedPortal('super_admin');
-    }
   };
 
   const handleCreds = async (e) => {
@@ -491,6 +484,7 @@ export function LoginPage({ login, db }) {
     const res = await login(email, pass, selectedPortal, {
       workMode,
       locationToken: workMode === 'WFO' ? locationToken : undefined,
+      next: nextPath,
     });
     if (!res || (typeof res === 'object' && !res.ok)) {
       const errMsg = (res && res.error) || 'Sign-in failed. Check your email and password.';
@@ -1094,7 +1088,7 @@ export function LunchBreakWidget({ user, db, save }) {
  return (
  <>
  {/* NORMAL INLINE DASHBOARD WIDGET */}
- <div className="shift-tracker-card" style={{ background: 'rgba(255, 255, 255, 0.62)', backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)', border: '1px solid rgba(255, 255, 255, 0.75)', borderRadius: 24, padding: 22, boxShadow: '0 8px 32px rgba(120, 100, 80, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 320, position: 'relative' }}>
+ <div className="shift-tracker-card" style={{ background: 'rgba(255, 255, 255, 0.62)', backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)', border: '1px solid rgba(255, 255, 255, 0.75)', borderRadius: 24, padding: 22, boxShadow: '0 8px 32px rgba(120, 100, 80, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 'min(100%, 300px)', position: 'relative' }}>
  <div>
  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -2853,7 +2847,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
 
 
  {/* ROW 5: Task Board Kanban list & Lunch Break Stopwatch */}
- <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2.2fr) minmax(320px, 1fr)', gap: 20, marginBottom: 28, alignItems: 'stretch' }}>
+ <div className="r-split-aside" style={{ marginBottom: 28 }}>
  <div className="taskboard-widget" style={{ marginBottom: 0 }}>
  <div className="taskboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
  <div className="taskboard-title">{isIT ? 'IT Daily Task Board' : 'Task Board'}</div>
@@ -3469,7 +3463,7 @@ export function DashboardPage({ db, save, user, setView, setQuickViewUser, setCh
  />
  </div>
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+ <div className="r-modal-grid-2">
  <div className="form-group">
  <label className="form-label">Event Type *</label>
  <select 
@@ -4313,7 +4307,7 @@ export function LeavesPage({ db, save, user }) {
  <strong>Unpaid</strong>.
  </div>
 
- <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+ <div className="r-grid-3" style={{ marginBottom: 24 }}>
  {balanceCards.map((b) => (
  <div key={b.l} className="card" style={{ padding: 22 }}>
  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, alignItems: 'flex-start' }}>
@@ -5008,7 +5002,7 @@ export function AttendancePage({ db, save, user }) {
       </div>
 
       {/* Top Controls: Live Timer (Left) + Month/Employee Filtered Stats (Right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+      <div className="r-grid-2" style={{ gap: 20, marginBottom: 24 }}>
         <div className="timer-card">
           <div className="timer-label">MY LIVE WORK TIMER</div>
           <div className="timer-digits">{fmt(secs)}</div>
@@ -5054,7 +5048,7 @@ export function AttendancePage({ db, save, user }) {
         </div>
 
         {/* Month & Employee-aware Metrics */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="r-grid-2" style={{ gap: 14 }}>
           {[
             { v: metricPresentCount, l: effectiveEmpId === 'ALL' ? `Team Present (${selMonthName})` : `Days Present (${selMonthName})`, c: '#10B981', bg: '#D1FAE5' },
             { v: metricLateCount, l: effectiveEmpId === 'ALL' ? `Team Late Arrivals` : `Late Arrivals (${selMonthName})`, c: '#F59E0B', bg: '#FEF3C7' },
@@ -5124,8 +5118,7 @@ export function AttendancePage({ db, save, user }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, fontWeight: 800, color: '#374151' }}>Filter Employee:</span>
               <select
-                className="form-input"
-                style={{ width: 220, padding: '7px 12px', fontSize: 12.5, fontWeight: 700 }}
+                className="form-input filter-control"
                 value={selectedEmployee}
                 onChange={e => {
                   setSelectedEmployee(e.target.value);
@@ -5144,7 +5137,7 @@ export function AttendancePage({ db, save, user }) {
 
           {/* View Mode Toggle Pills */}
           {isAdmin && (
-            <div style={{ display: 'flex', background: '#F1F5F9', padding: 4, borderRadius: 99, gap: 4 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', maxWidth: '100%', background: '#F1F5F9', padding: 4, borderRadius: 20, gap: 4 }}>
               <button
                 type="button"
                 onClick={() => setAttendanceViewTab('daily')}
@@ -5185,7 +5178,7 @@ export function AttendancePage({ db, save, user }) {
       </div>
 
       {/* MAIN ATTENDANCE DISPLAY: DAILY LOG / MONTHLY SUMMARY SPLIT WITH CALENDAR */}
-      <div style={{ display: 'grid', gridTemplateColumns: '5fr 3fr', gap: 20 }}>
+      <div className="r-split-5-3">
         {/* LEFT COLUMN: TABLE (EITHER DAILY LOG OR MONTHLY SUMMARY) */}
         <div>
           {attendanceViewTab === 'monthly' && isAdmin ? (
@@ -5202,7 +5195,7 @@ export function AttendancePage({ db, save, user }) {
                   <input
                     type="text"
                     className="form-input"
-                    style={{ padding: '6px 12px', fontSize: 12, width: 170 }}
+                    style={{ padding: '6px 12px', fontSize: 12, width: 'min(170px, 100%)' }}
                     placeholder="Search employee..."
                     value={summarySearch}
                     onChange={e => setSummarySearch(e.target.value)}
@@ -5974,7 +5967,7 @@ export function PayrollPage({ db, save, user, setView }) {
       <div className="card" style={{ borderRadius: 20, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
         <div className="tbl-wrap">
           <table className="tbl">
-            <thead><tr><th>Employee</th><th>Period</th><th>Basic</th><th>Allowances</th><th>Deductions</th><th>Net Salary</th><th>Status</th><th>Payslip</th></tr></thead>
+            <thead><tr><th>Employee</th><th>Period</th><th className="th-num">Basic</th><th className="th-num">Allowances</th><th className="th-num">Deductions</th><th className="th-num">Net Salary</th><th>Status</th><th>Payslip</th></tr></thead>
             <tbody>
               {filteredList.length === 0 && (
                 <tr>
@@ -6008,9 +6001,9 @@ export function PayrollPage({ db, save, user, setView }) {
                       </div>
                     </td>
                     <td style={{ fontSize: 13, color: '#4B5563', fontWeight: 600 }}>{monthName} {p.year || selectedYearNum}</td>
-                    <td style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>₹{basicVal.toLocaleString()}</td>
-                    <td style={{ color: '#059669', fontWeight: 700, fontSize: 13 }}>+₹{allowVal.toLocaleString()}</td>
-                    <td style={{ color: deductVal > 0 ? '#DC2626' : '#6B7280', fontWeight: 700, fontSize: 13 }}>
+                    <td className="td-num" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>₹{basicVal.toLocaleString()}</td>
+                    <td className="td-num" style={{ color: '#059669', fontWeight: 700, fontSize: 13 }}>+₹{allowVal.toLocaleString()}</td>
+                    <td className="td-num" style={{ color: deductVal > 0 ? '#DC2626' : '#6B7280', fontWeight: 700, fontSize: 13 }}>
                       <div>-₹{deductVal.toLocaleString()}</div>
                       {(() => {
                         const b = getEmployeeMonthlyDeductionBreakdown(
@@ -6054,7 +6047,7 @@ export function PayrollPage({ db, save, user, setView }) {
                         );
                       })()}
                     </td>
-                    <td style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 17, color: '#111827' }}>₹{netVal.toLocaleString()}</td>
+                    <td className="td-num" style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 900, fontSize: 17, color: '#111827' }}>₹{netVal.toLocaleString()}</td>
                     <td>
                       <span className={`badge ${isProcessed ? 'b-success' : 'b-warning'}`}>
                         <span className="badge-dot"/>{isProcessed ? 'PROCESSED' : 'DRAFT'}
@@ -6098,7 +6091,7 @@ export function PayrollPage({ db, save, user, setView }) {
                   <div className="payslip-addr">Jaganatha Arcade, Hebbal, Bengaluru, Karnataka 560032</div>
                   <div className="payslip-period">SALARY SLIP - {pMonthName} {payslip.year || selectedYearNum}</div>
                 </div>
-                <div style={{marginBottom:16,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,fontSize:13}}>
+                <div className="r-modal-grid-2" style={{ marginBottom: 16, gap: 8, fontSize: 13 }}>
                   <div><span style={{color:'var(--text-muted)'}}>Employee:</span> <strong>{slipEmp?.name || payslip.employee_name || 'Staff'}</strong></div>
                   <div><span style={{color:'var(--text-muted)'}}>Employee ID:</span> <strong className="mono">{slipEmp?.employee_id || slipEmp?.eid || payslip.employee_id || 'EMP'}</strong></div>
                   <div><span style={{color:'var(--text-muted)'}}>Designation:</span> <strong>{slipEmp?.designation || slipEmp?.title || payslip.designation || 'Staff'}</strong></div>
@@ -6132,7 +6125,8 @@ export function PayrollPage({ db, save, user, setView }) {
                           1st & 2nd = ₹0 · 3rd+ = Half-Day Cut (-₹{slipBreakdown.halfDayRate.toLocaleString()})
                         </span>
                       </div>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                      <table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse', fontSize: 11 }}>
                         <thead>
                           <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#64748B' }}>
                             <th style={{ padding: '6px 8px' }}>#</th>
@@ -6164,6 +6158,7 @@ export function PayrollPage({ db, save, user, setView }) {
                           ))}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   );
                 })()}
@@ -6291,7 +6286,7 @@ export function TimesheetsPage({ db, save, user }) {
  return (
  <div className="anim-fadeup">
  <PageHdr title="Timesheets" sub={`${totalH}h logged across ${list.length} entries`}/>
- <div style={{display:'grid',gridTemplateColumns:'340px 1fr',gap:20}}>
+ <div className="r-split-side-left">
  <div className="card">
  <div className="card-hdr"><div className="section-title">Log Hours</div></div>
  <form onSubmit={submit}>
@@ -7717,7 +7712,7 @@ export function OnboardingPage({ db, save, user }) {
  1. Personal & Contact Details
  </div>
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+ <div className="r-modal-grid-2">
  <div className="form-group">
  <label className="form-label">Full Name *</label>
  <input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Rahul Sharma" required />
@@ -7753,7 +7748,7 @@ export function OnboardingPage({ db, save, user }) {
  2. Job & Position Information
  </div>
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+ <div className="r-modal-grid-2" style={{ marginBottom: 12 }}>
  <div className="form-group">
  <label className="form-label">Employee ID *</label>
  <input className="form-input" value={form.employee_id} onChange={e => setForm({ ...form, employee_id: e.target.value })} required />
@@ -7854,7 +7849,7 @@ export function OnboardingPage({ db, save, user }) {
  3. Permanent Portal Password & Login Credentials
  </div>
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 10, alignItems: 'end' }}>
+ <div className="r-modal-grid-2" style={{ gap: 10, alignItems: 'end' }}>
  <div className="form-group" style={{ marginBottom: 0 }}>
  <label className="form-label">Permanent Password * (min 6 chars)</label>
  <PasswordInput 
@@ -7886,7 +7881,7 @@ export function OnboardingPage({ db, save, user }) {
  4. Financial & Emergency Details
  </div>
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+ <div className="r-modal-grid-3">
  <div className="form-group">
  <label className="form-label">Bank Name</label>
  <input className="form-input" value={form.bank_name} onChange={e => setForm({ ...form, bank_name: e.target.value })} placeholder="HDFC / SBI" disabled={form.role === 'super_admin'} />
@@ -7966,7 +7961,7 @@ export function OnboardingPage({ db, save, user }) {
  <Modal open={editModal} onClose={() => setEditModal(false)} title=" Edit Employee Details">
  {editForm && (
  <form onSubmit={handleEditSubmit}>
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+ <div className="r-modal-grid-2">
  <div className="form-group">
  <label className="form-label">Full Name</label>
  <input className="form-input" value={editForm.name || ''} onChange={e => setEditForm({ ...editForm, name: e.target.value })} required />
@@ -8253,7 +8248,7 @@ export function NotificationsPage({ db, save, user }) {
  </select>
  </div>
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+ <div className="r-modal-grid-2" style={{ marginBottom: 12 }}>
  <div className="form-group">
  <label className="form-label">Alert Category</label>
  <select className="form-input" value={notifType} onChange={e => setNotifType(e.target.value)}>
@@ -8432,13 +8427,13 @@ export function UsersPage({ db, save, user }) {
  </span>
  </div>
 
- <div style={{ overflowX: 'auto', borderRadius: 16, border: '1px solid #F3F4F6' }}>
+ <div className="tbl-wrap" style={{ borderRadius: 16 }}>
  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, textAlign: 'left' }}>
  <thead>
  <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>S.no</th>
  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Name</th>
- <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Salary</th>
+ <th className="th-num" style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Salary</th>
  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Position</th>
  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>User ID (Email)</th>
  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#6B7280' }}>Portal Access</th>
@@ -8455,7 +8450,7 @@ export function UsersPage({ db, save, user }) {
  <tr key={u.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#9CA3AF' }}>{idx + 1}</td>
  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#111827' }}>{u.name}</td>
- <td style={{ padding: '10px 14px', fontWeight: 700, color: '#059669' }}>₹{(u.salary || 15000).toLocaleString('en-IN')}</td>
+ <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#059669' }}>₹{(u.salary || 15000).toLocaleString('en-IN')}</td>
  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#4B5563' }}>{u.title || (u.role === 'super_admin' ? 'Chief Executive Officer' : u.role === 'admin' ? 'HR Manager' : 'Recruiter')}</td>
  <td style={{ padding: '10px 14px', fontWeight: 700, color: 'var(--accent)', fontFamily: 'monospace' }}>{u.email}</td>
  <td style={{ padding: '10px 14px' }}>
@@ -8821,7 +8816,7 @@ export function TasksPage({ db, save, user }) {
  {isAdmin && <button className="btn btn-dark" onClick={() => setModal(true)}><IC n="plus"/> Add Task</button>}
  </PageHdr>
 
- <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+ <div className="r-grid-4" style={{ marginBottom: 24 }}>
  {[
  { label: "Today's Tasks", count: list.filter(t => t.dueDate === today).length, c: 'var(--amber)' },
  { label: "Pending Tasks", count: list.filter(t => t.status === 'pending').length, c: 'var(--red)' },
@@ -9114,7 +9109,7 @@ export function SystemHealthPage() {
  <div className="anim-fadeup">
  <PageHdr title="System Health & Infrastructure Monitor" sub="Real-time CPU status, logs and execution speeds"/>
  
- <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+ <div className="r-grid-3" style={{ marginBottom: 24 }}>
  {[
  { l: 'CPU Processor Load', v: '12%', sub: 'Healthy performance', c: 'var(--green)' },
  { l: 'System Memory', v: '4.2 GB / 16 GB', sub: 'Low RAM overhead', c: 'var(--green)' },
@@ -9180,7 +9175,7 @@ export function APIMonitorPage({ db }) {
  <div className="anim-fadeup">
  <PageHdr title="API Endpoint Performance Monitor" sub="Real-time web service metrics, latency and request rates"/>
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20 }}>
+ <div className="r-split-side-left">
  <div className="card">
  <div className="card-hdr">
  <div>
@@ -9543,7 +9538,7 @@ export function CredentialAuditorPage({ db, save, user }) {
  </div>
 
  {subView === 'candidate' ? (
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+ <div className="r-grid-2" style={{ gap: 24 }}>
  <div className="card">
  <div className="card-hdr"><div className="section-title">Verify Your Credentials</div></div>
  <form onSubmit={handleStartVerification} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -9629,7 +9624,7 @@ export function CredentialAuditorPage({ db, save, user }) {
  ) : (
  <>
  {/* stats row */}
- <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 20 }}>
+ <div className="r-grid-4" style={{ marginBottom: 20 }}>
  {[
  { label: 'TOTAL AUDITED', value: totalAudited, color: 'var(--text-primary)' },
  { label: 'VERIFIED PASSES', value: verifiedPasses, color: 'var(--green-dark)' },
@@ -9739,7 +9734,7 @@ export function CredentialAuditorPage({ db, save, user }) {
  {/* modal - Certificate Audit Findings */}
  {selectedAudit && (
  <Modal open={true} onClose={() => setSelectedAudit(null)} title="Certificate Audit Findings" subtitle={`Audit ID: ${selectedAudit.auditId} - Generated ${selectedAudit.date}`}>
- <div style={{ display: 'grid', gridTemplateColumns: '2fr 3fr', gap: 20, marginBottom: 20 }}>
+ <div className="r-grid-2" style={{ gap: 20, marginBottom: 20 }}>
  {/* Authenticity Score column */}
  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
  <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 20, background: 'rgba(255,255,255,0.01)' }}>
@@ -9959,7 +9954,7 @@ export function PoliciesPage() {
  </div>
 
  {modal && (
- <div className="modal-backdrop anim-fadein" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+ <div className="modal-backdrop anim-fadein modal-backdrop-safe" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
  <div className="modal-content card anim-fadeup" style={{ maxWidth: 450, width: '90%', padding: 24, background: 'var(--bg-card)' }}>
  <div className="card-hdr"><div className="section-title">{editItem ? 'Edit Policy' : 'Create Policy'}</div></div>
  <form onSubmit={submit}>
@@ -10053,7 +10048,7 @@ export function WorkflowsPage() {
  </div>
 
  {modal && (
- <div className="modal-backdrop anim-fadein" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+ <div className="modal-backdrop anim-fadein modal-backdrop-safe" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
  <div className="modal-content card anim-fadeup" style={{ maxWidth: 450, width: '90%', padding: 24, background: 'var(--bg-card)' }}>
  <div className="card-hdr"><div className="section-title">Create Workflow Pipeline</div></div>
  <form onSubmit={submit}>
@@ -10187,7 +10182,7 @@ export function ReportsPage({ db }) {
  <div className="section-title" style={{ fontSize: 24, fontWeight: 900 }}>Reports & Compliance Logs Generator</div>
  <div className="section-sub">Generate and download auditing reports formatted in compliance with standard regulations</div>
  </div>
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+ <div className="r-grid-2" style={{ gap: 20 }}>
  {types.map((t, idx) => (
  <div key={idx} className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16 }}>
  <div>
@@ -11455,7 +11450,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
  <div>
  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
- <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', tracking: '-0.4px', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>
+ <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px', fontFamily: "'Plus Jakarta Sans', 'Outfit', sans-serif" }}>
  {targetViewMode === 'walkins_selections'
    ? 'Walk-ins & Selections'
    : isSA
@@ -11487,7 +11482,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  {(isHR || isSA) && (
  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
  {isHR && (
- <div style={{ background: '#1c1e28', padding: 4, borderRadius: 99, display: 'inline-flex', gap: 4, border: '1px solid rgba(0,0,0,0.1)' }}>
+ <div style={{ background: '#1c1e28', padding: 4, borderRadius: 20, display: 'inline-flex', flexWrap: 'wrap', maxWidth: '100%', gap: 4, border: '1px solid rgba(0,0,0,0.1)' }}>
  <button 
  style={{ 
  background: targetViewMode === 'hr' ? '#ffffff' : 'transparent', 
@@ -11526,7 +11521,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  )}
 
  <select 
- style={{ background: '#ffffff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, color: '#111827', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', outline: 'none', display: targetViewMode === 'walkins_selections' ? 'none' : undefined }}
+ style={{ background: '#ffffff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 800, color: '#111827', minHeight: 40, maxWidth: '100%', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', cursor: 'pointer', outline: 'none', display: targetViewMode === 'walkins_selections' ? 'none' : undefined }}
  value={selectedEmployeeFilter}
  onChange={e => {
  const val = e.target.value;
@@ -11833,7 +11828,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <input
  type="date"
  className="form-input"
- style={{ borderRadius: 99, padding: '8px 12px', fontSize: 12, width: 150, minHeight: 40 }}
+ style={{ borderRadius: 99, padding: '8px 12px', fontSize: 12, width: 'min(150px, 100%)', minHeight: 44 }}
  value={sheetDate}
  onChange={(e) => setSheetDate(e.target.value || todayIsoDate())}
  aria-label="Sheet date"
@@ -11841,7 +11836,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  </label>
  <input
  className="form-input"
- style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, width: 200, minHeight: 40 }}
+ style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, width: 'min(200px, 100%)', minHeight: 44 }}
  placeholder="Search candidate..."
  value={searchQuery}
  onChange={e => setSearchQuery(e.target.value)}
@@ -11852,10 +11847,10 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <button type="button" className="btn btn-secondary" style={{ borderRadius: 99, padding: '8px 14px', fontSize: 12, minHeight: 40 }} onClick={handleTriggerImport}>
  <IC n="upload" s={13} /> Upload File
  </button>
- <button type="button" className="btn btn-secondary" style={{ borderRadius: 99, padding: '8px 14px', fontSize: 12, minHeight: 40, background: '#FEF3C7', borderColor: '#FDE68A', color: '#92400E' }} onClick={handleCleanDuplicates} title="Remove duplicate candidate entries">
+ <button type="button" className="btn btn-warning-soft" style={{ borderRadius: 99, padding: '8px 14px', fontSize: 12 }} onClick={handleCleanDuplicates} title="Remove duplicate candidate entries">
  Clean Duplicates
  </button>
- <button type="button" className="btn btn-secondary" style={{ borderRadius: 99, padding: '8px 12px', fontSize: 12, minHeight: 40, background: '#FEE2E2', borderColor: '#FCA5A5', color: '#991B1B' }} onClick={handleClearAllCandidates} title="Clear entries for selected sheet date">
+ <button type="button" className="btn btn-danger-soft" style={{ borderRadius: 99, padding: '8px 14px', fontSize: 12 }} onClick={handleClearAllCandidates} title="Clear entries for selected sheet date">
  Clear
  </button>
  <button type="button" className="btn btn-primary" style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, minHeight: 40 }} onClick={startAddCandidate}>
@@ -11998,7 +11993,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  if (isEditing && editForm && !isSA) {
  return (
  <tr key={rid} className="datasheet-entry-row datasheet-editing-row">
- <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{displaySl}</td>
+ <td className="td-num" style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 12px', textAlign: 'left' }}>{displaySl}</td>
  {activeTaskCategory === 'calls' ? (
  <td>
  <input
@@ -12087,7 +12082,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  );
  return (
  <tr key={rid}>
- <td style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 14px' }}>{displaySl}</td>
+ <td className="td-num" style={{ fontWeight: 800, color: 'var(--text-muted)', padding: '10px 12px', textAlign: 'left' }}>{displaySl}</td>
  {activeTaskCategory === 'calls' ? (
  <td
  style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 700, color: '#0369A1', whiteSpace: 'nowrap', fontFamily: 'JetBrains Mono, monospace' }}
@@ -13133,7 +13128,7 @@ export function ITTicketsPage({ db, save, user, setView }) {
  {selectedTicket && (
  <div>
  {/* TICKET SUMMARY BAR */}
- <div style={{ background: '#F8FAFC', padding: 16, borderRadius: 12, border: '1px solid #E2E8F0', marginBottom: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12.5 }}>
+ <div className="r-modal-grid-2" style={{ background: '#F8FAFC', padding: 16, borderRadius: 12, border: '1px solid #E2E8F0', marginBottom: 16, gap: 10, fontSize: 12.5 }}>
  <div><span style={{ color: '#64748B' }}>Category:</span> <strong>{selectedTicket.category}</strong></div>
  <div><span style={{ color: '#64748B' }}>Priority:</span> <strong>{selectedTicket.priority} (Target: {getSlaHours(selectedTicket.priority)}h)</strong></div>
  <div>
@@ -13725,7 +13720,7 @@ export function MeetingSchedulerPage({ db, save, user }) {
  <form onSubmit={handleRequestMeeting} style={{ background: 'var(--bg-raised)', padding: 20, borderRadius: 12, border: '1px solid var(--border)', maxWidth: 600 }}>
  <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)', marginBottom: 12 }}>Book/Request Meeting</div>
  
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+ <div className="r-modal-grid-2" style={{ marginBottom: 12 }}>
  <div className="form-group">
  <label className="form-label">Meet Partner / Role</label>
  <select className="form-input" value={hostRole} onChange={e => setHostRole(e.target.value)}>
@@ -14208,7 +14203,7 @@ export function InternalJobPortalPage({ db, save, user }) {
  <input className="form-input" placeholder="e.g. Principal Software Engineer" value={newTitle} onChange={e => setNewTitle(e.target.value)} required />
  </div>
 
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+ <div className="r-modal-grid-2" style={{ marginBottom: 12 }}>
  <div className="form-group">
  <label className="form-label">Department</label>
  <select className="form-input" value={newDept} onChange={e => setNewDept(e.target.value)} required>
@@ -15071,7 +15066,7 @@ export function RewardsPage({ db, save, user }) {
 
  {/* MANAGE TAB */}
  {activeTab === 'manage' && canManage && (
- <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+ <div className="r-grid-2" style={{ gap: 24 }}>
  
  {/* Direct Award Badge Panel */}
  <div style={{ background: 'var(--bg-raised)', padding: 20, borderRadius: 12, border: '1px solid var(--border)' }}>
@@ -15121,7 +15116,7 @@ export function RewardsPage({ db, save, user }) {
  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>Add a new category of recognition badge to the organization catalog.</div>
  
  <form onSubmit={handleCreateBadge}>
- <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 12 }}>
+ <div className="r-modal-grid-2">
  <div className="form-group">
  <label className="form-label">Badge Name</label>
  <input className="form-input" placeholder="e.g. Sales Master" value={newBadgeName} onChange={e => setNewBadgeName(e.target.value)} required />
@@ -15569,7 +15564,7 @@ export function ProfilePage({ db, save, user, setUser }) {
  </div>
  </div>
 
- <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 20 }}>
+ <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, borderBottom: '1px solid var(--border)', paddingBottom: 10, marginBottom: 20 }}>
  {['personal', 'experience', 'financial'].map(t => (
  <button key={t} className={`btn btn-sm ${tab===t?'btn-dark':'btn-ghost'}`} onClick={()=>setTab(t)} style={{ textTransform: 'capitalize' }}>{t} Details</button>
  ))}

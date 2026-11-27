@@ -534,8 +534,15 @@ export function TeamWorkReportModal({
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
               color: #111827;
               margin: 0;
-              padding: 16px;
+              padding: 0;
               font-size: 11px;
+            }
+            tr, .kpi-card, .footer {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+            .status-done, .status-risk, .status-danger {
+              white-space: nowrap;
             }
             .header-container {
               display: flex;
@@ -871,14 +878,14 @@ export function TeamWorkReportModal({
             color: '#FFFFFF',
           }}
         >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 22 }}>📊</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 22, flexShrink: 0 }}>📊</span>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#FFFFFF' }}>
                 Export Whole Team Work Report (Date-Wise)
               </h3>
             </div>
-            <p style={{ margin: '4px 0 0 32px', fontSize: 12, color: '#BFDBFE', fontWeight: 500 }}>
+            <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#BFDBFE', fontWeight: 500 }}>
               Download official recruiter team performance, call logs, interviews, and walk-ins across any custom date range.
             </p>
           </div>
@@ -891,6 +898,7 @@ export function TeamWorkReportModal({
               borderRadius: 99,
               width: 32,
               height: 32,
+              flexShrink: 0,
               color: '#FFFFFF',
               fontSize: 16,
               fontWeight: 800,
@@ -1022,7 +1030,7 @@ export function TeamWorkReportModal({
 
           {/* 2. Live Data Status & Metrics Preview */}
           <div style={{ marginBottom: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: '#1E293B' }}>
                 Summary for Period: {fromDate} to {toDate}
               </div>
@@ -1033,7 +1041,7 @@ export function TeamWorkReportModal({
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(105px, 1fr))', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8 }}>
               <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '10px 8px', textAlign: 'center' }}>
                 <div style={{ fontSize: 17, fontWeight: 900, color: '#1E3A8A' }}>{teamReportData.totals.calls}</div>
                 <div style={{ fontSize: 10, fontWeight: 800, color: '#3B82F6', marginTop: 2 }}>CALLS MADE</div>
@@ -1084,18 +1092,20 @@ export function TeamWorkReportModal({
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 8,
                       padding: '8px 14px',
                       borderBottom: '1px solid #F1F5F9',
                       fontSize: 12,
                     }}
                   >
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <span style={{ fontWeight: 800, color: '#0F172A' }}>{r.name}</span>
                       <span style={{ fontSize: 10.5, color: '#64748B', marginLeft: 8 }}>
                         ({r.calls} calls · {r.itvs} itvs · {r.walks} walks · {r.sels} sel · {r.jnds} jnd)
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                       <span style={{ fontWeight: 800, fontSize: 12, color: r.score >= 60 ? '#059669' : r.score < 40 ? '#DC2626' : '#D97706' }}>
                         {r.score}%
                       </span>
@@ -1107,6 +1117,8 @@ export function TeamWorkReportModal({
                           padding: '3px 10px',
                           fontSize: 10.5,
                           fontWeight: 800,
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
                         }}
                       >
                         Target: {r.jnds} / {r.monthlyTarget} ({Math.round((r.jnds / (r.monthlyTarget || 1)) * 100)}%)
@@ -1127,6 +1139,8 @@ export function TeamWorkReportModal({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 10,
             background: '#F8FAFC',
           }}
         >
@@ -1142,12 +1156,13 @@ export function TeamWorkReportModal({
               fontWeight: 700,
               color: '#475569',
               cursor: 'pointer',
+              flex: '0 1 auto',
             }}
           >
             Cancel
           </button>
 
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, flex: '1 1 auto', justifyContent: 'flex-end' }}>
             {/* DOWNLOAD EXCEL BUTTON */}
             <button
               type="button"

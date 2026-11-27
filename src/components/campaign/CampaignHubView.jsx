@@ -150,7 +150,7 @@ function CampaignHubInner({ user }) {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input
               type="month"
-              className="form-input"
+              className="form-input filter-control"
               value={monthKey}
               onChange={(e) => {
                 setMonthKey(e.target.value);
@@ -175,10 +175,10 @@ function CampaignHubInner({ user }) {
           <div className="section-sub" style={{ marginBottom: 16 }}>
             Monthly target is for the selected team. Weekly and individual targets are calculated by the server.
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 16 }}>
             <div className="form-group">
               <label className="form-label">Target month</label>
-              <div className="form-input" style={{ background: 'var(--bg-raised)' }}>{monthLabel(monthKey)}</div>
+              <div className="form-input form-input-readonly">{monthLabel(monthKey)}</div>
             </div>
             <div className="form-group">
               <label className="form-label">Monthly team target (joiners)</label>
@@ -195,15 +195,16 @@ function CampaignHubInner({ user }) {
 
           <div className="form-group" style={{ marginTop: 16 }}>
             <label className="form-label">Select employees (Includes Recruiters, Admins & Finance)</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))', gap: 8 }}>
               {selectable.map((u) => (
                 <label key={u.id} className="card" style={{ padding: 10, display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
+                    style={{ flexShrink: 0 }}
                     checked={selectedIds.includes(u.id)}
                     onChange={() => toggleId(u.id)}
                   />
-                  <span>
+                  <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                     <strong>{u.name}</strong>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{u.role} · {u.employee_id}</div>
                   </span>
@@ -359,11 +360,11 @@ function CampaignHubInner({ user }) {
                       <tr>
                         <th>Employee</th>
                         <th>Role / ID</th>
-                        <th>Target</th>
-                        <th>Actual Joiners</th>
-                        <th>Remaining</th>
+                        <th className="th-num">Target</th>
+                        <th className="th-num">Actual Joiners</th>
+                        <th className="th-num">Remaining</th>
                         <th>Week Status</th>
-                        <th>Weekly Bonus</th>
+                        <th className="th-num">Weekly Bonus</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -373,11 +374,11 @@ function CampaignHubInner({ user }) {
                           <tr key={e.id}>
                             <td><strong>{e.name}</strong></td>
                             <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{e.role} · {e.employee_id}</td>
-                            <td>{wInfo?.target ?? '—'}</td>
-                            <td><strong style={{ fontSize: 14, color: (wInfo?.actual || 0) >= (wInfo?.target || 0) ? '#059669' : '#111827' }}>{wInfo?.actual ?? 0}</strong></td>
-                            <td>{wInfo?.remaining ?? 0}</td>
+                            <td className="td-num">{wInfo?.target ?? '—'}</td>
+                            <td className="td-num"><strong style={{ fontSize: 14, color: (wInfo?.actual || 0) >= (wInfo?.target || 0) ? '#059669' : '#111827' }}>{wInfo?.actual ?? 0}</strong></td>
+                            <td className="td-num">{wInfo?.remaining ?? 0}</td>
                             <td><Badge tone={statusTone(wInfo?.label)}>{wInfo?.label || 'Pending'}</Badge></td>
-                            <td>{wInfo?.bonusAwarded || wInfo?.achieved ? <strong style={{ color: '#059669' }}>{formatInr(wInfo.bonusAmount || 5000)}</strong> : '—'}</td>
+                            <td className="td-num">{wInfo?.bonusAwarded || wInfo?.achieved ? <strong style={{ color: '#059669' }}>{formatInr(wInfo.bonusAmount || 5000)}</strong> : '—'}</td>
                           </tr>
                         );
                       })}
@@ -421,10 +422,10 @@ function CampaignHubInner({ user }) {
                       <tr>
                         <th>Employee</th>
                         <th>Role / ID</th>
-                        <th>Monthly Joiners</th>
-                        <th>Team Contribution</th>
-                        <th>Weekly Targets Won</th>
-                        <th>Total Bonus Earned</th>
+                        <th className="th-num">Monthly Joiners</th>
+                        <th className="th-num">Team Contribution</th>
+                        <th className="th-num">Weekly Targets Won</th>
+                        <th className="th-num">Total Bonus Earned</th>
                         <th>EOM Eligibility</th>
                       </tr>
                     </thead>
@@ -433,10 +434,10 @@ function CampaignHubInner({ user }) {
                         <tr key={e.id}>
                           <td><strong>{e.name}</strong></td>
                           <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{e.role} · {e.employee_id}</td>
-                          <td><strong style={{ fontSize: 15, color: '#2563EB' }}>{e.monthlyJoiners}</strong></td>
-                          <td>{camp.monthlyTeamTarget > 0 ? `${Math.round((e.monthlyJoiners / camp.monthlyTeamTarget) * 100)}%` : '0%'}</td>
-                          <td><strong>{e.weeklyWins}</strong> of {camp.weekCount} weeks</td>
-                          <td><strong style={{ color: e.weeklyBonusTotal > 0 ? '#059669' : 'inherit' }}>{formatInr(e.weeklyBonusTotal)}</strong></td>
+                          <td className="td-num"><strong style={{ fontSize: 15, color: '#2563EB' }}>{e.monthlyJoiners}</strong></td>
+                          <td className="td-num">{camp.monthlyTeamTarget > 0 ? `${Math.round((e.monthlyJoiners / camp.monthlyTeamTarget) * 100)}%` : '0%'}</td>
+                          <td className="td-num"><strong>{e.weeklyWins}</strong> of {camp.weekCount} weeks</td>
+                          <td className="td-num"><strong style={{ color: e.weeklyBonusTotal > 0 ? '#059669' : 'inherit' }}>{formatInr(e.weeklyBonusTotal)}</strong></td>
                           <td>
                             <Badge tone={e.eomEligible ? 'success' : 'neutral'}>
                               {e.eomEligible ? 'Eligible' : 'Not eligible'}
@@ -478,11 +479,12 @@ function CampaignHubInner({ user }) {
                   <tbody>
                     {(snap?.employees || []).map((e) => (
                       <tr key={e.id}>
-                        <td><strong>{e.name}</strong></td>
+                        <td style={{ whiteSpace: 'nowrap' }}><strong>{e.name}</strong></td>
                         {(e.weekly || []).map((w) => (
                           <td key={w.weekKey} style={{ textAlign: 'center' }}>
                             <span style={{
                               display: 'inline-block',
+                              whiteSpace: 'nowrap',
                               padding: '3px 8px',
                               borderRadius: 6,
                               fontSize: 12,

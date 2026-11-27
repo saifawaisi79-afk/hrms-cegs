@@ -3292,7 +3292,7 @@ export function FinanceInvoicesView() {
   };
 
   return (
-    <div className="feature-page finance-invoices-page" style={{ padding: '24px 28px', maxWidth: 1400, margin: '0 auto' }}>
+    <div className="feature-page finance-invoices-page feature-page-inner" style={{ paddingBlock: 12, maxWidth: 1400, margin: '0 auto' }}>
       {/* FLOATING FEEDBACK TOAST */}
       {feedback && (
         <div
@@ -4082,7 +4082,7 @@ export function FinanceInvoicesView() {
         {/* COMPANY & STATUS DROPDOWNS & DELETE CLIENT OPTION */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {/* COMPANY FILTER */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, maxWidth: '100%' }}>
             <span style={{ fontSize: 12.5, fontWeight: 700, color: '#64748B' }}>Company:</span>
             <select
               value={selectedCompany}
@@ -4095,6 +4095,7 @@ export function FinanceInvoicesView() {
                 color: '#1E293B',
                 fontSize: 13,
                 fontWeight: 700,
+                maxWidth: '100%',
                 cursor: 'pointer',
                 outline: 'none',
               }}
@@ -4482,7 +4483,7 @@ export function FinanceInvoicesView() {
 
                       {/* ACTIONS: EDIT INVOICE (USER REQUIREMENT 2) + REMINDER + MARK PAID + DOWNLOAD */}
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 7, justifyContent: 'flex-end' }}>
                           {/* SEND EMAIL BUTTON (UNLOCKED WHEN EITHER RAHEEL OR SUPER ADMIN APPROVES) */}
                           {(() => {
                             const isApproved =
@@ -4733,12 +4734,13 @@ export function FinanceInvoicesView() {
       {/* ========================================================================= */}
       {showAddClientModal && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
             background: 'rgba(15, 23, 42, 0.65)',
             backdropFilter: 'blur(4px)',
-            zIndex: 9999,
+            zIndex: 99999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -4747,6 +4749,7 @@ export function FinanceInvoicesView() {
           onClick={() => setShowAddClientModal(false)}
         >
           <div
+            className="modal-scroll-card"
             style={{
               background: '#FFFFFF',
               borderRadius: 24,
@@ -4791,7 +4794,7 @@ export function FinanceInvoicesView() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="r-modal-grid-2">
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                     Contact Person
@@ -4818,7 +4821,7 @@ export function FinanceInvoicesView() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="r-modal-grid-2">
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                     Phone / Mobile
@@ -5733,7 +5736,7 @@ export function FinanceInvoicesView() {
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 280px) 1fr', gap: 18, alignItems: 'center', background: '#FFFFFF', padding: 14, borderRadius: 12, border: '1px solid #CBD5E1' }}>
+                <div className="r-modal-grid-2" style={{ gap: 18, alignItems: 'center', background: '#FFFFFF', padding: 14, borderRadius: 12, border: '1px solid #CBD5E1' }}>
                   {/* Left: Stamp Thumbnail Preview */}
                   <div style={{ border: '1.5px dashed #94A3B8', borderRadius: 10, padding: 8, background: '#FAFAFA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 95 }}>
                     <img
@@ -6501,7 +6504,7 @@ export function FinanceInvoicesView() {
                   </span>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 280px) 1fr', gap: 18, alignItems: 'center', background: '#FFFFFF', padding: 14, borderRadius: 12, border: '1px solid #CBD5E1' }}>
+                <div className="r-modal-grid-2" style={{ gap: 18, alignItems: 'center', background: '#FFFFFF', padding: 14, borderRadius: 12, border: '1px solid #CBD5E1' }}>
                   {/* Left: Stamp Thumbnail Preview */}
                   <div style={{ border: '1.5px dashed #94A3B8', borderRadius: 10, padding: 8, background: '#FAFAFA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 95 }}>
                     <img
@@ -6808,7 +6811,7 @@ export function FinanceInvoicesView() {
                 </div>
 
                 {/* Print, Edit, and Close Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
                   <button
                     type="button"
                     onClick={() => {
@@ -7382,7 +7385,7 @@ export function FinanceInvoicesView() {
                       </ol>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+                    <div className="r-modal-grid-2" style={{ gap: 10 }}>
                       <div>
                         <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                           Sender Gmail / Email *
@@ -8175,7 +8178,7 @@ export function FinanceInvoicesView() {
               <div style={{ fontSize: 12, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
                 {formatMonthLabel(monthFileSelection)} Overview
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              <div className="r-modal-grid-3">
                 <div>
                   <div style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>Invoices</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', marginTop: 4 }}>

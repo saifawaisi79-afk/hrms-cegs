@@ -243,7 +243,7 @@ export function HrItTaskManagementSection({ user }) {
   };
 
   return (
-    <div className="feature-page anim-fadeup" style={{ padding: '24px' }}>
+    <div className="feature-page anim-fadeup feature-page-inner" style={{ paddingBlock: 12 }}>
       {/* HEADER */}
       <div style={{
         display: 'flex',
@@ -270,10 +270,8 @@ export function HrItTaskManagementSection({ user }) {
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="btn btn-primary"
+            className="btn btn-sky-solid"
             style={{
-              background: '#0284c7',
-              borderColor: '#0284c7',
               fontWeight: 700,
               padding: '10px 20px',
               borderRadius: 10,
@@ -330,7 +328,7 @@ export function HrItTaskManagementSection({ user }) {
       )}
 
       {/* VIEW TABS: Tasks vs Team Monitoring */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, borderBottom: '1px solid #e2e8f0', paddingBottom: 10 }}>
         <button
           onClick={() => setActiveTab('tasks')}
           style={{
@@ -425,7 +423,7 @@ export function HrItTaskManagementSection({ user }) {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
               {/* Employee Filter */}
               <select
-                className="form-input"
+                className="form-input filter-control"
                 value={employeeFilter}
                 onChange={(e) => setEmployeeFilter(e.target.value)}
                 style={{ borderRadius: 8, padding: '8px 12px', fontSize: 13 }}
@@ -438,7 +436,7 @@ export function HrItTaskManagementSection({ user }) {
 
               {/* Status Filter */}
               <select
-                className="form-input"
+                className="form-input filter-control"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 style={{ borderRadius: 8, padding: '8px 12px', fontSize: 13 }}
@@ -457,7 +455,7 @@ export function HrItTaskManagementSection({ user }) {
 
               {/* Category Filter */}
               <select
-                className="form-input"
+                className="form-input filter-control"
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 style={{ borderRadius: 8, padding: '8px 12px', fontSize: 13 }}
@@ -470,7 +468,7 @@ export function HrItTaskManagementSection({ user }) {
 
               {/* Priority Filter */}
               <select
-                className="form-input"
+                className="form-input filter-control"
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value)}
                 style={{ borderRadius: 8, padding: '8px 12px', fontSize: 13 }}
@@ -638,10 +636,8 @@ export function HrItTaskManagementSection({ user }) {
                             setReviewAction('approved');
                             setReviewFeedback('');
                           }}
-                          className="btn btn-primary"
+                          className="btn btn-purple-solid"
                           style={{
-                            background: '#7c3aed',
-                            borderColor: '#7c3aed',
                             fontSize: 12,
                             fontWeight: 700,
                             padding: '6px 16px',
@@ -696,7 +692,7 @@ export function HrItTaskManagementSection({ user }) {
       {/* ─── TAB 2: IT TEAM PERFORMANCE MONITORING TABLE ─── */}
       {activeTab === 'team_performance' && (
         <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
             <div>
               <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: 0 }}>
                 IT Team Performance Overview
@@ -809,7 +805,7 @@ export function HrItTaskManagementSection({ user }) {
 
       {/* ─── MODAL: ASSIGN NEW IT TASK ─── */}
       {showCreateModal && (
-        <div style={{
+        <div className="modal-backdrop-safe" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -819,10 +815,10 @@ export function HrItTaskManagementSection({ user }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 9999,
+          zIndex: 99999,
           padding: 20,
         }}>
-          <div style={{
+          <div className="modal-scroll-card" style={{
             background: '#fff',
             borderRadius: 18,
             maxWidth: 680,
@@ -883,7 +879,7 @@ export function HrItTaskManagementSection({ user }) {
               </div>
 
               {/* Category & Priority */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+              <div className="r-modal-grid-2" style={{ gap: 14, marginBottom: 16 }}>
                 <div className="form-group">
                   <label className="form-label" style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
                     Category *
@@ -946,7 +942,7 @@ export function HrItTaskManagementSection({ user }) {
               </div>
 
               {/* Start Date & Due Date */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+              <div className="r-modal-grid-2" style={{ gap: 14, marginBottom: 16 }}>
                 <div className="form-group">
                   <label className="form-label" style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
                     Start Date
@@ -995,14 +991,14 @@ export function HrItTaskManagementSection({ user }) {
                 <label className="form-label" style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
                   Reference Links / Attachments
                 </label>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                   <input
                     type="text"
                     className="form-input"
                     placeholder="Attachment Name / Label"
                     value={attName}
                     onChange={(e) => setAttName(e.target.value)}
-                    style={{ flex: 1, borderRadius: 8 }}
+                    style={{ flex: '1 1 160px', minWidth: 0, borderRadius: 8 }}
                   />
                   <input
                     type="url"
@@ -1010,7 +1006,7 @@ export function HrItTaskManagementSection({ user }) {
                     placeholder="https://..."
                     value={attUrl}
                     onChange={(e) => setAttUrl(e.target.value)}
-                    style={{ flex: 1.5, borderRadius: 8 }}
+                    style={{ flex: '1.5 1 200px', minWidth: 0, borderRadius: 8 }}
                   />
                   <button
                     type="button"
@@ -1068,7 +1064,7 @@ export function HrItTaskManagementSection({ user }) {
 
       {/* ─── MODAL: REVIEW SUBMITTED TASK ─── */}
       {reviewTaskModal && (
-        <div style={{
+        <div className="modal-backdrop-safe" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -1078,10 +1074,10 @@ export function HrItTaskManagementSection({ user }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 9999,
+          zIndex: 99999,
           padding: 20,
         }}>
-          <div style={{
+          <div className="modal-scroll-card" style={{
             background: '#fff',
             borderRadius: 18,
             maxWidth: 600,
@@ -1112,7 +1108,7 @@ export function HrItTaskManagementSection({ user }) {
                 <label className="form-label" style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
                   Decision *
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div className="r-modal-grid-2" style={{ gap: 10 }}>
                   <button
                     type="button"
                     onClick={() => setReviewAction('approved')}
@@ -1178,10 +1174,8 @@ export function HrItTaskManagementSection({ user }) {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="btn btn-primary"
+                  className={`btn ${reviewAction === 'approved' ? 'btn-success-solid' : 'btn-rose-solid'}`}
                   style={{
-                    background: reviewAction === 'approved' ? '#16a34a' : '#e11d48',
-                    borderColor: reviewAction === 'approved' ? '#16a34a' : '#e11d48',
                     borderRadius: 8,
                     fontWeight: 700,
                   }}
@@ -1196,7 +1190,7 @@ export function HrItTaskManagementSection({ user }) {
 
       {/* ─── MODAL: CANCEL TASK ─── */}
       {cancelTaskModal && (
-        <div style={{
+        <div className="modal-backdrop-safe" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -1206,10 +1200,10 @@ export function HrItTaskManagementSection({ user }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 9999,
+          zIndex: 99999,
           padding: 20,
         }}>
-          <div style={{
+          <div className="modal-scroll-card" style={{
             background: '#fff',
             borderRadius: 18,
             maxWidth: 500,
@@ -1240,7 +1234,7 @@ export function HrItTaskManagementSection({ user }) {
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10 }}>
                 <button
                   type="button"
                   onClick={() => setCancelTaskModal(null)}
@@ -1252,8 +1246,8 @@ export function HrItTaskManagementSection({ user }) {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="btn btn-primary"
-                  style={{ background: '#e11d48', borderColor: '#e11d48', borderRadius: 8, fontWeight: 700 }}
+                  className="btn btn-rose-solid"
+                  style={{ borderRadius: 8, fontWeight: 700 }}
                 >
                   {isSubmitting ? 'Cancelling...' : 'Confirm Cancellation'}
                 </button>

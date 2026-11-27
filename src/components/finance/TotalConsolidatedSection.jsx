@@ -567,6 +567,8 @@ export function TotalConsolidatedSection({ onDrillDownTab }) {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
             background: '#F8FAFC',
           }}
         >
@@ -595,15 +597,15 @@ export function TotalConsolidatedSection({ onDrillDownTab }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
             <thead>
-              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700 }}>
+              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700, whiteSpace: 'nowrap' }}>
                 <th style={{ padding: '12px 14px' }}>CLIENT / COMPANY</th>
-                <th style={{ padding: '12px 14px' }}>TO BE RAISED (A) BI</th>
-                <th style={{ padding: '12px 14px' }}>TO BE RAISED (A) AI</th>
-                <th style={{ padding: '12px 14px' }}>RAISED (B) BI</th>
-                <th style={{ padding: '12px 14px' }}>RAISED (B) AI</th>
-                <th style={{ padding: '12px 14px' }}>GST PENDING (C)</th>
-                <th style={{ padding: '12px 14px' }}>TDS PENDING (D)</th>
-                <th style={{ padding: '12px 14px' }}>CLEARED TOTAL</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>TO BE RAISED (A) BI</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>TO BE RAISED (A) AI</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>RAISED (B) BI</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>RAISED (B) AI</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>GST PENDING (C)</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>TDS PENDING (D)</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>CLEARED TOTAL</th>
                 <th style={{ padding: '12px 14px' }}>RECONCILIATION</th>
                 <th style={{ padding: '12px 14px' }}>LAST UPDATED</th>
               </tr>
@@ -621,21 +623,21 @@ export function TotalConsolidatedSection({ onDrillDownTab }) {
                     <div style={{ fontWeight: 800, color: '#0F172A' }}>{c.client}</div>
                     <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{c.poc}</div>
                   </td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F766E' }}>{inr(c.toBeRaisedBi)}</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F766E' }}>{inr(c.toBeRaisedAi)}</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#B45309' }}>
+                  <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#0F766E' }}>{inr(c.toBeRaisedBi)}</td>
+                  <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#0F766E' }}>{inr(c.toBeRaisedAi)}</td>
+                  <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#B45309' }}>
                     {c.raisedAwaitingBi > 0 ? inr(c.raisedAwaitingBi) : '—'}
                   </td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#B45309' }}>
+                  <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#B45309' }}>
                     {c.raisedAwaitingAi > 0 ? inr(c.raisedAwaitingAi) : '—'}
                   </td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>
+                  <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>
                     {c.gstPending > 0 ? inr(c.gstPending) : '—'}
                   </td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#7C3AED' }}>
+                  <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#7C3AED' }}>
                     {c.tdsPending > 0 ? inr(c.tdsPending) : '—'}
                   </td>
-                  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#059669' }}>{inr(c.clearedTotal)}</td>
+                  <td className="td-num" style={{ padding: '10px 14px', fontWeight: 800, color: '#059669' }}>{inr(c.clearedTotal)}</td>
                   <td style={{ padding: '10px 14px' }}>
                     <span
                       style={{

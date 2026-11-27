@@ -339,7 +339,7 @@ export function InvoiceApprovalsView() {
   };
 
   return (
-    <div style={{ maxWidth: 1380, margin: '0 auto', padding: '24px 20px', fontFamily: 'inherit' }}>
+    <div className="feature-page-inner" style={{ maxWidth: 1380, margin: '0 auto', paddingBlock: 8, fontFamily: 'inherit' }}>
       {/* Top Banner & Title */}
       <div
         style={{
@@ -437,7 +437,7 @@ export function InvoiceApprovalsView() {
         {/* Filter Bar */}
         <div style={{ padding: '18px 24px', borderBottom: '1px solid #F1F5F9', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
           {/* Tabs */}
-          <div style={{ display: 'inline-flex', background: '#F1F5F9', padding: 4, borderRadius: 12, gap: 4 }}>
+          <div style={{ display: 'inline-flex', flexWrap: 'wrap', maxWidth: '100%', background: '#F1F5F9', padding: 4, borderRadius: 12, gap: 4 }}>
             {[
               { key: 'pending_me', label: canApprove ? 'Awaiting My Review' : 'Pending Approval', count: tabCounts.pendingMe },
               { key: 'all', label: 'All Invoices', count: tabCounts.all },
@@ -1035,8 +1035,8 @@ export function InvoiceApprovalsView() {
                 </div>
 
                 {Array.isArray(analysisModal.items) && analysisModal.items.length > 0 ? (
-                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+                    <table style={{ width: '100%', minWidth: 580, borderCollapse: 'collapse', fontSize: 12 }}>
                       <thead>
                         <tr style={{ background: '#F1F5F9', color: '#475569', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
                           <th style={{ padding: '8px 12px' }}>#</th>
@@ -1073,7 +1073,7 @@ export function InvoiceApprovalsView() {
                 <div style={{ fontSize: 12, fontWeight: 800, color: '#334155', textTransform: 'uppercase', marginBottom: 10 }}>
                   Approval Audit History
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="r-modal-grid-2">
                   <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 10, border: '1px solid #E2E8F0' }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>Mohammed Raheel (EMP0005)</div>
                     <div style={{ fontSize: 13, fontWeight: 800, marginTop: 4, color: analysisModal.approvals?.recruiter?.status === 'approved' ? '#059669' : '#B45309' }}>
@@ -1130,7 +1130,7 @@ export function InvoiceApprovalsView() {
                 <Download size={14} /> Download Official PDF
               </a>
 
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                 {canApprove && (
                   <>
                     <button
@@ -1210,6 +1210,7 @@ export function InvoiceApprovalsView() {
       {/* Approve / Reject Decision Modal */}
       {actionModal && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1224,6 +1225,7 @@ export function InvoiceApprovalsView() {
           onClick={() => !submitting && setActionModal(null)}
         >
           <div
+            className="modal-scroll-card"
             style={{
               width: '100%',
               maxWidth: 480,

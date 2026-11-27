@@ -618,15 +618,15 @@ export function BillClearedSection({
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
             <thead>
-              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700 }}>
+              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700, whiteSpace: 'nowrap' }}>
                 <th style={{ padding: '12px 14px' }}>INVOICE NO</th>
                 <th style={{ padding: '12px 14px' }}>CLIENT &amp; PROJECT MILESTONE</th>
                 <th style={{ padding: '12px 14px' }}>INVOICE DATE</th>
-                <th style={{ padding: '12px 14px' }}>SEATS</th>
-                <th style={{ padding: '12px 14px' }}>BASIC AMOUNT</th>
-                <th style={{ padding: '12px 14px' }}>GST @ 18%</th>
-                <th style={{ padding: '12px 14px' }}>INVOICE TOTAL</th>
-                <th style={{ padding: '12px 14px' }}>AMOUNT PAID</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>SEATS</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>BASIC AMOUNT</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>GST @ 18%</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>INVOICE TOTAL</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>AMOUNT PAID</th>
                 <th style={{ padding: '12px 14px' }}>CLEARING DATE</th>
                 <th style={{ padding: '12px 14px' }}>PAYMENT REF / UTR</th>
                 <th style={{ padding: '12px 14px' }}>GST STATUS</th>
@@ -662,15 +662,15 @@ export function BillClearedSection({
                         )}
                       </td>
                       <td style={{ padding: '10px 14px', color: '#475569', whiteSpace: 'nowrap' }}>{inv.invoiceDate}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                      <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A' }}>
                         {inv.candidateCount} {inv.candidateCount === 1 ? 'Seat' : 'Seats'}
                       </td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>{inr(inv.basicAmount)}</td>
-                      <td style={{ padding: '10px 14px', color: '#64748B' }}>{inr(inv.gstAmount)}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 800, color: '#059669' }}>
+                      <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>{inr(inv.basicAmount)}</td>
+                      <td className="td-num" style={{ padding: '10px 14px', color: '#64748B' }}>{inr(inv.gstAmount)}</td>
+                      <td className="td-num" style={{ padding: '10px 14px', fontWeight: 800, color: '#059669' }}>
                         {inr(inv.totalInvoiceValue)}
                       </td>
-                      <td style={{ padding: '10px 14px', fontWeight: 800, color: '#0F172A' }}>
+                      <td className="td-num" style={{ padding: '10px 14px', fontWeight: 800, color: '#0F172A' }}>
                         {inr(inv.amountReceived)}
                       </td>
                       <td style={{ padding: '10px 14px', color: '#475569', whiteSpace: 'nowrap' }}>
@@ -823,6 +823,7 @@ export function BillClearedSection({
       {/* MODAL: DUPLICATE COMPARISON & AUDIT INSPECTOR (Section 6 Requirement) */}
       {duplicateInspectGroup && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -830,11 +831,12 @@ export function BillClearedSection({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 99999,
             padding: 20,
           }}
         >
           <div
+            className="modal-scroll-card"
             style={{
               background: '#FFFFFF',
               borderRadius: 20,
@@ -892,15 +894,16 @@ export function BillClearedSection({
                 </div>
               </div>
 
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12 }}>
+              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table style={{ width: '100%', minWidth: 540, borderCollapse: 'collapse', textAlign: 'left', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700 }}>
                     <th style={{ padding: '8px 10px' }}>INSTANCE #</th>
                     <th style={{ padding: '8px 10px' }}>INVOICE NO</th>
                     <th style={{ padding: '8px 10px' }}>DATE</th>
                     <th style={{ padding: '8px 10px' }}>SEATS</th>
-                    <th style={{ padding: '8px 10px' }}>BI</th>
-                    <th style={{ padding: '8px 10px' }}>AI</th>
+                    <th className="th-num" style={{ padding: '8px 10px' }}>BI</th>
+                    <th className="th-num" style={{ padding: '8px 10px' }}>AI</th>
                     <th style={{ padding: '8px 10px' }}>STATUS</th>
                   </tr>
                 </thead>
@@ -911,13 +914,14 @@ export function BillClearedSection({
                       <td style={{ padding: '8px 10px', fontWeight: 800, color: '#0F172A' }}>{item.invoiceNo}</td>
                       <td style={{ padding: '8px 10px', color: '#334155' }}>{item.invoiceDate}</td>
                       <td style={{ padding: '8px 10px', fontWeight: 700 }}>{item.candidateCount} Seats</td>
-                      <td style={{ padding: '8px 10px', fontWeight: 700, color: '#059669' }}>{inr(item.bi)}</td>
-                      <td style={{ padding: '8px 10px', fontWeight: 700, color: '#7C3AED' }}>{inr(item.ai)}</td>
+                      <td className="td-num" style={{ padding: '8px 10px', fontWeight: 700, color: '#059669' }}>{inr(item.bi)}</td>
+                      <td className="td-num" style={{ padding: '8px 10px', fontWeight: 700, color: '#7C3AED' }}>{inr(item.ai)}</td>
                       <td style={{ padding: '8px 10px', color: '#0F766E' }}>{item.status}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
                 <button
@@ -944,6 +948,7 @@ export function BillClearedSection({
       {/* MODAL: VIEW VERIFIED INVOICE */}
       {viewInvoice && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -951,11 +956,12 @@ export function BillClearedSection({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 99999,
             padding: 20,
           }}
         >
           <div
+            className="modal-scroll-card"
             style={{
               background: '#FFFFFF',
               borderRadius: 20,
@@ -987,41 +993,41 @@ export function BillClearedSection({
             </div>
 
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                 <span style={{ color: '#64748B', fontSize: 12 }}>Client:</span>
                 <span style={{ fontWeight: 800, color: '#0F172A', fontSize: 13 }}>{viewInvoice.client}</span>
               </div>
               {viewInvoice.projectMilestone && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                   <span style={{ color: '#64748B', fontSize: 12 }}>Project / Milestone:</span>
                   <span style={{ fontWeight: 600, color: '#334155', fontSize: 12.5 }}>{viewInvoice.projectMilestone}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                 <span style={{ color: '#64748B', fontSize: 12 }}>Invoice Date / Cleared Date:</span>
                 <span style={{ color: '#0F172A', fontSize: 13 }}>
                   {viewInvoice.invoiceDate} / {viewInvoice.clearedDate || viewInvoice.invoiceDate}
                 </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                 <span style={{ color: '#64748B', fontSize: 12 }}>Basic Amount + GST (18%):</span>
                 <span style={{ fontWeight: 700, color: '#2563EB', fontSize: 13 }}>
                   {inr(viewInvoice.basicAmount)} + {inr(viewInvoice.gstAmount)}
                 </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                 <span style={{ color: '#64748B', fontSize: 12 }}>Total Invoice Value &amp; Paid:</span>
                 <span style={{ fontWeight: 800, color: '#059669', fontSize: 15 }}>
                   {inr(viewInvoice.totalInvoiceValue)} ({inr(viewInvoice.amountReceived)} Paid)
                 </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                 <span style={{ color: '#64748B', fontSize: 12 }}>Payment Reference:</span>
                 <span style={{ fontFamily: 'monospace', color: '#334155', fontSize: 12 }}>
                   {viewInvoice.paymentReference || 'BANK-SETTLED'}
                 </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}>
                 <span style={{ color: '#64748B', fontSize: 12 }}>GST Status:</span>
                 <span style={{ color: '#0F766E', fontWeight: 700, fontSize: 12 }}>{viewInvoice.gstStatus || 'Reconciled'}</span>
               </div>

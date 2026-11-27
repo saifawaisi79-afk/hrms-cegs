@@ -1303,7 +1303,7 @@ export function JoinerSheetSection({
     color: '#fff',
     fontSize: 11,
     fontWeight: 800,
-    padding: '10px 8px',
+    padding: '8px 10px',
     whiteSpace: 'nowrap',
     position: 'sticky',
     top: 0,
@@ -1344,14 +1344,14 @@ export function JoinerSheetSection({
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', width: '100%' }}>
           {/* Refresh Button */}
           <button
             type="button"
-            className="btn btn-secondary"
+            className="btn"
             style={{
               borderRadius: 99,
-              minHeight: 40,
+              minHeight: 44,
               fontSize: 12,
               fontWeight: 700,
               display: 'inline-flex',
@@ -1374,7 +1374,7 @@ export function JoinerSheetSection({
             className="btn"
             style={{
               borderRadius: 99,
-              minHeight: 40,
+              minHeight: 44,
               fontSize: 12,
               fontWeight: 800,
               display: 'inline-flex',
@@ -1405,10 +1405,10 @@ export function JoinerSheetSection({
           {/* Sample Template Download */}
           <button
             type="button"
-            className="btn btn-secondary"
+            className="btn"
             style={{
               borderRadius: 99,
-              minHeight: 40,
+              minHeight: 44,
               fontSize: 12,
               fontWeight: 700,
               display: 'inline-flex',
@@ -1430,12 +1430,12 @@ export function JoinerSheetSection({
           {onManageCompanies && (
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-neutral-soft"
               onClick={onManageCompanies}
               title="Add or remove hiring companies (updates dropdowns & filter tabs)"
               style={{
                 borderRadius: 99,
-                minHeight: 40,
+                minHeight: 44,
                 fontSize: 12,
                 fontWeight: 800,
                 display: 'inline-flex',
@@ -1454,15 +1454,15 @@ export function JoinerSheetSection({
           )}
 
           {/* Month selector dropdown */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', maxWidth: '100%' }}>
             <select
-              className="form-input"
+              className="form-input filter-control"
               style={{
                 borderRadius: 99,
                 padding: '8px 14px',
                 fontSize: 12,
                 fontWeight: 700,
-                minHeight: 40,
+                minHeight: 44,
                 cursor: 'pointer',
                 background: monthFilter !== 'ALL' ? '#EFF6FF' : '#FFFFFF',
                 borderColor: monthFilter !== 'ALL' ? '#2563EB' : '#D1D5DB',
@@ -1488,8 +1488,9 @@ export function JoinerSheetSection({
                 onClick={() => setMonthFilter('ALL')}
                 style={{
                   borderRadius: 99,
-                  padding: '6px 10px',
-                  fontSize: 11,
+                  minHeight: 40,
+                  padding: '6px 12px',
+                  fontSize: 11.5,
                   fontWeight: 700,
                   background: '#F1F5F9',
                   border: '1px solid #CBD5E1',
@@ -1505,8 +1506,8 @@ export function JoinerSheetSection({
 
           {/* Search bar */}
           <input
-            className="form-input"
-            style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, width: 220, minHeight: 40 }}
+            className="form-input filter-control"
+            style={{ borderRadius: 99, padding: '8px 16px', fontSize: 12, width: 220, maxWidth: '100%', minHeight: 44, marginLeft: 'auto' }}
             placeholder="Search name, phone, recruiter..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -1642,7 +1643,13 @@ export function JoinerSheetSection({
                 'Week 8 followup',
                 ...(canEditEntry || canDelete ? ['Action'] : []),
               ].map((h) => (
-                <th key={h} style={{ ...headerStyle, textAlign: h === 'Action' ? 'center' : 'left' }}>
+                <th
+                  key={h}
+                  style={{
+                    ...headerStyle,
+                    textAlign: h === 'Action' || h.startsWith('Week ') ? 'center' : 'left',
+                  }}
+                >
                   {h}
                 </th>
               ))}
@@ -1760,7 +1767,7 @@ export function JoinerSheetSection({
                               <td
                                 key={wk}
                                 style={{
-                                  minWidth: 105,
+                                  minWidth: 128,
                                   padding: '4px 6px',
                                   textAlign: 'center',
                                   background: 'rgba(248, 250, 252, 0.65)',
@@ -1973,15 +1980,22 @@ export function JoinerSheetSection({
                         : isReadyToBill
                         ? 'rgba(236, 253, 245, 0.45)'
                         : undefined,
-                      borderLeft: hasInactive
-                        ? '4px solid #EF4444'
-                        : isReadyToBill
-                        ? '4px solid #10B981'
-                        : undefined,
                       transition: 'background 0.2s ease',
                     }}
                   >
-                    <td style={{ fontWeight: 800, padding: '8px 10px', color: hasInactive ? '#DC2626' : '#64748B' }}>
+                    <td
+                      style={{
+                        fontWeight: 800,
+                        padding: '8px 10px',
+                        fontVariantNumeric: 'tabular-nums',
+                        color: hasInactive ? '#DC2626' : '#64748B',
+                        borderLeft: hasInactive
+                          ? '4px solid #EF4444'
+                          : isReadyToBill
+                          ? '4px solid #10B981'
+                          : undefined,
+                      }}
+                    >
                       {idx + 1}
                     </td>
                     <td style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700, color: hasInactive ? '#B91C1C' : '#0f172a', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
@@ -2013,7 +2027,7 @@ export function JoinerSheetSection({
                             style={{
                               padding: '6px 6px',
                               textAlign: 'center',
-                              minWidth: 100,
+                              minWidth: 128,
                               verticalAlign: 'middle',
                               background: 'rgba(248, 250, 252, 0.65)',
                               filter: 'blur(1.2px)',
@@ -2296,6 +2310,7 @@ export function JoinerSheetSection({
       {/* Upload Preview & Confirmation Modal */}
       {uploadModalOpen && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -2304,7 +2319,7 @@ export function JoinerSheetSection({
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
             padding: 16,
             overflowY: 'auto',
@@ -2312,6 +2327,7 @@ export function JoinerSheetSection({
           onClick={() => !uploading && setUploadModalOpen(false)}
         >
           <div
+            className="modal-scroll-card"
             style={{
               width: '100%',
               maxWidth: 780,
@@ -2403,6 +2419,7 @@ export function JoinerSheetSection({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  flexWrap: 'wrap',
                   gap: 12,
                 }}
               >
@@ -2434,11 +2451,13 @@ export function JoinerSheetSection({
                 style={{
                   border: '1px solid #E2E8F0',
                   borderRadius: 12,
-                  overflow: 'hidden',
+                  overflowX: 'auto',
+                  overflowY: 'hidden',
+                  WebkitOverflowScrolling: 'touch',
                   marginBottom: 16,
                 }}
               >
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
+                <table style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse', fontSize: 11.5 }}>
                   <thead>
                     <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #CBD5E1', textAlign: 'left' }}>
                       <th style={{ padding: '8px 10px', fontWeight: 800, color: '#334155' }}>#</th>
@@ -2485,6 +2504,7 @@ export function JoinerSheetSection({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'flex-end',
+                flexWrap: 'wrap',
                 gap: 10,
                 padding: '16px 24px',
                 borderTop: '1px solid #E2E8F0',
@@ -2628,6 +2648,7 @@ export function JoinerSheetSection({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'flex-end',
+                flexWrap: 'wrap',
                 gap: 10,
                 padding: '16px 24px',
                 borderTop: '1px solid #F1F5F9',
@@ -2680,6 +2701,7 @@ export function JoinerSheetSection({
       {/* Follow-up Comment Modal (Insert custom remark by typing) */}
       {commentModal && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -2691,10 +2713,12 @@ export function JoinerSheetSection({
             alignItems: 'center',
             justifyContent: 'center',
             padding: 16,
+            overflowY: 'auto',
           }}
           onClick={() => setCommentModal(null)}
         >
           <div
+            className="modal-scroll-card"
             style={{
               width: '100%',
               maxWidth: 480,
@@ -2883,8 +2907,9 @@ export function JoinerSheetSection({
         <div
           style={{
             position: 'fixed',
-            bottom: 24,
-            right: 24,
+            bottom: 84,
+            right: 16,
+            maxWidth: 'calc(100vw - 32px)',
             zIndex: 99999,
             padding: '12px 18px',
             borderRadius: 14,

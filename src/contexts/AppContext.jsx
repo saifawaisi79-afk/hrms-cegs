@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useRouter } from 'next/navigation';
 import { Store } from '@/components/hrms/HrmsLegacy';
 import { API_BASE, AUTH_TOKEN_KEY, clearAuthStorage, getAuthToken, setAuthToken } from '@/lib/auth-client';
-import { buildNavConfig, pathForView, portalMatchesRole, homePathForPortal, portalLabel } from '@/lib/nav';
+import { buildNavConfig, pathForView, portalMatchesRole, homePathForPortal, portalLabel, portalMismatchMessage, safeInternalNextPath } from '@/lib/nav';
 
 const AppContext = createContext(null);
 
@@ -200,6 +200,9 @@ export function AppProvider({ children }) {
     if (!cleanPass || cleanPass.length < 6) {
       return { ok: false, error: 'Please enter your password (minimum 6 characters).' };
     }
+    if (!selectedPortal) {
+      return { ok: false, error: 'Please select a portal to sign in.' };
+    }
     if (workMode === 'WFO' && !locationToken) {
       return { ok: false, error: 'Verify office location for Work From Office login.' };
     }
@@ -211,7 +214,7 @@ export function AppProvider({ children }) {
         body: JSON.stringify({
           email: cleanEmail,
           password: cleanPass,
-          portal: selectedPortal || undefined,
+          portal: selectedPortal,
           workMode,
           ...(workMode === 'WFO' ? { locationToken } : {}),
         }),
@@ -232,7 +235,11 @@ export function AppProvider({ children }) {
       }
 
       const accountRole = apiUser.role || 'employee';
-      const destinationPath = data.homePath || homePathForPortal(accountRole);
+      if (!portalMatchesRole(selectedPortal, accountRole)) {
+        return { ok: false, error: portalMismatchMessage(selectedPortal) };
+      }
+      const safeNext = safeInternalNextPath(options.next);
+      const destinationPath = safeNext || data.homePath || homePathForPortal(accountRole);
 
       setAuthToken(data.token);
 

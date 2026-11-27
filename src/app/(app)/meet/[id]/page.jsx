@@ -181,7 +181,7 @@ export default function MeetingLaunchPage() {
       fontFamily: 'Inter, system-ui, sans-serif',
       display: 'flex',
       flexDirection: 'column',
-      padding: '40px 20px',
+      padding: '16px 0',
       alignItems: 'center',
     }}>
       {/* Top Header Card */}

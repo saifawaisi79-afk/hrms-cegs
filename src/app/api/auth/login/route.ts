@@ -5,7 +5,7 @@ import connectDB from '@/lib/db';
 import User from '@/lib/models/User';
 import SystemSetting from '@/lib/models/SystemSetting';
 import { signToken, getClientIp, checkIpAllowed, verifyLocationToken } from '@/lib/auth';
-import { PORTAL_HOME } from '@/lib/nav';
+import { homePathForPortal, normalizePortal, portalMatchesRole, portalMismatchMessage } from '@/lib/nav';
 import { resolveLoginTime } from '@/lib/attendance-policy';
 
 export const runtime = 'nodejs';
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 const loginSchema = z.object({
   email: z.string().email({ message: 'Invalid email address' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-  portal: z.enum(['employee', 'admin', 'super_admin', 'finance', 'it_team', 'IT_TEAM']).optional(),
+  portal: z.enum(['employee', 'admin', 'super_admin', 'finance', 'it_team', 'IT_TEAM']),
   workMode: z.enum(['WFO', 'WFH']).default('WFH'),
   locationToken: z.string().optional(),
 });
@@ -86,41 +86,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    // Role-based portal check if specific portal was selected on login screen
-    if (portal) {
-      const p = String(portal).toLowerCase();
-      const userRole = String(user.role || '').toLowerCase();
-      if (p === 'it_team') {
-        const isItDesignation = /developer|architect|software|system|engineer|it|programmer|tech/i.test(String(user.designation || ''));
-        if (userRole !== 'it_team' && !isItDesignation) {
-          return NextResponse.json(
-            { error: 'Access denied: You do not have permission to access the IT Team portal.' },
-            { status: 403 }
-          );
-        }
-        if (userRole !== 'it_team' && isItDesignation) {
-          user.role = 'IT_TEAM';
-          await User.findByIdAndUpdate(user._id, { role: 'IT_TEAM' });
-        }
-      }
-      if (p === 'finance' && userRole !== 'finance' && userRole !== 'admin' && userRole !== 'super_admin') {
-        return NextResponse.json(
-          { error: 'Access denied: You do not have permission to access the Finance portal.' },
-          { status: 403 }
-        );
-      }
-      if (p === 'admin' && userRole !== 'admin' && userRole !== 'super_admin') {
-        return NextResponse.json(
-          { error: 'Access denied: You do not have permission to access the HR Admin portal.' },
-          { status: 403 }
-        );
-      }
-      if (p === 'super_admin' && userRole !== 'super_admin') {
-        return NextResponse.json(
-          { error: 'Access denied: You do not have permission to access the Super Admin portal.' },
-          { status: 403 }
-        );
-      }
+    // Strict 1:1 portal check after password verification (no DB mutation, generic error prevents account enumeration)
+    if (!portalMatchesRole(portal, user.role)) {
+      return NextResponse.json(
+        {
+          error: portalMismatchMessage(portal),
+          code: 'PORTAL_MISMATCH',
+        },
+        { status: 403 }
+      );
     }
 
     // Check HRMS Stop status (Admins and Super Admins can still log in to manage)
@@ -148,9 +122,9 @@ export async function POST(request: Request) {
       }
     }
 
-    // Auto-resolve user's actual role and authorized home portal
-    const resolvedPortal = user.role || 'employee';
-    const targetHome = PORTAL_HOME[resolvedPortal]?.path || '/dashboard';
+    // Resolve authorized portal after strict 1:1 validation
+    const resolvedPortal = normalizePortal(portal) || normalizePortal(user.role) || 'employee';
+    const targetHome = homePathForPortal(resolvedPortal);
 
     await User.findByIdAndUpdate(user._id, { last_login: nowStr });
 

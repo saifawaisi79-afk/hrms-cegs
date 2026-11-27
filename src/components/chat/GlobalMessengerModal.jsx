@@ -828,7 +828,7 @@ export function GlobalMessengerModal({
         subtitle="Real-time 1-on-1 direct messaging, team groups, image sharing, and WhatsApp ticks"
         maxWidth={980}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '290px 1fr', gap: 18, height: 540 }}>
+        <div className="messenger-grid-layout">
           {/* LEFT SIDEBAR */}
           <div
             style={{
@@ -1266,7 +1266,7 @@ export function GlobalMessengerModal({
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                     {isCurrentGroupAdmin && (
                       <button
                         type="button"
@@ -2121,7 +2121,7 @@ export function GlobalMessengerModal({
                             fontSize: 12,
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                             <img
                               src={c.avatar}
                               alt=""
@@ -2293,7 +2293,7 @@ export function GlobalMessengerModal({
                               fontSize: 12,
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                               <img
                                 src={colleague.avatar}
                                 alt=""

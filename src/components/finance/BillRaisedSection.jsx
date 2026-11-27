@@ -697,16 +697,16 @@ export function BillRaisedSection({
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
             <thead>
-              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700 }}>
+              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700, whiteSpace: 'nowrap' }}>
                 <th style={{ padding: '12px 14px' }}>INVOICE NO</th>
                 <th style={{ padding: '12px 14px' }}>CLIENT &amp; PROJECT MILESTONE</th>
                 <th style={{ padding: '12px 14px' }}>INVOICE DATE</th>
-                <th style={{ padding: '12px 14px' }}>SEATS</th>
-                <th style={{ padding: '12px 14px' }}>BASIC AMOUNT</th>
-                <th style={{ padding: '12px 14px' }}>GST @ 18%</th>
-                <th style={{ padding: '12px 14px' }}>TOTAL VALUE</th>
-                <th style={{ padding: '12px 14px' }}>RECEIVED</th>
-                <th style={{ padding: '12px 14px' }}>OUTSTANDING</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>SEATS</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>BASIC AMOUNT</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>GST @ 18%</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>TOTAL VALUE</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>RECEIVED</th>
+                <th className="th-num" style={{ padding: '12px 14px' }}>OUTSTANDING</th>
                 <th style={{ padding: '12px 14px' }}>DUE</th>
                 <th style={{ padding: '12px 14px' }}>STATUS</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center' }}>ACTIONS</th>
@@ -764,18 +764,19 @@ export function BillRaisedSection({
                         )}
                       </td>
                       <td style={{ padding: '10px 14px', color: '#475569', whiteSpace: 'nowrap' }}>{inv.invoiceDate}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                      <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#0F172A' }}>
                         {inv.candidateCount} {inv.candidateCount === 1 ? 'Seat' : 'Seats'}
                       </td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>{inr(inv.basicAmount)}</td>
-                      <td style={{ padding: '10px 14px', color: '#64748B' }}>{inr(inv.gstAmount)}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 800, color: '#0F172A' }}>
+                      <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#2563EB' }}>{inr(inv.basicAmount)}</td>
+                      <td className="td-num" style={{ padding: '10px 14px', color: '#64748B' }}>{inr(inv.gstAmount)}</td>
+                      <td className="td-num" style={{ padding: '10px 14px', fontWeight: 800, color: '#0F172A' }}>
                         {inr(inv.totalInvoiceValue)}
                       </td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#059669' }}>
+                      <td className="td-num" style={{ padding: '10px 14px', fontWeight: 700, color: '#059669' }}>
                         {inr(inv.actualReceipt)}
                       </td>
                       <td
+                        className="td-num"
                         style={{
                           padding: '10px 14px',
                           fontWeight: 800,
@@ -801,7 +802,7 @@ export function BillRaisedSection({
                           {isCleared || inv.status === 'Paid' ? 'Paid' : inv.status || 'Pending'}
                         </span>
                       </td>
-                      <td style={{ padding: '8px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '10px 14px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                           <button
                             onClick={() =>
@@ -876,6 +877,7 @@ export function BillRaisedSection({
       {/* MODAL: RECORD PAYMENT */}
       {recordPaymentModal && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -883,11 +885,12 @@ export function BillRaisedSection({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 99999,
             padding: 20,
           }}
         >
           <div
+            className="modal-scroll-card"
             style={{
               background: '#FFFFFF',
               borderRadius: 20,
@@ -1012,6 +1015,7 @@ export function BillRaisedSection({
       {/* MODAL: CREATE REVISED INVOICE */}
       {revisionModal && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1019,11 +1023,12 @@ export function BillRaisedSection({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 99999,
             padding: 20,
           }}
         >
           <div
+            className="modal-scroll-card"
             style={{
               background: '#FFFFFF',
               borderRadius: 20,
@@ -1134,6 +1139,7 @@ export function BillRaisedSection({
       {/* MODAL: VIEW INVOICE DETAILS */}
       {viewInvoice && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1141,11 +1147,12 @@ export function BillRaisedSection({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 99999,
             padding: 20,
           }}
         >
           <div
+            className="modal-scroll-card"
             style={{
               background: '#FFFFFF',
               borderRadius: 20,
@@ -1177,7 +1184,7 @@ export function BillRaisedSection({
             </div>
 
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="r-modal-grid-2">
                 <div>
                   <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>CLIENT</div>
                   <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>{viewInvoice.client}</div>
@@ -1194,12 +1201,11 @@ export function BillRaisedSection({
               </div>
 
               <div
+                className="r-modal-grid-3"
                 style={{
                   background: '#F8FAFC',
                   borderRadius: 12,
                   padding: 14,
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
                   gap: 10,
                   fontSize: 12,
                 }}

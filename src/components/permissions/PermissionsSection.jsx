@@ -673,7 +673,7 @@ export function PermissionsSection({ db, save, user }) {
             <span>{isSaturday ? 'Saturday • 6 Hours Shift' : 'Weekday • 9 Hours Shift'}</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '4px 8px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '4px 8px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
             <button
               type="button"
               onClick={() => changeDateBy(-1)}
@@ -823,7 +823,7 @@ export function PermissionsSection({ db, save, user }) {
                 placeholder="Search history by employee, reason, admin..."
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
-                style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 13, minWidth: 260, outline: 'none' }}
+                style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 13, flex: '1 1 200px', minWidth: 0, maxWidth: '100%', outline: 'none' }}
               />
 
               <select
@@ -1122,7 +1122,7 @@ export function PermissionsSection({ db, save, user }) {
                 placeholder="Search staff by name, ID, or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 13, minWidth: 240, outline: 'none' }}
+                style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 13, flex: '1 1 200px', minWidth: 0, maxWidth: '100%', outline: 'none' }}
               />
 
               <select
@@ -1431,6 +1431,7 @@ export function PermissionsSection({ db, save, user }) {
       {/* SHORT REASON CONFIRMATION MODAL */}
       {reasonModal.isOpen && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             top: 0,
@@ -1447,6 +1448,7 @@ export function PermissionsSection({ db, save, user }) {
           }}
         >
           <div
+            className="modal-scroll-card"
             style={{
               background: '#FFFFFF',
               borderRadius: 20,

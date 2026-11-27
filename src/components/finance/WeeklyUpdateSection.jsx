@@ -1586,6 +1586,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
       {/* MODAL: ADD CANDIDATE */}
       {showAddModal && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1593,11 +1594,12 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 99999,
             padding: 20,
           }}
         >
           <div
+            className="modal-scroll-card"
             style={{
               background: '#FFFFFF',
               borderRadius: 20,
@@ -1629,7 +1631,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             </div>
 
             <form onSubmit={handleAddCandidate} style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="r-modal-grid-2">
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Candidate Full Name *</label>
                   <input
@@ -1667,7 +1669,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="r-modal-grid-2">
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Client / Company *</label>
                   <select
@@ -1718,7 +1720,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="r-modal-grid-2">
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Joining Date</label>
                   <input
@@ -1753,7 +1755,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div className="r-modal-grid-3">
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Recruiter</label>
                   <input
@@ -1805,7 +1807,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="r-modal-grid-2">
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>Client Employee ID</label>
                   <input
@@ -1886,6 +1888,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
       {/* MODAL: MOVE TO BILL RAISED (Section 4 Rule: Audited move with validation) */}
       {showMoveModal && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -1893,11 +1896,12 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 99999,
             padding: 20,
           }}
         >
           <div
+            className="modal-scroll-card"
             style={{
               background: '#FFFFFF',
               borderRadius: 20,
@@ -2115,7 +2119,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                         <th style={{ padding: '8px 10px' }}>CLIENT</th>
                         <th style={{ padding: '8px 10px' }}>PROCESS / REQUIREMENT</th>
                         <th style={{ padding: '8px 10px' }}>PAYOUT DAYS</th>
-                        <th style={{ padding: '8px 10px' }}>PAYOUT AMOUNT</th>
+                        <th className="th-num" style={{ padding: '8px 10px' }}>PAYOUT AMOUNT</th>
                         <th style={{ padding: '8px 10px' }}>INVOICE SUBMISSION</th>
                         <th style={{ padding: '8px 10px' }}>CLEARANCE TIMELINE</th>
                       </tr>
@@ -2126,7 +2130,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
                           <td style={{ padding: '6px 10px', fontWeight: 700, color: '#0F172A' }}>{p.client}</td>
                           <td style={{ padding: '6px 10px', color: '#334155' }}>{p.process}</td>
                           <td style={{ padding: '6px 10px', color: '#64748B' }}>{p.payoutDays}</td>
-                          <td style={{ padding: '6px 10px', fontWeight: 800, color: '#059669' }}>{inr(p.payoutAmount)}</td>
+                          <td className="td-num" style={{ padding: '6px 10px', fontWeight: 800, color: '#059669' }}>{inr(p.payoutAmount)}</td>
                           <td style={{ padding: '6px 10px', color: '#64748B' }}>{p.invoiceDateRule}</td>
                           <td style={{ padding: '6px 10px', color: '#64748B' }}>{p.clearanceTimeline}</td>
                         </tr>
@@ -2161,6 +2165,7 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
       {/* MODAL: CONFIRM PERMANENT DELETE FROM RECYCLE BIN */}
       {confirmPermanentCand && (
         <div
+          className="modal-backdrop-safe"
           style={{
             position: 'fixed',
             inset: 0,
@@ -2168,11 +2173,12 @@ export function WeeklyUpdateSection({ onNavigateToRaised, onMoveCandidatesToRais
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1100,
+            zIndex: 99999,
             padding: 20,
           }}
         >
           <div
+            className="modal-scroll-card"
             style={{
               background: '#FFFFFF',
               borderRadius: 18,

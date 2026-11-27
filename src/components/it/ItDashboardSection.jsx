@@ -81,7 +81,7 @@ export function ItDashboardSection({ user, db, save, setView }) {
   };
 
   return (
-    <div className="modern-dash-layout anim-fadeup" style={{ padding: '20px 24px' }}>
+    <div className="modern-dash-layout anim-fadeup feature-page-inner" style={{ flexDirection: 'column', paddingBlock: 12 }}>
       {/* Top Banner */}
       <div style={{
         background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0369a1 100%)',
@@ -137,10 +137,8 @@ export function ItDashboardSection({ user, db, save, setView }) {
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link
             href="/it/tasks"
-            className="btn btn-primary"
+            className="btn btn-sky-solid"
             style={{
-              background: '#0284c7',
-              borderColor: '#0284c7',
               fontWeight: 700,
               padding: '10px 18px',
               borderRadius: 10,
@@ -285,7 +283,7 @@ export function ItDashboardSection({ user, db, save, setView }) {
       </div>
 
       {/* DASHBOARD MAIN GRID */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 24 }}>
+      <div className="r-split-aside" style={{ gap: 24 }}>
         {/* LEFT COLUMN: Tasks sections */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* Today's Assigned Tasks */}
@@ -484,7 +482,7 @@ export function ItDashboardSection({ user, db, save, setView }) {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="r-grid-2" style={{ gap: 10 }}>
               <Link
                 href="/billing/attendance"
                 className="btn btn-outline"
@@ -494,8 +492,8 @@ export function ItDashboardSection({ user, db, save, setView }) {
               </Link>
               <Link
                 href="/billing/leaves"
-                className="btn btn-primary"
-                style={{ textAlign: 'center', fontSize: 13, fontWeight: 700, padding: '10px 12px', background: '#0284c7', borderColor: '#0284c7' }}
+                className="btn btn-sky-solid"
+                style={{ textAlign: 'center', fontSize: 13, fontWeight: 700, padding: '10px 12px' }}
               >
                 Apply Leave
               </Link>
@@ -513,7 +511,7 @@ export function ItDashboardSection({ user, db, save, setView }) {
               </Link>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, textAlign: 'center' }}>
+            <div className="r-grid-3" style={{ gap: 10, textAlign: 'center' }}>
               <div style={{ background: '#f0fdf4', padding: '12px 8px', borderRadius: 10, border: '1px solid #dcfce7' }}>
                 <div style={{ fontSize: 20, fontWeight: 800, color: '#16a34a' }}>
                   {leaveSummary.balance ?? 12}
@@ -651,7 +649,7 @@ export function ItDashboardSection({ user, db, save, setView }) {
               </div>
             ) : null}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+            <div className="r-modal-grid-2" style={{ marginBottom: 20 }}>
               <div>
                 <span style={{ fontSize: 12, color: '#64748b' }}>Start Date:</span>{' '}
                 <strong style={{ fontSize: 13, color: '#0f172a' }}>{selectedTask.start_date || 'N/A'}</strong>
@@ -695,7 +693,7 @@ export function ItDashboardSection({ user, db, save, setView }) {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10 }}>
               <button
                 onClick={() => setSelectedTask(null)}
                 className="btn btn-outline"
@@ -705,8 +703,8 @@ export function ItDashboardSection({ user, db, save, setView }) {
               </button>
               <Link
                 href="/it/tasks"
-                className="btn btn-primary"
-                style={{ borderRadius: 8, padding: '8px 16px', background: '#0284c7', borderColor: '#0284c7', textDecoration: 'none' }}
+                className="btn btn-sky-solid"
+                style={{ borderRadius: 8, padding: '8px 16px', textDecoration: 'none' }}
               >
                 Open in My Tasks →
               </Link>

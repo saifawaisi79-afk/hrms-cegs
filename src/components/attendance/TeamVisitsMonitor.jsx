@@ -447,7 +447,7 @@ export function StaffVisitsDetailModal({
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 9999,
+        zIndex: 99999,
         background: 'rgba(15, 23, 42, 0.75)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
@@ -479,14 +479,17 @@ export function StaffVisitsDetailModal({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 10,
             background: '#F8FAFC',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             <div
               style={{
                 width: 40,
                 height: 40,
+                flexShrink: 0,
                 borderRadius: 12,
                 background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
                 color: '#FFFFFF',
@@ -498,7 +501,7 @@ export function StaffVisitsDetailModal({
             >
               <Car size={22} />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 800, color: '#0F172A' }}>
                 Staff Office &amp; Field Visits Tracker
               </h3>
@@ -512,7 +515,7 @@ export function StaffVisitsDetailModal({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <button
               type="button"
               onClick={refreshVisits}
@@ -538,7 +541,7 @@ export function StaffVisitsDetailModal({
             <button
               type="button"
               onClick={onClose}
-              style={{ background: '#F1F5F9', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#475569' }}
+              style={{ background: '#F1F5F9', border: 'none', borderRadius: 8, padding: 6, cursor: 'pointer', color: '#475569', flexShrink: 0 }}
               aria-label="Close"
             >
               <X size={18} />
@@ -547,7 +550,7 @@ export function StaffVisitsDetailModal({
         </div>
 
         {/* Tab Switcher */}
-        <div style={{ display: 'flex', padding: '10px 22px 0 22px', borderBottom: '1px solid #E2E8F0', background: '#FFFFFF', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', padding: '10px 22px 0 22px', borderBottom: '1px solid #E2E8F0', background: '#FFFFFF', gap: 8 }}>
           <button
             type="button"
             onClick={() => setActiveTab('today')}
@@ -703,7 +706,7 @@ export function StaffVisitsDetailModal({
                         </span>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))', gap: 10 }}>
                         <div style={{ background: '#FFFFFF', padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
                           <div style={{ fontSize: 11, color: '#64748B', fontWeight: 700 }}>Went (Departure)</div>
                           <div style={{ fontSize: 13, fontWeight: 800, color: '#0284C7', fontFamily: 'JetBrains Mono, monospace', marginTop: 2 }}>
@@ -992,6 +995,7 @@ export function StaffVisitsDetailModal({
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
                                   fontSize: 11.5,
                                   gap: 8,
                                 }}
@@ -1063,11 +1067,12 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
     >
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           <div
             style={{
               width: 44,
               height: 44,
+              flexShrink: 0,
               borderRadius: 14,
               background: activeCount > 0 ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' : 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)',
               color: '#FFFFFF',
@@ -1079,8 +1084,8 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
           >
             <Car size={22} />
           </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0F172A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 Staff Office &amp; Field Visits (Live &amp; Monthly History)
               </h3>
@@ -1151,6 +1156,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
 
           {sectionTab === 'month' && (
             <select
+              className="form-input filter-control"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               style={{
@@ -1160,6 +1166,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
                 fontWeight: 700,
                 border: '1px solid #CBD5E1',
                 background: '#FFFFFF',
+                minHeight: 40,
                 cursor: 'pointer',
               }}
             >
@@ -1174,8 +1181,8 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
 
           <input
             type="text"
-            className="form-input"
-            style={{ borderRadius: 99, padding: '7px 14px', fontSize: 12, minHeight: 36, width: 170 }}
+            className="form-input filter-control"
+            style={{ borderRadius: 99, padding: '7px 14px', fontSize: 12, minHeight: 40, width: 190 }}
             placeholder="Search staff visit..."
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
@@ -1184,7 +1191,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
           <button
             type="button"
             className="btn btn-secondary"
-            style={{ borderRadius: 99, padding: '7px 14px', fontSize: 12, minHeight: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            style={{ borderRadius: 99, padding: '7px 14px', fontSize: 12, minHeight: 40, display: 'inline-flex', alignItems: 'center', gap: 6 }}
             onClick={() => refreshVisits()}
             disabled={loading}
             title="Refresh latest office visits"
@@ -1196,6 +1203,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
           {sectionTab === 'month' && (
             <button
               type="button"
+              className="btn btn-success-solid"
               onClick={() => exportVisitsToCsv(displayItems, formatMonthLabel(selectedMonth))}
               style={{
                 background: '#10B981',
@@ -1203,6 +1211,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
                 border: 'none',
                 borderRadius: 99,
                 padding: '7px 14px',
+                minHeight: 40,
                 fontSize: 12,
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -1252,7 +1261,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
           </div>
         </div>
       ) : (
-        <div className="tbl-wrap" style={{ border: '1px solid #E2E8F0', borderRadius: 14, overflow: 'hidden' }}>
+        <div className="tbl-wrap" style={{ border: '1px solid #E2E8F0', borderRadius: 14, overflowX: 'auto', overflowY: 'hidden' }}>
           <table className="tbl" style={{ margin: 0 }}>
             <thead style={{ background: '#F8FAFC' }}>
               <tr>
@@ -1271,7 +1280,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
                 const isExpanded = expandedId === v.id;
                 return (
                   <React.Fragment key={v.id}>
-                    <tr style={{ background: v.isCurrentlyOut ? 'rgba(254, 243, 199, 0.25)' : '#FFFFFF' }}>
+                    <tr className={v.isCurrentlyOut ? 'visit-row-out' : ''} style={{ background: v.isCurrentlyOut ? 'rgba(254, 243, 199, 0.25)' : '#FFFFFF' }}>
                       {sectionTab === 'month' && (
                         <td style={{ padding: '12px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color: '#475569' }}>
                           {formatVisitDate(v.date)}
@@ -1432,6 +1441,7 @@ export function TeamVisitsSection({ db, currentUser, onRefresh }) {
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
                                   fontSize: 12,
                                   gap: 12,
                                 }}
@@ -1483,11 +1493,12 @@ export function TeamVisitsFinanceCard({ db, currentUser, onRefresh }) {
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             <div
               style={{
                 width: 40,
                 height: 40,
+                flexShrink: 0,
                 borderRadius: 12,
                 background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
                 display: 'flex',
@@ -1499,8 +1510,8 @@ export function TeamVisitsFinanceCard({ db, currentUser, onRefresh }) {
             >
               <Car size={20} />
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                 <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#FFFFFF', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   Staff Attendance &amp; Field Visits (Live &amp; Monthly)
                 </h4>
@@ -1526,7 +1537,7 @@ export function TeamVisitsFinanceCard({ db, currentUser, onRefresh }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <a
               href="/billing/attendance"
               style={{
@@ -1666,14 +1677,15 @@ export function TeamVisitsHeaderCapsule({ db, currentUser }) {
     <>
       <button
         type="button"
+        className="hdr-team-visits-capsule"
         onClick={() => setModalOpen(true)}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
-          background: activeCount > 0 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.08)',
-          border: activeCount > 0 ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
-          color: activeCount > 0 ? '#F59E0B' : '#E2E8F0',
+          background: activeCount > 0 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(241, 245, 249, 0.92)',
+          border: activeCount > 0 ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid #CBD5E1',
+          color: activeCount > 0 ? '#D97706' : '#334155',
           borderRadius: 99,
           padding: '6px 12px',
           fontSize: 11.5,
@@ -1684,8 +1696,8 @@ export function TeamVisitsHeaderCapsule({ db, currentUser }) {
         title="View Staff Office Visits (Live Today & Monthly History)"
         aria-label="View Staff Office Visits"
       >
-        <Car size={13} style={{ color: activeCount > 0 ? '#F59E0B' : '#38BDF8' }} />
-        <span>Visits</span>
+        <Car size={13} style={{ color: activeCount > 0 ? '#D97706' : '#0284C7', flexShrink: 0 }} />
+        <span className="visits-capsule-label">Visits</span>
         {activeCount > 0 ? (
           <span
             style={{
@@ -1703,8 +1715,8 @@ export function TeamVisitsHeaderCapsule({ db, currentUser }) {
         ) : visitsList.length > 0 ? (
           <span
             style={{
-              background: 'rgba(56, 189, 248, 0.2)',
-              color: '#38BDF8',
+              background: 'rgba(14, 165, 233, 0.15)',
+              color: '#0369A1',
               borderRadius: 99,
               padding: '1px 6px',
               fontSize: 10,
@@ -1717,8 +1729,8 @@ export function TeamVisitsHeaderCapsule({ db, currentUser }) {
         ) : allVisitsHistory.length > 0 ? (
           <span
             style={{
-              background: 'rgba(148, 163, 184, 0.2)',
-              color: '#CBD5E1',
+              background: '#E2E8F0',
+              color: '#475569',
               borderRadius: 99,
               padding: '1px 6px',
               fontSize: 10,

@@ -111,6 +111,7 @@ export function CompanyManagerModal({ isOpen, onClose, onCompaniesUpdated }) {
 
   return (
     <div
+      className="modal-backdrop-safe"
       style={{
         position: 'fixed',
         inset: 0,
@@ -127,6 +128,7 @@ export function CompanyManagerModal({ isOpen, onClose, onCompaniesUpdated }) {
       }}
     >
       <div
+        className="modal-scroll-card"
         style={{
           width: '100%',
           maxWidth: 580,
@@ -148,14 +150,16 @@ export function CompanyManagerModal({ isOpen, onClose, onCompaniesUpdated }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: 12,
             background: 'linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             <div
               style={{
                 width: 42,
                 height: 42,
+                flexShrink: 0,
                 borderRadius: 12,
                 background: '#EEF2FF',
                 color: '#4F46E5',
@@ -166,7 +170,7 @@ export function CompanyManagerModal({ isOpen, onClose, onCompaniesUpdated }) {
             >
               <Building2 size={22} />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 17, fontWeight: 900, color: '#0F172A' }}>Manage Hiring Companies</div>
               <div style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>
                 Add or remove company names for dropdowns & Joiner Sheet filter tabs
@@ -182,6 +186,7 @@ export function CompanyManagerModal({ isOpen, onClose, onCompaniesUpdated }) {
               borderRadius: 99,
               width: 32,
               height: 32,
+              flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -221,14 +226,15 @@ export function CompanyManagerModal({ isOpen, onClose, onCompaniesUpdated }) {
             <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               Add New Company Name
             </label>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <input
                 type="text"
                 placeholder="e.g. TECH MAHINDRA, WIPRO, INFOSYS"
                 value={newCompanyName}
                 onChange={(e) => setNewCompanyName(e.target.value.toUpperCase())}
                 style={{
-                  flex: 1,
+                  flex: '1 1 180px',
+                  minWidth: 0,
                   padding: '10px 14px',
                   borderRadius: 12,
                   border: '1.5px solid #CBD5E1',
@@ -252,7 +258,10 @@ export function CompanyManagerModal({ isOpen, onClose, onCompaniesUpdated }) {
                   cursor: submitting ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: 6,
+                  flex: '0 1 auto',
+                  flexShrink: 0,
                   boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
                 }}
               >
@@ -290,6 +299,7 @@ export function CompanyManagerModal({ isOpen, onClose, onCompaniesUpdated }) {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      gap: 10,
                       padding: '10px 14px',
                       background: '#F8FAFC',
                       border: '1px solid #E2E8F0',
@@ -297,16 +307,17 @@ export function CompanyManagerModal({ isOpen, onClose, onCompaniesUpdated }) {
                       transition: 'background 0.15s ease',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
                       <span
                         style={{
                           width: 8,
                           height: 8,
+                          flexShrink: 0,
                           borderRadius: '50%',
                           background: '#10B981',
                         }}
                       />
-                      <span style={{ fontSize: 13.5, fontWeight: 800, color: '#1E293B' }}>{comp.name}</span>
+                      <span style={{ fontSize: 13.5, fontWeight: 800, color: '#1E293B', wordBreak: 'break-word' }}>{comp.name}</span>
                     </div>
 
                     <button

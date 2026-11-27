@@ -1,18 +1,24 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { AppProvider, useApp } from '@/contexts/AppContext';
 import { AppShell } from '@/components/layout/AppShell';
 import { ErrorBoundary } from '@/components/hrms/HrmsLegacy';
+import { safeInternalNextPath } from '@/lib/nav';
 
 function AuthGate({ children }) {
   const { user, ready } = useApp();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (ready && !user) router.replace('/login');
-  }, [ready, user, router]);
+    if (ready && !user) {
+      const qs = typeof window !== 'undefined' ? window.location.search : '';
+      const intended = safeInternalNextPath(`${pathname || ''}${qs || ''}`);
+      router.replace(intended ? `/login?next=${encodeURIComponent(intended)}` : '/login');
+    }
+  }, [ready, user, pathname, router]);
 
   if (!ready) {
     return (

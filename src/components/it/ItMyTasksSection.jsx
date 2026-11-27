@@ -179,7 +179,7 @@ export function ItMyTasksSection({ user }) {
   };
 
   return (
-    <div className="feature-page anim-fadeup" style={{ padding: '24px' }}>
+    <div className="feature-page anim-fadeup feature-page-inner" style={{ paddingBlock: 12 }}>
       {/* HEADER */}
       <div style={{
         display: 'flex',
@@ -398,7 +398,7 @@ export function ItMyTasksSection({ user }) {
         {/* Category Dropdown */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <select
-            className="form-input"
+            className="form-input filter-control"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
             style={{ borderRadius: 8, padding: '8px 12px', fontSize: 13 }}
@@ -411,7 +411,7 @@ export function ItMyTasksSection({ user }) {
 
           {/* Priority Dropdown */}
           <select
-            className="form-input"
+            className="form-input filter-control"
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
             style={{ borderRadius: 8, padding: '8px 12px', fontSize: 13 }}
@@ -588,8 +588,8 @@ export function ItMyTasksSection({ user }) {
                     <button
                       disabled={updatingTaskId === task.id}
                       onClick={() => handleUpdateStatus(task.id, 'In Progress')}
-                      className="btn btn-primary"
-                      style={{ background: '#0284c7', borderColor: '#0284c7', fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8 }}
+                      className="btn btn-sky-solid"
+                      style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8 }}
                     >
                       Start Working (In Progress)
                     </button>
@@ -613,10 +613,8 @@ export function ItMyTasksSection({ user }) {
                         setSubmissionComment('');
                         setSubmissionAttachments([]);
                       }}
-                      className="btn btn-primary"
+                      className="btn btn-success-solid"
                       style={{
-                        background: '#16a34a',
-                        borderColor: '#16a34a',
                         fontSize: 12,
                         fontWeight: 700,
                         padding: '6px 16px',
@@ -706,14 +704,14 @@ export function ItMyTasksSection({ user }) {
                 <label className="form-label" style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
                   Work Deliverables / Proof Attachments (URLs or Files)
                 </label>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                   <input
                     type="text"
                     className="form-input"
                     placeholder="File or Link Label (e.g. GitHub PR, Preview URL)"
                     value={submissionFileName}
                     onChange={(e) => setSubmissionFileName(e.target.value)}
-                    style={{ flex: 1, borderRadius: 8 }}
+                    style={{ flex: '1 1 160px', minWidth: 0, borderRadius: 8 }}
                   />
                   <input
                     type="url"
@@ -721,7 +719,7 @@ export function ItMyTasksSection({ user }) {
                     placeholder="https://..."
                     value={submissionLink}
                     onChange={(e) => setSubmissionLink(e.target.value)}
-                    style={{ flex: 1.5, borderRadius: 8 }}
+                    style={{ flex: '1.5 1 200px', minWidth: 0, borderRadius: 8 }}
                   />
                   <button
                     type="button"
@@ -763,7 +761,7 @@ export function ItMyTasksSection({ user }) {
                 )}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10 }}>
                 <button
                   type="button"
                   onClick={() => setSubmitModalTask(null)}
@@ -775,8 +773,8 @@ export function ItMyTasksSection({ user }) {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="btn btn-primary"
-                  style={{ background: '#16a34a', borderColor: '#16a34a', borderRadius: 8, fontWeight: 700 }}
+                  className="btn btn-success-solid"
+                  style={{ borderRadius: 8, fontWeight: 700 }}
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit to HR for Review'}
                 </button>
@@ -788,7 +786,7 @@ export function ItMyTasksSection({ user }) {
 
       {/* FULL TASK DETAILS & AUDIT HISTORY MODAL */}
       {activeTaskModal && (
-        <div style={{
+        <div className="modal-backdrop-safe" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -798,10 +796,10 @@ export function ItMyTasksSection({ user }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 9999,
+          zIndex: 99999,
           padding: 20,
         }}>
-          <div style={{
+          <div className="modal-scroll-card" style={{
             background: '#fff',
             borderRadius: 18,
             maxWidth: 700,

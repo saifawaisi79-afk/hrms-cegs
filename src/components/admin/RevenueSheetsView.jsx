@@ -318,19 +318,20 @@ function RevenueSheetsInner({ user }) {
         <title>CEGS Revenue Sheet - ${data.monthLabel}</title>
         <style>
           @page { size: A4 landscape; margin: 12mm; }
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #0F172A; font-size: 11px; margin: 0; padding: 12px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #0F172A; font-size: 11px; margin: 0; padding: 0; }
           .hdr { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; margin-bottom: 14px; }
           .hdr h1 { margin: 0; font-size: 18px; color: #1E3A8A; font-weight: 900; }
           .hdr p { margin: 2px 0 0 0; font-size: 11px; color: #475569; font-weight: 600; }
           .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
-          .kpi { border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 10px; background: #F8FAFC; }
+          .kpi { border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 10px; background: #F8FAFC; break-inside: avoid; page-break-inside: avoid; }
           .kpi .v { font-size: 16px; font-weight: 900; color: #0F172A; }
           .kpi .l { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748B; margin-top: 2px; }
-          .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+          .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; break-inside: avoid; }
           h3 { font-size: 12px; margin: 0 0 6px 0; color: #1E293B; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10px; }
           th { background: #1E3A8A; color: #fff; padding: 6px 8px; text-align: left; border: 1px solid #1E3A8A; }
           td { padding: 5px 8px; border: 1px solid #E2E8F0; }
+          tr { break-inside: avoid; page-break-inside: avoid; }
           tr:nth-child(even) td { background: #F8FAFC; }
           tr.tot td { background: #EFF6FF; font-weight: 900; border-top: 2px solid #1E3A8A; }
           .num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -444,9 +445,9 @@ function RevenueSheetsInner({ user }) {
         title="Revenue Sheets"
         purpose="Live daily, weekly, and monthly revenue calculated automatically from Data Sheet & active Joiner Sheet (November 2026 onwards)."
         actions={
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', width: '100%' }}>
             <select
-              className="form-input"
+              className="form-input filter-control"
               value={monthKey}
               onChange={(e) => {
                 setMonthKey(e.target.value);
@@ -475,7 +476,7 @@ function RevenueSheetsInner({ user }) {
 
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-secondary btn-export-stretch"
               onClick={() => loadData(monthKey)}
               disabled={loading}
               style={{ borderRadius: 99, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}
@@ -486,6 +487,7 @@ function RevenueSheetsInner({ user }) {
 
             <button
               type="button"
+              className="btn btn-success-solid btn-export-stretch"
               onClick={handleExportExcel}
               disabled={loading || !data}
               style={{
@@ -509,6 +511,7 @@ function RevenueSheetsInner({ user }) {
 
             <button
               type="button"
+              className="btn btn-export-stretch"
               onClick={handlePrintPdf}
               disabled={loading || !data}
               style={{
@@ -555,7 +558,7 @@ function RevenueSheetsInner({ user }) {
       )}
 
       {/* Top KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+      <div className="r-kpi-4">
         <div
           className="glass-card"
           style={{
@@ -663,10 +666,10 @@ function RevenueSheetsInner({ user }) {
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <select
-            className="form-input"
+            className="form-input filter-control"
             value={recruiterFilter}
             onChange={(e) => setRecruiterFilter(e.target.value)}
-            style={{ borderRadius: 99, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            style={{ borderRadius: 99, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', minHeight: 40 }}
             aria-label="Filter by recruiter"
           >
             <option value="ALL">All Recruiters</option>
@@ -684,7 +687,8 @@ function RevenueSheetsInner({ user }) {
                 onClick={() => setDayOrder((o) => (o === 'desc' ? 'asc' : 'desc'))}
                 style={{
                   borderRadius: 99,
-                  padding: '6px 12px',
+                  minHeight: 40,
+                  padding: '6px 14px',
                   fontSize: 11.5,
                   fontWeight: 700,
                   background: '#F8FAFC',
@@ -732,7 +736,7 @@ function RevenueSheetsInner({ user }) {
               displayedDailySheets.map((ds) => (
                 <div
                   key={ds.date}
-                  className="glass-card"
+                  className="glass-card glass-card-flush"
                   style={{ borderRadius: 18, overflow: 'hidden', border: '1px solid #E2E8F0', padding: 0 }}
                 >
                   <div
@@ -753,7 +757,7 @@ function RevenueSheetsInner({ user }) {
                         ({ds.date})
                       </span>
                     </div>
-                    <div style={{ display: 'flex', gap: 10, fontSize: 11.5, fontWeight: 800 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 11.5, fontWeight: 800 }}>
                       <span style={{ color: '#475569' }}>Walk-ins: {ds.totals.walkins}</span>
                       <span style={{ color: '#7C3AED' }}>Selection: {ds.totals.selections}</span>
                       <span style={{ color: '#2563EB' }}>Joiners: {ds.totals.joiners}</span>
@@ -829,7 +833,7 @@ function RevenueSheetsInner({ user }) {
           </div>
 
           {/* Right: Weekly Revenue Cards + Company Quick Summary */}
-          <div style={{ flex: '1 1 310px', minWidth: 280, display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 16 }}>
+          <div className="revenue-sticky-sidebar" style={{ flex: '1 1 310px', minWidth: 'min(100%, 280px)', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="glass-card" style={{ borderRadius: 18, padding: 16, border: '1px solid #BFDBFE', background: '#EFF6FF' }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: '#1E40AF', textTransform: 'uppercase' }}>
                 Weekly Revenue Rollup ({data?.monthLabel})
@@ -845,7 +849,7 @@ function RevenueSheetsInner({ user }) {
             {weeklyDisplay.map((wk) => (
               <div
                 key={wk.weekKey}
-                className="glass-card"
+                className="glass-card glass-card-flush"
                 style={{ borderRadius: 18, overflow: 'hidden', border: '1px solid #E2E8F0', padding: 0 }}
               >
                 <div
@@ -863,6 +867,7 @@ function RevenueSheetsInner({ user }) {
                   <span>Weekly Revenue · Wk {wk.weekNumber}</span>
                   <span style={{ color: '#A7F3D0' }}>{formatInr(wk.totalRevenue)}</span>
                 </div>
+                <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
                   <thead>
                     <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569' }}>
@@ -904,13 +909,14 @@ function RevenueSheetsInner({ user }) {
                     </tr>
                   </tbody>
                 </table>
+                </div>
               </div>
             ))}
           </div>
         </div>
       ) : activeTab === 'company_recruiter' ? (
         /* TAB 2: COMPANY-WISE & RECRUITER-WISE MONTHLY SUMMARY */
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 16, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: 16, alignItems: 'start' }}>
           {/* Company-Wise Monthly Table */}
           <div className="glass-card" style={{ borderRadius: 20, padding: 20, border: '1px solid #E2E8F0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -1091,10 +1097,10 @@ function RevenueSheetsInner({ user }) {
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <select
-                className="form-input"
+                className="form-input filter-control"
                 value={ledgerCompanyFilter}
                 onChange={(e) => setLedgerCompanyFilter(e.target.value)}
-                style={{ borderRadius: 99, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                style={{ borderRadius: 99, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', minHeight: 40 }}
               >
                 <option value="ALL">All Companies</option>
                 {(data?.companySummary || []).map((c) => (
@@ -1104,14 +1110,14 @@ function RevenueSheetsInner({ user }) {
                 ))}
               </select>
 
-              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', maxWidth: '100%', flex: '1 1 200px' }}>
                 <Search size={14} style={{ position: 'absolute', left: 10, color: '#94A3B8' }} />
                 <input
                   className="form-input"
                   value={ledgerSearch}
                   onChange={(e) => setLedgerSearch(e.target.value)}
                   placeholder="Search candidate, process..."
-                  style={{ borderRadius: 99, padding: '6px 12px 6px 30px', fontSize: 12, width: 210 }}
+                  style={{ borderRadius: 99, padding: '6px 12px 6px 30px', fontSize: 12, width: '100%', minWidth: 180, maxWidth: 260, minHeight: 40 }}
                 />
               </div>
 
