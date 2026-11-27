@@ -5,7 +5,7 @@ import SystemSetting from '@/lib/models/SystemSetting';
 import { getAuthUser } from '@/lib/auth';
 import { toIsoDate } from '@/lib/auto-absent';
 import { persistAttendanceWarning } from '@/lib/attendance-deductions';
-import { getRequiredShiftHours } from '@/lib/attendance-policy';
+import { getRequiredShiftHours, hasCompanyVisitOnRecord } from '@/lib/attendance-policy';
 import { OFFICE_TZ, calcWorkHours, istTimeString, normalizePunchTime } from '@/lib/ist-time';
 
 // POST /api/attendance/check-out
@@ -30,8 +30,9 @@ export async function POST(request) {
   const workHours = calcWorkHours(existing.check_in_time, nowTimeStr);
   const requiredHours = getRequiredShiftHours(todayStr);
 
-  // Check if Early Logout permission was granted by HR
-  let earlyLogoutAllowed = !!existing.early_logout_allowed;
+  // Check if Early Logout permission was granted by HR or staff went on Company Visit today
+  const isCompanyVisitDay = hasCompanyVisitOnRecord(existing);
+  let earlyLogoutAllowed = !!existing.early_logout_allowed || isCompanyVisitDay;
   if (!earlyLogoutAllowed) {
     try {
       const setting = await SystemSetting.findOne({ key: `early_logout_waivers_${todayStr}` }).lean();
@@ -75,7 +76,9 @@ export async function POST(request) {
 
   let message = 'Checked out successfully';
   if (earlyLogoutAllowed) {
-    message = `Early Clock-Out authorized by HR Permission (${existing.early_logout_reason || 'Approved early departure'}).`;
+    message = isCompanyVisitDay && !existing.early_logout_allowed
+      ? 'Checked out cleanly (Company Visit waived early departure warning).'
+      : `Early Clock-Out authorized by HR Permission (${existing.early_logout_reason || 'Approved early departure'}).`;
   } else if (isEarly) {
     if (isHalfDay) {
       message = `Early Clock-Out (${workHours}h of ${requiredHours}h completed). This is warning #${earlyWarningsCount} this month — marked as Half-Day Absent with salary deduction.`;

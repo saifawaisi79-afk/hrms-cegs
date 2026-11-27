@@ -8,7 +8,7 @@ import PermissionLog from '@/lib/models/PermissionLog';
 import { getAuthUser } from '@/lib/auth';
 import { toIsoDate } from '@/lib/auto-absent';
 import { persistAttendanceWarning, syncPayrollAttendanceDeduction } from '@/lib/attendance-deductions';
-import { getRequiredShiftHours } from '@/lib/attendance-policy';
+import { getRequiredShiftHours, hasCompanyVisitOnRecord } from '@/lib/attendance-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,10 +102,11 @@ export async function GET(request) {
     const employees = users.map((u) => {
       const uid = String(u._id);
       const att = attendanceMap.get(uid);
-      const isLateRecorded = lateWarningUserIds.has(uid) || att?.status === 'late';
-      const isEarlyRecorded = earlyWarningUserIds.has(uid);
-      const isWaived = isAllWaived || waivedSet.has(uid);
-      const isEarlyAllowed = isAllEarlyAllowed || earlySet.has(uid) || !!att?.early_logout_allowed;
+      const hasVisit = hasCompanyVisitOnRecord(att);
+      const isLateRecorded = !hasVisit && (lateWarningUserIds.has(uid) || att?.status === 'late');
+      const isEarlyRecorded = !hasVisit && earlyWarningUserIds.has(uid);
+      const isWaived = isAllWaived || waivedSet.has(uid) || !!att?.clause40_waived || hasVisit;
+      const isEarlyAllowed = isAllEarlyAllowed || earlySet.has(uid) || !!att?.early_logout_allowed || hasVisit;
 
       return {
         id: uid,

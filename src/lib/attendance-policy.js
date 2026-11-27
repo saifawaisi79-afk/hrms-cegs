@@ -316,3 +316,13 @@ export function getEmployeeMonthlyDeductionBreakdown(warnings, userId, month, ye
     items
   };
 }
+
+export function hasCompanyVisitOnRecord(att) {
+  if (!att || typeof att !== 'object') return false;
+  if (att.visit_status === 'company_visit') return true;
+  if (att.company_visit_out_time) return true;
+  if (Array.isArray(att.visit_logs) && att.visit_logs.some((l) => l?.action === 'company_visit')) {
+    return true;
+  }
+  return false;
+}

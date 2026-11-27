@@ -173,6 +173,9 @@ export function CompanyVisitHeaderStatus({ currentUser, db, save }) {
                 })
               );
             }
+            if (nextAction === 'company_visit' && typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('hrms:payroll-sync'));
+            }
           }
         }
 

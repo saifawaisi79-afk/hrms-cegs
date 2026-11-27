@@ -58,6 +58,7 @@ import {
   DEFAULT_LOGIN_TIME,
   SPECIAL_LOGIN_TIMES,
   getEmployeeMonthlyDeductionBreakdown,
+  hasCompanyVisitOnRecord,
 } from '@/lib/attendance-policy';
 import { pushHrmsNotification, recordAttendanceWarning } from '@/lib/attendance-warnings-ui';
 import {
@@ -1043,8 +1044,9 @@ export function LunchBreakWidget({ user, db, save }) {
 
  if (breakType === 'lunch') {
  const lateReturn = isLateLunchReturn(user, endDt, duration, allowedMins);
- if (lateReturn) {
  const lunchDate = todayStr;
+ const hasVisitForLunchDate = (db?.attendance || []).some((a) => String(a.uid || a.user_id) === String(user?.id) && String(a.date || '').slice(0, 10) === lunchDate && hasCompanyVisitOnRecord(a));
+ if (lateReturn && !hasVisitForLunchDate) {
  pushHrmsNotification(save, db, {
  to: user.id,
  title: 'Late Lunch Return Warning',
@@ -4791,7 +4793,7 @@ export function AttendancePage({ db, save, user }) {
     const hrs = parseFloat((elapsed / 3600).toFixed(2)) || 0;
     const isUnder9Hours = elapsed < 9 * 3600;
 
-    if (isUnder9Hours) {
+    if (isUnder9Hours && !hasCompanyVisitOnRecord(todayRec)) {
       const curMo = nowObj.getMonth() + 1;
       const curYr = nowObj.getFullYear();
       const earlyCount = countMonthlyEarlyLogoutWarnings(db?.attendanceWarnings, user?.id, curMo, curYr);
@@ -10984,6 +10986,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
   useEffect(() => {
     if (!isEmp || !user?.id || !save) return;
     if (!isHalfDayAbsentRisk) return;
+    if ((db?.attendance || []).some((a) => String(a.uid || a.user_id) === String(user.id) && String(a.date || '').slice(0, 10) === sheetDate && hasCompanyVisitOnRecord(a))) return;
     try {
       if (localStorage.getItem(`cegs_clause40_waived_${user.id}_${sheetDate}`) === '1' || localStorage.getItem(`cegs_clause40_waived_ALL_${sheetDate}`) === '1') return;
     } catch {}
@@ -11757,7 +11760,7 @@ export function RecruitmentPage({ db, save, user, setView, setQuickViewUser, set
  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
  <span style={{ fontWeight: 800, fontSize: 13, color: '#111827' }}>{emp.name}</span>
  <span style={{ background: emp.pct >= 60 ? '#E6F4EA' : emp.pct < 40 ? '#FEE2E2' : '#FEF7E0', color: emp.pct >= 60 ? '#137333' : emp.pct < 40 ? '#991B1B' : '#B06000', borderRadius: 99, padding: '2px 8px', fontSize: 10, fontWeight: 800 }}>
- {emp.pct}% {emp.pct >= 60 ? 'Done' : (typeof window !== 'undefined' && (localStorage.getItem(`cegs_clause40_waived_${emp.id}_${sheetDate}`) === '1' || localStorage.getItem(`cegs_clause40_waived_ALL_${sheetDate}`) === '1')) ? 'Waived (HR)' : emp.pct < 40 ? 'Half-day risk' : 'At risk'}
+ {emp.pct}% {emp.pct >= 60 ? 'Done' : (db?.attendance || []).some(a => String(a.uid || a.user_id) === String(emp.id) && String(a.date || '').slice(0, 10) === sheetDate && hasCompanyVisitOnRecord(a)) ? 'Waived (Visit)' : (typeof window !== 'undefined' && (localStorage.getItem(`cegs_clause40_waived_${emp.id}_${sheetDate}`) === '1' || localStorage.getItem(`cegs_clause40_waived_ALL_${sheetDate}`) === '1')) ? 'Waived (HR)' : emp.pct < 40 ? 'Half-day risk' : 'At risk'}
  </span>
  </div>
  <div style={{ fontSize: 11, color: '#6B7280', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>

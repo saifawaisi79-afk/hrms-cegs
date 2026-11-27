@@ -20,6 +20,7 @@ import {
   calcCombinedAttendancePenalty,
   calcHalfDayPenalty,
   halfDaysFromMistakeCount,
+  hasCompanyVisitOnRecord,
 } from '@/lib/attendance-policy';
 import { istIsoDate } from '@/lib/ist-time';
 
@@ -190,8 +191,10 @@ export async function persistAttendanceWarning({ userId, type, note, date }) {
   const uidStr = String(userId);
   let waivedByPermission = false;
   try {
-    const attRec = await Attendance.findOne({ user_id: userId, date: isoDate }).select('source status early_logout_allowed clause40_waived').lean();
-    if (type === 'late_clock_in' && attRec?.source === 'override' && attRec?.status === 'present') {
+    const attRec = await Attendance.findOne({ user_id: userId, date: isoDate }).select('source status early_logout_allowed clause40_waived visit_status company_visit_out_time visit_logs').lean();
+    if (hasCompanyVisitOnRecord(attRec)) {
+      waivedByPermission = true;
+    } else if (type === 'late_clock_in' && attRec?.source === 'override' && attRec?.status === 'present') {
       waivedByPermission = true;
     } else if (type === 'early_clock_out') {
       if (attRec?.early_logout_allowed) {

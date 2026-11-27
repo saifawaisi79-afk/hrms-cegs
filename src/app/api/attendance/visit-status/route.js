@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import Attendance from '@/lib/models/Attendance';
+import AttendanceWarning from '@/lib/models/AttendanceWarning';
+import SystemSetting from '@/lib/models/SystemSetting';
+import PermissionLog from '@/lib/models/PermissionLog';
+import User from '@/lib/models/User';
 import Notification from '@/lib/models/Notification';
 import { getAuthUser } from '@/lib/auth';
 import { toIsoDate } from '@/lib/auto-absent';
 import { istTimeString, normalizePunchTime } from '@/lib/ist-time';
+import { syncPayrollAttendanceDeduction } from '@/lib/attendance-deductions';
 
 function flattenAttendance(a) {
   const obj = a.toObject ? a.toObject() : a;
@@ -60,9 +65,16 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Already clocked out for today' }, { status: 400 });
   }
 
+  let waivedWarnings = 0;
+
   if (action === 'company_visit') {
     existing.visit_status = 'company_visit';
     existing.company_visit_out_time = nowTimeStr;
+    existing.clause40_waived = true;
+    existing.clause40_reason = 'Auto-waived: Company Visit';
+    if (existing.status === 'late' || existing.status === 'half_day') {
+      existing.status = 'present';
+    }
     if (!Array.isArray(existing.visit_logs)) {
       existing.visit_logs = [];
     }
@@ -78,7 +90,7 @@ export async function POST(request) {
         sender_id: null,
         recipient_id: authUser.id,
         title: 'Company Visit Logged',
-        message: `Marked departure for company visit at ${nowTimeStr}. Your 9-hour attendance timer continues ticking normally.`,
+        message: `Marked departure for company visit at ${nowTimeStr}. Your 9-hour attendance timer continues ticking normally, and attendance/40% warnings for today are waived.`,
         type: 'Attendance',
         created_at: new Date().toISOString(),
       });
@@ -110,6 +122,65 @@ export async function POST(request) {
 
   await existing.save();
 
+  if (action === 'company_visit') {
+    const uidStr = String(authUser.id);
+    try {
+      const key = `clause40_waivers_${todayStr}`;
+      const setting = await SystemSetting.findOne({ key }).lean();
+      let waivers = [];
+      try {
+        if (setting?.value) waivers = JSON.parse(setting.value).map(String);
+      } catch {}
+      if (!waivers.includes(uidStr)) {
+        waivers.push(uidStr);
+        await SystemSetting.findOneAndUpdate(
+          { key },
+          { value: JSON.stringify(waivers) },
+          { upsert: true }
+        );
+      }
+    } catch (e) {
+      console.warn('Company visit waiver setting error:', e?.message || e);
+    }
+
+    try {
+      const delRes = await AttendanceWarning.deleteMany({ user_id: authUser.id, date: todayStr });
+      waivedWarnings = delRes?.deletedCount || 0;
+      const [yearStr, monthStr] = todayStr.split('-');
+      const syncMonth = parseInt(monthStr, 10);
+      const syncYear = parseInt(yearStr, 10);
+      if (syncMonth && syncYear) {
+        await syncPayrollAttendanceDeduction(authUser.id, syncMonth, syncYear);
+      }
+    } catch (e) {
+      console.warn('Company visit warning cleanup error:', e?.message || e);
+    }
+
+    try {
+      const existingLog = await PermissionLog.findOne({
+        user_id: authUser.id,
+        permission_type: 'clause_40_waive',
+        effective_date: todayStr,
+        action: 'granted',
+      }).lean();
+      if (!existingLog) {
+        const u = await User.findById(authUser.id).select('name email employee_id').lean();
+        await PermissionLog.create({
+          user_id: authUser.id,
+          user_name: u?.name || authUser.name || 'Employee',
+          user_email: u?.email || authUser.email || '',
+          employee_id: u?.employee_id || authUser.employee_id || '',
+          permission_type: 'clause_40_waive',
+          action: 'granted',
+          effective_date: todayStr,
+          reason: 'Auto-waived: Company Visit logged',
+          granted_by: 'System (Company Visit)',
+          granted_by_role: 'system',
+        });
+      }
+    } catch {}
+  }
+
   return NextResponse.json({
     message: action === 'company_visit' ? 'Marked Company Visit successfully' : 'Marked Back to Office successfully',
     action,
@@ -117,6 +188,7 @@ export async function POST(request) {
     company_visit_out_time: existing.company_visit_out_time,
     company_visit_in_time: existing.company_visit_in_time,
     visit_logs: existing.visit_logs,
+    waivedWarnings,
     record: flattenAttendance(existing),
   });
 }
